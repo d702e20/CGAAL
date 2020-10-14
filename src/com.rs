@@ -2,13 +2,16 @@ use crate::common::{WorkerId, Message, VertexAssignment};
 use crossbeam_channel::{Sender, Receiver, unbounded};
 use std::hash::Hash;
 
+/// Broker implement the function of W_E, W_N, M_R and M_A
 pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
+    /// Send message to worker with id `to`
     fn send(&self, to: WorkerId, msg: Message<V>);
 
     /// Signal to all workers a terminate because a result have been
     fn terminate(&self, assignment: VertexAssignment);
 }
 
+/// Implements Broker using channels from crossbeam_channel
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
     term_chans: Vec<Sender<VertexAssignment>>

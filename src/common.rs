@@ -4,6 +4,7 @@ pub type WorkerId = u64;
 
 #[derive(Clone, Copy)]
 pub enum VertexAssignment {
+    // UNEXPLORED is implemented as hashmap doesn't contain the key/vertex
     UNDECIDED,
     FALSE,
     TRUE,
