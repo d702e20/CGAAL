@@ -5,8 +5,6 @@ use std::hash::Hash;
 pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
     fn send(&self, to: WorkerId, msg: Message<V>);
 
-    fn broadcast(&self, msg: Message<V>);
-
     fn terminate(&self);
 }
 
@@ -22,12 +20,6 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
             .expect("receiver id out of bounds")
             .send(msg)
             .expect(&*format!("Send to worker {} failed", to));
-    }
-
-    fn broadcast(&self, msg: Message<V>) {
-        for i in 0..self.workers.len() {
-            self.send(i as u64, msg.clone());
-        }
     }
 
     fn terminate(&self) {
