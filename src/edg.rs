@@ -39,7 +39,7 @@ struct Worker<B: Broker<V>, G: ExtendedDependencyGraph<V>, V: Hash + Eq + Partia
     depends: HashMap<V, HashSet<Edges<V>>>,
     interests: HashMap<V, HashSet<WorkerId>>,
     msg_rx: Receiver<Message<V>>,
-    term_rx: Receiver<()>,
+    term_rx: Receiver<VertexAssignment>,
     broker: Arc<B>,
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
@@ -61,7 +61,7 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
         id: WorkerId,
         v0: V,
         msg_rx: Receiver<Message<V>>,
-        term_rx: Receiver<()>,
+        term_rx: Receiver<VertexAssignment>,
         broker: Arc<B>,
         edg: G,
     ) -> Self {
@@ -84,43 +84,44 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
         }
     }
 
+    // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
     pub fn run(&mut self) -> VertexAssignment {
-        if self.is_owner(&self.v0.clone()) {
+        if self.is_owner(&self.v0.clone()) { // Alg 1, Line 2
             self.explore(&self.v0.clone());
         }
 
+        let term_rx = self.term_rx.clone();
+        let msg_rx = self.msg_rx.clone();
+
+        let mut select = Select::new();
+        let oper_term = select.recv(&term_rx);
+        let oper_msg = select.recv(&msg_rx);
+
         loop {
-            // TODO use select! from crossbeam and remove Message::TERMINATE
-            // Check for termination signal
-            match self.term_rx.try_recv() {
-                Ok(_) => break,
-                Err(err) => match err {
-                    TryRecvError::Empty => {} // Continue operating
-                    TryRecvError::Disconnected => {
-                        panic!("Termination channel disconnected unexpectedly")
+            let oper = select.select();
+            match oper.index() {
+                i if i == oper_term => {
+                    match oper.recv(&term_rx) { // Alg 1, Line 10
+                        Ok(assignment) => return match assignment { // Alg 1, Line 11-12
+                            VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
+                            VertexAssignment::FALSE => VertexAssignment::FALSE,
+                            VertexAssignment::TRUE => VertexAssignment::TRUE,
+                        },
+                        Err(err) => panic!("Receiving from termination channel failed with: {}", err),
                     }
                 },
-            }
-
-            // Receive work
-            let msg = self.msg_rx
-                .recv()
-                .expect("Message channel disconnected unexpectedly");
-            match msg {
-                Message::HYPER(edge) => self.process_hyper_edge(edge),
-                Message::NEGATION(edge) => self.process_negation_edge(edge),
-                Message::REQUEST { vertex, worker_id } => self.process_request(&vertex, worker_id),
-                Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment),
-                Message::TERMINATE => break,
-            }
-        }
-
-        match self.assignment.get(&self.v0) {
-            None => panic!("v0 never received an assignment"),
-            Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                VertexAssignment::FALSE => VertexAssignment::FALSE,
-                VertexAssignment::TRUE => VertexAssignment::TRUE,
+                i if i == oper_msg => {
+                    match oper.recv(&msg_rx) { // Alg 1, Line 5-9
+                        Ok(msg) => match msg {
+                            Message::HYPER(edge) => self.process_hyper_edge(edge), // Alg 1, Line 6
+                            Message::NEGATION(edge) => self.process_negation_edge(edge), // Alg 1, Line 7
+                            Message::REQUEST { vertex, worker_id } => self.process_request(&vertex, worker_id), // Alg 1, Line 8
+                            Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment) // Alg 1, Line 9
+                        }
+                        Err(err) => panic!("Receiving from message channel failed with: {}", err),
+                    }
+                },
+                _ => unreachable!(),
             }
         }
     }
@@ -257,7 +258,8 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
 
     fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
         if *vertex == self.v0 { // Line 2
-            todo!("Announce result, and terminate all workers")
+            self.broker.terminate(assignment);
+            return
         }
         self.assignment.insert(vertex.clone(), assignment); // Line 2
         match self.interests.get(&vertex) { // Line 3

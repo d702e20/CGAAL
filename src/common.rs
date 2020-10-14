@@ -33,5 +33,4 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     NEGATION(NegationEdge<V>),
     REQUEST { vertex: V, worker_id: WorkerId },
     ANSWER { vertex: V, assignment: VertexAssignment },
-    TERMINATE, // NOTE: this is needed along with a separate termination channel to avoid blocking indefinitely on an empty queue
 }
