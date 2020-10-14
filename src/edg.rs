@@ -1,11 +1,11 @@
+use crate::com::{Broker, ChannelBroker};
+use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
 use crossbeam_channel::{Receiver, Select};
-use std::collections::{HashMap, HashSet};
-use std::thread;
-use crate::common::{Edges, WorkerId, Message, HyperEdge, VertexAssignment, NegationEdge};
-use crate::com::{ChannelBroker, Broker};
-use std::sync::Arc;
-use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
+use std::thread;
 
 const WORKER_COUNT: u64 = 4;
 
@@ -15,7 +15,13 @@ pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
     fn succ(&self, vertex: &V) -> HashSet<Edges<V>>;
 }
 
-pub fn distributed_certain_zero<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + 'static, V: Hash + Eq + PartialEq + Clone + Send + Sync + 'static>(edg: G, v0: V) {
+pub fn distributed_certain_zero<
+    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + 'static,
+    V: Hash + Eq + PartialEq + Clone + Send + Sync + 'static,
+>(
+    edg: G,
+    v0: V,
+) {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
     let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(WORKER_COUNT);
     let broker = Arc::new(broker);
@@ -23,14 +29,7 @@ pub fn distributed_certain_zero<G: ExtendedDependencyGraph<V> + Send + Sync + Cl
     for i in (0..WORKER_COUNT).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
-        let mut worker = Worker::new(
-            i,
-            v0.clone(),
-            msg_rx,
-            term_rx,
-            broker.clone(),
-            edg.clone(),
-        );
+        let mut worker = Worker::new(i, v0.clone(), msg_rx, term_rx, broker.clone(), edg.clone());
         thread::spawn(move || worker.run());
     }
 }
@@ -55,7 +54,12 @@ fn vertex_owner<V: Hash + Eq + PartialEq + Clone>(vertex: V) -> WorkerId {
     hasher.finish() % WORKER_COUNT
 }
 
-impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + PartialEq + Clone> Worker<B, G, V> {
+impl<
+        B: Broker<V>,
+        G: ExtendedDependencyGraph<V> + Send + Sync,
+        V: Hash + Eq + PartialEq + Clone,
+    > Worker<B, G, V>
+{
     #[inline]
     fn is_owner(&self, vertex: &V) -> bool {
         vertex_owner(vertex) == self.id
@@ -90,7 +94,8 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
 
     // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
     pub fn run(&mut self) -> VertexAssignment {
-        if self.is_owner(&self.v0.clone()) { // Alg 1, Line 2
+        // Alg 1, Line 2
+        if self.is_owner(&self.v0.clone()) {
             self.explore(&self.v0.clone());
         }
 
@@ -105,24 +110,41 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
         loop {
             let oper = select.select();
             match oper.index() {
-                i if i == oper_term => { // Termination signal indicating result have been found
-                    match oper.recv(&term_rx) { // Alg 1, Line 10
-                        Ok(assignment) => return match assignment { // Alg 1, Line 11-12
-                            VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                            VertexAssignment::FALSE => VertexAssignment::FALSE,
-                            VertexAssignment::TRUE => VertexAssignment::TRUE,
-                        },
-                        Err(err) => panic!("Receiving from termination channel failed with: {}", err),
+                // Termination signal indicating result have been found
+                i if i == oper_term => {
+                    // Alg 1, Line 10
+                    match oper.recv(&term_rx) {
+                        Ok(assignment) => {
+                            // Alg 1, Line 11-12
+                            return match assignment {
+                                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
+                                VertexAssignment::FALSE => VertexAssignment::FALSE,
+                                VertexAssignment::TRUE => VertexAssignment::TRUE,
+                            }
+                        }
+                        Err(err) => {
+                            panic!("Receiving from termination channel failed with: {}", err)
+                        }
                     }
                 },
-                i if i == oper_msg => { // Received more work
-                    match oper.recv(&msg_rx) { // Alg 1, Line 5-9
+                // Received more work
+                i if i == oper_msg => {
+                    match oper.recv(&msg_rx) {
+                        // Alg 1, Line 5-9
                         Ok(msg) => match msg {
-                            Message::HYPER(edge) => self.process_hyper_edge(edge), // Alg 1, Line 6
-                            Message::NEGATION(edge) => self.process_negation_edge(edge), // Alg 1, Line 7
-                            Message::REQUEST { vertex, worker_id } => self.process_request(&vertex, worker_id), // Alg 1, Line 8
-                            Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment) // Alg 1, Line 9
-                        }
+                            // Alg 1, Line 6
+                            Message::HYPER(edge) => self.process_hyper_edge(edge),
+                            // Alg 1, Line 7
+                            Message::NEGATION(edge) => self.process_negation_edge(edge),
+                            // Alg 1, Line 8
+                            Message::REQUEST { vertex, worker_id } => {
+                                self.process_request(&vertex, worker_id)
+                            }
+                            // Alg 1, Line 9
+                            Message::ANSWER { vertex, assignment } => {
+                                self.process_answer(&vertex, assignment)
+                            }
+                        },
                         Err(err) => panic!("Receiving from message channel failed with: {}", err),
                     }
                 },
@@ -143,30 +165,45 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
     }
 
     fn explore(&mut self, vertex: &V) {
-        self.assignment.insert(vertex.clone(), VertexAssignment::UNDECIDED); // Line 2
+        // Line 2
+        self.assignment
+            .insert(vertex.clone(), VertexAssignment::UNDECIDED);
 
-        if self.is_owner(vertex) { // Line 3
+        // Line 3
+        if self.is_owner(vertex) {
             let successors = self.succ(vertex); // Line 4
-            if successors.is_empty() { // Line 4
+            if successors.is_empty() {
+                // Line 4
                 self.final_assign(vertex, VertexAssignment::FALSE);
             } else {
-                for edge in successors { // Line 5
+                for edge in successors {
+                    // Line 5
                     match edge {
-                        Edges::HYPER(edge) => self.broker.send(self.id, Message::HYPER(edge.clone())), // Line 5
-                        Edges::NEGATION(edge) => self.broker.send(self.id, Message::NEGATION(edge.clone())), // Line 5
+                        Edges::HYPER(edge) => {
+                            self.broker.send(self.id, Message::HYPER(edge.clone()))
+                        }
+                        Edges::NEGATION(edge) => {
+                            self.broker.send(self.id, Message::NEGATION(edge.clone()))
+                        }
                     }
                 }
             }
         } else {
-            self.broker.send( // Line 7
+            // Line 7
+            self.broker.send(
                 vertex_owner(vertex),
-                Message::REQUEST { vertex: vertex.clone(), worker_id: self.id }
+                Message::REQUEST {
+                    vertex: vertex.clone(),
+                    worker_id: self.id,
+                },
             )
         }
     }
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
-        let all_final = edge.targets // Line 3, condition
+        // Line 3, condition
+        let all_final = edge
+            .targets
             .iter()
             .all(|target| {
                 if let Some(f) = self.assignment.get(target) {
@@ -176,12 +213,15 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
                 }
             });
 
-        if all_final { // Line 3
+        // Line 3
+        if all_final {
             self.final_assign(&edge.source, VertexAssignment::TRUE);
             return;
         }
 
-        let any_target = edge.targets // Line 4, condition
+        // Line 4, condition
+        let any_target = edge
+            .targets
             .iter()
             .any(|target| {
                 if let Some(f) = self.assignment.get(target) {
@@ -191,18 +231,21 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
                 }
             });
 
-        if any_target { // Line 4
+        // Line 4
+        if any_target {
             self.delete_edge(Edges::HYPER(edge));
             return;
         }
 
-        for target in &edge.targets { // Line 5-8
-            match self.assignment.get(&target) { // Condition from line 5
-                None => {},
+        // Line 5-8
+        for target in &edge.targets {
+            // Condition from line 5
+            match self.assignment.get(&target) {
+                None => {}
                 Some(f) => match f {
-                    VertexAssignment::UNDECIDED => {},
+                    VertexAssignment::UNDECIDED => {}
                     _ => continue,
-                }
+                },
             }
 
             // Line 7-8, target = u
@@ -233,14 +276,17 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
     }
 
     fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
-        match self.assignment.get(&edge.target) { // Line 3
+        // Line 3
+        match self.assignment.get(&edge.target) {
             None => {
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
                 self.broker.send(self.id, Message::NEGATION(edge.clone()));
                 self.explore(&edge.target);
-            },
+            }
             Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => self.final_assign(&edge.source, VertexAssignment::TRUE),
+                VertexAssignment::UNDECIDED => {
+                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                }
                 VertexAssignment::FALSE => self.final_assign(&edge.source, VertexAssignment::TRUE),
                 VertexAssignment::TRUE => self.delete_edge(Edges::NEGATION(edge)),
             },
@@ -252,8 +298,20 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             match assigned {
-                VertexAssignment::FALSE => self.broker.send(requester, Message::ANSWER { vertex: vertex.clone(), assignment: VertexAssignment::FALSE }),
-                VertexAssignment::TRUE => self.broker.send(requester, Message::ANSWER { vertex: vertex.clone(), assignment: VertexAssignment::TRUE }),
+                VertexAssignment::FALSE => self.broker.send(
+                    requester,
+                    Message::ANSWER {
+                        vertex: vertex.clone(),
+                        assignment: VertexAssignment::FALSE,
+                    },
+                ),
+                VertexAssignment::TRUE => self.broker.send(
+                    requester,
+                    Message::ANSWER {
+                        vertex: vertex.clone(),
+                        assignment: VertexAssignment::TRUE,
+                    },
+                ),
                 _ => {}
             }
         } else {
@@ -268,40 +326,41 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
     }
 
     fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
-        if *vertex == self.v0 { // Line 2
+        // Line 2
+        if *vertex == self.v0 {
             self.broker.terminate(assignment);
-            return
+            return;
         }
-        self.assignment.insert(vertex.clone(), assignment); // Line 2
-        match self.interests.get(&vertex) { // Line 3
+        // Line 2
+        self.assignment.insert(vertex.clone(), assignment);
+        // Line 3
+        match self.interests.get(&vertex) {
             None => {}
-            Some(interested) => {
-                interested.iter()
-                    .for_each(|worker_id| {
-                        self.broker.send(
-                            *worker_id,
-                            Message::ANSWER {
-                                vertex: vertex.clone(),
-                                assignment,
-                            }
-                        )
-                    })
-            }
+            Some(interested) => interested.iter().for_each(|worker_id| {
+                self.broker.send(
+                    *worker_id,
+                    Message::ANSWER {
+                        vertex: vertex.clone(),
+                        assignment,
+                    },
+                )
+            }),
         }
 
-        if let Some(depends) = self.depends.get(&vertex) { // Line 4
-            depends.iter()
-                .for_each(|edge| {
-                    match edge {
-                        Edges::HYPER(edge) => self.broker.send(self.id, Message::<V>::HYPER(edge.clone())),
-                        Edges::NEGATION(edge) => self.broker.send(self.id, Message::<V>::NEGATION(edge.clone())),
-                    }
-                });
+        // Line 4
+        if let Some(depends) = self.depends.get(&vertex) {
+            depends.iter().for_each(|edge| match edge {
+                Edges::HYPER(edge) => self.broker.send(self.id, Message::<V>::HYPER(edge.clone())),
+                Edges::NEGATION(edge) => self
+                    .broker
+                    .send(self.id, Message::<V>::NEGATION(edge.clone())),
+            });
         }
     }
 
     fn delete_edge(&mut self, edge: Edges<V>) {
-        let source = match edge { // Get v
+        // Get v
+        let source = match edge {
             Edges::HYPER(ref edge) => edge.source.clone(),
             Edges::NEGATION(ref edge) => edge.source.clone(),
         };
@@ -337,7 +396,8 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
 
     /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted
     fn succ(&mut self, vertex: &V) -> HashSet<Edges<V>> {
-        if let Some(successors) = self.successors.get(vertex) { // List of successors is already allocated for the vertex
+        if let Some(successors) = self.successors.get(vertex) {
+            // List of successors is already allocated for the vertex
             successors.clone()
         } else {
             // Setup the successors list the first time it is requested

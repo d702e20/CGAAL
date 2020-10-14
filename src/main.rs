@@ -1,10 +1,11 @@
-use std::collections::hash_map::RandomState;
 use crate::common::Edges;
+use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
 mod edg;
 mod com;
 mod common;
+mod edg;
 
 #[derive(Clone)]
 struct EmptyGraph {}
@@ -16,5 +17,5 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
 }
 
 fn main() {
-    edg::distributed_certain_zero(EmptyGraph{}, 0);
+    edg::distributed_certain_zero(EmptyGraph {}, 0);
 }

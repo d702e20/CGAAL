@@ -1,5 +1,5 @@
-use crate::common::{WorkerId, Message, VertexAssignment};
-use crossbeam_channel::{Sender, Receiver, unbounded};
+use crate::common::{Message, VertexAssignment, WorkerId};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::hash::Hash;
 
 /// Broker implement the function of W_E, W_N, M_R and M_A
@@ -14,7 +14,7 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
 /// Implements Broker using channels from crossbeam_channel
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
-    term_chans: Vec<Sender<VertexAssignment>>
+    term_chans: Vec<Sender<VertexAssignment>>,
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
@@ -32,13 +32,22 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
                 .get(i as usize)
                 .expect("receiver id out of bounds")
                 .send(assignment)
-                .expect(&*format!("Failed to send termination signal to worker {}", i));
+                .expect(&*format!(
+                    "Failed to send termination signal to worker {}",
+                    i
+                ));
         }
     }
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
-    pub fn new(worker_count: u64) -> (Self, Vec<Receiver<Message<V>>>, Vec<Receiver<VertexAssignment>>) {
+    pub fn new(
+        worker_count: u64,
+    ) -> (
+        Self,
+        Vec<Receiver<Message<V>>>,
+        Vec<Receiver<VertexAssignment>>,
+    ) {
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);
 
@@ -57,6 +66,13 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
             term_receivers.push(receiver);
         }
 
-        (Self { workers: msg_senders, term_chans: term_senders }, msg_receivers, term_receivers)
+        (
+            Self {
+                workers: msg_senders,
+                term_chans: term_senders,
+            },
+            msg_receivers,
+            term_receivers,
+        )
     }
 }

@@ -32,6 +32,12 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     HYPER(HyperEdge<V>),
     NEGATION(NegationEdge<V>),
-    REQUEST { vertex: V, worker_id: WorkerId },
-    ANSWER { vertex: V, assignment: VertexAssignment },
+    REQUEST {
+        vertex: V,
+        worker_id: WorkerId,
+    },
+    ANSWER {
+        vertex: V,
+        assignment: VertexAssignment,
+    },
 }
