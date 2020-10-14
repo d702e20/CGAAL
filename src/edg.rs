@@ -17,7 +17,7 @@ pub fn distributed_certain_zero<G: ExtendedDependencyGraph<V> + Send + Sync + Cl
     let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(WORKER_COUNT);
     let broker = Arc::new(broker);
 
-    for i in WORKER_COUNT..0 {
+    for i in (0..WORKER_COUNT).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
         let mut worker = Worker::new(
@@ -115,7 +115,7 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
             }
         }
 
-        return match self.assignment.get(&self.v0) {
+        match self.assignment.get(&self.v0) {
             None => panic!("v0 never received an assignment"),
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
@@ -163,10 +163,7 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
             .iter()
             .all(|target| {
                 if let Some(f) = self.assignment.get(target) {
-                    match f {
-                        VertexAssignment::TRUE => true,
-                        _ => false,
-                    }
+                    matches!(f, VertexAssignment::TRUE)
                 } else {
                     false
                 }
@@ -181,10 +178,7 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
             .iter()
             .any(|target| {
                 if let Some(f) = self.assignment.get(target) {
-                    match f {
-                        VertexAssignment::FALSE => true,
-                        _ => false,
-                    }
+                    matches!(f, VertexAssignment::FALSE)
                 } else {
                     false
                 }
@@ -275,7 +269,7 @@ impl<B: Broker<V>, G: ExtendedDependencyGraph<V> + Send + Sync, V: Hash + Eq + P
                             *worker_id,
                             Message::ANSWER {
                                 vertex: vertex.clone(),
-                                assignment: assignment.clone()
+                                assignment,
                             }
                         )
                     })
