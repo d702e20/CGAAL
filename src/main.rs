@@ -6,10 +6,11 @@ mod edg;
 mod com;
 mod common;
 
+#[derive(Clone)]
 struct EmptyGraph {}
 
-impl edg::ExtendedDependencyGraph for EmptyGraph {
-    fn succ(&self, _vert: i32) -> HashSet<Edges, RandomState> {
+impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
+    fn succ(&self, _vert: &i32) -> HashSet<Edges<i32>, RandomState> {
         HashSet::new()
     }
 }

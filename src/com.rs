@@ -1,21 +1,22 @@
 use crate::common::{WorkerId, Message};
 use crossbeam_channel::{Sender, Receiver, unbounded};
+use std::hash::Hash;
 
-pub trait Broker {
-    fn send(&self, to: WorkerId, msg: Message);
+pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
+    fn send(&self, to: WorkerId, msg: Message<V>);
 
-    fn broadcast(&self, msg: Message);
+    fn broadcast(&self, msg: Message<V>);
 
     fn terminate(&self);
 }
 
-pub struct ChannelBroker {
-    workers: Vec<Sender<Message>>,
+pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
+    workers: Vec<Sender<Message<V>>>,
     term_chans: Vec<Sender<()>>
 }
 
-impl Broker for ChannelBroker {
-    fn send(&self, to: WorkerId, msg: Message) {
+impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
+    fn send(&self, to: WorkerId, msg: Message<V>) {
         self.workers
             .get(to as usize)
             .expect("receiver id out of bounds")
@@ -23,15 +24,15 @@ impl Broker for ChannelBroker {
             .expect(&*format!("Send to worker {} failed", to));
     }
 
-    fn broadcast(&self, msg: Message) {
+    fn broadcast(&self, msg: Message<V>) {
         for i in 0..self.workers.len() {
-            self.send(i as i32, msg.clone());
+            self.send(i as u64, msg.clone());
         }
     }
 
     fn terminate(&self) {
         for i in 0..self.workers.len() {
-            self.send(i as i32, Message::TERMINATE);
+            self.send(i as u64, Message::TERMINATE);
             self.term_chans
                 .get(i as usize)
                 .expect("receiver id out of bounds")
@@ -41,8 +42,8 @@ impl Broker for ChannelBroker {
     }
 }
 
-impl ChannelBroker {
-    pub fn new(worker_count: i32) -> (Self, Vec<Receiver<Message>>, Vec<Receiver<()>>) {
+impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
+    pub fn new(worker_count: u64) -> (Self, Vec<Receiver<Message<V>>>, Vec<Receiver<()>>) {
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);
 

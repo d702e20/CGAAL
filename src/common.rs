@@ -1,5 +1,6 @@
-pub type Vertex = i32;
-pub type WorkerId = i32;
+use std::hash::Hash;
+
+pub type WorkerId = u64;
 
 #[derive(Clone, Copy)]
 pub enum VertexAssignment {
@@ -9,28 +10,28 @@ pub enum VertexAssignment {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct HyperEdge {
-    pub source: Vertex,
-    pub targets: Vec<Vertex>,
+pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
+    pub source: V,
+    pub targets: Vec<V>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct NegationEdge {
-    pub source: Vertex,
-    pub target: Vertex,
+pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
+    pub source: V,
+    pub target: V,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub enum Edges {
-    HYPER(HyperEdge),
-    NEGATION(NegationEdge),
+pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
+    HYPER(HyperEdge<V>),
+    NEGATION(NegationEdge<V>),
 }
 
 #[derive(Clone)]
-pub enum Message {
-    HYPER(HyperEdge),
-    NEGATION(NegationEdge),
-    REQUEST { vertex: Vertex, worker_id: WorkerId },
-    ANSWER { vertex: Vertex, assignment: VertexAssignment },
+pub enum Message<V: Hash + Eq + PartialEq + Clone> {
+    HYPER(HyperEdge<V>),
+    NEGATION(NegationEdge<V>),
+    REQUEST { vertex: V, worker_id: WorkerId },
+    ANSWER { vertex: V, assignment: VertexAssignment },
     TERMINATE, // NOTE: this is needed along with a separate termination channel to avoid blocking indefinitely on an empty queue
 }
