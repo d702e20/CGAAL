@@ -1,4 +1,3 @@
-use crate::atl::PartialMoveChoice::SPECIFIC;
 use crate::common::{Edges, HyperEdge, NegationEdge};
 use crate::edg::ExtendedDependencyGraph;
 use std::collections::hash_map::RandomState;
@@ -6,100 +5,10 @@ use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-type Proposition = usize;
-type Player = usize;
-type State = usize;
-/// A given choice for all players
-type MoveVector = Vec<usize>;
-
-#[derive(Hash, Eq, PartialEq, Clone)]
-enum Phi {
-    TRUE,
-    PROPOSITION(Proposition),
-    NOT(Arc<Phi>),
-    AND(Arc<Phi>, Arc<Phi>),
-    NEXT(Player, Arc<Phi>),
-    UNTIL {
-        player: Player,
-        pre: Arc<Phi>,
-        until: Arc<Phi>,
-    },
-}
-
-#[derive(Clone)]
-struct EagerGameStructure {
-    /// K, number of players
-    player_count: u32,
-    /// Maps states to Vec of atomic proposition, aka the labeling function
-    labeling: Vec<HashSet<Proposition>>,
-    /// Maps states, then players recursively
-    transitions: Vec<DynVec>,
-    /// available moves for a player in a given state
-    moves: Vec<Vec<u32>>,
-}
-
-fn transition_lookup(choices: &[usize], transitions: &DynVec) -> State {
-    match transitions {
-        DynVec::NEST(v) => {
-            if choices.len() == 0 {
-                panic!("Fewer choices given than number of players in transitions");
-            }
-
-            println!("choice: {:?}", choices[0]);
-            let choice = choices[0];
-            let h: &DynVec = v.get(choice).expect("Out of bounds choice");
-
-            transition_lookup(&choices[1..choices.len()], h)
-        }
-        DynVec::BASE(state) => *state,
-    }
-}
-
-impl<'a> GameStructure<'a> for EagerGameStructure {
-    fn max_player(&self) -> u32 {
-        self.player_count
-    }
-
-    fn labels(&self, state: usize) -> &'a HashSet<Proposition, RandomState> {
-        todo!()
-        //self.labeling.get(state).expect(format!("").as_str())
-    }
-
-    fn transitions(&self, state: State, choices: Vec<usize>) -> State {
-        transition_lookup(
-            choices.as_slice(),
-            &self
-                .transitions
-                .get(state)
-                .expect(format!("Undefined state {}, no transitions", state).as_str()),
-        )
-    }
-
-    fn available_moves(&self, state: usize, player: usize) -> u32 {
-        *self
-            .moves
-            .get(state)
-            .expect(format!("Requested move for non-existent state {}", state).as_str())
-            .get(player)
-            .expect(
-                format!(
-                    "Request move for non-existent player {} from state {}",
-                    player, state
-                )
-                .as_str(),
-            )
-    }
-}
-
-trait GameStructure<'a> {
-    fn max_player(&self) -> u32;
-
-    fn labels(&self, state: usize) -> &'a HashSet<Proposition>;
-
-    fn transitions(&self, state: State, choices: Vec<usize>) -> State;
-
-    fn available_moves(&self, state: State, player: Player) -> u32;
-}
+use crate::atl::formula::Phi;
+use crate::atl::common::{Player, State, DynVec, transition_lookup};
+use crate::atl::gamestructure::GameStructure;
+use crate::atl::dependencygraph::PartialMoveChoice::SPECIFIC;
 
 struct ATLDependencyGraph<'a, G: GameStructure<'a>> {
     formula: Phi,
@@ -111,12 +20,6 @@ struct ATLDependencyGraph<'a, G: GameStructure<'a>> {
 struct ATLVertex {
     state: State,
     formula: Arc<Phi>,
-}
-
-#[derive(Clone)]
-enum DynVec {
-    NEST(Vec<Arc<DynVec>>),
-    BASE(State),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -394,6 +297,7 @@ mod test {
     use crate::atl::{DeltaIterator, DynVec, PartialMoveChoice, VarsIterator};
     use std::collections::HashSet;
     use std::sync::Arc;
+    use crate::atl::dependencygraph::{VarsIterator, PartialMoveChoice, DynVec, DeltaIterator};
 
     #[test]
     fn vars_iterator() {

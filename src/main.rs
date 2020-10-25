@@ -2,6 +2,7 @@ use crate::common::Edges;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
+mod atl;
 mod com;
 mod common;
 mod edg;
