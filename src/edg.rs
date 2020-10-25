@@ -292,27 +292,30 @@ impl<
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             match assigned {
-                VertexAssignment::FALSE => self.broker.send(
-                    requester,
-                    Message::ANSWER {
-                        vertex: vertex.clone(),
-                        assignment: VertexAssignment::FALSE,
-                    },
-                ),
-                VertexAssignment::TRUE => self.broker.send(
-                    requester,
-                    Message::ANSWER {
-                        vertex: vertex.clone(),
-                        assignment: VertexAssignment::TRUE,
-                    },
-                ),
-                _ => {}
+                VertexAssignment::FALSE => {
+                    return self.broker.send(
+                        requester,
+                        Message::ANSWER {
+                            vertex: vertex.clone(),
+                            assignment: VertexAssignment::FALSE,
+                        },
+                    )
+                }
+                VertexAssignment::TRUE => {
+                    return self.broker.send(
+                        requester,
+                        Message::ANSWER {
+                            vertex: vertex.clone(),
+                            assignment: VertexAssignment::TRUE,
+                        },
+                    )
+                }
+                VertexAssignment::UNDECIDED => {} // fallthrough
             }
-        } else {
-            // Final assignment of `vertex` is not yet known
-            self.mark_interest(vertex, requester);
-            self.explore(&vertex);
         }
+        // Final assignment of `vertex` is not yet known
+        self.mark_interest(vertex, requester);
+        self.explore(&vertex);
     }
 
     fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
