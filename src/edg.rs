@@ -120,13 +120,13 @@ impl<
                                 VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
                                 VertexAssignment::FALSE => VertexAssignment::FALSE,
                                 VertexAssignment::TRUE => VertexAssignment::TRUE,
-                            }
+                            };
                         }
                         Err(err) => {
                             panic!("Receiving from termination channel failed with: {}", err)
                         }
                     }
-                },
+                }
                 // Received more work
                 i if i == oper_msg => {
                     match oper.recv(&msg_rx) {
@@ -147,7 +147,7 @@ impl<
                         },
                         Err(err) => panic!("Receiving from message channel failed with: {}", err),
                     }
-                },
+                }
                 _ => unreachable!(),
             }
         }
@@ -202,16 +202,13 @@ impl<
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
         // Line 3, condition
-        let all_final = edge
-            .targets
-            .iter()
-            .all(|target| {
-                if let Some(f) = self.assignment.get(target) {
-                    matches!(f, VertexAssignment::TRUE)
-                } else {
-                    false
-                }
-            });
+        let all_final = edge.targets.iter().all(|target| {
+            if let Some(f) = self.assignment.get(target) {
+                matches!(f, VertexAssignment::TRUE)
+            } else {
+                false
+            }
+        });
 
         // Line 3
         if all_final {
@@ -220,16 +217,13 @@ impl<
         }
 
         // Line 4, condition
-        let any_target = edge
-            .targets
-            .iter()
-            .any(|target| {
-                if let Some(f) = self.assignment.get(target) {
-                    matches!(f, VertexAssignment::FALSE)
-                } else {
-                    false
-                }
-            });
+        let any_target = edge.targets.iter().any(|target| {
+            if let Some(f) = self.assignment.get(target) {
+                matches!(f, VertexAssignment::FALSE)
+            } else {
+                false
+            }
+        });
 
         // Line 4
         if any_target {
