@@ -116,7 +116,10 @@ impl DeltaIterator {
         let known = HashSet::new();
         let mut current_move = Vec::with_capacity(moves.len());
         for i in 0..moves.len() {
-            current_move.push(0);
+            current_move.push(match moves[i] {
+                PartialMoveChoice::RANGE(_) => 0,
+                PartialMoveChoice::SPECIFIC(i) => i,
+            });
         }
 
         Self {
