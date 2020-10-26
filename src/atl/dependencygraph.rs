@@ -143,10 +143,10 @@ impl DeltaIterator {
                 PartialMoveChoice::SPECIFIC(_) => {
                     roll_over_pos += 1;
                 }
-                PartialMoveChoice::RANGE(max) => {
+                PartialMoveChoice::RANGE(cardinality) => {
                     let new_value = self.current_move[roll_over_pos] + 1;
 
-                    if new_value >= max {
+                    if new_value >= cardinality {
                         // Rolled over
                         self.current_move[roll_over_pos] = 0;
                         roll_over_pos += 1;
