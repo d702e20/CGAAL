@@ -1,4 +1,4 @@
 mod common;
-mod formula;
 mod dependencygraph;
+mod formula;
 mod gamestructure;

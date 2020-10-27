@@ -1,18 +1,18 @@
+use crate::atl::common::{transition_lookup, DynVec, Proposition, State};
 use crate::atl::gamestructure::GameStructure;
-use crate::atl::common::{Proposition, State, DynVec, transition_lookup};
-use std::collections::HashSet;
 use std::collections::hash_map::RandomState;
+use std::collections::HashSet;
 
 #[derive(Clone)]
-struct EagerGameStructure {
+pub(crate) struct EagerGameStructure {
     /// K, number of players
-    player_count: u32,
+    pub player_count: u32,
     /// Maps states to Vec of atomic proposition, aka the labeling function
-    labeling: Vec<HashSet<Proposition>>,
+    pub labeling: Vec<HashSet<Proposition>>,
     /// Maps states, then players recursively
-    transitions: Vec<DynVec>,
+    pub transitions: Vec<DynVec>,
     /// available moves for a player in a given state
-    moves: Vec<Vec<u32>>,
+    pub moves: Vec<Vec<u32>>,
 }
 
 impl<'a> GameStructure<'a> for EagerGameStructure {
@@ -22,7 +22,9 @@ impl<'a> GameStructure<'a> for EagerGameStructure {
 
     fn labels(&self, state: usize) -> &'a HashSet<Proposition, RandomState> {
         todo!()
-        //self.labeling.get(state).expect(format!("").as_str())
+        /*self.labeling
+        .get(state)
+        .expect(format!("Out of bounds state ({}) given to labeling function", state).as_str())*/
     }
 
     fn transitions(&self, state: State, choices: Vec<usize>) -> State {
@@ -46,7 +48,14 @@ impl<'a> GameStructure<'a> for EagerGameStructure {
                     "Request move for non-existent player {} from state {}",
                     player, state
                 )
-                    .as_str(),
+                .as_str(),
             )
+    }
+
+    fn move_count(&self, state: usize) -> Vec<u32> {
+        self.moves
+            .get(state)
+            .expect(format!("Requested move for non-existent state {}", state).as_str())
+            .clone()
     }
 }

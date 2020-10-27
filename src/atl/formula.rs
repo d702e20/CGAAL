@@ -1,16 +1,22 @@
+use crate::atl::common::{Player, Proposition};
 use std::sync::Arc;
-use crate::atl::common::{Proposition, Player};
 
 #[derive(Hash, Eq, PartialEq, Clone)]
 pub(crate) enum Phi {
-    TRUE,
     PROPOSITION(Proposition),
     NOT(Arc<Phi>),
     AND(Arc<Phi>, Arc<Phi>),
-    NEXT(Player, Arc<Phi>),
+    NEXT {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
+    },
     UNTIL {
-        player: Player,
+        players: Vec<Player>,
         pre: Arc<Phi>,
         until: Arc<Phi>,
+    },
+    ALWAYS {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
     },
 }

@@ -1,7 +1,10 @@
+use crate::atl::common::{Player, Proposition, State};
 use std::collections::HashSet;
-use crate::atl::common::{Proposition, State, Player};
 
 mod eager;
+
+#[allow(unused_imports)]
+pub(crate) use eager::EagerGameStructure;
 
 pub(crate) trait GameStructure<'a> {
     fn max_player(&self) -> u32;
@@ -10,5 +13,9 @@ pub(crate) trait GameStructure<'a> {
 
     fn transitions(&self, state: State, choices: Vec<usize>) -> State;
 
+    /// Returns the number of moves `player` can take when the game is in `state`.
     fn available_moves(&self, state: State, player: Player) -> u32;
+
+    /// Returns the number of moves each player can take when the game is in `state`.
+    fn move_count(&self, state: State) -> Vec<u32>;
 }
