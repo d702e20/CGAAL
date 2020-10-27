@@ -256,7 +256,7 @@ impl<
         }
     }
 
-    // Remove `dependency` as a requisite for finding the final assignment of `vertex`
+    // Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn remove_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         if let Some(dependencies) = self.depends.get_mut(vertex) {
             dependencies.remove(&dependency);
