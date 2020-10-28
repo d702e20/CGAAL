@@ -360,7 +360,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::ALWAYS { players, formula } => todo!("depdency graph for 'always'"),
             },
             ATLVertex::PARTIAL {
                 state,
