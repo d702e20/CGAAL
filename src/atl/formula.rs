@@ -15,8 +15,4 @@ pub(crate) enum Phi {
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
-    ALWAYS {
-        players: Vec<Player>,
-        formula: Arc<Phi>,
-    },
 }

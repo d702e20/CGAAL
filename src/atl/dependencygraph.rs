@@ -144,16 +144,17 @@ impl Iterator for VarsIterator {
     }
 }
 
-struct DeltaIterator<'a, G: GameStructure<'a>> {
+struct DeltaIterator<'a, 'b, G: GameStructure<'b>> {
     game_structure: &'a G,
     state: State,
     moves: PartialMove,
     known: HashSet<State>,
     completed: bool,
     current_move: Vec<State>,
+    phantom: PhantomData<& 'b G>,
 }
 
-impl<'a, G: GameStructure<'a>> DeltaIterator<'a, G> {
+impl<'a, 'b, G: GameStructure<'b>> DeltaIterator<'a, 'b, G> {
     fn new(game_structure: &'a G, state: State, moves: PartialMove) -> Self {
         let known = HashSet::new();
         let mut current_move = Vec::with_capacity(moves.len());
@@ -171,6 +172,7 @@ impl<'a, G: GameStructure<'a>> DeltaIterator<'a, G> {
             known,
             completed: false,
             current_move,
+            phantom: Default::default(),
         }
     }
 
@@ -207,7 +209,7 @@ impl<'a, G: GameStructure<'a>> DeltaIterator<'a, G> {
     }
 }
 
-impl<'a, G: GameStructure<'a>> Iterator for DeltaIterator<'a, G> {
+impl<'a, 'b, G: GameStructure<'b>> Iterator for DeltaIterator<'a, 'b, G> {
     type Item = State;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -292,29 +294,27 @@ impl<'a, G: GameStructure<'a>> ExtendedDependencyGraph<ATLVertex> for ATLDepende
                     edges
                 }
                 Phi::NEXT { players, formula } => {
-                    todo!()
-                    /*
-                    let moves: Vec<usize> = self.game_structure.move_count(vert.state())
+                    let moves: Vec<usize> = self
+                        .game_structure
+                        .move_count(*state)
                         .iter()
                         .map(|&count| count as usize)
                         .collect();
-                    VarsIterator::new(moves, players.iter().map(|player| player.clone()).collect())
+                    VarsIterator::new(moves, players.iter().map(|player| *player).collect())
                         .map(|pmove| {
-                            let targets: Vec<ATLVertex> = DeltaIterator::new(&self.game_structure, vert.state(), pmove)
-                                .map(|state| {
-                                    ATLVertex::FULL {
+                            let targets: Vec<ATLVertex> =
+                                DeltaIterator::new(&self.game_structure, *state, pmove)
+                                    .map(|state| ATLVertex::FULL {
                                         state,
-                                        formula: formula.clone()
-                                    }
-                                })
-                                .collect();
+                                        formula: formula.clone(),
+                                    })
+                                    .collect();
                             Edges::HYPER(HyperEdge {
                                 source: vert.clone(),
                                 targets,
                             })
                         })
                         .collect::<HashSet<Edges<ATLVertex>>>()
-                     */
                 }
                 Phi::UNTIL {
                     players,
@@ -335,7 +335,7 @@ impl<'a, G: GameStructure<'a>> ExtendedDependencyGraph<ATLVertex> for ATLDepende
                         .iter()
                         .map(|&count| count as usize)
                         .collect();
-                    let mut targets = VarsIterator::new(
+                    let mut targets: Vec<ATLVertex> = VarsIterator::new(
                         moves,
                         players.iter().map(|&player| player as usize).collect(),
                     )
@@ -345,6 +345,7 @@ impl<'a, G: GameStructure<'a>> ExtendedDependencyGraph<ATLVertex> for ATLDepende
                         formula: vert.formula(),
                     })
                     .collect();
+                    targets.push(pre);
 
                     edges.insert(Edges::HYPER(HyperEdge {
                         source: vert.clone(),
@@ -369,7 +370,18 @@ impl<'a, G: GameStructure<'a>> ExtendedDependencyGraph<ATLVertex> for ATLDepende
                 state,
                 partial_move,
                 formula,
-            } => todo!("dependency graph for partial move"),
+            } => DeltaIterator::new(&self.game_structure, *state, partial_move.clone())
+                .map(|state| {
+                    let targets = vec![ATLVertex::FULL {
+                        state,
+                        formula: formula.clone(),
+                    }];
+                    Edges::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        targets,
+                    })
+                })
+                .collect::<HashSet<Edges<ATLVertex>>>(),
         }
     }
 }
