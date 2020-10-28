@@ -23,7 +23,7 @@ impl GameStructure for EagerGameStructure {
     fn labels(&self, state: usize) -> HashSet<Proposition, RandomState> {
         self.labeling
             .get(state)
-            .expect(format!("Out of bounds state ({}) given to labeling function", state).as_str())
+            .unwrap_or_else(|| panic!("Out of bounds state ({}) given to labeling function", state))
             .clone()
     }
 
@@ -33,7 +33,7 @@ impl GameStructure for EagerGameStructure {
             &self
                 .transitions
                 .get(state)
-                .expect(format!("Undefined state {}, no transitions", state).as_str()),
+                .unwrap_or_else(|| panic!("Undefined state {}, no transitions", state)),
         )
     }
 
@@ -41,21 +41,15 @@ impl GameStructure for EagerGameStructure {
         *self
             .moves
             .get(state)
-            .expect(format!("Requested move for non-existent state {}", state).as_str())
+            .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
             .get(player)
-            .expect(
-                format!(
-                    "Request move for non-existent player {} from state {}",
-                    player, state
-                )
-                .as_str(),
-            )
+            .unwrap_or_else(|| panic!("Request move for non-existent player {} from state {}", player, state))
     }
 
     fn move_count(&self, state: usize) -> Vec<u32> {
         self.moves
             .get(state)
-            .expect(format!("Requested move for non-existent state {}", state).as_str())
+            .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
             .clone()
     }
 }

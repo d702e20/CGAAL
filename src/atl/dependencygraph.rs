@@ -29,8 +29,8 @@ enum ATLVertex {
 impl ATLVertex {
     fn state(&self) -> State {
         match self {
-            ATLVertex::FULL { state, .. } => state.clone(),
-            ATLVertex::PARTIAL { state, .. } => state.clone(),
+            ATLVertex::FULL { state, .. } => *state,
+            ATLVertex::PARTIAL { state, .. } => *state,
         }
     }
 
@@ -84,9 +84,9 @@ impl VarsIterator {
     /// ```
     fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
         let mut position = Vec::with_capacity(moves.len());
-        for i in 0..moves.len() {
+        for (i, mov) in moves.iter().enumerate() {
             position.push(if players.contains(&(i as usize)) {
-                PartialMoveChoice::RANGE(moves[i])
+                PartialMoveChoice::RANGE(*mov)
             } else {
                 PartialMoveChoice::SPECIFIC(0)
             })
@@ -155,10 +155,10 @@ impl<'a, G: GameStructure> DeltaIterator<'a, G> {
     fn new(game_structure: &'a G, state: State, moves: PartialMove) -> Self {
         let known = HashSet::new();
         let mut current_move = Vec::with_capacity(moves.len());
-        for i in 0..moves.len() {
-            current_move.push(match moves[i] {
+        for mov in &moves {
+            current_move.push(match mov {
                 PartialMoveChoice::RANGE(_) => 0,
-                PartialMoveChoice::SPECIFIC(i) => i,
+                PartialMoveChoice::SPECIFIC(i) => *i,
             });
         }
 
@@ -180,7 +180,7 @@ impl<'a, G: GameStructure> DeltaIterator<'a, G> {
             // If all digits have rolled over we reached the end
             if roll_over_pos >= self.moves.len() {
                 self.completed = true;
-                return false;
+                return false
             }
 
             match self.moves[roll_over_pos] {
@@ -201,7 +201,7 @@ impl<'a, G: GameStructure> DeltaIterator<'a, G> {
                 }
             }
         }
-        return true;
+        true
     }
 }
 
@@ -259,7 +259,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     edges.insert(Edges::NEGATION(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
-                            state: vert.state(),
+                            state: *state,
                             formula: phi.clone(),
                         },
                     }));
@@ -270,7 +270,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let mut edges = HashSet::new();
 
                     let left_targets = vec![ATLVertex::FULL {
-                        state: vert.state(),
+                        state: *state,
                         formula: left.clone(),
                     }];
                     edges.insert(Edges::HYPER(HyperEdge {
@@ -279,7 +279,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     }));
 
                     let right_targets = vec![ATLVertex::FULL {
-                        state: vert.state(),
+                        state: *state,
                         formula: right.clone(),
                     }];
                     edges.insert(Edges::HYPER(HyperEdge {
@@ -296,7 +296,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         .iter()
                         .map(|&count| count as usize)
                         .collect();
-                    VarsIterator::new(moves, players.iter().map(|player| *player).collect())
+                    VarsIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
                             let targets: Vec<ATLVertex> =
                                 DeltaIterator::new(&self.game_structure, *state, pmove)
@@ -321,13 +321,13 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     // hyper-edges with pre occurring
                     let pre = ATLVertex::FULL {
-                        state: vert.state(),
+                        state: *state,
                         formula: pre.clone(),
                     };
 
                     let moves = self
                         .game_structure
-                        .move_count(vert.state())
+                        .move_count(*state)
                         .iter()
                         .map(|&count| count as usize)
                         .collect();
@@ -336,7 +336,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         players.iter().map(|&player| player as usize).collect(),
                     )
                     .map(|pmove| ATLVertex::PARTIAL {
-                        state: vert.state(),
+                        state: *state,
                         partial_move: pmove,
                         formula: vert.formula(),
                     })
@@ -350,7 +350,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     // Until without pre occurring
                     let targets = vec![ATLVertex::FULL {
-                        state: vert.state(),
+                        state: *state,
                         formula: until.clone(),
                     }];
                     edges.insert(Edges::HYPER(HyperEdge {

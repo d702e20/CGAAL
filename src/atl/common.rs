@@ -13,7 +13,7 @@ pub(crate) enum DynVec {
 pub(crate) fn transition_lookup(choices: &[usize], transitions: &DynVec) -> State {
     match transitions {
         DynVec::NEST(v) => {
-            if choices.len() == 0 {
+            if choices.is_empty() {
                 panic!("Fewer choices given than number of players in transitions");
             }
 
