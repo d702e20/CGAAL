@@ -15,16 +15,16 @@ pub(crate) struct EagerGameStructure {
     pub moves: Vec<Vec<u32>>,
 }
 
-impl<'a> GameStructure<'a> for EagerGameStructure {
+impl GameStructure for EagerGameStructure {
     fn max_player(&self) -> u32 {
         self.player_count
     }
 
-    fn labels(&self, state: usize) -> &'a HashSet<Proposition, RandomState> {
-        todo!()
-        /*self.labeling
-        .get(state)
-        .expect(format!("Out of bounds state ({}) given to labeling function", state).as_str())*/
+    fn labels(&self, state: usize) -> HashSet<Proposition, RandomState> {
+        self.labeling
+            .get(state)
+            .expect(format!("Out of bounds state ({}) given to labeling function", state).as_str())
+            .clone()
     }
 
     fn transitions(&self, state: State, choices: Vec<usize>) -> State {

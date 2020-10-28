@@ -6,10 +6,10 @@ mod eager;
 #[allow(unused_imports)]
 pub(crate) use eager::EagerGameStructure;
 
-pub(crate) trait GameStructure<'a> {
+pub(crate) trait GameStructure {
     fn max_player(&self) -> u32;
 
-    fn labels(&self, state: usize) -> &'a HashSet<Proposition>;
+    fn labels(&self, state: usize) -> HashSet<Proposition>;
 
     fn transitions(&self, state: State, choices: Vec<usize>) -> State;
 

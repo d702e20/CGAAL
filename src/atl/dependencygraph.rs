@@ -2,17 +2,15 @@ use crate::common::{Edges, HyperEdge, NegationEdge};
 use crate::edg::ExtendedDependencyGraph;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
 
-struct ATLDependencyGraph<'a, G: GameStructure<'a>> {
+struct ATLDependencyGraph<G: GameStructure> {
     formula: Phi,
     game_structure: G,
-    phantom: PhantomData<&'a G>,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -144,17 +142,16 @@ impl Iterator for VarsIterator {
     }
 }
 
-struct DeltaIterator<'a, 'b, G: GameStructure<'b>> {
+struct DeltaIterator<'a, G: GameStructure> {
     game_structure: &'a G,
     state: State,
     moves: PartialMove,
     known: HashSet<State>,
     completed: bool,
     current_move: Vec<State>,
-    phantom: PhantomData<& 'b G>,
 }
 
-impl<'a, 'b, G: GameStructure<'b>> DeltaIterator<'a, 'b, G> {
+impl<'a, G: GameStructure> DeltaIterator<'a, G> {
     fn new(game_structure: &'a G, state: State, moves: PartialMove) -> Self {
         let known = HashSet::new();
         let mut current_move = Vec::with_capacity(moves.len());
@@ -172,7 +169,6 @@ impl<'a, 'b, G: GameStructure<'b>> DeltaIterator<'a, 'b, G> {
             known,
             completed: false,
             current_move,
-            phantom: Default::default(),
         }
     }
 
@@ -209,7 +205,7 @@ impl<'a, 'b, G: GameStructure<'b>> DeltaIterator<'a, 'b, G> {
     }
 }
 
-impl<'a, 'b, G: GameStructure<'b>> Iterator for DeltaIterator<'a, 'b, G> {
+impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     type Item = State;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -240,7 +236,7 @@ impl<'a, 'b, G: GameStructure<'b>> Iterator for DeltaIterator<'a, 'b, G> {
     }
 }
 
-impl<'a, G: GameStructure<'a>> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<'a, G> {
+impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
     fn succ(&self, vert: &ATLVertex) -> HashSet<Edges<ATLVertex>, RandomState> {
         match vert {
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
