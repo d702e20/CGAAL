@@ -7,8 +7,6 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-const WORKER_COUNT: u64 = 4;
-
 pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
     /// Return out going edges from `vertex`.
     /// This will be cached on each worker.
@@ -21,21 +19,23 @@ pub fn distributed_certain_zero<
 >(
     edg: G,
     v0: V,
+    worker_count: u64,
 ) {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(WORKER_COUNT);
+    let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(worker_count);
     let broker = Arc::new(broker);
 
-    for i in (0..WORKER_COUNT).rev() {
+    for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
-        let mut worker = Worker::new(i, v0.clone(), msg_rx, term_rx, broker.clone(), edg.clone());
+        let mut worker = Worker::new(i, worker_count, v0.clone(), msg_rx, term_rx, broker.clone(), edg.clone());
         thread::spawn(move || worker.run());
     }
 }
 
 struct Worker<B: Broker<V>, G: ExtendedDependencyGraph<V>, V: Hash + Eq + PartialEq + Clone> {
     id: WorkerId,
+    worker_count: u64,
     v0: V,
     assignment: HashMap<V, VertexAssignment>,
     depends: HashMap<V, HashSet<Edges<V>>>,
@@ -47,26 +47,27 @@ struct Worker<B: Broker<V>, G: ExtendedDependencyGraph<V>, V: Hash + Eq + Partia
     edg: G,
 }
 
-fn vertex_owner<V: Hash + Eq + PartialEq + Clone>(vertex: V) -> WorkerId {
-    // Static allocation of vertices to workers
-    let mut hasher = DefaultHasher::new();
-    vertex.hash::<DefaultHasher>(&mut hasher);
-    hasher.finish() % WORKER_COUNT
-}
-
 impl<
         B: Broker<V>,
         G: ExtendedDependencyGraph<V> + Send + Sync,
         V: Hash + Eq + PartialEq + Clone,
     > Worker<B, G, V>
 {
+    fn vertex_owner(&self, vertex: &V) -> WorkerId {
+        // Static allocation of vertices to workers
+        let mut hasher = DefaultHasher::new();
+        vertex.hash::<DefaultHasher>(&mut hasher);
+        hasher.finish() % self.worker_count
+    }
+
     #[inline]
     fn is_owner(&self, vertex: &V) -> bool {
-        vertex_owner(vertex) == self.id
+        self.vertex_owner(vertex) == self.id
     }
 
     pub fn new(
         id: WorkerId,
+        worker_count: u64,
         v0: V,
         msg_rx: Receiver<Message<V>>,
         term_rx: Receiver<VertexAssignment>,
@@ -80,6 +81,7 @@ impl<
 
         Self {
             id,
+            worker_count,
             v0,
             assignment,
             depends,
@@ -191,7 +193,7 @@ impl<
         } else {
             // Line 7
             self.broker.send(
-                vertex_owner(vertex),
+                self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
                     worker_id: self.id,

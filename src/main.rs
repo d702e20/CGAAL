@@ -1,3 +1,5 @@
+extern crate num_cpus;
+
 use crate::common::Edges;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
@@ -16,5 +18,5 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
 }
 
 fn main() {
-    edg::distributed_certain_zero(EmptyGraph {}, 0);
+    edg::distributed_certain_zero(EmptyGraph {}, 0, num_cpus::get() as u64);
 }
