@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub(crate) enum Phi {
     PROPOSITION(Proposition),
     NOT(Arc<Phi>),
-    AND(Arc<Phi>, Arc<Phi>),
+    OR(Arc<Phi>, Arc<Phi>),
     NEXT {
         players: Vec<Player>,
         formula: Arc<Phi>,

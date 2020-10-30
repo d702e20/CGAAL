@@ -281,7 +281,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::AND(left, right) => {
+                Phi::OR(left, right) => {
                     let mut edges = HashSet::new();
 
                     let left_targets = vec![ATLVertex::FULL {
