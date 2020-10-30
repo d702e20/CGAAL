@@ -236,6 +236,21 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     }
 }
 
+impl<G: GameStructure> ATLDependencyGraph<G> {
+    fn invert_players(&self, players: &Vec<Player>) -> HashSet<Player> {
+        let max_players = self.game_structure.max_player() as usize;
+        let mut inv_players = HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
+        // Iterate over all players and only add the ones not in players
+        for player in 0usize..max_players {
+            let player = player as usize;
+            if players.contains(&player) {
+                inv_players.insert(player);
+            }
+        }
+        inv_players
+    }
+}
+
 impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
     fn succ(&self, vert: &ATLVertex) -> HashSet<Edges<ATLVertex>, RandomState> {
         match vert {
@@ -317,6 +332,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     pre,
                     until,
                 } => {
+                    let inv_players = self.invert_players(players);
                     let mut edges = HashSet::new();
 
                     // hyper-edges with pre occurring
@@ -333,7 +349,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         .collect();
                     let mut targets: Vec<ATLVertex> = VarsIterator::new(
                         moves,
-                        players.iter().map(|&player| player as usize).collect(),
+                        inv_players,
                     )
                     .map(|pmove| ATLVertex::PARTIAL {
                         state: *state,
