@@ -375,6 +375,50 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     }));
 
                     edges
+                },
+                Phi::ENFORCE_UNTIL { players, pre, until } => {
+                    // hyper-edges with pre occurring
+                    let pre = ATLVertex::FULL {
+                        state: *state,
+                        formula: pre.clone(),
+                    };
+
+                    let moves = self
+                        .game_structure
+                        .move_count(*state)
+                        .iter()
+                        .map(|&count| count as usize)
+                        .collect();
+                    let mut edges: HashSet<Edges<ATLVertex>> = VarsIterator::new(
+                        moves,
+                        players.iter().map(|player| *player as usize).collect(),
+                    )
+                        .map(|pmove| {
+                            let mut targets: Vec<ATLVertex> = DeltaIterator::new(&self.game_structure, *state, pmove)
+                                .map(|state| ATLVertex::FULL {
+                                    state,
+                                    formula: formula.clone(),
+                                })
+                                .collect();
+                            targets.push(pre.clone());
+                            Edges::HYPER (HyperEdge {
+                                source: vert.clone(),
+                                targets,
+                            })
+                        })
+                        .collect();
+
+                    // Until without pre occurring
+                    let targets = vec![ATLVertex::FULL {
+                        state: *state,
+                        formula: until.clone(),
+                    }];
+                    edges.insert(Edges::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        targets,
+                    }));
+
+                    edges
                 }
             },
             ATLVertex::PARTIAL {

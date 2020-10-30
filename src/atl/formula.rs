@@ -15,4 +15,9 @@ pub(crate) enum Phi {
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
+    ENFORCE_UNTIL {
+        players: Vec<Player>,
+        pre: Arc<Phi>,
+        until: Arc<Phi>,
+    }
 }
