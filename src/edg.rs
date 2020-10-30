@@ -203,11 +203,9 @@ impl<
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
         // Line 3, condition
         let all_final = edge.targets.iter().all(|target| {
-            if let Some(f) = self.assignment.get(target) {
-                matches!(f, VertexAssignment::TRUE)
-            } else {
-                false
-            }
+            self.assignment
+                .get(target)
+                .map_or(false, |f| matches!(f, VertexAssignment::TRUE))
         });
 
         // Line 3
@@ -218,11 +216,9 @@ impl<
 
         // Line 4, condition
         let any_target = edge.targets.iter().any(|target| {
-            if let Some(f) = self.assignment.get(target) {
-                matches!(f, VertexAssignment::FALSE)
-            } else {
-                false
-            }
+            self.assignment
+                .get(target)
+                .map_or(false, |f| matches!(f, VertexAssignment::TRUE))
         });
 
         // Line 4
@@ -234,38 +230,36 @@ impl<
         // Line 5-8
         for target in &edge.targets {
             // Condition from line 5
-            match self.assignment.get(&target) {
-                None => {}
-                Some(f) => match f {
+            if let Some(f) = self.assignment.get(&target) {
+                match f {
                     VertexAssignment::UNDECIDED => {}
                     _ => continue,
-                },
+                }
             }
 
             // Line 7-8, target = u
             self.add_depend(target, Edges::HYPER(edge.clone()));
-            match self.assignment.get(target) {
-                None => self.explore(target),
-                Some(_) => {}
+            if let None = self.assignment.get(target) {
+                self.explore(target)
             }
         }
     }
 
-    // Mark `depended` as a requisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, depended: Edges<V>) {
-        if let Some(dependens) = self.depends.get_mut(vertex) {
-            dependens.insert(depended);
+    // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
+    fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+        if let Some(dependencies) = self.depends.get_mut(vertex) {
+            dependencies.insert(dependency);
         } else {
-            let mut dependens = HashSet::new();
-            dependens.insert(depended);
-            self.depends.insert(vertex.clone(), dependens);
+            let mut dependencies = HashSet::new();
+            dependencies.insert(dependency);
+            self.depends.insert(vertex.clone(), dependencies);
         }
     }
 
-    // Remove `depended` as a requisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, depended: Edges<V>) {
-        if let Some(dependens) = self.depends.get_mut(vertex) {
-            dependens.remove(&depended);
+    // Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
+    fn remove_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+        if let Some(dependencies) = self.depends.get_mut(vertex) {
+            dependencies.remove(&dependency);
         }
     }
 
@@ -287,7 +281,7 @@ impl<
         }
     }
 
-    // Another work has request the final assignment of a `vertex`
+    // Another worker has requested the final assignment of a `vertex`
     fn process_request(&mut self, vertex: &V, requester: WorkerId) {
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
@@ -331,9 +325,8 @@ impl<
         // Line 2
         self.assignment.insert(vertex.clone(), assignment);
         // Line 3
-        match self.interests.get(&vertex) {
-            None => {}
-            Some(interested) => interested.iter().for_each(|worker_id| {
+        if let Some(interested) = self.interests.get(&vertex) {
+            interested.iter().for_each(|worker_id| {
                 self.broker.send(
                     *worker_id,
                     Message::ANSWER {
@@ -341,7 +334,7 @@ impl<
                         assignment,
                     },
                 )
-            }),
+            })
         }
 
         // Line 4
