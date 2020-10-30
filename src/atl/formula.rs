@@ -10,7 +10,7 @@ pub(crate) enum Phi {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
-    UNTIL {
+    DESPITE_UNTIL {
         players: Vec<Player>,
         pre: Arc<Phi>,
         until: Arc<Phi>,

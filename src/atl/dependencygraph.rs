@@ -312,7 +312,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         })
                         .collect::<HashSet<Edges<ATLVertex>>>()
                 }
-                Phi::UNTIL {
+                Phi::DESPITE_UNTIL {
                     players,
                     pre,
                     until,
