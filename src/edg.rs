@@ -203,7 +203,7 @@ impl<
     }
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
-        // Line 3, condition
+        // Line 3, condition (in case of targets is empty, the default value is true)
         let all_final = edge.targets.iter().all(|target| {
             self.assignment
                 .get(target)
