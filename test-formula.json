@@ -1,0 +1,12 @@
+{
+  "not": {
+    "or": [
+      {
+        "proposition": 5
+      },
+      {
+        "proposition": 0
+      }
+    ]
+  }
+}
