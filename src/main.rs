@@ -7,6 +7,7 @@ use std::collections::HashSet;
 mod com;
 mod common;
 mod edg;
+mod lcgs;
 
 #[derive(Clone)]
 struct EmptyGraph {}
