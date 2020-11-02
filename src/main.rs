@@ -19,12 +19,17 @@ mod common;
 mod edg;
 mod lcgs;
 
-fn main() -> Result<(), Box<dyn Error>>{
+fn main() -> Result<(), Box<dyn Error>> {
     let mut file = File::open("./test.json")?;
-    let mut mexican_standoff = String::new();
-    file.read_to_string(&mut mexican_standoff)?;
+    let mut game_structure = String::new();
+    file.read_to_string(&mut game_structure)?;
+    let game_structure: EagerGameStructure = serde_json::from_str(game_structure.as_str())?;
 
-    let game_structure: EagerGameStructure = serde_json::from_str(mexican_standoff.as_str()).unwrap();
+    let mut file = File::open("./test-formula.json")?;
+    let mut formula = String::new();
+    file.read_to_string(&mut formula)?;
+    let formula: Phi = serde_json::from_str(formula.as_str())?;
+
     let graph = ATLDependencyGraph {
         game_structure,
     };
