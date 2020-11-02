@@ -8,13 +8,13 @@ use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
 
-struct ATLDependencyGraph<G: GameStructure> {
-    formula: Phi,
-    game_structure: G,
+#[derive(Clone)]
+pub struct ATLDependencyGraph<G: GameStructure> {
+    pub game_structure: G,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
-enum ATLVertex {
+pub enum ATLVertex {
     FULL {
         state: State,
         formula: Arc<Phi>,
@@ -43,14 +43,14 @@ impl ATLVertex {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
-enum PartialMoveChoice {
+pub enum PartialMoveChoice {
     /// Range from 0 to given number
     RANGE(usize),
     /// Chosen move for player
     SPECIFIC(usize),
 }
 
-type PartialMove = Vec<PartialMoveChoice>;
+pub type PartialMove = Vec<PartialMoveChoice>;
 
 struct VarsIterator {
     moves: Vec<usize>,
@@ -237,6 +237,7 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
 }
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
+
     fn invert_players(&self, players: &Vec<Player>) -> HashSet<Player> {
         let max_players = self.game_structure.max_player() as usize;
         let mut inv_players = HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
