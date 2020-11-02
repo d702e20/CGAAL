@@ -4,9 +4,9 @@ use std::collections::HashSet;
 mod eager;
 
 #[allow(unused_imports)]
-pub(crate) use eager::EagerGameStructure;
+pub use eager::EagerGameStructure;
 
-pub(crate) trait GameStructure {
+pub trait GameStructure {
     fn max_player(&self) -> u32;
 
     fn labels(&self, state: State) -> HashSet<Proposition>;
