@@ -1,5 +1,6 @@
+use crate::lcgs::types::Type;
 
-struct LazyConcurrentGameStructure {
+pub struct LazyConcurrentGameStructure {
     pub players: Vec<Identifier>,
     pub state_vars: Vec<StateVariable>,
     pub vars: Vec<VariableDefinition>,
@@ -8,56 +9,58 @@ struct LazyConcurrentGameStructure {
     pub transitions: Vec<Transition>
 }
 
-struct Identifier {
-    label: String,
+pub struct Identifier {
+    pub label: String,
 }
 
-struct StateVariable {
-    identifier: Identifier,
-    size: i32,
-    initial_value: i32,
+pub struct StateVariable {
+    pub identifier: Identifier,
+    pub size: i32,
+    pub initial_value: i32,
 }
 
-struct VariableDefinition {
+pub struct VariableDefinition {
     identifier: Identifier,
     definition: Expr,
 }
 
-struct PropositionMapping {
-    guard: Expr,
-    propositions: Vec<Identifier>
+pub struct PropositionMapping {
+    pub guard: Expr,
+    pub propositions: Vec<Identifier>
 }
 
-struct Transition {
-    guard: Expr,
-    choices: Vec<i32>,
+pub struct Transition {
+    pub guard: Expr,
+    pub choices: Vec<i32>,
     /// If None the resulting state is the source state
-    result: Option<Vec<StateChange>>,
+    pub result: Option<Vec<StateChange>>,
 }
 
-struct StateChange {
-    state_var: Identifier,
-    new_value: Expr,
+pub struct StateChange {
+    pub state_var: Identifier,
+    pub new_value: Expr,
 }
 
-struct Expr {
-    kind: ExprKind,
+pub struct Expr {
+    pub kind: ExprKind,
+    pub ret_type: Type,
 }
 
-enum ExprKind {
+pub enum ExprKind {
     Identifier(Identifier),
     Negation(Box<Expr>),
     UnaryOp(UnaryOpKind, Box<Expr>),
     BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
-    TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>)
+    TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
+    BoolToNumConversion(Box<Expr>),
 }
 
-enum UnaryOpKind {
+pub enum UnaryOpKind {
     LogicalNegation,
     Negation, // eg -4
 }
 
-enum BinaryOpKind {
+pub enum BinaryOpKind {
     Addition,
     Multiplication,
     Subtraction,
