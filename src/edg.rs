@@ -7,6 +7,8 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
+const WORKER_COUNT: u64 = 4;
+
 pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
     /// Return out going edges from `vertex`.
     /// This will be cached on each worker.
@@ -20,17 +22,24 @@ pub fn distributed_certain_zero<
     edg: G,
     v0: V,
     worker_count: u64,
-) {
+) -> VertexAssignment {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
     let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(worker_count);
     let broker = Arc::new(broker);
+    let (mut tx, mut rx) = crossbeam_channel::bounded(WORKER_COUNT as usize);
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
         let mut worker = Worker::new(i, worker_count, v0.clone(), msg_rx, term_rx, broker.clone(), edg.clone());
-        thread::spawn(move || worker.run());
+        let mut tx = tx.clone();
+        thread::spawn(move || {
+            let result = worker.run();
+            tx.send(result);
+        });
     }
+
+    rx.recv().unwrap()
 }
 
 struct Worker<B: Broker<V>, G: ExtendedDependencyGraph<V>, V: Hash + Eq + PartialEq + Clone> {
