@@ -1,5 +1,3 @@
-use crate::lcgs::types::Type;
-
 pub struct LazyConcurrentGameStructure {
     pub players: Vec<Identifier>,
     pub state_vars: Vec<StateVariable>,
@@ -43,7 +41,6 @@ pub struct StateChange {
 
 pub struct Expr {
     pub kind: ExprKind,
-    pub ret_type: Type,
 }
 
 pub enum ExprKind {

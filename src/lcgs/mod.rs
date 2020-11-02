@@ -1,3 +1,3 @@
 mod ast;
-mod types;
+mod static_analysis;
 mod visitor;
