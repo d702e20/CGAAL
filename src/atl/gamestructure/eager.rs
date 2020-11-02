@@ -20,7 +20,7 @@ impl GameStructure for EagerGameStructure {
         self.player_count
     }
 
-    fn labels(&self, state: usize) -> HashSet<Proposition, RandomState> {
+    fn labels(&self, state: State) -> HashSet<Proposition, RandomState> {
         self.labeling
             .get(state)
             .unwrap_or_else(|| panic!("Out of bounds state ({}) given to labeling function", state))
@@ -37,7 +37,7 @@ impl GameStructure for EagerGameStructure {
         )
     }
 
-    fn available_moves(&self, state: usize, player: usize) -> u32 {
+    fn available_moves(&self, state: State, player: Player) -> u32 {
         *self
             .moves
             .get(state)
@@ -46,7 +46,7 @@ impl GameStructure for EagerGameStructure {
             .unwrap_or_else(|| panic!("Request move for non-existent player {} from state {}", player, state))
     }
 
-    fn move_count(&self, state: usize) -> Vec<u32> {
+    fn move_count(&self, state: State) -> Vec<u32> {
         self.moves
             .get(state)
             .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))

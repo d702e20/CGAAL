@@ -9,7 +9,7 @@ pub(crate) use eager::EagerGameStructure;
 pub(crate) trait GameStructure {
     fn max_player(&self) -> u32;
 
-    fn labels(&self, state: usize) -> HashSet<Proposition>;
+    fn labels(&self, state: State) -> HashSet<Proposition>;
 
     fn transitions(&self, state: State, choices: Vec<usize>) -> State;
 
