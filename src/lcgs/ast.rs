@@ -3,6 +3,8 @@ struct LazyConcurrentGameStructure {
     pub players: Vec<Identifier>,
     pub state_vars: Vec<StateVariable>,
     pub vars: Vec<VariableDefinition>,
+    pub propositions: Vec<Identifier>,
+    pub proposition_mappings: Vec<PropositionMapping>,
     pub transitions: Vec<Transition>
 }
 
@@ -19,6 +21,11 @@ struct StateVariable {
 struct VariableDefinition {
     identifier: Identifier,
     definition: Expr,
+}
+
+struct PropositionMapping {
+    guard: Expr,
+    propositions: Vec<Identifier>
 }
 
 struct Transition {
