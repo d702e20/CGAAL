@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut file = File::open("./test-formula.json")?;
     let mut formula = String::new();
     file.read_to_string(&mut formula)?;
-    let formula: Phi = serde_json::from_str(formula.as_str())?;
+    let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
 
     let graph = ATLDependencyGraph {
         game_structure,
@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let result = edg::distributed_certain_zero(graph, ATLVertex::FULL {
         state: 0,
-        formula: Arc::new(Phi::PROPOSITION(0)),
+        formula,
     }, num_cpus::get() as u64);
     println!("{:?}", result);
 
