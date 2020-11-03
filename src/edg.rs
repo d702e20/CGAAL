@@ -3,11 +3,10 @@ use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, W
 use crossbeam_channel::{Receiver, Select};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
-use std::fmt::Debug;
-
 
 pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
     /// Return out going edges from `vertex`.
@@ -31,11 +30,20 @@ pub fn distributed_certain_zero<
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
-        let mut worker = Worker::new(i, worker_count, v0.clone(), msg_rx, term_rx, broker.clone(), edg.clone());
+        let mut worker = Worker::new(
+            i,
+            worker_count,
+            v0.clone(),
+            msg_rx,
+            term_rx,
+            broker.clone(),
+            edg.clone(),
+        );
         let tx = tx.clone();
         thread::spawn(move || {
             let result = worker.run();
-            tx.send(result).expect("Failed to submit final assignment of v0");
+            tx.send(result)
+                .expect("Failed to submit final assignment of v0");
         });
     }
 
@@ -43,7 +51,11 @@ pub fn distributed_certain_zero<
 }
 
 #[derive(Debug)]
-struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Debug, V: Hash + Eq + PartialEq + Clone + Debug> {
+struct Worker<
+    B: Broker<V> + Debug,
+    G: ExtendedDependencyGraph<V> + Debug,
+    V: Hash + Eq + PartialEq + Clone + Debug,
+> {
     id: WorkerId,
     worker_count: u64,
     v0: V,
@@ -278,13 +290,16 @@ impl<
     fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
         // Line 3
         match self.assignment.get(&edge.target) {
-            None => { // UNEXPLORED
+            // UNEXPLORED
+            None => {
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
                 self.broker.send(self.id, Message::NEGATION(edge.clone()));
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => self.final_assign(&edge.source, VertexAssignment::TRUE),
+                VertexAssignment::UNDECIDED => {
+                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                }
                 VertexAssignment::FALSE => self.final_assign(&edge.source, VertexAssignment::TRUE),
                 VertexAssignment::TRUE => self.delete_edge(Edges::NEGATION(edge)),
             },

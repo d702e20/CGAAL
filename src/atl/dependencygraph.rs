@@ -180,7 +180,7 @@ impl<'a, G: GameStructure> DeltaIterator<'a, G> {
             // If all digits have rolled over we reached the end
             if roll_over_pos >= self.moves.len() {
                 self.completed = true;
-                return false
+                return false;
             }
 
             match self.moves[roll_over_pos] {
@@ -237,10 +237,10 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
 }
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
-
     fn invert_players(&self, players: &Vec<Player>) -> HashSet<Player> {
         let max_players = self.game_structure.max_player() as usize;
-        let mut inv_players = HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
+        let mut inv_players =
+            HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
         // Iterate over all players and only add the ones not in players
         for player in 0usize..max_players {
             let player = player as usize;
@@ -348,16 +348,13 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         .iter()
                         .map(|&count| count as usize)
                         .collect();
-                    let mut targets: Vec<ATLVertex> = VarsIterator::new(
-                        moves,
-                        inv_players,
-                    )
-                    .map(|pmove| ATLVertex::PARTIAL {
-                        state: *state,
-                        partial_move: pmove,
-                        formula: vert.formula(),
-                    })
-                    .collect();
+                    let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
+                        .map(|pmove| ATLVertex::PARTIAL {
+                            state: *state,
+                            partial_move: pmove,
+                            formula: vert.formula(),
+                        })
+                        .collect();
                     targets.push(pre);
 
                     edges.insert(Edges::HYPER(HyperEdge {
@@ -376,8 +373,12 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     }));
 
                     edges
-                },
-                Phi::ENFORCE_UNTIL { players, pre, until } => {
+                }
+                Phi::ENFORCE_UNTIL {
+                    players,
+                    pre,
+                    until,
+                } => {
                     // hyper-edges with pre occurring
                     let pre = ATLVertex::FULL {
                         state: *state,
@@ -394,20 +395,21 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         moves,
                         players.iter().map(|player| *player as usize).collect(),
                     )
-                        .map(|pmove| {
-                            let mut targets: Vec<ATLVertex> = DeltaIterator::new(&self.game_structure, *state, pmove)
+                    .map(|pmove| {
+                        let mut targets: Vec<ATLVertex> =
+                            DeltaIterator::new(&self.game_structure, *state, pmove)
                                 .map(|state| ATLVertex::FULL {
                                     state,
                                     formula: formula.clone(),
                                 })
                                 .collect();
-                            targets.push(pre.clone());
-                            Edges::HYPER (HyperEdge {
-                                source: vert.clone(),
-                                targets,
-                            })
+                        targets.push(pre.clone());
+                        Edges::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            targets,
                         })
-                        .collect();
+                    })
+                    .collect();
 
                     // Until without pre occurring
                     let targets = vec![ATLVertex::FULL {

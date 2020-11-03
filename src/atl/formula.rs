@@ -19,5 +19,5 @@ pub(crate) enum Phi {
         players: Vec<Player>,
         pre: Arc<Phi>,
         until: Arc<Phi>,
-    }
+    },
 }

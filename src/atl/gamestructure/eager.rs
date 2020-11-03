@@ -1,4 +1,4 @@
-use crate::atl::common::{transition_lookup, DynVec, Proposition, State, Player};
+use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
 use crate::atl::gamestructure::GameStructure;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
@@ -43,7 +43,12 @@ impl GameStructure for EagerGameStructure {
             .get(state)
             .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
             .get(player)
-            .unwrap_or_else(|| panic!("Request move for non-existent player {} from state {}", player, state))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Request move for non-existent player {} from state {}",
+                    player, state
+                )
+            })
     }
 
     fn move_count(&self, state: State) -> Vec<u32> {

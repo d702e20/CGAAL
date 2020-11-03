@@ -3,16 +3,22 @@ extern crate num_cpus;
 extern crate log;
 extern crate log4rs;
 
+use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
+use crate::atl::formula::Phi;
+use crate::atl::gamestructure::EagerGameStructure;
 use crate::common::Edges;
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
-
 use clap::{App, Arg, ArgMatches};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
+use std::collections::hash_map::RandomState;
+use std::collections::HashSet;
+use std::error::Error;
+use std::fs::File;
+use std::io::Read;
+use std::sync::Arc;
 
 mod atl;
 mod com;
@@ -56,38 +62,50 @@ fn parse() -> ArgMatches<'static> {
     App::new("OnTheFlyATL")
         .version("0.1.0")
         .author("d702e20 <d702e20@cs.aau.dk>")
-        .arg(Arg::with_name("formula")
-            .short("f")
-            .long("formula")
-            .env("FORMULA")
-            .help("The formula to check for"))
-        .arg(Arg::with_name("input_file")
-            .short("i")
-            .long("input")
-            .env("INPUT_FILE")
-            .help("The input file to generate model from"))
-        .arg(Arg::with_name("json_model")
-            .short("j")
-            .long("json")
-            .env("INPUT_JSON")
-            .help("The json to generate model from"))
-        .arg(Arg::with_name("json_formula")
-            .short("r")
-            .long("jsonformula")
-            .env("JSON_FORMULA")
-            .help("The json to generate formula from"))
-        .arg(Arg::with_name("log-level")
-            .short("o")
-            .long("log-level")
-            .env("LOG_LEVEL")
-            .default_value("info")
-            .help("{error, warn, info, debug, trace, off}"))
-        .arg(Arg::with_name("log-path")
-            .short("g")
-            .long("log-path")
-            .env("LOG_PATH")
-            .default_value("model-checker.log")
-            .help("Specify the log-file path"))
+        .arg(
+            Arg::with_name("formula")
+                .short("f")
+                .long("formula")
+                .env("FORMULA")
+                .help("The formula to check for"),
+        )
+        .arg(
+            Arg::with_name("input_file")
+                .short("i")
+                .long("input")
+                .env("INPUT_FILE")
+                .help("The input file to generate model from"),
+        )
+        .arg(
+            Arg::with_name("json_model")
+                .short("j")
+                .long("json")
+                .env("INPUT_JSON")
+                .help("The json to generate model from"),
+        )
+        .arg(
+            Arg::with_name("json_formula")
+                .short("r")
+                .long("jsonformula")
+                .env("JSON_FORMULA")
+                .help("The json to generate formula from"),
+        )
+        .arg(
+            Arg::with_name("log-level")
+                .short("o")
+                .long("log-level")
+                .env("LOG_LEVEL")
+                .default_value("info")
+                .help("{error, warn, info, debug, trace, off}"),
+        )
+        .arg(
+            Arg::with_name("log-path")
+                .short("g")
+                .long("log-path")
+                .env("LOG_PATH")
+                .default_value("model-checker.log")
+                .help("Specify the log-file path"),
+        )
         .get_matches()
 }
 

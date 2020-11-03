@@ -1,4 +1,4 @@
 mod common;
-mod dependencygraph;
-mod formula;
-mod gamestructure;
+pub(crate) mod dependencygraph;
+pub(crate) mod formula;
+pub(crate) mod gamestructure;
