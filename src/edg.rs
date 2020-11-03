@@ -278,7 +278,7 @@ impl<
     fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
         // Line 3
         match self.assignment.get(&edge.target) {
-            None => {
+            None => { // UNEXPLORED
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
                 self.broker.send(self.id, Message::NEGATION(edge.clone()));
                 self.explore(&edge.target);
