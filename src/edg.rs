@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
+use std::fmt::Debug;
 
 const WORKER_COUNT: u64 = 4;
 
@@ -16,8 +17,8 @@ pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
 }
 
 pub fn distributed_certain_zero<
-    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + 'static,
-    V: Hash + Eq + PartialEq + Clone + Send + Sync + 'static,
+    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+    V: Hash + Eq + PartialEq + Clone + Send + Sync + Debug + 'static,
 >(
     edg: G,
     v0: V,
@@ -42,7 +43,8 @@ pub fn distributed_certain_zero<
     rx.recv().unwrap()
 }
 
-struct Worker<B: Broker<V>, G: ExtendedDependencyGraph<V>, V: Hash + Eq + PartialEq + Clone> {
+#[derive(Debug)]
+struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Debug, V: Hash + Eq + PartialEq + Clone + Debug> {
     id: WorkerId,
     worker_count: u64,
     v0: V,
@@ -57,9 +59,9 @@ struct Worker<B: Broker<V>, G: ExtendedDependencyGraph<V>, V: Hash + Eq + Partia
 }
 
 impl<
-        B: Broker<V>,
-        G: ExtendedDependencyGraph<V> + Send + Sync,
-        V: Hash + Eq + PartialEq + Clone,
+        B: Broker<V> + Debug,
+        G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
+        V: Hash + Eq + PartialEq + Clone + Debug,
     > Worker<B, G, V>
 {
     fn vertex_owner(&self, vertex: &V) -> WorkerId {
@@ -283,9 +285,7 @@ impl<
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => {
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
-                }
+                VertexAssignment::UNDECIDED => self.final_assign(&edge.source, VertexAssignment::TRUE),
                 VertexAssignment::FALSE => self.final_assign(&edge.source, VertexAssignment::TRUE),
                 VertexAssignment::TRUE => self.delete_edge(Edges::NEGATION(edge)),
             },

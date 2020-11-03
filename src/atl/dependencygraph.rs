@@ -8,13 +8,13 @@ use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
 
-#[derive(Clone)]
-pub struct ATLDependencyGraph<G: GameStructure> {
+#[derive(Clone, Debug)]
+pub(crate) struct ATLDependencyGraph<G: GameStructure> {
     pub game_structure: G,
 }
 
-#[derive(Clone, Hash, Eq, PartialEq)]
-pub enum ATLVertex {
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
+pub(crate) enum ATLVertex {
     FULL {
         state: State,
         formula: Arc<Phi>,

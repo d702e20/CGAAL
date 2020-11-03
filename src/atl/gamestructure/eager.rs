@@ -3,8 +3,8 @@ use crate::atl::gamestructure::GameStructure;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-#[derive(Clone)]
-pub(crate) struct EagerGameStructure {
+#[derive(Clone, Debug)]
+pub struct EagerGameStructure {
     /// K, number of players
     pub player_count: u32,
     /// Maps states to Vec of atomic proposition, aka the labeling function
