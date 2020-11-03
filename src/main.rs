@@ -25,6 +25,7 @@ mod com;
 mod common;
 mod edg;
 mod lcgs;
+mod printer;
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
