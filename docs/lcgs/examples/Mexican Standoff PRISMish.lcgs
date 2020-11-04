@@ -2,9 +2,9 @@
 
 const max_health = 1;
 
-label "alive1" = health1 > 0
-label "alive2" = health2 > 0
-label "alive3" = health3 > 0
+label "alive1" = health1 > 0;
+label "alive2" = health2 > 0;
+label "alive3" = health3 > 0;
 
 player p1
 
