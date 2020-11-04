@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::thread;
 use std::fmt::Debug;
 
-const WORKER_COUNT: u64 = 4;
 
 pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
     /// Return out going edges from `vertex`.
@@ -27,16 +26,16 @@ pub fn distributed_certain_zero<
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
     let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(worker_count);
     let broker = Arc::new(broker);
-    let (mut tx, mut rx) = crossbeam_channel::bounded(WORKER_COUNT as usize);
+    let (mut tx, mut rx) = crossbeam_channel::bounded(worker_count as usize);
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
         let mut worker = Worker::new(i, worker_count, v0.clone(), msg_rx, term_rx, broker.clone(), edg.clone());
-        let mut tx = tx.clone();
+        let tx = tx.clone();
         thread::spawn(move || {
             let result = worker.run();
-            tx.send(result);
+            tx.send(result).expect("Failed to submit final assignment of v0");
         });
     }
 
