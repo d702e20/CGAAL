@@ -49,18 +49,21 @@ pub(crate) fn print_graph<
         // TODO maybe print labels on edges
         match edge {
             Edges::HYPER(hyper) => {
-                output.write(format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_idx).as_bytes())?;
-                output.write(format!("v{} -> h{}[dir=none];\n", hash_name(&hyper.source), hyper_idx).as_bytes())?;
-                for target in hyper.targets {
-                    output.write(format!("h{} -> v{};\n", hash_name(&hyper.source), hyper_idx).as_bytes())?;
+                if hyper.targets.is_empty() {
+                    output.write(format!("v{} -> ∅;\n", hash_name(&hyper.source)).as_bytes())?;
+                } else {
+                    output.write(format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_idx).as_bytes())?;
+                    output.write(format!("v{} -> h{}[dir=none];\n", hash_name(&hyper.source), hyper_idx).as_bytes())?;
+                    for target in hyper.targets {
+                        output.write(format!("h{} -> v{};\n", hash_name(&hyper.source), hyper_idx).as_bytes())?;
 
-                    if !visited.contains(&target) {
-                        print_vertex(&target, &mut output);
-                        visited.insert(target);
+                        if !visited.contains(&target) {
+                            print_vertex(&target, &mut output);
+                            visited.insert(target);
+                        }
                     }
+                    hyper_idx += 1;
                 }
-                // TODO print arrow to Ø when hyper.targets is empty
-                hyper_idx += 1;
             }
             Edges::NEGATION(neg) => {
                 output.write(format!("v{} -> v{}[style=dashed];\n", hash_name(&neg.source), hash_name(&neg.target)).as_bytes())?;
