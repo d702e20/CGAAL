@@ -7,6 +7,7 @@ use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::EagerGameStructure;
 use crate::common::Edges;
+use crate::edg::Vertex;
 use clap::{App, Arg, ArgMatches};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
@@ -30,6 +31,8 @@ mod printer;
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
+
+impl Vertex for i32 {}
 
 impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
     fn succ(&self, _vert: &i32) -> HashSet<Edges<i32>, RandomState> {

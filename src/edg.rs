@@ -25,7 +25,7 @@ pub trait ExtendedDependencyGraph<V: Vertex> {
 }
 
 pub fn distributed_certain_zero<
-    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + 'static,
+    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
     V: Vertex + Send + Sync + 'static,
 >(
     edg: G,

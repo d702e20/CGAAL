@@ -7,8 +7,7 @@ use std::sync::Arc;
 use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
-use std::fmt::Display;
-use serde::export::Formatter;
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ATLDependencyGraph<G: GameStructure> {
@@ -31,17 +30,23 @@ pub(crate) enum ATLVertex {
 impl Display for ATLVertex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ATLVertex::FULL { state, formula } => f.write_fmt(format_args!("state={} formula={}", state, formula)),
-            ATLVertex::PARTIAL { state, partial_move, formula } => {
+            ATLVertex::FULL { state, formula } => {
+                f.write_fmt(format_args!("state={} formula={}", state, formula))
+            }
+            ATLVertex::PARTIAL {
+                state,
+                partial_move,
+                formula,
+            } => {
                 f.write_fmt(format_args!("state={} partial_move=[", state))?;
                 for (i, choice) in partial_move.iter().enumerate() {
                     choice.fmt(f);
-                    if i < partial_move.len()-1 {
+                    if i < partial_move.len() - 1 {
                         f.write_str(", ")?;
                     }
                 }
                 f.write_fmt(format_args!("] formula={}", formula))
-            },
+            }
         }
     }
 }
@@ -75,8 +80,10 @@ pub enum PartialMoveChoice {
 impl Display for PartialMoveChoice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PartialMoveChoice::RANGE(max) => f.write_fmt(format_args!("RANGE(0..{})", max-1)),
-            PartialMoveChoice::SPECIFIC(choice) => f.write_fmt(format_args!("SPECIFIC({})", choice)),
+            PartialMoveChoice::RANGE(max) => f.write_fmt(format_args!("RANGE(0..{})", max - 1)),
+            PartialMoveChoice::SPECIFIC(choice) => {
+                f.write_fmt(format_args!("SPECIFIC({})", choice))
+            }
         }
     }
 }

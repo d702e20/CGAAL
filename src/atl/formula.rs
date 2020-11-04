@@ -1,7 +1,6 @@
 use crate::atl::common::{Player, Proposition};
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-use std::fmt::Display;
-use serde::export::Formatter;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub(crate) enum Phi {
@@ -39,23 +38,52 @@ impl Display for Phi {
             }
             Phi::NEXT { players, formula } => {
                 f.write_str("⟪")?;
-                f.write_str(players.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(",").as_str())?;
+                f.write_str(
+                    players
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str(),
+                )?;
                 f.write_str("⟫◯[")?;
                 formula.fmt(f)?;
                 f.write_str("]")
             }
-            Phi::DESPITE_UNTIL { players, pre, until } => {
+            Phi::DESPITE_UNTIL {
+                players,
+                pre,
+                until,
+            } => {
                 f.write_str("⟪")?;
-                f.write_str(players.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(",").as_str())?;
+                f.write_str(
+                    players
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str(),
+                )?;
                 f.write_str("⟫(")?;
                 pre.fmt(f)?;
                 f.write_str("𝑼");
                 pre.fmt(f)?;
                 f.write_str(")")
             }
-            Phi::ENFORCE_UNTIL { players, pre, until } => {
+            Phi::ENFORCE_UNTIL {
+                players,
+                pre,
+                until,
+            } => {
                 f.write_str("⟦")?;
-                f.write_str(players.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(",").as_str())?;
+                f.write_str(
+                    players
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str(),
+                )?;
                 f.write_str("⟧(")?;
                 pre.fmt(f)?;
                 f.write_str("𝑼");
