@@ -25,6 +25,7 @@ mod com;
 mod common;
 mod edg;
 mod lcgs;
+#[cfg(feature = "graph-printer")]
 mod printer;
 
 #[derive(Clone, Debug)]

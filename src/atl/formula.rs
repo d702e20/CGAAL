@@ -1,5 +1,7 @@
 use crate::atl::common::{Player, Proposition};
 use std::sync::Arc;
+use std::fmt::Display;
+use serde::export::Formatter;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub(crate) enum Phi {
@@ -20,4 +22,46 @@ pub(crate) enum Phi {
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
+}
+
+impl Display for Phi {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Phi::PROPOSITION(id) => f.write_fmt(format_args!("'{}'", id)),
+            Phi::NOT(formula) => {
+                f.write_str("¬")?;
+                formula.fmt(f)
+            }
+            Phi::OR(left, right) => {
+                left.fmt(f)?;
+                f.write_str(" ∨ ")?;
+                right.fmt(f)
+            }
+            Phi::NEXT { players, formula } => {
+                f.write_str("⟪")?;
+                f.write_str(players.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(",").as_str())?;
+                f.write_str("⟫◯[")?;
+                formula.fmt(f)?;
+                f.write_str("]")
+            }
+            Phi::DESPITE_UNTIL { players, pre, until } => {
+                f.write_str("⟪")?;
+                f.write_str(players.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(",").as_str())?;
+                f.write_str("⟫(")?;
+                pre.fmt(f)?;
+                f.write_str("𝑼");
+                pre.fmt(f)?;
+                f.write_str(")")
+            }
+            Phi::ENFORCE_UNTIL { players, pre, until } => {
+                f.write_str("⟦")?;
+                f.write_str(players.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(",").as_str())?;
+                f.write_str("⟧(")?;
+                pre.fmt(f)?;
+                f.write_str("𝑼");
+                pre.fmt(f)?;
+                f.write_str(")")
+            }
+        }
+    }
 }

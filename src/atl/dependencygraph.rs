@@ -1,5 +1,5 @@
 use crate::common::{Edges, HyperEdge, NegationEdge};
-use crate::edg::ExtendedDependencyGraph;
+use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -7,6 +7,8 @@ use std::sync::Arc;
 use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
+use std::fmt::Display;
+use serde::export::Formatter;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ATLDependencyGraph<G: GameStructure> {
@@ -26,6 +28,24 @@ pub(crate) enum ATLVertex {
     },
 }
 
+impl Display for ATLVertex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ATLVertex::FULL { state, formula } => f.write_fmt(format_args!("state={} formula={}", state, formula)),
+            ATLVertex::PARTIAL { state, partial_move, formula } => {
+                f.write_fmt(format_args!("state={} partial_move=[", state))?;
+                for (i, choice) in partial_move.iter().enumerate() {
+                    choice.fmt(f);
+                    if i < partial_move.len()-1 {
+                        f.write_str(", ")?;
+                    }
+                }
+                f.write_fmt(format_args!("] formula={}", formula))
+            },
+        }
+    }
+}
+
 impl ATLVertex {
     fn state(&self) -> State {
         match self {
@@ -42,12 +62,23 @@ impl ATLVertex {
     }
 }
 
+impl Vertex for ATLVertex {}
+
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum PartialMoveChoice {
     /// Range from 0 to given number
     RANGE(usize),
     /// Chosen move for player
     SPECIFIC(usize),
+}
+
+impl Display for PartialMoveChoice {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartialMoveChoice::RANGE(max) => f.write_fmt(format_args!("RANGE(0..{})", max-1)),
+            PartialMoveChoice::SPECIFIC(choice) => f.write_fmt(format_args!("SPECIFIC({})", choice)),
+        }
+    }
 }
 
 pub type PartialMove = Vec<PartialMoveChoice>;

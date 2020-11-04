@@ -4,19 +4,29 @@ use crossbeam_channel::{Receiver, Select};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+#[cfg(feature = "graph-printer")]
+use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-pub trait ExtendedDependencyGraph<V: Hash + Eq + PartialEq + Clone> {
+const WORKER_COUNT: u64 = 4;
+
+#[cfg(feature = "graph-printer")]
+pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
+
+#[cfg(not(feature = "graph-printer"))]
+pub trait Vertex: Hash + Eq + PartialEq + Clone + Debug {}
+
+pub trait ExtendedDependencyGraph<V: Vertex> {
     /// Return out going edges from `vertex`.
     /// This will be cached on each worker.
     fn succ(&self, vertex: &V) -> HashSet<Edges<V>>;
 }
 
 pub fn distributed_certain_zero<
-    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-    V: Hash + Eq + PartialEq + Clone + Send + Sync + Debug + 'static,
+    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + 'static,
+    V: Vertex + Send + Sync + 'static,
 >(
     edg: G,
     v0: V,
@@ -25,7 +35,7 @@ pub fn distributed_certain_zero<
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
     let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(worker_count);
     let broker = Arc::new(broker);
-    let (mut tx, mut rx) = crossbeam_channel::bounded(worker_count as usize);
+    let (tx, rx) = crossbeam_channel::bounded(worker_count as usize);
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
@@ -51,11 +61,7 @@ pub fn distributed_certain_zero<
 }
 
 #[derive(Debug)]
-struct Worker<
-    B: Broker<V> + Debug,
-    G: ExtendedDependencyGraph<V> + Debug,
-    V: Hash + Eq + PartialEq + Clone + Debug,
-> {
+struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     id: WorkerId,
     worker_count: u64,
     v0: V,
@@ -69,11 +75,8 @@ struct Worker<
     edg: G,
 }
 
-impl<
-        B: Broker<V> + Debug,
-        G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
-        V: Hash + Eq + PartialEq + Clone + Debug,
-    > Worker<B, G, V>
+impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
+    Worker<B, G, V>
 {
     fn vertex_owner(&self, vertex: &V) -> WorkerId {
         // Static allocation of vertices to workers

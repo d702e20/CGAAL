@@ -1,15 +1,16 @@
 use crate::common::Edges;
-use crate::edg::ExtendedDependencyGraph;
+use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::collections::hash_map::DefaultHasher;
+use serde::export::fmt::Display;
 
-fn print_vertex<V: Hash + Debug, W: Write>(vertex: V, mut output: W) -> std::io::Result<()> {
-    println!("{} = {:?}", hash_name(&vertex), vertex);
+fn print_vertex<V: Hash + Display, W: Write>(vertex: V, mut output: W) -> std::io::Result<()> {
+    println!("{} = {}", hash_name(&vertex), vertex);
 
-    output.write(format!("v{}[label=\"{:?}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
+    output.write(format!("v{}[label=\"{}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
     Ok(())
 }
 
@@ -20,7 +21,7 @@ fn hash_name<V: Hash>(vertex: &V) -> String {
 }
 
 pub(crate) fn print_graph<
-    V: Debug + Hash + Eq + PartialEq + Clone,
+    V: Vertex,
     G: ExtendedDependencyGraph<V>,
     W: Write,
 >(
@@ -45,6 +46,7 @@ pub(crate) fn print_graph<
             .pop_front()
             .expect("non-empty queue failed to pop element");
 
+        // TODO maybe print labels on edges
         match edge {
             Edges::HYPER(hyper) => {
                 output.write(format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_idx).as_bytes())?;
@@ -57,6 +59,7 @@ pub(crate) fn print_graph<
                         visited.insert(target);
                     }
                 }
+                // TODO print arrow to Ø when hyper.targets is empty
                 hyper_idx += 1;
             }
             Edges::NEGATION(neg) => {
