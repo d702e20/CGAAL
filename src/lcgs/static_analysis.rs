@@ -1,21 +1,48 @@
-use crate::lcgs::ast::{LazyConcurrentGameStructure, Identifier, Expr, VariableDefinition, StateVariable, PropositionMapping, Transition, StateChange};
+use crate::lcgs::ast::{LazyConcurrentGameStructure, Identifier, Expr, VariableDefinition, StateVariableDefinition, PropositionMapping, Transition, StateChange};
 use crate::lcgs::visitor::Visitor;
+use crate::lcgs::program::Program;
 use std::collections::HashMap;
+use std::fmt::Display;
 
-pub struct SymbolTable {
-    store: HashMap<String, ()>,
+pub struct Symbol {
+    pub label: String,
+    pub kind: SymbolKind,
 }
 
-pub struct StaticAnalysis {}
+pub enum SymbolKind {
+    Player,
+    StateVar,
+    Var,
+}
+
+pub struct SymbolTable {
+    store: HashMap<String, Symbol>,
+}
+
+impl SymbolTable {
+    pub fn new() -> SymbolTable {
+        SymbolTable {
+            store: HashMap::new(),
+        }
+    }
+}
+
+pub struct StaticAnalysis {
+    symbol_table: SymbolTable,
+    errors: Vec<String>,
+}
 
 impl StaticAnalysis {
-    fn new() -> StaticAnalysis {
-        StaticAnalysis
+    pub fn new() -> StaticAnalysis {
+        StaticAnalysis {
+            symbol_table: SymbolTable::new(),
+            errors: vec![],
+        }
     }
 
-    pub fn run(cgs: &mut LazyConcurrentGameStructure) -> Result<(), ()> {
+    pub fn run(program: &mut Program) -> Result<(), ()> {
         let mut analysis = StaticAnalysis::new();
-        analysis.visit_cgs(cgs);
+        analysis.visit_cgs(&program.lcgs);
         Ok(())
     }
 }
@@ -29,7 +56,16 @@ impl Visitor for StaticAnalysis {
         unimplemented!()
     }
 
-    fn visit_state_var(&mut self, state_var: &StateVariable) {
+    fn visit_state_var(&mut self, state_var: &StateVariableDefinition) {
+        if self.symbol_table.store.contains_key(&state_var.identifier.label) {
+            self.errors.push(format!("'{}' is already declared.", state_var.identifier.label));
+        } else {
+            let symb = Symbol {
+                label: state_var.identifier.label.clone(),
+                kind: SymbolKind::StateVar,
+            };
+            self.symbol_table.store.insert(symb.label.clone(), symb);
+        }
         unimplemented!()
     }
 
