@@ -1,4 +1,4 @@
-pub struct LazyConcurrentGameStructure {
+pub struct Root { // TODO
     pub players: Vec<Identifier>,
     pub state_vars: Vec<StateVariableDefinition>,
     pub vars: Vec<VariableDefinition>,
@@ -8,36 +8,51 @@ pub struct LazyConcurrentGameStructure {
 }
 
 pub struct Identifier {
-    pub label: String,
+    pub name: String,
 }
 
-pub struct StateVariableDefinition {
-    pub identifier: Identifier,
-    pub size: i32,
-    pub initial_value: i32,
-}
-
-pub struct VariableDefinition {
-    pub identifier: Identifier,
+pub struct ConstDecl {
+    pub name: Identifier,
     pub definition: Expr,
 }
 
-pub struct PropositionMapping {
+pub struct LabelDecl {
     pub guard: Expr,
-    pub propositions: Vec<Identifier>
+    pub name: Identifier,
 }
 
-pub struct Transition {
-    pub guard: Expr,
-    pub choices: Vec<i32>,
-    /// If None the resulting state is the source state
-    pub result: Option<Vec<StateChange>>,
+pub struct PlayerDecl {
+    pub name: Identifier,
+    pub module: Identifier,
+    pub relabelling: Relabelling,
 }
 
-pub struct StateChange {
-    pub state_var: Identifier,
-    pub new_value: Expr,
+pub struct Relabelling {
+    pub relabellings: Vec<Relabel>,
 }
+
+pub struct Relabel {
+    pub prev_name: Identifier,
+    pub new_name: Identifier,
+}
+
+pub struct ModuleDecl {
+    pub name: Identifier,
+    pub statements: Vec<ModuleDeclStatement>,
+}
+
+pub struct ModuleDeclStatement {
+    pub kind: ModuleDeclStatementKind,
+}
+
+pub enum ModuleDeclStatementKind {
+    StateVarDecl(Box<StateVarDecl>),
+    TransitionDecl(Box<TransitionDecl>),
+}
+
+pub struct StateVarDecl; // TODO
+
+pub struct TransitionDecl; // TODO
 
 pub struct Expr {
     pub kind: ExprKind,
