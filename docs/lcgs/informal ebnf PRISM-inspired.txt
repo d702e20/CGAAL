@@ -1,14 +1,13 @@
-start := (decl semicolon | blockdecl)*
+start := (decl semicolon | moduledecl)*
 
 decl := constdecl
     | labeldecl
+    | playerdecl
 
 constdecl := "const" identifier eq expr;
 labeldecl := "label" quote identifier quote eq expr
+playerdecl := "player" identifier eq identifier relabeling?
 
-blockdecl := playerdecl | moduledecl
-
-playerdecl := "player" identifier identifier "endplayer"
 moduledecl := "module" identifier eq identifier relabeling "endmodule"
     | "module" identifier ((vardecl | transitiondecl) semicolon)* "endmodule"
 
@@ -24,16 +23,18 @@ relabeling := lbrac (identifier eq identifier (comma identifier eq identifier)*)
 type := lbrac expr rangedots expr rbrac
 
 expr := identifier
+    | identifier dot identifier
 	| int
 	| true
 	| false
 	| not expr
 	| expr binop expr
-	| lpar expr rpar
 	| bexpr questionmark expr colon expr
+	| lpar expr rpar
 	...
 
 comma := ","
+dot := "."
 semicolon := ";"
 colon := ":"
 arrow := "->"
