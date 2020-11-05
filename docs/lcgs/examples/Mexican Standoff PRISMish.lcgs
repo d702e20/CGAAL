@@ -6,7 +6,11 @@ label "alive1" = health1 > 0;
 label "alive2" = health2 > 0;
 label "alive3" = health3 > 0;
 
-player p1
+player p1 shooter1 endplayer
+player p2 shooter2 endplayer
+player p3 shooter3 endplayer
+
+module shooter1
 
     health1 : [0 .. max_health] init max_health;
 
@@ -14,7 +18,7 @@ player p1
     [p1shoot2] health1 > 0 & health2 > 0 -> health2' = health2 - 1;
     [p1shoot3] health1 > 0 & health3 > 0 -> health3' = health3 - 1;
 
-endplayer
+endmodule
 
-player p2 = p1[health1=health2, health2=health1, p1wait=p2wait, p1shoot2=p2shoot1, p1shoot3=p2shoot3];
-player p3 = p1[health1=health3, health3=health1, p1wait=p3wait, p1shoot2=p3shoot2, p1shoot3=p3shoot1];
+module shooter2 = shooter1 [health1=health2, health2=health1, p1wait=p2wait, p1shoot2=p2shoot1, p1shoot3=p2shoot3];
+player shooter3 = shooter1 [health1=health3, health3=health1, p1wait=p3wait, p1shoot2=p3shoot2, p1shoot3=p3shoot1];
