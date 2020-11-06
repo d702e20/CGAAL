@@ -1,10 +1,6 @@
-# Mexican Standoff PRISM-inspired
+// Mexican Standoff PRISM-inspired
 
 const max_health = 1;
-
-label "alive1" = p1.health > 0;
-label "alive2" = p2.health > 0;
-label "alive3" = p3.health3 > 0;
 
 player p1 = shooter [target1=p2, target2=p3];
 player p2 = shooter [target1=p3, target2=p1];
@@ -13,6 +9,8 @@ player p3 = shooter [target1=p1, target2=p3];
 module shooter
 
     health : [0 .. max_health] init max_health;
+
+    label alive = health > 0;
 
     [wait] true -> true;
     [shoot_right] health > 0 & target1.health > 0 -> target1.health' = target1.health - 1;

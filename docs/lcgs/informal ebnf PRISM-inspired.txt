@@ -1,15 +1,15 @@
-start := (decl semicolon | moduledecl)*
+start := (constdecl semicolon | simpledecl semicolon | moduledecl)*
 
-decl := constdecl
-    | labeldecl
+simpledecl := labeldecl
+    | vardecl
     | playerdecl
 
 constdecl := "const" identifier eq expr;
-labeldecl := "label" quote identifier quote eq expr
+labeldecl := "label" identifier eq expr
 playerdecl := "player" identifier eq identifier relabeling?
 
 moduledecl := "module" identifier eq identifier relabeling "endmodule"
-    | "module" identifier ((vardecl | transitiondecl) semicolon)* "endmodule"
+    | "module" identifier (simpledecl semicolon)* "endmodule"
 
 vardecl := identifier colon type ("init" expr)?
 transitiondecl := lbrac identifier rbrac expr arrow stateupdate
