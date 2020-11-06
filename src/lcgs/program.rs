@@ -1,5 +1,5 @@
-use crate::lcgs::ast::LazyConcurrentGameStructure;
+use crate::lcgs::ast::Root;
 
 pub struct Program {
-    pub lcgs: LazyConcurrentGameStructure
+    pub root: Root
 }

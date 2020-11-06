@@ -1,10 +1,18 @@
-pub struct Root { // TODO
-    pub players: Vec<Identifier>,
-    pub state_vars: Vec<StateVariableDefinition>,
-    pub vars: Vec<VariableDefinition>,
-    pub propositions: Vec<Identifier>,
-    pub proposition_mappings: Vec<PropositionMapping>,
-    pub transitions: Vec<Transition>
+pub struct Root {
+    decls: Vec<Decl>,
+}
+
+pub struct Decl {
+    kind: DeclKind,
+}
+
+pub enum DeclKind {
+    Const(Box<ConstDecl>),
+    Label(Box<LabelDecl>),
+    StateVar(Box<StateVarDecl>),
+    Player(Box<PlayerDecl>),
+    Module(Box<ModuleDecl>),
+    Transition(Box<TransitionDecl>),
 }
 
 pub struct Identifier {
@@ -28,31 +36,40 @@ pub struct PlayerDecl {
 }
 
 pub struct Relabelling {
-    pub relabellings: Vec<Relabel>,
+    pub relabellings: Vec<RelabelCase>,
 }
 
-pub struct Relabel {
+pub struct RelabelCase {
     pub prev_name: Identifier,
     pub new_name: Identifier,
 }
 
 pub struct ModuleDecl {
     pub name: Identifier,
-    pub statements: Vec<ModuleDeclStatement>,
+    pub decls: Vec<Decl>,
 }
 
-pub struct ModuleDeclStatement {
-    pub kind: ModuleDeclStatementKind,
+pub struct StateVarDecl {
+    pub name: Identifier,
+    pub range: TypeRange,
+    pub initial_value: Expr,
 }
 
-pub enum ModuleDeclStatementKind {
-    StateVarDecl(Box<StateVarDecl>),
-    TransitionDecl(Box<TransitionDecl>),
+pub struct TypeRange {
+    pub min: Expr,
+    pub max: Expr,
 }
 
-pub struct StateVarDecl; // TODO
+pub struct TransitionDecl {
+    pub name: Identifier,
+    pub condition: Expr,
+    pub state_changes: Vec<StateChange>,
+}
 
-pub struct TransitionDecl; // TODO
+pub struct StateChange {
+    pub name: Identifier,
+    pub new_value: Expr,
+}
 
 pub struct Expr {
     pub kind: ExprKind,

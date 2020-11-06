@@ -1,4 +1,4 @@
 mod ast;
-mod static_analysis;
 mod visitor;
 mod program;
+mod symbol_table;
