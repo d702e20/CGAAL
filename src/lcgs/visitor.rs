@@ -1,7 +1,7 @@
 use crate::lcgs::ast::*;
-use std::rc::Rc;
 use std::borrow::BorrowMut;
 use std::ops::Deref;
+use std::rc::Rc;
 
 pub trait Visitor {
     fn visit_root(&mut self, mut root: Rc<Root>);

@@ -104,5 +104,5 @@ pub enum BinaryOpKind {
     And,
     Or,
     Xor,
-    Implication
+    Implication,
 }

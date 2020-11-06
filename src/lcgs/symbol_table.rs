@@ -6,7 +6,7 @@ pub struct Symbol {
 }
 
 pub enum SymbolKind {
-    TODO
+    TODO,
 }
 
 pub struct SymbolTable {
