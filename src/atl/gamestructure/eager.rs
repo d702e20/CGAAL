@@ -1,4 +1,4 @@
-use crate::atl::common::{transition_lookup, DynVec, Proposition, State};
+use crate::atl::common::{transition_lookup, DynVec, Proposition, State, Player};
 use crate::atl::gamestructure::GameStructure;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
