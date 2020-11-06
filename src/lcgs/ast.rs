@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 pub struct Root {
     pub decls: Vec<Decl>,
 }
@@ -7,12 +9,12 @@ pub struct Decl {
 }
 
 pub enum DeclKind {
-    Const(Box<ConstDecl>),
-    Label(Box<LabelDecl>),
-    StateVar(Box<StateVarDecl>),
-    Player(Box<PlayerDecl>),
-    Module(Box<TemplateDecl>),
-    Transition(Box<TransitionDecl>),
+    Const(Rc<ConstDecl>),
+    Label(Rc<LabelDecl>),
+    StateVar(Rc<StateVarDecl>),
+    Player(Rc<PlayerDecl>),
+    Module(Rc<TemplateDecl>),
+    Transition(Rc<TransitionDecl>),
 }
 
 pub struct Identifier {
@@ -78,11 +80,11 @@ pub struct Expr {
 pub enum ExprKind {
     Number(i32),
     Identifier(Identifier),
-    Negation(Box<Expr>),
-    UnaryOp(UnaryOpKind, Box<Expr>),
-    BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
-    TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
-    BoolToNumConversion(Box<Expr>),
+    Negation(Rc<Expr>),
+    UnaryOp(UnaryOpKind, Rc<Expr>),
+    BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
+    TernaryIf(Rc<Expr>, Rc<Expr>, Rc<Expr>),
+    BoolToNumConversion(Rc<Expr>),
 }
 
 pub enum UnaryOpKind {
