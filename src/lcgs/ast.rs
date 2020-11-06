@@ -18,6 +18,7 @@ pub enum DeclKind {
 }
 
 pub struct Identifier {
+    pub owner: Option<String>,
     pub name: String,
 }
 
