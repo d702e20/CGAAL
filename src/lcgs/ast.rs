@@ -1,9 +1,9 @@
 pub struct Root {
-    decls: Vec<Decl>,
+    pub decls: Vec<Decl>,
 }
 
 pub struct Decl {
-    kind: DeclKind,
+    pub kind: DeclKind,
 }
 
 pub enum DeclKind {
@@ -76,6 +76,7 @@ pub struct Expr {
 }
 
 pub enum ExprKind {
+    Number(i32),
     Identifier(Identifier),
     Negation(Box<Expr>),
     UnaryOp(UnaryOpKind, Box<Expr>),
