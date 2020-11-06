@@ -18,6 +18,7 @@ pub enum DeclKind {
 }
 
 pub struct Identifier {
+    /// None implies global scope/owner
     pub owner: Option<String>,
     pub name: String,
 }
