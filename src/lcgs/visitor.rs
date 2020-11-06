@@ -10,7 +10,7 @@ pub trait Visitor {
     fn visit_player(&mut self, player: &mut PlayerDecl);
     fn visit_relabelling(&mut self, relabelling: &mut Relabelling);
     fn visit_relabel_case(&mut self, relabel_case: &mut RelabelCase);
-    fn visit_module(&mut self, module: &mut ModuleDecl);
+    fn visit_template(&mut self, module: &mut TemplateDecl);
     fn visit_state_var(&mut self, state_var: &mut StateVarDecl);
     fn visit_transition(&mut self, transition: &mut TransitionDecl);
     fn visit_state_change(&mut self, state_change: &StateChange);

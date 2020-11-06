@@ -11,7 +11,7 @@ pub enum DeclKind {
     Label(Box<LabelDecl>),
     StateVar(Box<StateVarDecl>),
     Player(Box<PlayerDecl>),
-    Module(Box<ModuleDecl>),
+    Module(Box<TemplateDecl>),
     Transition(Box<TransitionDecl>),
 }
 
@@ -44,7 +44,7 @@ pub struct RelabelCase {
     pub new_name: Identifier,
 }
 
-pub struct ModuleDecl {
+pub struct TemplateDecl {
     pub name: Identifier,
     pub decls: Vec<Decl>,
 }
