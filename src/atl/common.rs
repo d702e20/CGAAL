@@ -4,8 +4,8 @@ pub(crate) type Proposition = usize;
 pub(crate) type Player = usize;
 pub(crate) type State = usize;
 
-#[derive(Clone)]
-pub(crate) enum DynVec {
+#[derive(Clone, Debug)]
+pub enum DynVec {
     NEST(Vec<Arc<DynVec>>),
     BASE(State),
 }

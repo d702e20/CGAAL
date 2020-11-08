@@ -1,7 +1,7 @@
 use crate::atl::common::{Player, Proposition};
 use std::sync::Arc;
 
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub(crate) enum Phi {
     PROPOSITION(Proposition),
     NOT(Arc<Phi>),

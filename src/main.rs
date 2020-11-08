@@ -9,7 +9,7 @@ mod com;
 mod common;
 mod edg;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EmptyGraph {}
 
 impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {

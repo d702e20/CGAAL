@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 pub type WorkerId = u64;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum VertexAssignment {
     // UNEXPLORED is implemented as hashmap doesn't contain the key/vertex
     UNDECIDED,
@@ -10,19 +10,19 @@ pub enum VertexAssignment {
     TRUE,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
     pub source: V,
     pub targets: Vec<V>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
     pub source: V,
     pub target: V,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
     HYPER(HyperEdge<V>),
     NEGATION(NegationEdge<V>),
