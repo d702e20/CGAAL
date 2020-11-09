@@ -2,25 +2,32 @@ use crate::atl::common::{Player, Proposition};
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
+/// Alternating-time Temporal Logic formula
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize)]
 pub(crate) enum Phi {
+    /// The current state must have the label/proposition
     #[serde(rename = "proposition")]
     PROPOSITION(Proposition),
+    /// It must not be the case that subformula is satisfied
     #[serde(rename = "not")]
     NOT(Arc<Phi>),
+    /// It must be the case that either formula is satisfied
     #[serde(rename = "or")]
     OR(Arc<Phi>, Arc<Phi>),
+    /// It must be the case that players can enforce that `formula` is satisfied in the next step
     #[serde(rename = "next")]
     NEXT {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
+    /// It must be the case that `pre` is satisfied until `until` is satisfied despite what actions `players` choose.
     #[serde(rename = "despite until")]
     DESPITE_UNTIL {
         players: Vec<Player>,
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
+    /// It must be that `players` can enforce that `pre` is satisfied until `until` is satisfied
     #[serde(rename = "enforce until")]
     ENFORCE_UNTIL {
         players: Vec<Player>,
