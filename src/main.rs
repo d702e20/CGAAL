@@ -8,6 +8,7 @@ mod atl;
 mod com;
 mod common;
 mod edg;
+mod lcgs;
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
