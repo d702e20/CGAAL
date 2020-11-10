@@ -6,7 +6,7 @@ use std::ops::Add;
 use std::rc::Rc;
 use crate::lcgs::ast::{Expr, ExprKind, Identifier};
 use std::collections::HashMap;
-use crate::lcgs::ast::BinaryOpKind::{Addition, Multiplication};
+use crate::lcgs::ast::BinaryOpKind::{Addition, Multiplication, Subtraction, Division};
 use crate::lcgs::ast::ExprKind::{Number, BinaryOp, Ident};
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -23,17 +23,6 @@ impl<'a, I, O: 'a> WithSpan<'a, I, O> for Parser<'a, I, O> {
     fn with_span(self) -> Parser<'a, I, (Span, O)> {
         (empty().pos() + self + empty().pos())
             .map(|((begin, item), end)| (Span { begin, end }, item))
-    }
-}
-
-trait Foldable<'a, I, O: 'a> {
-    fn foldr(self) -> Parser<'a, I, O>;
-}
-
-impl<'a, I, O: 'a, U: 'a> Foldable<'a, I, U> for Parser<'a, I, (O, Vec<O>)> {
-    fn foldr(self) -> Parser<'a, I, U> {
-
-        unimplemented!()
     }
 }
 
@@ -74,11 +63,12 @@ fn identifier() -> Parser<'static, u8, Identifier> {
 
 fn expr() -> Parser<'static, u8, Expr> {
     // TODO Spans and combining them
-    let sum = term() + (space() * sym(b'+') - space() + term()).repeat(0..);
+    let sum = term() + (space() * one_of(b"+-") - space() + term()).repeat(0..);
     sum.map(|(e1, mut e2s)| e2s.drain(..).fold(e1, |a, (op, b)| {
         let op_kind = match op {
             b'+' => Addition,
-            _ => unimplemented!(),
+            b'-' => Subtraction,
+            _ => panic!(),
         };
         Expr { kind: BinaryOp(op_kind, Rc::from(a), Rc::from(b)) }
     }))
@@ -86,18 +76,21 @@ fn expr() -> Parser<'static, u8, Expr> {
 
 fn term() -> Parser<'static, u8, Expr> {
     // TODO Spans and combining them
-    let product = factor() + (space() * sym(b'*') - space() + factor()).repeat(0..);
+    let product = factor() + (space() * one_of(b"*/") - space() + factor()).repeat(0..);
     product.map(|(e1, mut e2s)| e2s.drain(..).fold(e1, |a, (op, b)| {
         let op_kind = match op {
             b'*' => Multiplication,
-            _ => unimplemented!(),
+            b'/' => Division,
+            _ => panic!(),
         };
         Expr { kind: BinaryOp(op_kind, Rc::from(a), Rc::from(b)) }
     }))
 }
 
 fn factor() -> Parser<'static, u8, Expr> {
-    (number() | identifier().map(|i| Expr { kind: Ident(Rc::from(i))}))
+    number()
+        | identifier().map(|i| Expr { kind: Ident(Rc::from(i))})
+        | (sym(b'(') * space() * call(expr) - space() - sym(b')'))
 }
 
 #[cfg(test)]
@@ -164,6 +157,25 @@ mod tests {
     }
 
     #[test]
+    fn test_sub_01() {
+        let input = br"1 - 2 - 3";
+        let parser = expr();
+        assert_eq!(parser.parse(input), Ok(Expr {
+            kind: BinaryOp(
+                Subtraction,
+                Rc::from(Expr {
+                    kind: BinaryOp(
+                        Subtraction,
+                        Rc::from(Expr { kind: Number(1) }),
+                        Rc::from(Expr { kind: Number(2) })
+                    )
+                }),
+                Rc::from(Expr { kind: Number(3) })
+            )
+        }));
+    }
+
+    #[test]
     fn test_mul_01() {
         let input = br"1 * 2";
         let parser = term();
@@ -190,6 +202,44 @@ mod tests {
                     )
                 }),
                 Rc::from(Expr { kind: Number(3) })
+            )
+        }));
+    }
+
+    #[test]
+    fn test_div_01() {
+        let input = br"1 / 2 / 3";
+        let parser = term();
+        assert_eq!(parser.parse(input), Ok(Expr {
+            kind: BinaryOp(
+                Division,
+                Rc::from(Expr {
+                    kind: BinaryOp(
+                        Division,
+                        Rc::from(Expr { kind: Number(1) }),
+                        Rc::from(Expr { kind: Number(2) })
+                    )
+                }),
+                Rc::from(Expr { kind: Number(3) })
+            )
+        }));
+    }
+
+    #[test]
+    fn test_par_01() {
+        let input = br"(1 + 2) * 3";
+        let parser = expr();
+        assert_eq!(parser.parse(input), Ok(Expr {
+            kind: BinaryOp(
+                Multiplication,
+                Rc::from(Expr {
+                    kind: BinaryOp(
+                        Addition,
+                        Rc::from(Expr { kind: Number(1) }),
+                        Rc::from(Expr { kind: Number(2) })
+                    )
+                }),
+                Rc::from(Expr { kind: Number(3) }),
             )
         }));
     }
@@ -237,6 +287,37 @@ mod tests {
                                 Rc::from(Expr { kind: Number(4) })
                             )
                         })
+                    )
+                }),
+                Rc::from(Expr { kind: Number(5) })
+            )
+        }));
+    }
+
+    #[test]
+    fn test_precedence_01() {
+        let input = br"1 * (2 + 3) / 4 + 5";
+        let parser = expr();
+        assert_eq!(parser.parse(input), Ok(Expr {
+            kind: BinaryOp(
+                Addition,
+                Rc::from(Expr {
+                    kind: BinaryOp(
+                        Division,
+                        Rc::from(Expr {
+                            kind: BinaryOp(
+                                Multiplication,
+                                Rc::from(Expr { kind: Number(1) }),
+                                Rc::from(Expr {
+                                    kind: BinaryOp(
+                                        Addition,
+                                        Rc::from(Expr { kind: Number(2) }),
+                                        Rc::from(Expr { kind: Number(3) }),
+                                    )
+                                }),
+                            )
+                        }),
+                        Rc::from(Expr { kind: Number(4) }),
                     )
                 }),
                 Rc::from(Expr { kind: Number(5) })
