@@ -12,6 +12,7 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
 }
 
 /// Implements Broker using channels from crossbeam_channel
+#[derive(Debug)]
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
     term_chans: Vec<Sender<VertexAssignment>>,

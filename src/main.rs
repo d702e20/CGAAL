@@ -4,12 +4,13 @@ use crate::common::Edges;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
+mod atl;
 mod com;
 mod common;
 mod edg;
 mod lcgs;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EmptyGraph {}
 
 impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
