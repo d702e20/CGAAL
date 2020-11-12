@@ -1,4 +1,8 @@
+use core::fmt;
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
+
+use crate::lcgs::ast::BinaryOpKind::*;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Root {
@@ -126,4 +130,45 @@ pub enum BinaryOpKind {
     Or,
     Xor,
     Implication,
+}
+
+// TODO Binary operators consisting of multiple characters, e.g. "==" or "&&"
+impl From<u8> for BinaryOpKind {
+    fn from(op: u8) -> BinaryOpKind {
+        match op {
+            b'+' => Addition,
+            b'*' => Multiplication,
+            b'-' => Subtraction,
+            b'/' => Division,
+            _ => unimplemented!(
+                "Unrecognized operator '{}'. See 'impl From<u8> for BinaryOpKind' clause.",
+                op
+            ),
+        }
+    }
+}
+
+impl Display for BinaryOpKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Addition => "+",
+                Multiplication => "*",
+                Subtraction => "-",
+                Division => "/",
+                Equality => "==",
+                Inequality => "!=",
+                GreaterThan => ">",
+                LessThan => "<",
+                GreaterOrEqual => ">=",
+                LessOrEqual => "<=",
+                And => "&&",
+                Or => "||",
+                Xor => "^",
+                Implication => "->",
+            }
+        )
+    }
 }

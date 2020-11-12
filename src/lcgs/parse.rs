@@ -1,14 +1,24 @@
 extern crate pom;
-use pom::parser::*;
-use self::pom::set::Set;
-use std::str::{self, FromStr};
+
+use std::collections::HashMap;
+use std::iter::Peekable;
 use std::ops::Add;
 use std::rc::Rc;
-use crate::lcgs::ast::{Expr, ExprKind, Identifier};
-use std::collections::HashMap;
-use crate::lcgs::ast::BinaryOpKind::{Addition, Multiplication, Subtraction, Division};
-use crate::lcgs::ast::ExprKind::{Number, BinaryOp, Ident};
+use std::str::{self, FromStr};
+use std::vec::Drain;
 
+use pom::parser::*;
+
+use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
+use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
+use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
+use crate::lcgs::precedence::Associativity::RightToLeft;
+use crate::lcgs::precedence::{precedence, Precedence};
+
+use self::pom::set::Set;
+
+/// A `Span` describes the position of a slice of text in the original program.
+/// Usually used to describe what text an AST node was created from.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 struct Span {
     begin: usize,
@@ -20,76 +30,119 @@ trait WithSpan<'a, I, O: 'a> {
 }
 
 impl<'a, I, O: 'a> WithSpan<'a, I, O> for Parser<'a, I, O> {
+    /// Make the parser note the beginning and end position and
+    /// include it in the result as a `Span`
     fn with_span(self) -> Parser<'a, I, (Span, O)> {
         (empty().pos() + self + empty().pos())
             .map(|((begin, item), end)| (Span { begin, end }, item))
     }
 }
 
+/// Parser to parse an ASCII alphabet character
 #[inline]
 fn alpha() -> Parser<'static, u8, u8> {
     one_of(b"abcdefghijklmnopqrstuvwxyz") | one_of(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 }
 
+/// Parser that parses a single digit 0-9
 #[inline]
 fn digit() -> Parser<'static, u8, u8> {
     one_of(b"0123456789")
 }
 
+/// Parser that parses a single digit 1-9 (not 0)
 #[inline]
 fn non_0_digit() -> Parser<'static, u8, u8> {
     one_of(b"123456789")
 }
 
+/// Parser that parses 0 or more whitespace characters discards them. Include newlines and tabs.
 fn space() -> Parser<'static, u8, ()> {
     one_of(b" \t\r\n").repeat(0..).discard()
 }
 
+/// Parser that parses a typical positive integer number
 fn number() -> Parser<'static, u8, Expr> {
     let integer = non_0_digit() - digit().repeat(0..) | sym(b'0');
-    let parsed = integer.collect().convert(str::from_utf8).convert(i32::from_str);
-    parsed.with_span().map(|(_span, v)| Expr { kind: Number(v) })
+    let parsed = integer
+        .collect()
+        .convert(str::from_utf8)
+        .convert(i32::from_str);
+    parsed
+        .with_span()
+        .map(|(_span, v)| Expr { kind: Number(v) })
 }
 
+/// Parser that parses a symbol name. It must start with an alpha character, but subsequent
+/// characters can be digits or "_" too.
 fn name() -> Parser<'static, u8, String> {
     let chars = alpha() - (alpha() | digit() | sym(b'_')).repeat(0..);
-    chars.collect().convert(|s|String::from_utf8(s.to_vec()))
+    chars.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
+/// Parser that parses a name with an optional owner and returns an `Identifier`.
+/// I.e. "health" or "p1.health"
 fn identifier() -> Parser<'static, u8, Identifier> {
     let identifier = (name() - sym(b'.')).opt() + name();
-    identifier.with_span().map(|(_span, (owner, name))| Identifier { owner, name })
+    identifier
+        .with_span()
+        .map(|(_span, (owner, name))| Identifier { owner, name })
 }
 
+/// Parser that parses binary operators
+fn binop() -> Parser<'static, u8, BinaryOpKind> {
+    one_of(b"+-*/").map(BinaryOpKind::from)
+}
+
+/// Combine a list of expressions and binary operators to a single `Expr` with correct
+/// precedence and associativity. See https://en.wikipedia.org/wiki/Operator-precedence_parser
+fn solve_binary_precedence(
+    mut lhs: Expr,
+    prec_min: i32,
+    es: &mut Peekable<Drain<(BinaryOpKind, Expr)>>,
+) -> Expr {
+    // Peek at next operator. If it has a greater precedence that prec_min we take it
+    while let Some((op, _)) = es.peek() {
+        if prec_min <= precedence(op).0 {
+            let (op, mut rhs) = es.next().unwrap();
+            let Precedence(op_prec, _) = precedence(&op);
+            // Peek at the next operator. If has an even greater precedence or similar precedence
+            // and right-associative, then our rhs can consist of multiple expressions
+            let mut next = es.peek();
+            while let Some((op2, _)) = &next {
+                let Precedence(op2_prec, op2_ass) = precedence(&op2);
+                if op_prec < op2_prec || (op_prec == op2_prec && op2_ass == RightToLeft) {
+                    // Built right hand side using recursion
+                    rhs = solve_binary_precedence(rhs, op2_prec, es);
+                    next = es.peek();
+                } else {
+                    break;
+                }
+            }
+            // Combine lhs and rhs using the given binary operator
+            lhs = Expr {
+                kind: BinaryOp(op, Rc::from(lhs), Rc::from(rhs)),
+            }
+        } else {
+            break;
+        }
+    }
+    lhs
+}
+
+/// Parser that parses an expression consisting of binary operators and primary expressions
 fn expr() -> Parser<'static, u8, Expr> {
     // TODO Spans and combining them
-    let sum = term() + (space() * one_of(b"+-") - space() + term()).repeat(0..);
-    sum.map(|(e1, mut e2s)| e2s.drain(..).fold(e1, |a, (op, b)| {
-        let op_kind = match op {
-            b'+' => Addition,
-            b'-' => Subtraction,
-            _ => panic!(),
-        };
-        Expr { kind: BinaryOp(op_kind, Rc::from(a), Rc::from(b)) }
-    }))
+    let binexpr = primary() + (space() * binop() - space() + primary()).repeat(0..);
+    binexpr.map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
 }
 
-fn term() -> Parser<'static, u8, Expr> {
-    // TODO Spans and combining them
-    let product = factor() + (space() * one_of(b"*/") - space() + factor()).repeat(0..);
-    product.map(|(e1, mut e2s)| e2s.drain(..).fold(e1, |a, (op, b)| {
-        let op_kind = match op {
-            b'*' => Multiplication,
-            b'/' => Division,
-            _ => panic!(),
-        };
-        Expr { kind: BinaryOp(op_kind, Rc::from(a), Rc::from(b)) }
-    }))
-}
-
-fn factor() -> Parser<'static, u8, Expr> {
+/// Parser that parses an primary expression, i.e. number, identifier, or a parenthesised expression
+fn primary() -> Parser<'static, u8, Expr> {
     number()
-        | identifier().map(|i| Expr { kind: Ident(Rc::from(i))})
+        | identifier().map(|i| Expr {
+            kind: Ident(Rc::from(i)),
+        })
         | (sym(b'(') * space() * call(expr) - space() - sym(b')'))
 }
 
@@ -99,17 +152,21 @@ mod tests {
 
     #[test]
     fn test_ident_01() {
+        // Should be a valid identifier
         let input = br"abc_ident_1";
         let parser = identifier();
-        assert_eq!(parser.parse(input), Ok(Identifier {
-            owner: None,
-            name: "abc_ident_1".into()
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Identifier {
+                owner: None,
+                name: "abc_ident_1".into()
+            })
+        );
     }
 
     #[test]
     fn test_ident_02() {
-        // Can't start with a digit
+        // Identifier can't start with a digit
         let input = br"123abc";
         let parser = identifier();
         assert!(parser.parse(input).is_err())
@@ -117,211 +174,257 @@ mod tests {
 
     #[test]
     fn test_ident_03() {
+        // Should be a valid identifier with owner
         let input = br"player.variable";
         let parser = identifier();
-        assert_eq!(parser.parse(input), Ok(Identifier {
-            owner: Some("player".into()),
-            name: "variable".into()
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Identifier {
+                owner: Some("player".into()),
+                name: "variable".into()
+            })
+        );
     }
 
     #[test]
     fn test_add_01() {
+        // Basic addition
         let input = br"1 + 2";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Addition,
-                Rc::from(Expr { kind: Number(1) }),
-                Rc::from(Expr { kind: Number(2) }))
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Rc::from(Expr { kind: Number(1) }),
+                    Rc::from(Expr { kind: Number(2) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_add_02() {
+        // Basic addition with three numbers
         let input = br"1 + 2 + 3";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Addition,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Addition,
-                        Rc::from(Expr { kind: Number(1) }),
-                        Rc::from(Expr { kind: Number(2) })
-                    )
-                }),
-                Rc::from(Expr { kind: Number(3) })
-            )
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Addition,
+                            Rc::from(Expr { kind: Number(1) }),
+                            Rc::from(Expr { kind: Number(2) })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(3) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_sub_01() {
+        // Basic subtraction with three numbers
         let input = br"1 - 2 - 3";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Subtraction,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Subtraction,
-                        Rc::from(Expr { kind: Number(1) }),
-                        Rc::from(Expr { kind: Number(2) })
-                    )
-                }),
-                Rc::from(Expr { kind: Number(3) })
-            )
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Subtraction,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Subtraction,
+                            Rc::from(Expr { kind: Number(1) }),
+                            Rc::from(Expr { kind: Number(2) })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(3) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_mul_01() {
+        // Basic multiplications
         let input = br"1 * 2";
-        let parser = term();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Multiplication,
-                Rc::from(Expr { kind: Number(1) }),
-                Rc::from(Expr { kind: Number(2) }))
-        }));
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Multiplication,
+                    Rc::from(Expr { kind: Number(1) }),
+                    Rc::from(Expr { kind: Number(2) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_mul_02() {
+        // Basic multiplications with three numbers
         let input = br"1 * 2 * 3";
-        let parser = term();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Multiplication,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Multiplication,
-                        Rc::from(Expr { kind: Number(1) }),
-                        Rc::from(Expr { kind: Number(2) })
-                    )
-                }),
-                Rc::from(Expr { kind: Number(3) })
-            )
-        }));
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Multiplication,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Multiplication,
+                            Rc::from(Expr { kind: Number(1) }),
+                            Rc::from(Expr { kind: Number(2) })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(3) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_div_01() {
+        // Basic division with three numbers
         let input = br"1 / 2 / 3";
-        let parser = term();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Division,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Division,
-                        Rc::from(Expr { kind: Number(1) }),
-                        Rc::from(Expr { kind: Number(2) })
-                    )
-                }),
-                Rc::from(Expr { kind: Number(3) })
-            )
-        }));
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Division,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Division,
+                            Rc::from(Expr { kind: Number(1) }),
+                            Rc::from(Expr { kind: Number(2) })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(3) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_par_01() {
+        // Parentheses should break precedence
         let input = br"(1 + 2) * 3";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Multiplication,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Addition,
-                        Rc::from(Expr { kind: Number(1) }),
-                        Rc::from(Expr { kind: Number(2) })
-                    )
-                }),
-                Rc::from(Expr { kind: Number(3) }),
-            )
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Multiplication,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Addition,
+                            Rc::from(Expr { kind: Number(1) }),
+                            Rc::from(Expr { kind: Number(2) })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(3) }),
+                )
+            })
+        );
     }
 
     #[test]
     fn test_add_mul_precedence_01() {
+        // Precedence between addition and multiplication
         let input = br"1 + 2 * 3";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Addition,
-                Rc::from(Expr { kind: Number(1) }),
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Multiplication,
-                        Rc::from(Expr { kind: Number(2) }),
-                        Rc::from(Expr { kind: Number(3) })
-                    )
-                }),
-            )
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Rc::from(Expr { kind: Number(1) }),
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Multiplication,
+                            Rc::from(Expr { kind: Number(2) }),
+                            Rc::from(Expr { kind: Number(3) })
+                        )
+                    }),
+                )
+            })
+        );
     }
 
     #[test]
     fn test_add_mul_precedence_02() {
+        // Precedence between addition and multiplication
         let input = br"1 * 2 + 3 * 4 + 5";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Addition,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Addition,
-                        Rc::from(Expr {
-                            kind: BinaryOp(
-                                Multiplication,
-                                Rc::from(Expr { kind: Number(1) }),
-                                Rc::from(Expr { kind: Number(2) })
-                            )
-                        }),
-                        Rc::from(Expr {
-                            kind: BinaryOp(
-                                Multiplication,
-                                Rc::from(Expr { kind: Number(3) }),
-                                Rc::from(Expr { kind: Number(4) })
-                            )
-                        })
-                    )
-                }),
-                Rc::from(Expr { kind: Number(5) })
-            )
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Addition,
+                            Rc::from(Expr {
+                                kind: BinaryOp(
+                                    Multiplication,
+                                    Rc::from(Expr { kind: Number(1) }),
+                                    Rc::from(Expr { kind: Number(2) })
+                                )
+                            }),
+                            Rc::from(Expr {
+                                kind: BinaryOp(
+                                    Multiplication,
+                                    Rc::from(Expr { kind: Number(3) }),
+                                    Rc::from(Expr { kind: Number(4) })
+                                )
+                            })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(5) })
+                )
+            })
+        );
     }
 
     #[test]
     fn test_precedence_01() {
+        // Precedence between mathematical operators
         let input = br"1 * (2 + 3) / 4 + 5";
         let parser = expr();
-        assert_eq!(parser.parse(input), Ok(Expr {
-            kind: BinaryOp(
-                Addition,
-                Rc::from(Expr {
-                    kind: BinaryOp(
-                        Division,
-                        Rc::from(Expr {
-                            kind: BinaryOp(
-                                Multiplication,
-                                Rc::from(Expr { kind: Number(1) }),
-                                Rc::from(Expr {
-                                    kind: BinaryOp(
-                                        Addition,
-                                        Rc::from(Expr { kind: Number(2) }),
-                                        Rc::from(Expr { kind: Number(3) }),
-                                    )
-                                }),
-                            )
-                        }),
-                        Rc::from(Expr { kind: Number(4) }),
-                    )
-                }),
-                Rc::from(Expr { kind: Number(5) })
-            )
-        }));
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Division,
+                            Rc::from(Expr {
+                                kind: BinaryOp(
+                                    Multiplication,
+                                    Rc::from(Expr { kind: Number(1) }),
+                                    Rc::from(Expr {
+                                        kind: BinaryOp(
+                                            Addition,
+                                            Rc::from(Expr { kind: Number(2) }),
+                                            Rc::from(Expr { kind: Number(3) }),
+                                        )
+                                    }),
+                                )
+                            }),
+                            Rc::from(Expr { kind: Number(4) }),
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(5) })
+                )
+            })
+        );
     }
 }
