@@ -11,7 +11,7 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
+use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, StateVarDecl, TypeRange};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
@@ -146,9 +146,30 @@ fn primary() -> Parser<'static, u8, Expr> {
         | (sym(b'(') * space() * call(expr) - space() - sym(b')'))
 }
 
+/// Parser that parses a type range, e.g. "`[0 .. max_health]`"
+fn type_range() -> Parser<'static, u8, TypeRange> {
+    let inner = expr() - space() - seq(b"..") - space() + expr();
+    let bracked = sym(b'[') * space() * inner - space() - sym(b']');
+    bracked.map(|(min, max)| TypeRange { min, max })
+}
+
+/// Parser that parses a variable, e.g.
+/// "`health : [0 .. max_health] init max_health`"
+fn var_decl() -> Parser<'static, u8, StateVarDecl> {
+    let base = name() - space() - sym(b':') - space() + type_range();
+    let init = seq(b"init") * space() * expr();
+    let whole = base - space() + init;
+    whole.map(|((name, range), init_e)| StateVarDecl {
+        name,
+        range,
+        initial_value: init_e,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env::var;
 
     #[test]
     fn test_ident_01() {
@@ -424,6 +445,62 @@ mod tests {
                     }),
                     Rc::from(Expr { kind: Number(5) })
                 )
+            })
+        );
+    }
+
+    #[test]
+    fn test_type_range_01() {
+        // Simple type range
+        let input = br"[0..20]";
+        let parser = type_range();
+        assert_eq!(
+            parser.parse(input),
+            Ok(TypeRange {
+                min: Expr { kind: Number(0) },
+                max: Expr { kind: Number(20) },
+            })
+        );
+    }
+
+    #[test]
+    fn test_type_range_02() {
+        // Simple type range with spaces inside
+        let input = br"[   0  ..  20  ]";
+        let parser = type_range();
+        assert_eq!(
+            parser.parse(input),
+            Ok(TypeRange {
+                min: Expr { kind: Number(0) },
+                max: Expr { kind: Number(20) },
+            })
+        );
+    }
+
+    #[test]
+    fn test_var_decl_01() {
+        // Simple var decl
+        let input = br"health : [0 .. max_health] init max_health";
+        let parser = var_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(StateVarDecl {
+                name: "health".to_string(),
+                range: TypeRange {
+                    min: Expr { kind: Number(0) },
+                    max: Expr {
+                        kind: Ident(Rc::from(Identifier {
+                            owner: None,
+                            name: "max_health".to_string()
+                        }))
+                    },
+                },
+                initial_value: Expr {
+                    kind: Ident(Rc::from(Identifier {
+                        owner: None,
+                        name: "max_health".to_string()
+                    }))
+                }
             })
         );
     }

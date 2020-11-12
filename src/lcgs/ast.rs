@@ -68,7 +68,7 @@ pub struct TemplateDecl {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct StateVarDecl {
-    pub name: Identifier,
+    pub name: String,
     pub range: TypeRange,
     pub initial_value: Expr,
 }
