@@ -10,8 +10,8 @@ use std::vec::Drain;
 use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
-use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
-use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, Identifier, LabelDecl, PlayerDecl, RelabelCase, Relabelling, Root, StateVarDecl, TransitionDecl, TypeRange, TemplateDecl};
+use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
+use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, OwnedIdentifier, LabelDecl, PlayerDecl, RelabelCase, Relabelling, Root, StateVarDecl, TransitionDecl, TypeRange, TemplateDecl, Identifier};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
@@ -46,7 +46,7 @@ trait SemiTerminated<'a, I, O: 'a> {
 impl<O: 'static> SemiTerminated<'static, u8, O> for Parser<'static, u8, O> {
     /// Declare that the parsing should end with whitespace and a semi-colon
     fn with_semi(self) -> Parser<'static, u8, O> {
-        self - space() - sym(b';')
+        self - ws() - sym(b';')
     }
 }
 
@@ -69,7 +69,7 @@ fn non_0_digit() -> Parser<'static, u8, u8> {
 }
 
 /// Parser that parses 0 or more whitespace characters discards them. Include newlines and tabs.
-fn space() -> Parser<'static, u8, ()> {
+fn ws() -> Parser<'static, u8, ()> {
     one_of(b" \t\r\n").repeat(0..).discard()
 }
 
@@ -92,13 +92,18 @@ fn name() -> Parser<'static, u8, String> {
     chars.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
-/// Parser that parses a name with an optional owner and returns an `Identifier`.
-/// I.e. "health" or "p1.health"
+/// Parser that parses an identifier.
 fn identifier() -> Parser<'static, u8, Identifier> {
+    name().map(|name| Identifier { name })
+}
+
+/// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
+/// I.e. "health" or "p1.health"
+fn owned_identifier() -> Parser<'static, u8, OwnedIdentifier> {
     let identifier = (name() - sym(b'.')).opt() + name();
     identifier
         .with_span()
-        .map(|(_span, (owner, name))| Identifier { owner, name })
+        .map(|(_span, (owner, name))| OwnedIdentifier { owner, name })
 }
 
 /// Parser that parses binary operators
@@ -145,32 +150,32 @@ fn solve_binary_precedence(
 /// Parser that parses an expression consisting of binary operators and primary expressions
 fn expr() -> Parser<'static, u8, Expr> {
     // TODO Spans and combining them
-    let binexpr = primary() + (space() * binop() - space() + primary()).repeat(0..);
+    let binexpr = primary() + (ws() * binop() - ws() + primary()).repeat(0..);
     binexpr.map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
 }
 
 /// Parser that parses an primary expression, i.e. number, identifier, or a parenthesised expression
 fn primary() -> Parser<'static, u8, Expr> {
     number()
-        | identifier().map(|i| Expr {
-            kind: Ident(Rc::from(i)),
+        | owned_identifier().map(|i| Expr {
+            kind: OwnedIdent(Rc::from(i)),
         })
-        | (sym(b'(') * space() * call(expr) - space() - sym(b')'))
+        | (sym(b'(') * ws() * call(expr) - ws() - sym(b')'))
 }
 
 /// Parser that parses a type range, e.g. "`[0 .. max_health]`"
 fn type_range() -> Parser<'static, u8, TypeRange> {
-    let inner = expr() - space() - seq(b"..") - space() + expr();
-    let bracked = sym(b'[') * space() * inner - space() - sym(b']');
+    let inner = expr() - ws() - seq(b"..") - ws() + expr();
+    let bracked = sym(b'[') * ws() * inner - ws() - sym(b']');
     bracked.map(|(min, max)| TypeRange { min, max })
 }
 
 /// Parser that parses a variable, e.g.
 /// "`health : [0 .. max_health] init max_health`"
 fn var_decl() -> Parser<'static, u8, StateVarDecl> {
-    let base = name() - space() - sym(b':') - space() + type_range();
-    let init = seq(b"init") * space() * expr();
-    let whole = base - space() + init;
+    let base = identifier() - ws() - sym(b':') - ws() + type_range();
+    let init = seq(b"init") * ws() * expr();
+    let whole = base - ws() + init;
     whole.map(|((name, range), init_e)| StateVarDecl {
         name,
         range,
@@ -181,39 +186,33 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
 /// Parser that parses a label declaration, e.g.
 /// "`label alive = health > 0`"
 fn label_decl() -> Parser<'static, u8, LabelDecl> {
-    let label = seq(b"label") * space() * name() - space() - sym(b'=') - space() + expr();
-    label.map(|(name, guard)| LabelDecl {
-        guard,
-        name: Identifier { owner: None, name },
+    let label = seq(b"label") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
+    label.map(|(name, condition)| LabelDecl {
+        condition,
+        name,
     })
 }
 
 /// Parser that parses a const declaration, e.g.
 /// "`const max_health = 1`"
 fn const_decl() -> Parser<'static, u8, ConstDecl> {
-    let con = seq(b"const") * space() * name() - space() - sym(b'=') - space() + expr();
-    con.map(|(name, val)| ConstDecl {
-        name: Identifier { owner: None, name },
-        definition: val,
+    let con = seq(b"const") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
+    con.map(|(name, definition)| ConstDecl {
+        name,
+        definition,
     })
 }
 
 /// Parser that parses a relabelling, e.g.
 /// "`[target1=p2, target2=p3]`"
 fn relabelling() -> Parser<'static, u8, Relabelling> {
-    let raw_case = name() - space() - sym(b'=') - space() + name();
+    let raw_case = identifier() - ws() - sym(b'=') - ws() + identifier();
     let case = raw_case.map(|(prev, new)| RelabelCase {
-        prev_name: Identifier {
-            owner: None,
-            name: prev,
-        },
-        new_name: Identifier {
-            owner: None,
-            name: new,
-        },
+        prev_name: prev,
+        new_name: new,
     });
-    let inner = list(case, space() * sym(b',') - space());
-    let whole = sym(b'[') * space() * inner - space() - sym(b']');
+    let inner = list(case, ws() * sym(b',') - ws());
+    let whole = sym(b'[') * ws() * inner - ws() - sym(b']');
     whole.map(|cases| Relabelling {
         relabellings: cases,
     })
@@ -222,15 +221,12 @@ fn relabelling() -> Parser<'static, u8, Relabelling> {
 /// Parser that parses a player declaration, e.g.
 /// "`player p1 = shooter [target1=p2, target2=p3]`"
 fn player_decl() -> Parser<'static, u8, PlayerDecl> {
-    let rhs = seq(b"player") * space() * name();
-    let lhs = name() - space() + relabelling().opt();
-    let whole = rhs - space() - sym(b'=') - space() + lhs;
-    whole.map(|(name, (temp, relabel))| PlayerDecl {
-        name: Identifier { owner: None, name },
-        module: Identifier {
-            owner: None,
-            name: temp,
-        },
+    let rhs = seq(b"player") * ws() * identifier();
+    let lhs = identifier() - ws() + relabelling().opt();
+    let whole = rhs - ws() - sym(b'=') - ws() + lhs;
+    whole.map(|(name, (template, relabel))| PlayerDecl {
+        name,
+        template,
         relabelling: relabel.unwrap_or_else(|| Relabelling {
             relabellings: vec![],
         }),
@@ -240,10 +236,10 @@ fn player_decl() -> Parser<'static, u8, PlayerDecl> {
 /// Parser that parses a transition declaration, e.g.
 /// "`[shoot_right] health > 0 & target1.health > 0`"
 fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
-    let name = sym(b'[') * space() * name() - space() - sym(b']');
-    let whole = name - space() + expr();
+    let name = sym(b'[') * ws() * identifier() - ws() - sym(b']');
+    let whole = name - ws() + expr();
     whole.map(|(name, cond)| TransitionDecl {
-        name: Identifier { owner: None, name },
+        name,
         condition: cond,
         state_changes: vec![],
     })
@@ -259,10 +255,10 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
         kind: Transition(Rc::from(td)),
     });
     // TODO VarUpdateDecl
-    let inner_decls = (simple_decl.with_semi() - space()).repeat(0..);
-    let temp = seq(b"template") * space() * name() - space() + inner_decls - space() - seq(b"endtemplate");
+    let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
+    let temp = seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
     temp.map(|(name, decls)| TemplateDecl {
-        name: Identifier { owner: None, name },
+        name,
         decls
     })
 }
@@ -282,7 +278,7 @@ fn root() -> Parser<'static, u8, Root> {
     let any_decl = simple_decl.with_semi() | template_decl().map(|td| Decl {
         kind: Module(Rc::from(td))
     });
-    let root = space() * (any_decl - space()).repeat(0..) - space() - end();
+    let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
 }
 
@@ -294,10 +290,10 @@ mod tests {
     fn test_ident_01() {
         // Should be a valid identifier
         let input = br"abc_ident_1";
-        let parser = identifier();
+        let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
-            Ok(Identifier {
+            Ok(OwnedIdentifier {
                 owner: None,
                 name: "abc_ident_1".into()
             })
@@ -316,10 +312,10 @@ mod tests {
     fn test_ident_03() {
         // Should be a valid identifier with owner
         let input = br"player.variable";
-        let parser = identifier();
+        let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
-            Ok(Identifier {
+            Ok(OwnedIdentifier {
                 owner: Some("player".into()),
                 name: "variable".into()
             })
@@ -604,18 +600,18 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(StateVarDecl {
-                name: "health".to_string(),
+                name: Identifier { name: "health".to_string() },
                 range: TypeRange {
                     min: Expr { kind: Number(0) },
                     max: Expr {
-                        kind: Ident(Rc::from(Identifier {
+                        kind: OwnedIdent(Rc::from(OwnedIdentifier {
                             owner: None,
                             name: "max_health".to_string()
                         }))
                     },
                 },
                 initial_value: Expr {
-                    kind: Ident(Rc::from(Identifier {
+                    kind: OwnedIdent(Rc::from(OwnedIdentifier {
                         owner: None,
                         name: "max_health".to_string()
                     }))
@@ -632,16 +628,13 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(LabelDecl {
-                guard: Expr {
-                    kind: Ident(Rc::from(Identifier {
+                condition: Expr {
+                    kind: OwnedIdent(Rc::from(OwnedIdentifier {
                         owner: None,
                         name: "health".to_string()
                     }))
                 },
-                name: Identifier {
-                    owner: None,
-                    name: "alive".to_string()
-                }
+                name: Identifier { name: "alive".to_string() }
             })
         );
     }
@@ -654,10 +647,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(ConstDecl {
-                name: Identifier {
-                    owner: None,
-                    name: "max_health".to_string()
-                },
+                name: Identifier { name: "max_health".to_string() },
                 definition: Expr { kind: Number(1) }
             })
         );
@@ -686,24 +676,12 @@ mod tests {
             Ok(Relabelling {
                 relabellings: vec![
                     RelabelCase {
-                        prev_name: Identifier {
-                            owner: None,
-                            name: "target1".to_string()
-                        },
-                        new_name: Identifier {
-                            owner: None,
-                            name: "p2".to_string()
-                        }
+                        prev_name: Identifier { name: "target1".to_string() },
+                        new_name: Identifier { name: "p2".to_string() }
                     },
                     RelabelCase {
-                        prev_name: Identifier {
-                            owner: None,
-                            name: "target2".to_string()
-                        },
-                        new_name: Identifier {
-                            owner: None,
-                            name: "p3".to_string()
-                        }
+                        prev_name: Identifier { name: "target2".to_string() },
+                        new_name: Identifier { name: "p3".to_string() }
                     }
                 ]
             })
@@ -718,14 +696,8 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier {
-                    owner: None,
-                    name: "p1".to_string()
-                },
-                module: Identifier {
-                    owner: None,
-                    name: "shooter".to_string()
-                },
+                name: Identifier { name: "p1".to_string() },
+                template: Identifier { name: "shooter".to_string() },
                 relabelling: Relabelling {
                     relabellings: vec![]
                 }
@@ -741,24 +713,12 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier {
-                    owner: None,
-                    name: "p1".to_string()
-                },
-                module: Identifier {
-                    owner: None,
-                    name: "shooter".to_string()
-                },
+                name: Identifier { name: "p1".to_string() },
+                template: Identifier { name: "shooter".to_string() },
                 relabelling: Relabelling {
                     relabellings: vec![RelabelCase {
-                        prev_name: Identifier {
-                            owner: None,
-                            name: "target".to_string()
-                        },
-                        new_name: Identifier {
-                            owner: None,
-                            name: "p2".to_string()
-                        }
+                        prev_name: Identifier { name: "target".to_string() },
+                        new_name: Identifier { name: "p2".to_string() }
                     }]
                 }
             })
@@ -773,10 +733,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(TransitionDecl {
-                name: Identifier {
-                    owner: None,
-                    name: "shoot_right".to_string()
-                },
+                name: Identifier { name: "shoot_right".to_string() },
                 condition: Expr { kind: Number(1) },
                 state_changes: vec![]
             })
@@ -785,7 +742,7 @@ mod tests {
 
     #[test]
     fn test_template_decl_01() {
-        // Simple player decl
+        // Simple template decl
         let input = br#"template shooter
 
             health : [0 .. max_health] init max_health;
@@ -798,12 +755,12 @@ mod tests {
         endtemplate"#;
         let parser = template_decl();
         println!("{:?}", parser.parse(input));
-        assert!(matches!(parser.parse(input), Ok(_)));
+        assert!(parser.parse(input).is_ok());
     }
 
     #[test]
     fn test_root_01() {
-        // Simple player decl
+        // Simple root
         let input = br#"
         const max_health = 1;
 
@@ -822,6 +779,6 @@ mod tests {
         "#;
         let parser = root();
         println!("{:?}", parser.parse(input));
-        assert!(matches!(parser.parse(input), Ok(_)));
+        assert!(parser.parse(input).is_ok());
     }
 }

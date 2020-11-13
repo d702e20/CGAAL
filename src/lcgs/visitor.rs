@@ -4,7 +4,7 @@ use std::rc::Rc;
 pub trait Visitor {
     fn visit_root(&mut self, root: &mut Rc<Root>);
     fn visit_decl(&mut self, decl: &mut Rc<Decl>);
-    fn visit_identifier(&mut self, id: &mut Rc<Identifier>);
+    fn visit_identifier(&mut self, id: &mut Rc<OwnedIdentifier>);
     fn visit_const(&mut self, con: &mut Rc<ConstDecl>);
     fn visit_label(&mut self, label: &mut Rc<LabelDecl>);
     fn visit_player(&mut self, player: &mut Rc<PlayerDecl>);

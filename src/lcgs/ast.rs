@@ -25,8 +25,13 @@ pub enum DeclKind {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Identifier {
+pub struct OwnedIdentifier {
     pub owner: Option<String>,
+    pub name: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Identifier {
     pub name: String,
 }
 
@@ -38,14 +43,14 @@ pub struct ConstDecl {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct LabelDecl {
-    pub guard: Expr,
+    pub condition: Expr,
     pub name: Identifier,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PlayerDecl {
     pub name: Identifier,
-    pub module: Identifier,
+    pub template: Identifier,
     pub relabelling: Relabelling,
 }
 
@@ -68,7 +73,7 @@ pub struct TemplateDecl {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct StateVarDecl {
-    pub name: String,
+    pub name: Identifier,
     pub range: TypeRange,
     pub initial_value: Expr,
 }
@@ -100,7 +105,7 @@ pub struct Expr {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ExprKind {
     Number(i32),
-    Ident(Rc<Identifier>),
+    OwnedIdent(Rc<OwnedIdentifier>),
     Negation(Rc<Expr>),
     UnaryOp(UnaryOpKind, Rc<Expr>),
     BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
