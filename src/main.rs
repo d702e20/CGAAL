@@ -13,12 +13,17 @@ use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
+use std::process::exit;
 
 mod atl;
 mod com;
 mod common;
 mod edg;
 mod lcgs;
+
+const PKG_NAME: &'static str = env!("CARGO_PKG_NAME");
+const AUTHORS: &'static str = env!("CARGO_PKG_AUTHORS");
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
@@ -34,7 +39,7 @@ fn main() {
 
     // Load config for logging to stdout and logfile.
     if let Ok(_handle) = log4rs::init_config(get_log4rs_config(
-        args.value_of("log-path").unwrap(),
+        args.value_of("log_path"),
         match args.value_of("log-level").unwrap().to_lowercase().as_str() {
             "error" => LevelFilter::Error,
             "warn" => LevelFilter::Warn,
@@ -42,20 +47,21 @@ fn main() {
             "debug" => LevelFilter::Debug,
             "trace" => LevelFilter::Trace,
             "off" => LevelFilter::Off,
-            _ => LevelFilter::Off,
-        },
-    )) {
+            level => {
+                eprintln!("Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}", level);
+                exit(1);
+            }
+        })) {
         info!("Model checking on formula: {:?}", args.value_of("formula"));
-
         edg::distributed_certain_zero(EmptyGraph {}, 0, num_cpus::get() as u64);
     }
 }
 
 /// Define and parse command line arguments
 fn parse() -> ArgMatches<'static> {
-    App::new("OnTheFlyATL")
-        .version("0.1.0")
-        .author("d702e20 <d702e20@cs.aau.dk>")
+    App::new(PKG_NAME)
+        .version(VERSION)
+        .author(AUTHORS)
         .arg(Arg::with_name("formula")
             .short("f")
             .long("formula")
@@ -70,50 +76,60 @@ fn parse() -> ArgMatches<'static> {
             .short("j")
             .long("json")
             .env("INPUT_JSON")
-            .help("The json to generate model from"))
+            .help("Path to the model in JSON format"))
         .arg(Arg::with_name("json_formula")
             .short("r")
             .long("jsonformula")
             .env("JSON_FORMULA")
-            .help("The json to generate formula from"))
+            .help("Path to a JSON formatted formula that will be checked against the model"))
         .arg(Arg::with_name("log-level")
             .short("o")
             .long("log-level")
             .env("LOG_LEVEL")
-            .default_value("info")
+            .default_value("warn")
             .help("{error, warn, info, debug, trace, off}"))
-        .arg(Arg::with_name("log-path")
+        .arg(Arg::with_name("log_path")
             .short("g")
             .long("log-path")
             .env("LOG_PATH")
-            .default_value("model-checker.log")
             .help("Specify the log-file path"))
         .get_matches()
 }
 
 /// Create and return log4rs-config with some default values
-fn get_log4rs_config(log_path: &str, default_log_level: LevelFilter) -> log4rs::config::Config {
+fn get_log4rs_config(log_path: Option<&str>, default_log_level: LevelFilter) -> log4rs::config::Config {
     // Create a stdout-appender for printing to stdout
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
         .build();
 
-    // Create a logfile-appender for printing to file
-    let logfile = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
-        .build(log_path)
-        .unwrap();
 
     // Create and return a config which incorporates the two built appenders
     // and let both appenders be root loggers with 'info' as log-level
-    Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(
+    let builder = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)));
+
+    // build with or without logfile appender depending on log_path arg
+    if let Some(log_path) = log_path {
+        // Create a logfile-appender for printing to file
+        let logfile = FileAppender::builder()
+            .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
+            .build(log_path)
+            .unwrap();
+        builder.appender(Appender::builder().build("logfile", Box::new(logfile)))
+            .build(
+                Root::builder()
+                    .appender("stdout")
+                    .appender("logfile")
+                    .build(default_log_level),
+            )
+            .unwrap()
+    } else {
+        builder.build(
             Root::builder()
                 .appender("stdout")
-                .appender("logfile")
                 .build(default_log_level),
         )
-        .unwrap()
+            .unwrap()
+    }
 }
