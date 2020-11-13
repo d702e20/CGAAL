@@ -1,25 +1,20 @@
-extern crate num_cpus;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
+extern crate num_cpus;
 
-use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use crate::atl::formula::Phi;
-use crate::atl::gamestructure::EagerGameStructure;
-use crate::common::Edges;
-use crate::edg::Vertex;
+use std::collections::hash_map::RandomState;
+use std::collections::HashSet;
+
 use clap::{App, Arg, ArgMatches};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
-use std::error::Error;
-use std::fs::File;
-use std::io::Read;
-use std::sync::Arc;
+
+use crate::common::Edges;
+use crate::edg::Vertex;
 
 mod atl;
 mod com;
