@@ -16,6 +16,7 @@ edition = "2018"
 [dependencies]
 crossbeam-channel = "0.5.0"
 num_cpus = "1.13.0"
+pom = "3.2.0"
 clap = "2.33.3"
 log = "0.4.11"
 log4rs = "0.12.0"
