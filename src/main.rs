@@ -45,7 +45,7 @@ fn main() {
             _ => LevelFilter::Off,
         },
     )) {
-        info!("Model checking on proposition: {}", args.value_of("proposition").unwrap());
+        info!("Model checking on formula: {:?}", args.value_of("formula"));
 
         edg::distributed_certain_zero(EmptyGraph {}, 0, num_cpus::get() as u64);
     }
@@ -56,11 +56,11 @@ fn parse() -> ArgMatches<'static> {
     App::new("OnTheFlyATL")
         .version("0.1.0")
         .author("d702e20 <d702e20@cs.aau.dk>")
-        .arg(Arg::with_name("proposition")
-            .short("p")
-            .long("prop")
-            .env("PROPOSITION")
-            .help("The proposition to check for"))
+        .arg(Arg::with_name("formula")
+            .short("f")
+            .long("formula")
+            .env("FORMULA")
+            .help("The formula to check for"))
         .arg(Arg::with_name("input_file")
             .short("i")
             .long("input")
