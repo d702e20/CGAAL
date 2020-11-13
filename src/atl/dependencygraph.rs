@@ -40,7 +40,7 @@ impl Display for ATLVertex {
             } => {
                 f.write_fmt(format_args!("state={} partial_move=[", state))?;
                 for (i, choice) in partial_move.iter().enumerate() {
-                    choice.fmt(f);
+                    choice.fmt(f)?;
                     if i < partial_move.len() - 1 {
                         f.write_str(", ")?;
                     }
