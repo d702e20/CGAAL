@@ -11,11 +11,12 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
-use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Expr, ExprKind, Identifier, LabelDecl, PlayerDecl, RelabelCase, Relabelling, StateVarDecl, TypeRange, TransitionDecl};
+use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, Identifier, LabelDecl, PlayerDecl, RelabelCase, Relabelling, Root, StateVarDecl, TransitionDecl, TypeRange, TemplateDecl};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
+use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Transition, Module};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -35,6 +36,17 @@ impl<'a, I, O: 'a> WithSpan<'a, I, O> for Parser<'a, I, O> {
     fn with_span(self) -> Parser<'a, I, (Span, O)> {
         (empty().pos() + self + empty().pos())
             .map(|((begin, item), end)| (Span { begin, end }, item))
+    }
+}
+
+trait SemiTerminated<'a, I, O: 'a> {
+    fn with_semi(self) -> Parser<'a, I, O>;
+}
+
+impl<O: 'static> SemiTerminated<'static, u8, O> for Parser<'static, u8, O> {
+    /// Declare that the parsing should end with whitespace and a semi-colon
+    fn with_semi(self) -> Parser<'static, u8, O> {
+        self - space() - sym(b';')
     }
 }
 
@@ -233,8 +245,45 @@ fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
     whole.map(|(name, cond)| TransitionDecl {
         name: Identifier { owner: None, name },
         condition: cond,
-        state_changes: vec![]
+        state_changes: vec![],
     })
+}
+
+/// Parser that parses template declarations
+fn template_decl() -> Parser<'static, u8, TemplateDecl> {
+    let simple_decl = label_decl().map(|ld| Decl {
+        kind: Label(Rc::from(ld)),
+    }) | var_decl().map(|vd| Decl {
+        kind: StateVar(Rc::from(vd)),
+    }) | transition_decl().map(|td| Decl {
+        kind: Transition(Rc::from(td)),
+    });
+    // TODO VarUpdateDecl
+    let inner_decls = (simple_decl.with_semi() - space()).repeat(0..);
+    let temp = seq(b"template") * space() * name() - space() + inner_decls - space() - seq(b"endtemplate");
+    temp.map(|(name, decls)| TemplateDecl {
+        name: Identifier { owner: None, name },
+        decls
+    })
+}
+
+/// Parser that parses root level, i.e. all the global declarations
+fn root() -> Parser<'static, u8, Root> {
+    let simple_decl = label_decl().map(|ld| Decl {
+        kind: Label(Rc::from(ld)),
+    }) | var_decl().map(|vd| Decl {
+        kind: StateVar(Rc::from(vd)),
+    }) | player_decl().map(|pd| Decl {
+        kind: Player(Rc::from(pd)),
+    }) | const_decl().map(|cd| Decl {
+        kind: Const(Rc::from(cd)),
+    });
+    // TODO VarUpdateDecl
+    let any_decl = simple_decl.with_semi() | template_decl().map(|td| Decl {
+        kind: Module(Rc::from(td))
+    });
+    let root = space() * (any_decl - space()).repeat(0..) - space() - end();
+    root.map(|decls| Root { decls })
 }
 
 #[cfg(test)]
@@ -718,16 +767,61 @@ mod tests {
 
     #[test]
     fn test_transition_decl_01() {
-        // Simple player decl
+        // Simple transition decl
         let input = br"[shoot_right] 1";
         let parser = transition_decl();
         assert_eq!(
             parser.parse(input),
             Ok(TransitionDecl {
-                name: Identifier { owner: None, name: "shoot_right".to_string() },
+                name: Identifier {
+                    owner: None,
+                    name: "shoot_right".to_string()
+                },
                 condition: Expr { kind: Number(1) },
                 state_changes: vec![]
             })
         );
+    }
+
+    #[test]
+    fn test_template_decl_01() {
+        // Simple player decl
+        let input = br#"template shooter
+
+            health : [0 .. max_health] init max_health;
+
+            label alive = health;
+
+            [shoot_right] 1;
+            [shoot_left] 1;
+
+        endtemplate"#;
+        let parser = template_decl();
+        println!("{:?}", parser.parse(input));
+        assert!(matches!(parser.parse(input), Ok(_)));
+    }
+
+    #[test]
+    fn test_root_01() {
+        // Simple player decl
+        let input = br#"
+        const max_health = 1;
+
+        player p1 = shooter [target1=p2];
+        player p2 = shooter [target1=p1];
+
+        template shooter
+
+            health : [0 .. max_health] init max_health;
+
+            label alive = health;
+
+            [wait] 1;
+
+        endtemplate
+        "#;
+        let parser = root();
+        println!("{:?}", parser.parse(input));
+        assert!(matches!(parser.parse(input), Ok(_)));
     }
 }
