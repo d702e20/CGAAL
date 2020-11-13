@@ -67,7 +67,7 @@ impl Display for Phi {
                 f.write_str("⟫(")?;
                 pre.fmt(f)?;
                 f.write_str(" 𝑼 ")?;
-                pre.fmt(f)?;
+                until.fmt(f)?;
                 f.write_str(")")
             }
             Phi::ENFORCE_UNTIL {
@@ -87,7 +87,7 @@ impl Display for Phi {
                 f.write_str("⟧(")?;
                 pre.fmt(f)?;
                 f.write_str(" 𝑼 ")?;
-                pre.fmt(f)?;
+                until.fmt(f)?;
                 f.write_str(")")
             }
         }
