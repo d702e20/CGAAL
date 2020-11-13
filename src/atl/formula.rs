@@ -58,26 +58,6 @@ impl Display for Phi {
                 pre,
                 until,
             } => {
-                f.write_str("⟪")?;
-                f.write_str(
-                    players
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                        .as_str(),
-                )?;
-                f.write_str("⟫((")?;
-                pre.fmt(f)?;
-                f.write_str(") 𝑼 (")?;
-                until.fmt(f)?;
-                f.write_str("))")
-            }
-            Phi::ENFORCE_UNTIL {
-                players,
-                pre,
-                until,
-            } => {
                 f.write_str("⟦")?;
                 f.write_str(
                     players
@@ -88,6 +68,26 @@ impl Display for Phi {
                         .as_str(),
                 )?;
                 f.write_str("⟧((")?;
+                pre.fmt(f)?;
+                f.write_str(") 𝑼 (")?;
+                until.fmt(f)?;
+                f.write_str("))")
+            }
+            Phi::ENFORCE_UNTIL {
+                players,
+                pre,
+                until,
+            } => {
+                f.write_str("⟪")?;
+                f.write_str(
+                    players
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str(),
+                )?;
+                f.write_str("⟫((")?;
                 pre.fmt(f)?;
                 f.write_str(") 𝑼 (")?;
                 until.fmt(f)?;
