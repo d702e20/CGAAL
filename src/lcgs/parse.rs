@@ -11,7 +11,9 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, StateVarDecl, TypeRange, LabelDecl};
+use crate::lcgs::ast::{
+    BinaryOpKind, ConstDecl, Expr, ExprKind, Identifier, LabelDecl, StateVarDecl, TypeRange,
+};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
@@ -172,10 +174,17 @@ fn label_decl() -> Parser<'static, u8, LabelDecl> {
     let label = seq(b"label") * space() * name() - space() - sym(b'=') - space() + expr();
     label.map(|(name, guard)| LabelDecl {
         guard,
-        name: Identifier {
-            owner: None,
-            name
-        }
+        name: Identifier { owner: None, name },
+    })
+}
+
+/// Parser that parses a const declaration, e.g.
+/// "`const max_health = 1`"
+fn const_decl() -> Parser<'static, u8, ConstDecl> {
+    let con = seq(b"const") * space() * name() - space() - sym(b'=') - space() + expr();
+    con.map(|(name, val)| ConstDecl {
+        name: Identifier { owner: None, name },
+        definition: val,
     })
 }
 
@@ -525,16 +534,33 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(LabelDecl {
-                guard: Expr { kind: Ident(
-                    Rc::from(Identifier {
+                guard: Expr {
+                    kind: Ident(Rc::from(Identifier {
                         owner: None,
                         name: "health".to_string()
-                    })
-                ) },
+                    }))
+                },
                 name: Identifier {
                     owner: None,
                     name: "alive".to_string()
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn test_const_decl_01() {
+        // Simple const decl
+        let input = br"const max_health = 1";
+        let parser = const_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(ConstDecl {
+                name: Identifier {
+                    owner: None,
+                    name: "max_health".to_string()
+                },
+                definition: Expr { kind: Number(1) }
             })
         );
     }
