@@ -1,7 +1,14 @@
 [package]
 name = "atl-checker"
 version = "0.1.0"
-authors = ["jacob"]
+authors = ["d702e20 <d702e20@cs.aau.dk>",
+    "Asger Weirsøe <aweirs15@student.aau.dk>",
+    "Falke Carlsen <falke.cs@gmail.com>",
+    "Jacob Jenner Rasmussen <jacob@jener.dk>",
+    "Lars Bo Frydenskov <lfryde17@student.aau.dk>",
+    "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
+    "Nicolaj Østerby Jensen <naje17@student.aau.dk>",
+]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,5 +16,8 @@ edition = "2018"
 [dependencies]
 crossbeam-channel = "0.5.0"
 num_cpus = "1.13.0"
+clap = "2.33.3"
+log = "0.4.11"
+log4rs = "0.12.0"
 serde = { version = "1.0.117", features = ["derive", "rc"] }
 serde_json = "1.0.59"
