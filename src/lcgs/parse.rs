@@ -11,10 +11,7 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
-use crate::lcgs::ast::{
-    BinaryOpKind, ConstDecl, Expr, ExprKind, Identifier, LabelDecl, PlayerDecl, RelabelCase,
-    Relabelling, StateVarDecl, TypeRange,
-};
+use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Expr, ExprKind, Identifier, LabelDecl, PlayerDecl, RelabelCase, Relabelling, StateVarDecl, TypeRange, TransitionDecl};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
@@ -225,6 +222,18 @@ fn player_decl() -> Parser<'static, u8, PlayerDecl> {
         relabelling: relabel.unwrap_or_else(|| Relabelling {
             relabellings: vec![],
         }),
+    })
+}
+
+/// Parser that parses a transition declaration, e.g.
+/// "`[shoot_right] health > 0 & target1.health > 0`"
+fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
+    let name = sym(b'[') * space() * name() - space() - sym(b']');
+    let whole = name - space() + expr();
+    whole.map(|(name, cond)| TransitionDecl {
+        name: Identifier { owner: None, name },
+        condition: cond,
+        state_changes: vec![]
     })
 }
 
@@ -703,6 +712,21 @@ mod tests {
                         }
                     }]
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn test_transition_decl_01() {
+        // Simple player decl
+        let input = br"[shoot_right] 1";
+        let parser = transition_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(TransitionDecl {
+                name: Identifier { owner: None, name: "shoot_right".to_string() },
+                condition: Expr { kind: Number(1) },
+                state_changes: vec![]
             })
         );
     }
