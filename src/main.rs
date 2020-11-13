@@ -13,6 +13,7 @@ use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
+use std::process::exit;
 
 mod atl;
 mod com;
@@ -38,7 +39,7 @@ fn main() {
 
     // Load config for logging to stdout and logfile.
     if let Ok(_handle) = log4rs::init_config(get_log4rs_config(
-        args.value_of("log_path").unwrap(),
+        args.value_of("log_path"),
         match args.value_of("log-level").unwrap().to_lowercase().as_str() {
             "error" => LevelFilter::Error,
             "warn" => LevelFilter::Warn,
@@ -46,9 +47,11 @@ fn main() {
             "debug" => LevelFilter::Debug,
             "trace" => LevelFilter::Trace,
             "off" => LevelFilter::Off,
-            level => panic!("Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}", level),
-        },
-        args.value_of("write_logfile").unwrap().parse::<bool>().unwrap())) {
+            level => {
+                eprintln!("Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}", level);
+                exit(1);
+            }
+        })) {
         info!("Model checking on formula: {:?}", args.value_of("formula"));
         edg::distributed_certain_zero(EmptyGraph {}, 0, num_cpus::get() as u64);
     }
@@ -89,18 +92,12 @@ fn parse() -> ArgMatches<'static> {
             .short("g")
             .long("log-path")
             .env("LOG_PATH")
-            .default_value("model-checker.log")
             .help("Specify the log-file path"))
-        .arg(Arg::with_name("write_logfile")
-            .long("write_logfile")
-            .env("WRITE_LOGFILE")
-            .default_value("false")
-            .help("Enable writing logfile"))
         .get_matches()
 }
 
 /// Create and return log4rs-config with some default values
-fn get_log4rs_config(log_path: &str, default_log_level: LevelFilter, write_log_file: bool) -> log4rs::config::Config {
+fn get_log4rs_config(log_path: Option<&str>, default_log_level: LevelFilter) -> log4rs::config::Config {
     // Create a stdout-appender for printing to stdout
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
@@ -109,10 +106,11 @@ fn get_log4rs_config(log_path: &str, default_log_level: LevelFilter, write_log_f
 
     // Create and return a config which incorporates the two built appenders
     // and let both appenders be root loggers with 'info' as log-level
-    // build with or without logfile appender depending on args
     let builder = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)));
-    if write_log_file {
+
+    // build with or without logfile appender depending on log_path arg
+    if let Some(log_path) = log_path {
         // Create a logfile-appender for printing to file
         let logfile = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
