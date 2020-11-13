@@ -6,6 +6,8 @@ use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 
+// The graph can be rendered using the `dot` command graphviz, specifically like this `dot -Tpng graph.dot -O -Nfontname=noto`
+
 fn print_vertex<V: Hash + Display, W: Write>(vertex: V, mut output: W) -> std::io::Result<()> {
     println!("{} = {}", hash_name(&vertex), vertex);
 
