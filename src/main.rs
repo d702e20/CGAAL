@@ -20,6 +20,10 @@ mod common;
 mod edg;
 mod lcgs;
 
+const PKG_NAME: &'static str = env!("CARGO_PKG_NAME");
+const AUTHORS: &'static str = env!("CARGO_PKG_AUTHORS");
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
 
@@ -46,16 +50,15 @@ fn main() {
         },
     )) {
         info!("Model checking on formula: {:?}", args.value_of("formula"));
-
         edg::distributed_certain_zero(EmptyGraph {}, 0, num_cpus::get() as u64);
     }
 }
 
 /// Define and parse command line arguments
 fn parse() -> ArgMatches<'static> {
-    App::new("OnTheFlyATL")
-        .version("0.1.0")
-        .author("d702e20 <d702e20@cs.aau.dk>")
+    App::new(PKG_NAME)
+        .version(VERSION)
+        .author(AUTHORS)
         .arg(Arg::with_name("formula")
             .short("f")
             .long("formula")
