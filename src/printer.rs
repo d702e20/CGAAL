@@ -48,6 +48,9 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
             match edge {
                 Edges::HYPER(hyper) => {
+                    output
+                        .write(format!("v{}[shape=box];\n", hash_name(&hyper.source)).as_bytes())?;
+
                     if hyper.targets.is_empty() {
                         let empty_id = hash_name(&hyper);
                         output.write(
@@ -108,7 +111,8 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                 Edges::NEGATION(neg) => {
                     output.write(
                         format!(
-                            "v{} -> v{}[style=dashed];\n",
+                            "v{}[shape=box];\nv{} -> v{}[style=dashed];\n",
+                            hash_name(&neg.source),
                             hash_name(&neg.source),
                             hash_name(&neg.target)
                         )
