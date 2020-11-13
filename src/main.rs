@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate serde;
 extern crate num_cpus;
 #[macro_use]
 extern crate log;
@@ -6,6 +8,13 @@ extern crate log4rs;
 use crate::common::Edges;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
+use crate::atl::gamestructure::EagerGameStructure;
+use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
+use crate::atl::formula::Phi;
+use std::sync::Arc;
+use std::fs::File;
+use std::io::Read;
+use std::error::Error;
 
 use clap::{App, Arg, ArgMatches};
 use log::LevelFilter;
@@ -21,6 +30,7 @@ mod common;
 mod edg;
 mod lcgs;
 
+
 const PKG_NAME: &'static str = env!("CARGO_PKG_NAME");
 const AUTHORS: &'static str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -28,11 +38,6 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
 
-impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
-    fn succ(&self, _vert: &i32) -> HashSet<Edges<i32>, RandomState> {
-        HashSet::new()
-    }
-}
 
 fn main() {
     let args = parse();
@@ -52,9 +57,35 @@ fn main() {
                 exit(1);
             }
         })) {
-        info!("Model checking on formula: {:?}", args.value_of("formula"));
-        edg::distributed_certain_zero(EmptyGraph {}, 0, num_cpus::get() as u64);
+    model_check(args); // not sure whether this requires match on Result
     }
+}
+
+
+fn model_check(args: ArgMatches) -> Result<(), Box<dyn Error>> {
+    info!("Model checking on formula: {:?}", args.value_of("formula"));
+
+    let mut file = File::open(args.value_of("json_model").unwrap())?;
+    let mut game_structure = String::new();
+    file.read_to_string(&mut game_structure)?;
+    let game_structure: EagerGameStructure = serde_json::from_str(game_structure.as_str())?;
+
+    let mut file = File::open(args.value_of("json_formula").unwrap())?;
+    let mut formula = String::new();
+    file.read_to_string(&mut formula)?;
+    let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
+
+    let graph = ATLDependencyGraph {
+        game_structure,
+    };
+
+    let result = edg::distributed_certain_zero(graph, ATLVertex::FULL {
+        state: 0,
+        formula,
+    }, num_cpus::get() as u64);
+    println!("{:?}", result);
+
+    Ok(())
 }
 
 /// Define and parse command line arguments
@@ -74,12 +105,12 @@ fn parse() -> ArgMatches<'static> {
             .help("The input file to generate model from"))
         .arg(Arg::with_name("json_model")
             .short("j")
-            .long("json")
+            .long("json-model")
             .env("INPUT_JSON")
             .help("Path to the model in JSON format"))
         .arg(Arg::with_name("json_formula")
             .short("r")
-            .long("jsonformula")
+            .long("json-formula")
             .env("JSON_FORMULA")
             .help("Path to a JSON formatted formula that will be checked against the model"))
         .arg(Arg::with_name("log-level")
