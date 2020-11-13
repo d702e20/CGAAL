@@ -19,6 +19,7 @@ pub enum DeclKind {
     Const(Rc<ConstDecl>),
     Label(Rc<LabelDecl>),
     StateVar(Rc<StateVarDecl>),
+    StateVarChange(Rc<StateVarChangeDecl>),
     Player(Rc<PlayerDecl>),
     Module(Rc<TemplateDecl>),
     Transition(Rc<TransitionDecl>),
@@ -76,6 +77,12 @@ pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
     pub initial_value: Expr,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct StateVarChangeDecl {
+    pub name: Identifier,
+    pub next_value: Expr,
 }
 
 #[derive(Debug, Eq, PartialEq)]

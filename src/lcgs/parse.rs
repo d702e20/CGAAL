@@ -10,13 +10,13 @@ use std::vec::Drain;
 use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
-use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
-use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, OwnedIdentifier, LabelDecl, PlayerDecl, RelabelCase, Relabelling, Root, StateVarDecl, TransitionDecl, TypeRange, TemplateDecl, Identifier};
+use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent};
+use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, Identifier, LabelDecl, OwnedIdentifier, PlayerDecl, RelabelCase, Relabelling, Root, StateVarChangeDecl, StateVarDecl, TemplateDecl, TransitionDecl, TypeRange, StateChange};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
-use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Transition, Module};
+use crate::lcgs::ast::DeclKind::{Const, Label, Module, Player, StateVar, Transition, StateVarChange};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -183,24 +183,26 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
     })
 }
 
+/// Parser that parses a variable-change declaration, e.g.
+/// /// "`health' = health - 1`"
+fn var_change_decl() -> Parser<'static, u8, StateVarChangeDecl> {
+    let name = identifier() - sym(b'\'');
+    let change = name - ws() - sym(b'=') - ws() + expr();
+    change.map(|(name, next_value)| StateVarChangeDecl { name, next_value })
+}
+
 /// Parser that parses a label declaration, e.g.
 /// "`label alive = health > 0`"
 fn label_decl() -> Parser<'static, u8, LabelDecl> {
     let label = seq(b"label") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
-    label.map(|(name, condition)| LabelDecl {
-        condition,
-        name,
-    })
+    label.map(|(name, condition)| LabelDecl { condition, name })
 }
 
 /// Parser that parses a const declaration, e.g.
 /// "`const max_health = 1`"
 fn const_decl() -> Parser<'static, u8, ConstDecl> {
     let con = seq(b"const") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
-    con.map(|(name, definition)| ConstDecl {
-        name,
-        definition,
-    })
+    con.map(|(name, definition)| ConstDecl { name, definition })
 }
 
 /// Parser that parses a relabelling, e.g.
@@ -251,16 +253,15 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
         kind: Label(Rc::from(ld)),
     }) | var_decl().map(|vd| Decl {
         kind: StateVar(Rc::from(vd)),
+    }) | var_change_decl().map(|vcd| Decl {
+        kind: StateVarChange(Rc::from(vcd)),
     }) | transition_decl().map(|td| Decl {
         kind: Transition(Rc::from(td)),
     });
-    // TODO VarUpdateDecl
     let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
-    let temp = seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
-    temp.map(|(name, decls)| TemplateDecl {
-        name,
-        decls
-    })
+    let temp =
+        seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
+    temp.map(|(name, decls)| TemplateDecl { name, decls })
 }
 
 /// Parser that parses root level, i.e. all the global declarations
@@ -269,15 +270,17 @@ fn root() -> Parser<'static, u8, Root> {
         kind: Label(Rc::from(ld)),
     }) | var_decl().map(|vd| Decl {
         kind: StateVar(Rc::from(vd)),
+    }) | var_change_decl().map(|vcd| Decl {
+        kind: StateVarChange(Rc::from(vcd)),
     }) | player_decl().map(|pd| Decl {
         kind: Player(Rc::from(pd)),
     }) | const_decl().map(|cd| Decl {
         kind: Const(Rc::from(cd)),
     });
-    // TODO VarUpdateDecl
-    let any_decl = simple_decl.with_semi() | template_decl().map(|td| Decl {
-        kind: Module(Rc::from(td))
-    });
+    let any_decl = simple_decl.with_semi()
+        | template_decl().map(|td| Decl {
+            kind: Module(Rc::from(td)),
+        });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
 }
@@ -511,19 +514,19 @@ mod tests {
                                 kind: BinaryOp(
                                     Multiplication,
                                     Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr { kind: Number(2) })
+                                    Rc::from(Expr { kind: Number(2) }),
                                 )
                             }),
                             Rc::from(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
                                     Rc::from(Expr { kind: Number(3) }),
-                                    Rc::from(Expr { kind: Number(4) })
+                                    Rc::from(Expr { kind: Number(4) }),
                                 )
                             })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) })
+                    Rc::from(Expr { kind: Number(5) }),
                 )
             })
         );
@@ -558,7 +561,7 @@ mod tests {
                             Rc::from(Expr { kind: Number(4) }),
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) })
+                    Rc::from(Expr { kind: Number(5) }),
                 )
             })
         );
@@ -600,22 +603,40 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(StateVarDecl {
-                name: Identifier { name: "health".to_string() },
+                name: Identifier {
+                    name: "health".to_string()
+                },
                 range: TypeRange {
                     min: Expr { kind: Number(0) },
                     max: Expr {
                         kind: OwnedIdent(Rc::from(OwnedIdentifier {
                             owner: None,
-                            name: "max_health".to_string()
+                            name: "max_health".to_string(),
                         }))
                     },
                 },
                 initial_value: Expr {
                     kind: OwnedIdent(Rc::from(OwnedIdentifier {
                         owner: None,
-                        name: "max_health".to_string()
+                        name: "max_health".to_string(),
                     }))
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn test_var_change_decl_01() {
+        // Simple var change decl
+        let input = br"health' = 2";
+        let parser = var_change_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(StateVarChangeDecl {
+                name: Identifier {
+                    name: "health".to_string()
+                },
+                next_value: Expr { kind: Number(2) },
             })
         );
     }
@@ -631,10 +652,12 @@ mod tests {
                 condition: Expr {
                     kind: OwnedIdent(Rc::from(OwnedIdentifier {
                         owner: None,
-                        name: "health".to_string()
+                        name: "health".to_string(),
                     }))
                 },
-                name: Identifier { name: "alive".to_string() }
+                name: Identifier {
+                    name: "alive".to_string(),
+                }
             })
         );
     }
@@ -647,7 +670,9 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(ConstDecl {
-                name: Identifier { name: "max_health".to_string() },
+                name: Identifier {
+                    name: "max_health".to_string(),
+                },
                 definition: Expr { kind: Number(1) }
             })
         );
@@ -676,12 +701,20 @@ mod tests {
             Ok(Relabelling {
                 relabellings: vec![
                     RelabelCase {
-                        prev_name: Identifier { name: "target1".to_string() },
-                        new_name: Identifier { name: "p2".to_string() }
+                        prev_name: Identifier {
+                            name: "target1".to_string()
+                        },
+                        new_name: Identifier {
+                            name: "p2".to_string()
+                        }
                     },
                     RelabelCase {
-                        prev_name: Identifier { name: "target2".to_string() },
-                        new_name: Identifier { name: "p3".to_string() }
+                        prev_name: Identifier {
+                            name: "target2".to_string()
+                        },
+                        new_name: Identifier {
+                            name: "p3".to_string()
+                        }
                     }
                 ]
             })
@@ -696,8 +729,12 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier { name: "p1".to_string() },
-                template: Identifier { name: "shooter".to_string() },
+                name: Identifier {
+                    name: "p1".to_string()
+                },
+                template: Identifier {
+                    name: "shooter".to_string()
+                },
                 relabelling: Relabelling {
                     relabellings: vec![]
                 }
@@ -713,12 +750,20 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier { name: "p1".to_string() },
-                template: Identifier { name: "shooter".to_string() },
+                name: Identifier {
+                    name: "p1".to_string()
+                },
+                template: Identifier {
+                    name: "shooter".to_string()
+                },
                 relabelling: Relabelling {
                     relabellings: vec![RelabelCase {
-                        prev_name: Identifier { name: "target".to_string() },
-                        new_name: Identifier { name: "p2".to_string() }
+                        prev_name: Identifier {
+                            name: "target".to_string()
+                        },
+                        new_name: Identifier {
+                            name: "p2".to_string()
+                        }
                     }]
                 }
             })
@@ -733,7 +778,9 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(TransitionDecl {
-                name: Identifier { name: "shoot_right".to_string() },
+                name: Identifier {
+                    name: "shoot_right".to_string()
+                },
                 condition: Expr { kind: Number(1) },
                 state_changes: vec![]
             })
@@ -745,7 +792,8 @@ mod tests {
         // Simple template decl
         let input = br#"template shooter
 
-            health : [0 .. max_health] init max_health;
+            health : [0 .. 9] init 9;
+            health' = health - 1;
 
             label alive = health;
 
@@ -770,6 +818,7 @@ mod tests {
         template shooter
 
             health : [0 .. max_health] init max_health;
+            health' = health - 1;
 
             label alive = health;
 
