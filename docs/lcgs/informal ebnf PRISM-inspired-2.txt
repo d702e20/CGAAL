@@ -4,16 +4,17 @@ simpledecl := labeldecl
     | vardecl
     | playerdecl
     | statevarchangedecl
+    | transitondecl
 
 constdecl := "const" identifier eq expr;
 labeldecl := "label" identifier eq expr
 playerdecl := "player" identifier eq identifier relabeling?
 
-moduledecl := "template" identifier param? (simpledecl semicolon)* "endtemplate"
+templatedecl := "template" identifier param? (simpledecl semicolon)* "endtemplate"
 
 vardecl := identifier colon type ("init" expr)?
 
-transitiondecl := lbrac identifier rbrac expr stateupdate
+transitiondecl := lbrac identifier rbrac expr
 
 statevarchangedecl := identifier prime eq expr
 
