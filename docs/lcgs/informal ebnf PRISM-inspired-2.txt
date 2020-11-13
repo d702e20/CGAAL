@@ -3,7 +3,7 @@ start := (constdecl semicolon | simpledecl semicolon | moduledecl)*
 simpledecl := labeldecl
     | vardecl
     | playerdecl
-    | transitiondecl
+    | statevarchangedecl
 
 constdecl := "const" identifier eq expr;
 labeldecl := "label" identifier eq expr
@@ -13,7 +13,9 @@ moduledecl := "template" identifier param? (simpledecl semicolon)* "endtemplate"
 
 vardecl := identifier colon type ("init" expr)?
 
-transitiondecl := identifier prime eq expr
+transitiondecl := lbrac identifier rbrac expr stateupdate
+
+statevarchangedecl := identifier prime eq expr
 
 relabeling := lbrac (identifier eq identifier (comma identifier eq identifier)*)? rbrac
 
