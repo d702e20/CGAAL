@@ -12,7 +12,8 @@ use pom::parser::*;
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
 use crate::lcgs::ast::{
-    BinaryOpKind, ConstDecl, Expr, ExprKind, Identifier, LabelDecl, StateVarDecl, TypeRange,
+    BinaryOpKind, ConstDecl, Expr, ExprKind, Identifier, LabelDecl, PlayerDecl, RelabelCase,
+    Relabelling, StateVarDecl, TypeRange,
 };
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
@@ -185,6 +186,45 @@ fn const_decl() -> Parser<'static, u8, ConstDecl> {
     con.map(|(name, val)| ConstDecl {
         name: Identifier { owner: None, name },
         definition: val,
+    })
+}
+
+/// Parser that parses a relabelling, e.g.
+/// "`[target1=p2, target2=p3]`"
+fn relabelling() -> Parser<'static, u8, Relabelling> {
+    let raw_case = name() - space() - sym(b'=') - space() + name();
+    let case = raw_case.map(|(prev, new)| RelabelCase {
+        prev_name: Identifier {
+            owner: None,
+            name: prev,
+        },
+        new_name: Identifier {
+            owner: None,
+            name: new,
+        },
+    });
+    let inner = list(case, space() * sym(b',') - space());
+    let whole = sym(b'[') * space() * inner - space() - sym(b']');
+    whole.map(|cases| Relabelling {
+        relabellings: cases,
+    })
+}
+
+/// Parser that parses a player declaration, e.g.
+/// "`player p1 = shooter [target1=p2, target2=p3]`"
+fn player_decl() -> Parser<'static, u8, PlayerDecl> {
+    let rhs = seq(b"player") * space() * name();
+    let lhs = name() - space() + relabelling().opt();
+    let whole = rhs - space() - sym(b'=') - space() + lhs;
+    whole.map(|(name, (temp, relabel))| PlayerDecl {
+        name: Identifier { owner: None, name },
+        module: Identifier {
+            owner: None,
+            name: temp,
+        },
+        relabelling: relabel.unwrap_or_else(|| Relabelling {
+            relabellings: vec![],
+        }),
     })
 }
 
@@ -561,6 +601,108 @@ mod tests {
                     name: "max_health".to_string()
                 },
                 definition: Expr { kind: Number(1) }
+            })
+        );
+    }
+
+    #[test]
+    fn test_relabelling_01() {
+        // Empty relabelling
+        let input = br"[]";
+        let parser = relabelling();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Relabelling {
+                relabellings: vec![]
+            })
+        );
+    }
+
+    #[test]
+    fn test_relabelling_02() {
+        // Simple relabelling
+        let input = br"[target1=p2, target2=p3]";
+        let parser = relabelling();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Relabelling {
+                relabellings: vec![
+                    RelabelCase {
+                        prev_name: Identifier {
+                            owner: None,
+                            name: "target1".to_string()
+                        },
+                        new_name: Identifier {
+                            owner: None,
+                            name: "p2".to_string()
+                        }
+                    },
+                    RelabelCase {
+                        prev_name: Identifier {
+                            owner: None,
+                            name: "target2".to_string()
+                        },
+                        new_name: Identifier {
+                            owner: None,
+                            name: "p3".to_string()
+                        }
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_player_decl_01() {
+        // Simple player decl with no relabelling
+        let input = br"player p1 = shooter";
+        let parser = player_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(PlayerDecl {
+                name: Identifier {
+                    owner: None,
+                    name: "p1".to_string()
+                },
+                module: Identifier {
+                    owner: None,
+                    name: "shooter".to_string()
+                },
+                relabelling: Relabelling {
+                    relabellings: vec![]
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_player_decl_02() {
+        // Simple player decl
+        let input = br"player p1 = shooter [target=p2]";
+        let parser = player_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(PlayerDecl {
+                name: Identifier {
+                    owner: None,
+                    name: "p1".to_string()
+                },
+                module: Identifier {
+                    owner: None,
+                    name: "shooter".to_string()
+                },
+                relabelling: Relabelling {
+                    relabellings: vec![RelabelCase {
+                        prev_name: Identifier {
+                            owner: None,
+                            name: "target".to_string()
+                        },
+                        new_name: Identifier {
+                            owner: None,
+                            name: "p2".to_string()
+                        }
+                    }]
+                }
             })
         );
     }
