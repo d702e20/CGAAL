@@ -66,7 +66,7 @@ impl Display for Phi {
                 )?;
                 f.write_str("⟫(")?;
                 pre.fmt(f)?;
-                f.write_str("𝑼")?;
+                f.write_str(" 𝑼 ")?;
                 pre.fmt(f)?;
                 f.write_str(")")
             }
@@ -86,7 +86,7 @@ impl Display for Phi {
                 )?;
                 f.write_str("⟧(")?;
                 pre.fmt(f)?;
-                f.write_str("𝑼")?;
+                f.write_str(" 𝑼 ")?;
                 pre.fmt(f)?;
                 f.write_str(")")
             }
