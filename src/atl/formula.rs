@@ -28,13 +28,16 @@ impl Display for Phi {
         match self {
             Phi::PROPOSITION(id) => f.write_fmt(format_args!("'{}'", id)),
             Phi::NOT(formula) => {
-                f.write_str("¬")?;
-                formula.fmt(f)
+                f.write_str("¬(")?;
+                formula.fmt(f)?;
+                f.write_str(")")
             }
             Phi::OR(left, right) => {
+                f.write_str("(")?;
                 left.fmt(f)?;
-                f.write_str(" ∨ ")?;
-                right.fmt(f)
+                f.write_str(") ∨ (")?;
+                right.fmt(f)?;
+                f.write_str(")")
             }
             Phi::NEXT { players, formula } => {
                 f.write_str("⟪")?;
@@ -64,11 +67,11 @@ impl Display for Phi {
                         .join(",")
                         .as_str(),
                 )?;
-                f.write_str("⟫(")?;
+                f.write_str("⟫((")?;
                 pre.fmt(f)?;
-                f.write_str(" 𝑼 ")?;
+                f.write_str(") 𝑼 (")?;
                 until.fmt(f)?;
-                f.write_str(")")
+                f.write_str("))")
             }
             Phi::ENFORCE_UNTIL {
                 players,
@@ -84,11 +87,11 @@ impl Display for Phi {
                         .join(",")
                         .as_str(),
                 )?;
-                f.write_str("⟧(")?;
+                f.write_str("⟧((")?;
                 pre.fmt(f)?;
-                f.write_str(" 𝑼 ")?;
+                f.write_str(") 𝑼 (")?;
                 until.fmt(f)?;
-                f.write_str(")")
+                f.write_str("))")
             }
         }
     }
