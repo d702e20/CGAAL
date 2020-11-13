@@ -11,7 +11,7 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, StateVarDecl, TypeRange};
+use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, StateVarDecl, TypeRange, LabelDecl};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
@@ -166,10 +166,22 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
     })
 }
 
+/// Parser that parses a label declaration, e.g.
+/// "`label alive = health > 0`"
+fn label_decl() -> Parser<'static, u8, LabelDecl> {
+    let label = seq(b"label") * space() * name() - space() - sym(b'=') - space() + expr();
+    label.map(|(name, guard)| LabelDecl {
+        guard,
+        name: Identifier {
+            owner: None,
+            name
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env::var;
 
     #[test]
     fn test_ident_01() {
@@ -500,6 +512,28 @@ mod tests {
                         owner: None,
                         name: "max_health".to_string()
                     }))
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_label_decl_01() {
+        // Simple label decl
+        let input = br"label alive = health";
+        let parser = label_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(LabelDecl {
+                guard: Expr { kind: Ident(
+                    Rc::from(Identifier {
+                        owner: None,
+                        name: "health".to_string()
+                    })
+                ) },
+                name: Identifier {
+                    owner: None,
+                    name: "alive".to_string()
                 }
             })
         );
