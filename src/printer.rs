@@ -31,6 +31,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
     let mut visited: HashSet<V> = HashSet::new();
     let mut queue: VecDeque<V> = VecDeque::new();
     let mut hyper_idx = 0usize;
+    let mut empty_idx = 0usize;
 
     queue.push_back(v0.clone());
 
@@ -47,8 +48,16 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
             match edge {
                 Edges::HYPER(hyper) => {
                     if hyper.targets.is_empty() {
-                        output
-                            .write(format!("v{} -> ∅;\n", hash_name(&hyper.source)).as_bytes())?;
+                        output.write(
+                            format!(
+                                "empty{}[shape=none,label=\"∅\"];\nv{} -> empty{};\n",
+                                empty_idx,
+                                hash_name(&hyper.source),
+                                empty_idx
+                            )
+                            .as_bytes(),
+                        )?;
+                        empty_idx += 1;
                     } else {
                         if hyper.targets.len() == 1 {
                             let target = hyper.targets.get(0).unwrap();
