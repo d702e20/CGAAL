@@ -30,8 +30,6 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
     let mut visited: HashSet<V> = HashSet::new();
     let mut queue: VecDeque<V> = VecDeque::new();
-    let mut hyper_idx = 0usize;
-    let mut empty_idx = 0usize;
 
     queue.push_back(v0.clone());
 
@@ -45,19 +43,22 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
         for edge in graph.succ(&vertex) {
             // TODO maybe print labels on edges
+
+            let hyper_id = hash_name(&edge);
+
             match edge {
                 Edges::HYPER(hyper) => {
                     if hyper.targets.is_empty() {
+                        let empty_id = hash_name(&hyper);
                         output.write(
                             format!(
                                 "empty{}[shape=none,label=\"∅\"];\nv{} -> empty{};\n",
-                                empty_idx,
+                                empty_id,
                                 hash_name(&hyper.source),
-                                empty_idx
+                                empty_id
                             )
                             .as_bytes(),
                         )?;
-                        empty_idx += 1;
                     } else {
                         if hyper.targets.len() == 1 {
                             let target = hyper.targets.get(0).unwrap();
@@ -78,23 +79,20 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                             }
                         } else {
                             output.write(
-                                format!(
-                                    "h{}[shape=none,label=\"\",width=0,height=0];\n",
-                                    hyper_idx
-                                )
-                                .as_bytes(),
+                                format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_id)
+                                    .as_bytes(),
                             )?;
                             output.write(
                                 format!(
                                     "v{} -> h{}[dir=none];\n",
                                     hash_name(&hyper.source),
-                                    hyper_idx
+                                    hyper_id
                                 )
                                 .as_bytes(),
                             )?;
                             for target in hyper.targets {
                                 output.write(
-                                    format!("h{} -> v{};\n", hyper_idx, hash_name(&target))
+                                    format!("h{} -> v{};\n", hyper_id, hash_name(&target))
                                         .as_bytes(),
                                 )?;
 
@@ -104,7 +102,6 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                     visited.insert(target);
                                 }
                             }
-                            hyper_idx += 1;
                         }
                     }
                 }
