@@ -23,7 +23,13 @@ pub enum Associativity {
 pub fn precedence(op: &BinaryOpKind) -> Precedence {
     match op {
         Multiplication | Division => Precedence(20, LeftToRight),
-        Addition | Subtraction => Precedence(10, LeftToRight),
+        Addition | Subtraction => Precedence(19, LeftToRight),
+        LessThan | GreaterThan | LessOrEqual | GreaterOrEqual => Precedence(18, LeftToRight),
+        Equality | Inequality => Precedence(17, LeftToRight),
+        And => Precedence(16, LeftToRight),
+        Or => Precedence(15, LeftToRight),
+        Xor => Precedence(14, LeftToRight),
+        Implication => Precedence(13, LeftToRight),
         _ => unimplemented!("Unknown precedence for '{}'. See precedence.rs", op),
     }
 }

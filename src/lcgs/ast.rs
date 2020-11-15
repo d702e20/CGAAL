@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use crate::lcgs::ast::BinaryOpKind::*;
+use pom::set::Set;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Root {
@@ -132,17 +133,26 @@ pub enum BinaryOpKind {
     Implication,
 }
 
-// TODO Binary operators consisting of multiple characters, e.g. "==" or "&&"
-impl From<u8> for BinaryOpKind {
-    fn from(op: u8) -> BinaryOpKind {
+impl From<&[u8]> for BinaryOpKind {
+    fn from(op: &[u8]) -> BinaryOpKind {
         match op {
-            b'+' => Addition,
-            b'*' => Multiplication,
-            b'-' => Subtraction,
-            b'/' => Division,
+            b"+" => Addition,
+            b"*" => Multiplication,
+            b"-" => Subtraction,
+            b"/" => Division,
+            b"==" => Equality,
+            b"!=" => Inequality,
+            b">" => GreaterThan,
+            b"<" => LessThan,
+            b">=" => GreaterOrEqual,
+            b"<=" => LessOrEqual,
+            b"&&" => And,
+            b"||" => Or,
+            b"^" => Xor,
+            b"->" => Implication,
             _ => unimplemented!(
                 "Unrecognized operator '{}'. See 'impl From<u8> for BinaryOpKind' clause.",
-                op
+                String::from_utf8(op.to_vec()).unwrap()
             ),
         }
     }

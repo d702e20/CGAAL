@@ -91,7 +91,23 @@ fn identifier() -> Parser<'static, u8, Identifier> {
 
 /// Parser that parses binary operators
 fn binop() -> Parser<'static, u8, BinaryOpKind> {
-    one_of(b"+-*/").map(BinaryOpKind::from)
+    // When operators share a common prefix the longer one should appear first
+    let op = seq(b"+")
+        | seq(b"->")
+        | seq(b"-")
+        | seq(b"*")
+        | seq(b"/")
+        | seq(b"==")
+        | seq(b"!=")
+        | seq(b">=")
+        | seq(b"<=")
+        | seq(b">")
+        | seq(b"<")
+        | seq(b"&&")
+        | seq(b"||")
+        | seq(b"^")
+        ;
+    op.map(BinaryOpKind::from)
 }
 
 /// Combine a list of expressions and binary operators to a single `Expr` with correct
@@ -149,6 +165,7 @@ fn primary() -> Parser<'static, u8, Expr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lcgs::ast::BinaryOpKind::{Implication, And, LessThan};
 
     #[test]
     fn test_ident_01() {
@@ -413,6 +430,41 @@ mod tests {
                                     Rc::from(Expr {
                                         kind: BinaryOp(
                                             Addition,
+                                            Rc::from(Expr { kind: Number(2) }),
+                                            Rc::from(Expr { kind: Number(3) }),
+                                        )
+                                    }),
+                                )
+                            }),
+                            Rc::from(Expr { kind: Number(4) }),
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(5) })
+                )
+            })
+        );
+    }
+
+    #[test]
+    fn test_precedence_02() {
+        // Precedence between mathematical operators
+        let input = br"1 < 2 * 3 && 4 -> 5";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Implication,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            And,
+                            Rc::from(Expr {
+                                kind: BinaryOp(
+                                    LessThan,
+                                    Rc::from(Expr { kind: Number(1) }),
+                                    Rc::from(Expr {
+                                        kind: BinaryOp(
+                                            Multiplication,
                                             Rc::from(Expr { kind: Number(2) }),
                                             Rc::from(Expr { kind: Number(3) }),
                                         )
