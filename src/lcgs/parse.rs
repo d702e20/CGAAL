@@ -9,14 +9,12 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
+use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number, TernaryIf, UnaryOp};
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
-use crate::lcgs::precedence::Associativity::RightToLeft;
-use crate::lcgs::precedence::{precedence, Precedence};
-
-use self::pom::set::Set;
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
+use crate::lcgs::precedence::{precedence, Precedence};
+use crate::lcgs::precedence::Associativity::RightToLeft;
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -184,8 +182,9 @@ fn primary_expr() -> Parser<'static, u8, Expr> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::lcgs::ast::BinaryOpKind::{And, Equality, Implication, Inequality, LessThan};
+
+    use super::*;
 
     #[test]
     fn test_ident_01() {

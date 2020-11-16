@@ -3,7 +3,6 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 use crate::lcgs::ast::BinaryOpKind::*;
-use pom::set::Set;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Root {
