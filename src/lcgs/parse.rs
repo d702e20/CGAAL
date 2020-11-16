@@ -261,7 +261,7 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
     let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
     let temp =
         seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
-    temp.map(|(name, decls)| TemplateDecl { name, decls })
+    temp.map(|(name, decls)| TemplateDecl { name, decls, params: vec![] })
 }
 
 /// Parser that parses root level, i.e. all the global declarations
