@@ -305,7 +305,7 @@ fn root() -> Parser<'static, u8, Root> {
 }
 
 /// Parse a LCGS program
-pub fn parse_lcgs(input: &[u8]) -> pom::Result<Root> {
+pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
     root().parse(input)
 }
 
