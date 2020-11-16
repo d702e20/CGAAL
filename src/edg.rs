@@ -424,3 +424,178 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 }
+#[cfg(test)]
+mod test {
+    use crate::edg::{ExtendedDependencyGraph, distributed_certain_zero, Vertex};
+    use std::collections::hash_map::RandomState;
+    use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
+    use std::collections::HashSet;
+    use std::fmt::Display;
+    use serde::export::Formatter;
+
+    #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+    struct ExampleEDG {}
+
+    #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+    enum ExampleEDGVertices {
+        A, B, C, D, E, F, N, T, G
+    }
+    impl Display for ExampleEDGVertices {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            unimplemented!()
+        }
+    }
+    impl Vertex for ExampleEDGVertices{}
+    impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+        fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+            match vertex {
+                ExampleEDGVertices::A => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::A,
+                        targets: vec![ExampleEDGVertices::B]
+                    }));
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::A,
+                        targets: vec![ExampleEDGVertices::E],
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::B => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::B,
+                        targets: vec![ExampleEDGVertices::C]
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::C => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::C,
+                        targets: vec![ExampleEDGVertices::F],
+                    }));
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::C,
+                        targets: vec![ExampleEDGVertices::T],
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::D => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::D,
+                        targets: vec![ExampleEDGVertices::E]
+                    }));
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::D,
+                        targets: vec![ExampleEDGVertices::C],
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::E => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::E,
+                        targets: vec![ExampleEDGVertices::D, ExampleEDGVertices::F]
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::F => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::F,
+                        targets: vec![]
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::N => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::NEGATION(NegationEdge {
+                        source: ExampleEDGVertices::N,
+                        target: ExampleEDGVertices::A
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::T => {
+                    let mut successors = HashSet::new();
+
+                    successors.insert(Edges::HYPER(HyperEdge {
+                        source: ExampleEDGVertices::T,
+                        targets: vec![ExampleEDGVertices::G]
+                    }));
+
+                    successors
+                }
+                ExampleEDGVertices::G => {
+                    let mut successors = HashSet::new();
+
+                    successors
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_a() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1), VertexAssignment::TRUE);
+    }
+
+
+    #[test]
+    fn test_b() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::TRUE);
+    }
+
+    #[test]
+    fn test_c() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::TRUE);
+    }
+
+    #[test]
+    fn test_d() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1), VertexAssignment::TRUE);
+    }
+
+    #[test]
+    fn test_e() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, 1), VertexAssignment::TRUE);
+    }
+
+    #[test]
+    fn test_f() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1), VertexAssignment::TRUE);
+    }
+
+    #[test]
+    fn test_n() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1), VertexAssignment::FALSE);
+    }
+
+    #[test]
+    fn test_t() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, 1), VertexAssignment::FALSE);
+    }
+
+    #[test]
+    fn test_g() {
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, 1), VertexAssignment::FALSE);
+    }
+}
