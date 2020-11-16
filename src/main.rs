@@ -13,7 +13,7 @@ use std::io::Read;
 use std::process::exit;
 use std::sync::Arc;
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
@@ -71,11 +71,15 @@ fn main() {
             }
         },
     )) {
-        model_check(args); // not sure whether this requires match on Result
+        match args.subcommand() {
+            ("solver", Some(solver_args)) => model_check(solver_args),
+            ("graph", Some(graph_args)) => Ok(()),
+            _ => Ok(()),
+        };
     }
 }
 
-fn model_check(args: ArgMatches) -> Result<(), Box<dyn Error>> {
+fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
     info!("Model checking on formula: {:?}", args.value_of("formula"));
 
     let mut file = File::open(args.value_of("json_model").unwrap())?;
@@ -106,36 +110,8 @@ fn parse() -> ArgMatches<'static> {
         .version(VERSION)
         .author(AUTHORS)
         .arg(
-            Arg::with_name("formula")
-                .short("f")
-                .long("formula")
-                .env("FORMULA")
-                .help("The formula to check for"),
-        )
-        .arg(
-            Arg::with_name("input_file")
-                .short("i")
-                .long("input")
-                .env("INPUT_FILE")
-                .help("The input file to generate model from"),
-        )
-        .arg(
-            Arg::with_name("json_model")
-                .short("j")
-                .long("json-model")
-                .env("INPUT_JSON")
-                .help("Path to the model in JSON format"),
-        )
-        .arg(
-            Arg::with_name("json_formula")
-                .short("r")
-                .long("json-formula")
-                .env("JSON_FORMULA")
-                .help("Path to a JSON formatted formula that will be checked against the model"),
-        )
-        .arg(
             Arg::with_name("log-level")
-                .short("o")
+                .short("l")
                 .long("log-level")
                 .env("LOG_LEVEL")
                 .default_value("warn")
@@ -143,10 +119,78 @@ fn parse() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("log_path")
-                .short("g")
+                .short("p")
                 .long("log-path")
                 .env("LOG_PATH")
-                .help("Specify the log-file path"),
+                .help("Write log to file if log-file path is specified"),
+        )
+        .subcommand(
+            SubCommand::with_name("solver")
+                .arg(
+                    Arg::with_name("input_model")
+                        .short("m")
+                        .long("model")
+                        .env("INPUT_MODEL")
+                        .required(true)
+                        .help("The input file to generate model from"),
+                )
+                .arg(
+                    Arg::with_name("model_type")
+                        .short("t")
+                        .long("model-type")
+                        .env("MODEL_TYPE")
+                        .required(true)
+                        .help("The type of input file given"),
+                )
+                .arg(
+                    Arg::with_name("formula")
+                        .short("f")
+                        .long("formula")
+                        .env("FORMULA")
+                        .required(true)
+                        .help("The formula to check for"),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .env("OUTPUT")
+                        .help("The path to write output to"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("graph")
+                .arg(
+                    Arg::with_name("input_model")
+                        .short("m")
+                        .long("model")
+                        .env("INPUT_MODEL")
+                        .required(true)
+                        .help("The input file to generate model from"),
+                )
+                .arg(
+                    Arg::with_name("model_type")
+                        .short("t")
+                        .long("model-type")
+                        .env("MODEL_TYPE")
+                        .required(true)
+                        .help("The type of input file given"),
+                )
+                .arg(
+                    Arg::with_name("formula")
+                        .short("f")
+                        .long("formula")
+                        .env("FORMULA")
+                        .required(true)
+                        .help("The formula to check for"),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .env("OUTPUT")
+                        .help("The path to write output to"),
+                ),
         )
         .get_matches()
 }
