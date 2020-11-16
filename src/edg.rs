@@ -424,6 +424,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 }
+
+
+
+
 #[cfg(test)]
 mod test {
     use crate::edg::{ExtendedDependencyGraph, distributed_certain_zero, Vertex};
@@ -436,166 +440,369 @@ mod test {
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
 
-    #[derive(Hash, Clone, Eq, PartialEq, Debug)]
-    enum ExampleEDGVertices {
-        A, B, C, D, E, F, N, T, G
-    }
-    impl Display for ExampleEDGVertices {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            unimplemented!()
+
+    #[test]
+    fn test_withEDG() {
+        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        enum ExampleEDGVertices {
+            A, B, C, D, E, F, N, T, G
         }
-    }
-    impl Vertex for ExampleEDGVertices{}
-    impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
-        fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
-            match vertex {
-                ExampleEDGVertices::A => {
-                    let mut successors = HashSet::new();
+        impl Display for ExampleEDGVertices {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+        impl Vertex for ExampleEDGVertices{}
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::A,
-                        targets: vec![ExampleEDGVertices::B]
-                    }));
+        impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                match vertex {
+                    ExampleEDGVertices::A => {
+                        let mut successors = HashSet::new();
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::A,
-                        targets: vec![ExampleEDGVertices::E],
-                    }));
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::A,
+                            targets: vec![ExampleEDGVertices::B]
+                        }));
 
-                    successors
-                }
-                ExampleEDGVertices::B => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::A,
+                            targets: vec![ExampleEDGVertices::E],
+                        }));
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::B,
-                        targets: vec![ExampleEDGVertices::C]
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::B => {
+                        let mut successors = HashSet::new();
 
-                    successors
-                }
-                ExampleEDGVertices::C => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::B,
+                            targets: vec![ExampleEDGVertices::C]
+                        }));
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::C,
-                        targets: vec![ExampleEDGVertices::F],
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::C => {
+                        let mut successors = HashSet::new();
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::C,
-                        targets: vec![ExampleEDGVertices::T],
-                    }));
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::C,
+                            targets: vec![ExampleEDGVertices::F],
+                        }));
 
-                    successors
-                }
-                ExampleEDGVertices::D => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::C,
+                            targets: vec![ExampleEDGVertices::T],
+                        }));
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::D,
-                        targets: vec![ExampleEDGVertices::E]
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::D => {
+                        let mut successors = HashSet::new();
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::D,
-                        targets: vec![ExampleEDGVertices::C],
-                    }));
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::D,
+                            targets: vec![ExampleEDGVertices::E]
+                        }));
 
-                    successors
-                }
-                ExampleEDGVertices::E => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::D,
+                            targets: vec![ExampleEDGVertices::C],
+                        }));
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::E,
-                        targets: vec![ExampleEDGVertices::D, ExampleEDGVertices::F]
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::E => {
+                        let mut successors = HashSet::new();
 
-                    successors
-                }
-                ExampleEDGVertices::F => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::E,
+                            targets: vec![ExampleEDGVertices::D, ExampleEDGVertices::F]
+                        }));
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::F,
-                        targets: vec![]
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::F => {
+                        let mut successors = HashSet::new();
 
-                    successors
-                }
-                ExampleEDGVertices::N => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::F,
+                            targets: vec![]
+                        }));
 
-                    successors.insert(Edges::NEGATION(NegationEdge {
-                        source: ExampleEDGVertices::N,
-                        target: ExampleEDGVertices::A
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::N => {
+                        let mut successors = HashSet::new();
 
-                    successors
-                }
-                ExampleEDGVertices::T => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::NEGATION(NegationEdge {
+                            source: ExampleEDGVertices::N,
+                            target: ExampleEDGVertices::A
+                        }));
 
-                    successors.insert(Edges::HYPER(HyperEdge {
-                        source: ExampleEDGVertices::T,
-                        targets: vec![ExampleEDGVertices::G]
-                    }));
+                        successors
+                    }
+                    ExampleEDGVertices::T => {
+                        let mut successors = HashSet::new();
 
-                    successors
-                }
-                ExampleEDGVertices::G => {
-                    let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::T,
+                            targets: vec![ExampleEDGVertices::G]
+                        }));
 
-                    successors
+                        successors
+                    }
+                    ExampleEDGVertices::G => {
+                        let mut successors = HashSet::new();
+                        successors
+                    }
                 }
             }
         }
-    }
-
-    #[test]
-    fn test_a() {
         assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1), VertexAssignment::TRUE);
-    }
-
-
-    #[test]
-    fn test_b() {
         assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::TRUE);
-    }
-
-    #[test]
-    fn test_c() {
         assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::TRUE);
-    }
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1), VertexAssignment::TRUE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, 1), VertexAssignment::TRUE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1), VertexAssignment::TRUE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, 1), VertexAssignment::FALSE);
 
+
+
+    }
     #[test]
-    fn test_d() {
+    fn test_small_dg_all_true_except_for_c() {
+        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        enum ExampleEDGVertices {
+            A, B, C, D
+        }
+        impl Display for ExampleEDGVertices {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+        impl Vertex for ExampleEDGVertices{}
+
+        impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                match vertex {
+                    ExampleEDGVertices::A => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::A,
+                            targets: vec![ExampleEDGVertices::B]
+                        }));
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::A,
+                            targets: vec![ExampleEDGVertices::C],
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::B => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::B,
+                            targets: vec![ExampleEDGVertices::D]
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::C => {
+                        let mut successors = HashSet::new();
+
+                        successors
+                    }
+                    ExampleEDGVertices::D => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::D,
+                            targets: vec![]
+                        }));
+
+                        successors
+                    }
+                }
+            }
+        }
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1), VertexAssignment::TRUE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::TRUE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1), VertexAssignment::TRUE);
+    }
+    #[test]
+    fn test_small_dg_all_false_except_for_d() {
+        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        enum ExampleEDGVertices {
+            A, B, C, D
+        }
+        impl Display for ExampleEDGVertices {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+        impl Vertex for ExampleEDGVertices{}
+
+        impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                match vertex {
+                    ExampleEDGVertices::A => {
+                        let mut successors = HashSet::new();
+
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::A,
+                            targets: vec![ExampleEDGVertices::B],
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::B => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::B,
+                            targets: vec![ExampleEDGVertices::C]
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::C => {
+                        let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::C,
+                            targets: vec![ExampleEDGVertices::B]
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::D => {
+                        let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::D,
+                            targets: vec![],
+                        }));
+
+                        successors
+                    }
+                }
+            }
+        }
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::FALSE);
         assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1), VertexAssignment::TRUE);
     }
 
     #[test]
-    fn test_e() {
-        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, 1), VertexAssignment::TRUE);
-    }
+    fn test_loop_di_loops() {
+        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        enum ExampleEDGVertices {
+            A, B, C, D
+        }
+        impl Display for ExampleEDGVertices {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+        impl Vertex for ExampleEDGVertices{}
 
-    #[test]
-    fn test_f() {
-        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1), VertexAssignment::TRUE);
-    }
+        impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                match vertex {
+                    ExampleEDGVertices::A => {
+                        let mut successors = HashSet::new();
 
-    #[test]
-    fn test_n() {
-        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1), VertexAssignment::FALSE);
-    }
 
-    #[test]
-    fn test_t() {
-        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, 1), VertexAssignment::FALSE);
-    }
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::A,
+                            targets: vec![ExampleEDGVertices::B],
+                        }));
 
+                        successors
+                    }
+                    ExampleEDGVertices::B => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::B,
+                            targets: vec![ExampleEDGVertices::A, ExampleEDGVertices::C]
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::C => {
+                        let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::C,
+                            targets: vec![ExampleEDGVertices::D]
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::D => {
+                        let mut successors = HashSet::new();
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::D,
+                            targets: vec![],
+                        }));
+
+                        successors
+                    }
+                }
+            }
+        }
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::TRUE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1), VertexAssignment::TRUE);
+    }
     #[test]
-    fn test_g() {
-        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, 1), VertexAssignment::FALSE);
+    fn test_negation_edges() {
+        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        enum ExampleEDGVertices {
+            A, B
+        }
+        impl Display for ExampleEDGVertices {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+        impl Vertex for ExampleEDGVertices{}
+
+        impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                match vertex {
+                    ExampleEDGVertices::A => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::NEGATION(NegationEdge {
+                            source: ExampleEDGVertices::A,
+                            target: ExampleEDGVertices::B,
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::B => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::B,
+                            targets: vec![]
+                        }));
+
+                        successors
+                    }
+                }
+            }
+        }
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1), VertexAssignment::FALSE);
+        assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::TRUE);
     }
 }
