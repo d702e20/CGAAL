@@ -10,7 +10,10 @@ constdecl := "const" identifier eq expr;
 labeldecl := "label" identifier eq expr
 playerdecl := "player" identifier eq identifier relabeling?
 
-templatedecl := "template" identifier param? (simpledecl semicolon)* "endtemplate"
+templatedecl := "template" identifier params? (simpledecl semicolon)* "endtemplate"
+
+params := lpar (param (comma param)*)? rpar
+param := identifier colon identifier
 
 vardecl := identifier colon type "init" expr
 

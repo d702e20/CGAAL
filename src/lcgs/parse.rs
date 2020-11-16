@@ -11,12 +11,14 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent};
-use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, Identifier, LabelDecl, OwnedIdentifier, PlayerDecl, RelabelCase, Relabelling, Root, StateVarChangeDecl, StateVarDecl, TemplateDecl, TransitionDecl, TypeRange, StateChange};
+use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, Identifier, LabelDecl, OwnedIdentifier, Param, PlayerDecl, RelabelCase, Relabelling, Root, StateChange, StateVarChangeDecl, StateVarDecl, TemplateDecl, TransitionDecl, TypeRange, ParamType};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
-use crate::lcgs::ast::DeclKind::{Const, Label, Module, Player, StateVar, Transition, StateVarChange};
+use crate::lcgs::ast::DeclKind::{
+    Const, Label, Module, Player, StateVar, StateVarChange, Transition,
+};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -259,9 +261,26 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
         kind: Transition(Rc::from(td)),
     });
     let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
-    let temp =
-        seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
-    temp.map(|(name, decls)| TemplateDecl { name, decls, params: vec![] })
+    let temp = seq(b"template") * ws() * identifier() - ws() + template_params().opt() - ws()
+        + inner_decls
+        - ws()
+        - seq(b"endtemplate");
+    temp.map(|((name, params), decls)| TemplateDecl {
+        name,
+        decls,
+        params: params.unwrap_or(vec![]),
+    })
+}
+
+/// Parser that parses a template's parameters, i.e. `(target1: shooter, dmg: int)`
+fn template_params() -> Parser<'static, u8, Vec<Param>> {
+    let param = (identifier() - ws() - sym(b':') - ws() + identifier())
+        .map(|(name, t)| Param {
+            name,
+            typ: if t.name == "int" { ParamType::IntType } else { ParamType::IdentType(t) }
+        });
+    let params = list(param, ws() * sym(b',') - ws());
+    sym(b'(') * ws() * params - ws() - sym(b')')
 }
 
 /// Parser that parses root level, i.e. all the global declarations

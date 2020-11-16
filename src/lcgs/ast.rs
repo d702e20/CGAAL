@@ -70,13 +70,19 @@ pub struct RelabelCase {
 pub struct TemplateDecl {
     pub name: Identifier,
     pub decls: Vec<Decl>,
-    pub params: Vec<Params>,
+    pub params: Vec<Param>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Params {
+pub struct Param {
     pub name: Identifier,
-    pub typ: String,
+    pub typ: ParamType,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ParamType {
+    IdentType(Identifier),
+    IntType,
 }
 
 #[derive(Debug, Eq, PartialEq)]
