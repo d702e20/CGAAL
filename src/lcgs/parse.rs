@@ -304,6 +304,11 @@ fn root() -> Parser<'static, u8, Root> {
     root.map(|decls| Root { decls })
 }
 
+/// Parse a LCGS program
+pub fn parse_lcgs(input: &[u8]) -> pom::Result<Root> {
+    root().parse(input)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
