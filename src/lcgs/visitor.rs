@@ -8,7 +8,7 @@ pub trait Visitor {
     fn visit_const(&mut self, con: &mut Rc<ConstDecl>);
     fn visit_label(&mut self, label: &mut Rc<LabelDecl>);
     fn visit_player(&mut self, player: &mut Rc<PlayerDecl>);
-    fn visit_relabelling(&mut self, relabelling: &mut Rc<Relabelling>);
+    fn visit_relabelling(&mut self, relabelling: &mut Rc<Relabeling>);
     fn visit_relabel_case(&mut self, relabel_case: &mut Rc<RelabelCase>);
     fn visit_template(&mut self, module: &mut Rc<TemplateDecl>);
     fn visit_state_var(&mut self, state_var: &mut Rc<StateVarDecl>);

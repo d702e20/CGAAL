@@ -71,7 +71,7 @@ impl SymbolTable {
     }
 }
 
-/// Identifiers always belongs to a player or the global scope. This enum allows
+/// OwnedIdentifiers always belongs to a player or the global scope. This enum allows
 /// you to abstract over both.
 pub enum Owner {
     Player(String),
