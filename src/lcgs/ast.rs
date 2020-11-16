@@ -147,7 +147,7 @@ pub struct TransitionDecl {
     pub condition: Expr,
 }
 
-/// An expression
+/// An expression. Expressions are always of type integer.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -162,7 +162,6 @@ pub enum ExprKind {
     UnaryOp(UnaryOpKind, Rc<Expr>),
     BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
     TernaryIf(Rc<Expr>, Rc<Expr>, Rc<Expr>),
-    BoolToNumConversion(Rc<Expr>),
 }
 
 /// Unary operators

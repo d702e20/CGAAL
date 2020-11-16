@@ -1,29 +1,52 @@
-use crate::lcgs::ast::{
-    ConstDecl, LabelDecl, PlayerDecl, StateVarDecl, TemplateDecl, TransitionDecl,
-};
+use crate::lcgs::ast::{ConstDecl, LabelDecl, PlayerDecl, StateVarDecl, TemplateDecl, TransitionDecl, Decl};
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
+use pom::set::Set;
 
-/// A `Symbol` is a name and information about it.
-pub struct Symbol {
-    pub label: String,
-    pub kind: SymbolKind,
+/// An identifier for a symbol with a given owner.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct SymbolIdentifier {
+    pub owner: Owner,
+    pub name: String,
 }
 
-pub enum SymbolKind {
-    Const(Weak<ConstDecl>),
-    Label(Weak<LabelDecl>),
-    StateVar(Weak<StateVarDecl>),
-    Player(Weak<PlayerDecl>),
-    Module(Weak<TemplateDecl>),
-    Transition(Weak<TransitionDecl>),
+/// A `Symbol` is an identifier and information about it.
+#[derive(Debug)]
+pub struct Symbol {
+    pub identifier: SymbolIdentifier,
+    pub declaration: Rc<Decl>,
 }
 
 /// A `PlayerSymbolTable` contains registered symbols belonging to a player
 /// (or the global scope).
 #[derive(Default)]
 pub struct PlayerSymbolTable {
+    player: Owner,
     symbols: HashMap<String, Symbol>,
+}
+
+impl PlayerSymbolTable {
+    fn new(owner: Owner) -> PlayerSymbolTable {
+        PlayerSymbolTable {
+            player: owner,
+            symbols: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, name: &str, decl: Rc<Decl>) -> Option<Symbol> {
+        let symb = Symbol {
+            identifier: SymbolIdentifier {
+                owner: self.player.clone(),
+                name: name.to_string(),
+            },
+            declaration: decl
+        };
+        self.symbols.insert(name.to_string(), symb)
+    }
+
+    fn get(&mut self, name: &str) -> Option<&Symbol> {
+        self.symbols.get(name)
+    }
 }
 
 /// A `SymbolTable` keeps track of registered symbols and their properties.
@@ -36,10 +59,6 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
-    pub fn new() -> SymbolTable {
-        return Default::default();
-    }
-
     /// Register a new `PlayerSymbolTable` of the given name. If a `PlayerSymbolTable`
     /// is already registered for that name, an Err is returned
     pub fn add_player(&mut self, player_name: &str) -> Result<(), ()> {
@@ -72,7 +91,8 @@ impl SymbolTable {
 }
 
 /// OwnedIdentifiers always belongs to a player or the global scope. This enum allows
-/// you to abstract over both.
+/// us to abstract over both possibilities.
+#[derive(Clone)]
 pub enum Owner {
     Player(String),
     Global,
