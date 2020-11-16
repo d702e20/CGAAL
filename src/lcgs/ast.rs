@@ -21,7 +21,7 @@ pub enum DeclKind {
     StateVar(Rc<StateVarDecl>),
     StateVarChange(Rc<StateVarChangeDecl>),
     Player(Rc<PlayerDecl>),
-    Module(Rc<TemplateDecl>),
+    Template(Rc<TemplateDecl>),
     Transition(Rc<TransitionDecl>),
 }
 
@@ -108,13 +108,6 @@ pub struct TypeRange {
 pub struct TransitionDecl {
     pub name: Identifier,
     pub condition: Expr,
-    pub state_changes: Vec<StateChange>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct StateChange {
-    pub name: Identifier,
-    pub new_value: Expr,
 }
 
 #[derive(Debug, Eq, PartialEq)]

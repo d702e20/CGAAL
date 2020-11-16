@@ -13,7 +13,7 @@ pub trait Visitor {
     fn visit_template(&mut self, module: &mut Rc<TemplateDecl>);
     fn visit_state_var(&mut self, state_var: &mut Rc<StateVarDecl>);
     fn visit_transition(&mut self, transition: &mut Rc<TransitionDecl>);
-    fn visit_state_change(&mut self, state_change: &mut Rc<StateChange>);
+    fn visit_state_var_change(&mut self, state_var_change: &mut Rc<StateVarChangeDecl>);
     fn visit_type_range(&mut self, type_range: &mut Rc<TypeRange>);
     fn visit_expr(&mut self, expr: &mut Rc<Expr>);
 }

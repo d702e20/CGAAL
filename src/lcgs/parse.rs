@@ -1,8 +1,6 @@
 extern crate pom;
 
-use std::collections::HashMap;
 use std::iter::Peekable;
-use std::ops::Add;
 use std::rc::Rc;
 use std::str::{self, FromStr};
 use std::vec::Drain;
@@ -11,13 +9,12 @@ use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent};
-use crate::lcgs::ast::{BinaryOpKind, ConstDecl, Decl, Expr, ExprKind, Identifier, LabelDecl, OwnedIdentifier, Param, PlayerDecl, RelabelCase, Relabelling, Root, StateChange, StateVarChangeDecl, StateVarDecl, TemplateDecl, TransitionDecl, TypeRange, ParamType};
+use crate::lcgs::ast::*;
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
-use self::pom::set::Set;
 use crate::lcgs::ast::DeclKind::{
-    Const, Label, Module, Player, StateVar, StateVarChange, Transition,
+    Const, Label, Template, Player, StateVar, StateVarChange, Transition,
 };
 
 /// A `Span` describes the position of a slice of text in the original program.
@@ -245,7 +242,6 @@ fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
     whole.map(|(name, cond)| TransitionDecl {
         name,
         condition: cond,
-        state_changes: vec![],
     })
 }
 
@@ -298,7 +294,7 @@ fn root() -> Parser<'static, u8, Root> {
     });
     let any_decl = simple_decl.with_semi()
         | template_decl().map(|td| Decl {
-            kind: Module(Rc::from(td)),
+            kind: Template(Rc::from(td)),
         });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
@@ -806,7 +802,6 @@ mod tests {
                     name: "shoot_right".to_string()
                 },
                 condition: Expr { kind: Number(1) },
-                state_changes: vec![]
             })
         );
     }
