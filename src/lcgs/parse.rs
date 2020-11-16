@@ -1,8 +1,6 @@
 extern crate pom;
 
-use std::collections::HashMap;
 use std::iter::Peekable;
-use std::ops::Add;
 use std::rc::Rc;
 use std::str::{self, FromStr};
 use std::vec::Drain;
@@ -176,7 +174,7 @@ fn primary_expr() -> Parser<'static, u8, Expr> {
     let ident = identifier().map(|i| Expr {
         kind: Ident(Rc::from(i)),
     });
-    let par = (sym(b'(') * space() * call(expr) - space() - sym(b')'));
+    let par = sym(b'(') * space() * call(expr) - space() - sym(b')');
     neg | not | num | ident | par
 }
 

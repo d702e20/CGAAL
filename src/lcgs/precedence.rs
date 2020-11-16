@@ -30,6 +30,5 @@ pub fn precedence(op: &BinaryOpKind) -> Precedence {
         Or => Precedence(15, LeftToRight),
         Xor => Precedence(14, LeftToRight),
         Implication => Precedence(13, LeftToRight),
-        _ => unimplemented!("Unknown precedence for '{}'. See precedence.rs", op),
     }
 }
