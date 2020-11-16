@@ -102,7 +102,6 @@ pub struct Expr {
 pub enum ExprKind {
     Number(i32),
     Ident(Rc<Identifier>),
-    Negation(Rc<Expr>),
     UnaryOp(UnaryOpKind, Rc<Expr>),
     BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
     TernaryIf(Rc<Expr>, Rc<Expr>, Rc<Expr>),
@@ -111,7 +110,7 @@ pub enum ExprKind {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum UnaryOpKind {
-    LogicalNegation,
+    Not,
     Negation, // eg -4
 }
 

@@ -10,12 +10,13 @@ use std::vec::Drain;
 use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
-use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number};
+use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number, UnaryOp};
 use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
+use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -105,8 +106,7 @@ fn binop() -> Parser<'static, u8, BinaryOpKind> {
         | seq(b"<")
         | seq(b"&&")
         | seq(b"||")
-        | seq(b"^")
-        ;
+        | seq(b"^");
     op.map(BinaryOpKind::from)
 }
 
@@ -153,19 +153,27 @@ fn expr() -> Parser<'static, u8, Expr> {
     binexpr.map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
 }
 
-/// Parser that parses an primary expression, i.e. number, identifier, or a parenthesised expression
+/// Parser that parses an expression with a unary operator
+/// or a primary expression, i.e. number, identifier, or a parenthesised expression
 fn primary() -> Parser<'static, u8, Expr> {
-    number()
-        | identifier().map(|i| Expr {
-            kind: Ident(Rc::from(i)),
-        })
-        | (sym(b'(') * space() * call(expr) - space() - sym(b')'))
+    let neg = (sym(b'-') * call(primary)).map(|e| Expr {
+        kind: UnaryOp(Negation, Rc::from(e)),
+    });
+    let not = (sym(b'!') * call(primary)).map(|e| Expr {
+        kind: UnaryOp(Not, Rc::from(e)),
+    });
+    let num = number();
+    let ident = identifier().map(|i| Expr {
+        kind: Ident(Rc::from(i)),
+    });
+    let par = (sym(b'(') * space() * call(expr) - space() - sym(b')'));
+    neg | not | num | ident | par
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lcgs::ast::BinaryOpKind::{Implication, And, LessThan};
+    use crate::lcgs::ast::BinaryOpKind::{And, Equality, Implication, Inequality, LessThan};
 
     #[test]
     fn test_ident_01() {
@@ -324,6 +332,64 @@ mod tests {
                         )
                     }),
                     Rc::from(Expr { kind: Number(3) })
+                )
+            })
+        );
+    }
+
+    #[test]
+    fn test_neg_01() {
+        // Simple negation
+        let input = br"-2";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) })),
+            })
+        );
+    }
+
+    #[test]
+    fn test_neg_02() {
+        // Mixed subtraction and negation
+        let input = br"1 - -2";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    Subtraction,
+                    Rc::from(Expr { kind: Number(1) },),
+                    Rc::from(Expr {
+                        kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) })),
+                    })
+                )
+            })
+        );
+    }
+
+    #[test]
+    fn test_unary_01() {
+        // Multiple unary operators
+        let input = br"!(-1 == -2)";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: UnaryOp(
+                    Not,
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Equality,
+                            Rc::from(Expr {
+                                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(1) }))
+                            }),
+                            Rc::from(Expr {
+                                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) }))
+                            }),
+                        )
+                    }),
                 )
             })
         );
