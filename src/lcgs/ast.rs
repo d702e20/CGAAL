@@ -50,6 +50,7 @@ pub struct RelabelCase {
 pub struct TemplateDecl {
     pub name: Identifier,
     pub decls: Vec<Decl>,
+    pub params: Vec<Params>,
 }
 
 pub struct StateVarDecl {
@@ -61,6 +62,10 @@ pub struct StateVarDecl {
 pub struct TypeRange {
     pub min: Expr,
     pub max: Expr,
+}
+
+pub struct Params {
+    pub name: Identifier,
 }
 
 pub struct TransitionDecl {
