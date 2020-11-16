@@ -3,7 +3,7 @@ use crate::atl::gamestructure::GameStructure;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {
     /// K, number of players
     pub player_count: u32,
