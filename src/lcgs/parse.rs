@@ -10,7 +10,7 @@ use std::vec::Drain;
 use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
-use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number, UnaryOp};
+use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number, TernaryIf, UnaryOp};
 use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
@@ -146,20 +146,32 @@ fn solve_binary_precedence(
     lhs
 }
 
-/// Parser that parses an expression consisting of binary operators and primary expressions
+/// Parser that parses an expression
 fn expr() -> Parser<'static, u8, Expr> {
+    let tern = binary_expr() - space() - sym(b'?') - space() + binary_expr()
+        - space()
+        - sym(b':')
+        - space()
+        + binary_expr();
+    tern.map(|((cond, then), els)| Expr {
+        kind: TernaryIf(Rc::from(cond), Rc::from(then), Rc::from(els)),
+    }) | binary_expr()
+}
+
+/// Parser that parses an expression consisting of binary operators and primary expressions
+fn binary_expr() -> Parser<'static, u8, Expr> {
     // TODO Spans and combining them
-    let binexpr = primary() + (space() * binop() - space() + primary()).repeat(0..);
+    let binexpr = primary_expr() + (space() * binop() - space() + primary_expr()).repeat(0..);
     binexpr.map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
 }
 
 /// Parser that parses an expression with a unary operator
 /// or a primary expression, i.e. number, identifier, or a parenthesised expression
-fn primary() -> Parser<'static, u8, Expr> {
-    let neg = (sym(b'-') * call(primary)).map(|e| Expr {
+fn primary_expr() -> Parser<'static, u8, Expr> {
+    let neg = (sym(b'-') * call(primary_expr)).map(|e| Expr {
         kind: UnaryOp(Negation, Rc::from(e)),
     });
-    let not = (sym(b'!') * call(primary)).map(|e| Expr {
+    let not = (sym(b'!') * call(primary_expr)).map(|e| Expr {
         kind: UnaryOp(Not, Rc::from(e)),
     });
     let num = number();
@@ -207,6 +219,56 @@ mod tests {
             Ok(Identifier {
                 owner: Some("player".into()),
                 name: "variable".into()
+            })
+        );
+    }
+
+    #[test]
+    fn test_ternary_01() {
+        // Basic ternary if
+        let input = br"1 ? 2 : 3";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: TernaryIf(
+                    Rc::from(Expr { kind: Number(1) }),
+                    Rc::from(Expr { kind: Number(2) }),
+                    Rc::from(Expr { kind: Number(3) })
+                )
+            })
+        );
+    }
+
+    #[test]
+    fn test_ternary_02() {
+        // Illegal ternary ifs
+        let input = br"1 ? 0 : 3 ? 4 : 5";
+        let parser = expr() - end();
+        assert!(parser.parse(input).is_err());
+    }
+
+    #[test]
+    fn test_ternary_03() {
+        // Basic ternary if with binary and unary components
+        let input = br"!1 ? 2 + 3 : 4";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: TernaryIf(
+                    Rc::from(Expr {
+                        kind: UnaryOp(Not, Rc::from(Expr { kind: Number(1) }))
+                    }),
+                    Rc::from(Expr {
+                        kind: BinaryOp(
+                            Addition,
+                            Rc::from(Expr { kind: Number(2) }),
+                            Rc::from(Expr { kind: Number(3) })
+                        )
+                    }),
+                    Rc::from(Expr { kind: Number(4) })
+                )
             })
         );
     }
