@@ -10,7 +10,6 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-const WORKER_COUNT: u64 = 4;
 
 #[cfg(feature = "graph-printer")]
 pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
