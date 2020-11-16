@@ -72,22 +72,28 @@ fn main() {
         },
     )) {
         match args.subcommand() {
-            ("solver", Some(solver_args)) => model_check(solver_args),
-            ("graph", Some(graph_args)) => Ok(()),
-            _ => Ok(()),
-        };
+            ("solver", Some(solver_args)) => {
+                match solver_args.value_of("model_type").unwrap() {
+                    "json" => { model_check(solver_args); () }
+                    "lcgs" => { () }
+                    _ => { () }
+                }
+            }
+            ("graph", Some(graph_args)) => (),
+            _ => (),
+        }
     }
 }
 
 fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
     info!("Model checking on formula: {:?}", args.value_of("formula"));
 
-    let mut file = File::open(args.value_of("json_model").unwrap())?;
+    let mut file = File::open(args.value_of("input_model").unwrap())?;
     let mut game_structure = String::new();
     file.read_to_string(&mut game_structure)?;
     let game_structure: EagerGameStructure = serde_json::from_str(game_structure.as_str())?;
 
-    let mut file = File::open(args.value_of("json_formula").unwrap())?;
+    let mut file = File::open(args.value_of("formula").unwrap())?;
     let mut formula = String::new();
     file.read_to_string(&mut formula)?;
     let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
@@ -106,6 +112,46 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
 /// Define and parse command line arguments
 fn parse() -> ArgMatches<'static> {
+    fn build_common_arguments<'a>(builder: clap::App<'a, 'a>) -> App<'a, 'a> {
+        builder.arg(
+            Arg::with_name("input_model")
+                .short("m")
+                .long("model")
+                .env("INPUT_MODEL")
+                .required(true)
+                .help("The input file to generate model from"),
+        )
+            .arg(
+                Arg::with_name("model_type")
+                    .short("t")
+                    .long("model-type")
+                    .env("MODEL_TYPE")
+                    .required(true)
+                    .help("The type of input file given"),
+            )
+            .arg(
+                Arg::with_name("formula")
+                    .short("f")
+                    .long("formula")
+                    .env("FORMULA")
+                    .required(true)
+                    .help("The formula to check for"),
+            )
+            .arg(
+                Arg::with_name("output")
+                    .short("o")
+                    .long("output")
+                    .env("OUTPUT")
+                    .help("The path to write output to"),
+            )
+    }
+
+    let mut parser = App::new(PKG_NAME)
+        .version(VERSION)
+        .author(AUTHORS);
+    parser = build_common_arguments(parser);
+
+
     App::new(PKG_NAME)
         .version(VERSION)
         .author(AUTHORS)
@@ -124,74 +170,8 @@ fn parse() -> ArgMatches<'static> {
                 .env("LOG_PATH")
                 .help("Write log to file if log-file path is specified"),
         )
-        .subcommand(
-            SubCommand::with_name("solver")
-                .arg(
-                    Arg::with_name("input_model")
-                        .short("m")
-                        .long("model")
-                        .env("INPUT_MODEL")
-                        .required(true)
-                        .help("The input file to generate model from"),
-                )
-                .arg(
-                    Arg::with_name("model_type")
-                        .short("t")
-                        .long("model-type")
-                        .env("MODEL_TYPE")
-                        .required(true)
-                        .help("The type of input file given"),
-                )
-                .arg(
-                    Arg::with_name("formula")
-                        .short("f")
-                        .long("formula")
-                        .env("FORMULA")
-                        .required(true)
-                        .help("The formula to check for"),
-                )
-                .arg(
-                    Arg::with_name("output")
-                        .short("o")
-                        .long("output")
-                        .env("OUTPUT")
-                        .help("The path to write output to"),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("graph")
-                .arg(
-                    Arg::with_name("input_model")
-                        .short("m")
-                        .long("model")
-                        .env("INPUT_MODEL")
-                        .required(true)
-                        .help("The input file to generate model from"),
-                )
-                .arg(
-                    Arg::with_name("model_type")
-                        .short("t")
-                        .long("model-type")
-                        .env("MODEL_TYPE")
-                        .required(true)
-                        .help("The type of input file given"),
-                )
-                .arg(
-                    Arg::with_name("formula")
-                        .short("f")
-                        .long("formula")
-                        .env("FORMULA")
-                        .required(true)
-                        .help("The formula to check for"),
-                )
-                .arg(
-                    Arg::with_name("output")
-                        .short("o")
-                        .long("output")
-                        .env("OUTPUT")
-                        .help("The path to write output to"),
-                ),
-        )
+        .subcommand(build_common_arguments(SubCommand::with_name("solver")))
+        .subcommand(build_common_arguments(SubCommand::with_name("graph")))
         .get_matches()
 }
 
