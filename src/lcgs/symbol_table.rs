@@ -1,7 +1,9 @@
-use crate::lcgs::ast::{ConstDecl, LabelDecl, PlayerDecl, StateVarDecl, TemplateDecl, TransitionDecl, Decl};
+use crate::lcgs::ast::{
+    ConstDecl, Decl, LabelDecl, PlayerDecl, StateVarDecl, TemplateDecl, TransitionDecl,
+};
+use pom::set::Set;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
-use pom::set::Set;
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -19,7 +21,6 @@ pub struct Symbol {
 
 /// A `PlayerSymbolTable` contains registered symbols belonging to a player
 /// (or the global scope).
-#[derive(Default)]
 pub struct PlayerSymbolTable {
     player: Owner,
     symbols: HashMap<String, Symbol>,
@@ -43,7 +44,7 @@ impl PlayerSymbolTable {
                 owner: self.player.clone(),
                 name: name.to_string(),
             },
-            declaration: decl
+            declaration: decl,
         };
         self.symbols.insert(name.to_string(), symb)
     }
@@ -57,21 +58,29 @@ impl PlayerSymbolTable {
 /// A `SymbolTable` keeps track of registered symbols and their properties.
 /// In this language symbols always belongs to either the global scope or a
 /// player. The player's name gives access to the symbols owner by that player.
-#[derive(Default)]
 pub struct SymbolTable {
     player_tables: HashMap<String, PlayerSymbolTable>,
     global_table: PlayerSymbolTable,
 }
 
 impl SymbolTable {
+    pub fn new() -> SymbolTable {
+        SymbolTable {
+            player_tables: HashMap::new(),
+            global_table: PlayerSymbolTable::new(Owner::Global),
+        }
+    }
+
     /// Register a new `PlayerSymbolTable` of the given name. If a `PlayerSymbolTable`
     /// is already registered for that name, an Err is returned
     pub fn add_player(&mut self, player_name: &str) -> Result<(), ()> {
         if self.player_tables.contains_key(player_name) {
             Err(())
         } else {
-            self.player_tables
-                .insert(player_name.into(), Default::default());
+            self.player_tables.insert(
+                player_name.into(),
+                PlayerSymbolTable::new(Owner::Player(player_name.into())),
+            );
             Ok(())
         }
     }
@@ -90,29 +99,35 @@ impl SymbolTable {
     pub fn get_table(&self, owner: &Owner) -> Option<&PlayerSymbolTable> {
         match owner {
             Owner::Player(name) => self.get_player_table(name),
-            Owner::Global => self.get_global_table(),
+            Owner::Global => Some(self.get_global_table()),
         }
     }
 
-    /// Creates and inserts a symbol for the given declaration for the given owner
-    /// with the given name. If the owner does not exists, [None] is returned. If
-    /// the name is already associated with a different symbol, the previous symbol
-    /// is contained in the [Some]. If the name is new, [Some(None)] is returned.
-    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Rc<Decl>) -> Option<Option<Symbol>> {
-        self.get_table(owner).map(|mut table|table.insert(name, decl))
+    /// Creates and inserts a symbol for the given declaration for the given owner with the
+    /// given name. If the owner is new, a PlayerSymbolTable will be created for them. If the
+    /// name is already associated with a different symbol, the previous symbol is returned.
+    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Rc<Decl>) -> Option<Symbol> {
+        let table = match owner {
+            Owner::Player(player_name) => self
+                .player_tables
+                .entry(player_name.clone())
+                .or_insert_with(|| PlayerSymbolTable::new(owner.clone())),
+            Owner::Global => &mut self.global_table,
+        };
+        return table.insert(name, decl);
     }
 
-    /// Get the symbol association with the given owner and name. If the owner does not
+    /// Get the symbol associated with the given owner and name. If the owner does not
     /// exists, [None] is returned. If the owner exists, but not the name, [Some(None)] is
     /// returned.
     pub fn get(&self, owner: &Owner, name: &str) -> Option<Option<&Symbol>> {
-        self.get_table(owner).map(|table|table.get(name))
+        self.get_table(owner).map(|table| table.get(name))
     }
 }
 
 /// OwnedIdentifiers always belongs to a player or the global scope. This enum allows
 /// us to abstract over both possibilities.
-#[derive(Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Owner {
     Player(String),
     Global,

@@ -1,5 +1,6 @@
 use crate::lcgs::ast::*;
 use std::rc::Rc;
+use std::ops::DerefMut;
 
 pub trait Visitor {
     fn visit_root(&mut self, root: &mut Rc<Root>);
