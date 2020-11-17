@@ -442,7 +442,7 @@ mod test {
 
 
     #[test]
-    fn test_withEDG() {
+    fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A, B, C, D, E, F, N, T, G
