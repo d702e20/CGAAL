@@ -1,9 +1,9 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use crate::lcgs::ast::{
     ConstDecl, Decl, LabelDecl, PlayerDecl, StateVarDecl, TemplateDecl, TransitionDecl,
 };
-use pom::set::Set;
-use std::collections::HashMap;
-use std::rc::{Rc, Weak};
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Debug)]
