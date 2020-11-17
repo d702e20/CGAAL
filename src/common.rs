@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 pub type WorkerId = u64;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VertexAssignment {
     // UNEXPLORED is implemented as hashmap doesn't contain the key/vertex
     UNDECIDED,
