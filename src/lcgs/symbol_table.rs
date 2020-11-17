@@ -26,6 +26,7 @@ pub struct PlayerSymbolTable {
 }
 
 impl PlayerSymbolTable {
+    /// Create a new symbol table for the given owner
     fn new(owner: Owner) -> PlayerSymbolTable {
         PlayerSymbolTable {
             player: owner,
@@ -33,7 +34,10 @@ impl PlayerSymbolTable {
         }
     }
 
-    fn insert(&mut self, name: &str, decl: Rc<Decl>) -> Option<Symbol> {
+    /// Insert a symbol with the given name pointing at the given declaration.
+    /// If the name is new [None] is returned. If the name was already association
+    /// with a symbol, the previous symbol is returned.
+    pub fn insert(&mut self, name: &str, decl: Rc<Decl>) -> Option<Symbol> {
         let symb = Symbol {
             identifier: SymbolIdentifier {
                 owner: self.player.clone(),
@@ -44,7 +48,8 @@ impl PlayerSymbolTable {
         self.symbols.insert(name.to_string(), symb)
     }
 
-    fn get(&mut self, name: &str) -> Option<&Symbol> {
+    /// Returns the symbol associated with the given name if such exists.
+    pub fn get(&self, name: &str) -> Option<&Symbol> {
         self.symbols.get(name)
     }
 }
@@ -72,8 +77,8 @@ impl SymbolTable {
     }
 
     /// Returns the `PlayerSymbolTable` of the given player, if it exists.
-    pub fn get_player_table(&self, player_name: &str) -> Result<&PlayerSymbolTable, ()> {
-        self.player_tables.get(player_name).ok_or(())
+    pub fn get_player_table(&self, player_name: &str) -> Option<&PlayerSymbolTable> {
+        self.player_tables.get(player_name)
     }
 
     /// Returns the global `PlayerSymbolTable` which contains symbols in the global scope
@@ -82,11 +87,26 @@ impl SymbolTable {
     }
 
     /// Returns the PlayerSymbolTable belonging to the given owner.
-    pub fn get_table(&self, owner: &Owner) -> Result<&PlayerSymbolTable, ()> {
+    pub fn get_table(&self, owner: &Owner) -> Option<&PlayerSymbolTable> {
         match owner {
             Owner::Player(name) => self.get_player_table(name),
             Owner::Global => self.get_global_table(),
         }
+    }
+
+    /// Creates and inserts a symbol for the given declaration for the given owner
+    /// with the given name. If the owner does not exists, [None] is returned. If
+    /// the name is already associated with a different symbol, the previous symbol
+    /// is contained in the [Some]. If the name is new, [Some(None)] is returned.
+    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Rc<Decl>) -> Option<Option<Symbol>> {
+        self.get_table(owner).map(|mut table|table.insert(name, decl))
+    }
+
+    /// Get the symbol association with the given owner and name. If the owner does not
+    /// exists, [None] is returned. If the owner exists, but not the name, [Some(None)] is
+    /// returned.
+    pub fn get(&self, owner: &Owner, name: &str) -> Option<Option<&Symbol>> {
+        self.get_table(owner).map(|table|table.get(name))
     }
 }
 
