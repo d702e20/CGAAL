@@ -7,7 +7,7 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
     /// Send message to worker with id `to`
     fn send(&self, to: WorkerId, msg: Message<V>);
 
-    /// Signal to all workers a terminate because a result have been
+    /// Signal to all workers to terminate because a result have been
     fn terminate(&self, assignment: VertexAssignment);
 }
 
@@ -49,6 +49,7 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
         Vec<Receiver<Message<V>>>,
         Vec<Receiver<VertexAssignment>>,
     ) {
+        // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);
 
@@ -58,6 +59,8 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
             msg_receivers.push(receiver);
         }
 
+        // Create a termination channel foreach
+        // These are used to signal early termination because the final assigment of `v0` have been discovered
         let mut term_senders = Vec::with_capacity(worker_count as usize);
         let mut term_receivers = Vec::with_capacity(worker_count as usize);
 
