@@ -70,7 +70,7 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     v0: V,
     assignment: HashMap<V, VertexAssignment>,
     depends: HashMap<V, HashSet<Edges<V>>>,
-    /// Map of workers that needs to be send a message once the final assigment of a vertex is known.
+    /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
     msg_rx: Receiver<Message<V>>,
     term_rx: Receiver<VertexAssignment>,
