@@ -9,7 +9,7 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write, BufWriter};
 use std::process::exit;
 use std::sync::Arc;
 
@@ -63,7 +63,7 @@ fn main() {
             "trace" => LevelFilter::Trace,
             "off" => LevelFilter::Off,
             level => {
-                eprintln!(
+                eprintln!( // Cannot use logging error-macro before logging is initialised
                     "Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}",
                     level
                 );
@@ -74,7 +74,10 @@ fn main() {
         match args.subcommand() {
             ("solver", Some(solver_args)) => {
                 match solver_args.value_of("model_type").unwrap() {
-                    "json" => { model_check(solver_args); () }
+                    "json" => {
+                        model_check(solver_args);
+                        ()
+                    }
                     "lcgs" => { () }
                     _ => { () }
                 }
@@ -88,10 +91,27 @@ fn main() {
 fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
     info!("Model checking on formula: {:?}", args.value_of("formula"));
 
-    let mut file = File::open(args.value_of("input_model").unwrap())?;
-    let mut game_structure = String::new();
-    file.read_to_string(&mut game_structure)?;
-    let game_structure: EagerGameStructure = serde_json::from_str(game_structure.as_str())?;
+    let game_structure = match args.value_of("model_type") {
+        Some("lcgs") => {
+            // TODO: implement lgcs parser
+            EagerGameStructure {
+                player_count: 0,
+                labeling: vec![],
+                transitions: vec![],
+                moves: vec![],
+            }
+        }
+        Some("json") => {
+            let mut file = File::open(args.value_of("input_model").unwrap())?;
+            let mut game_structure = String::new();
+            file.read_to_string(&mut game_structure)?;
+            serde_json::from_str(game_structure.as_str())?
+        }
+        _ => {
+            error!("Model type {:?} not supported!", args.value_of("model_type"));
+            exit(1)
+        }
+    };
 
     let mut file = File::open(args.value_of("formula").unwrap())?;
     let mut formula = String::new();
@@ -105,9 +125,19 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
         ATLVertex::FULL { state: 0, formula },
         num_cpus::get() as u64,
     );
-    println!("{:?}", result);
 
-    Ok(())
+    match args.value_of("output") {
+        Some(path) => {
+            let mut file = File::create(path)?;
+            let mut writer = BufWriter::new(&file);
+            write!(&mut writer, "Result: {:?}", result);
+            Ok(())
+        }
+        _ => {
+            println!("Result: {:?}", result);
+            Ok(())
+        }
+    }
 }
 
 /// Define and parse command line arguments
@@ -127,7 +157,7 @@ fn parse() -> ArgMatches<'static> {
                     .long("model-type")
                     .env("MODEL_TYPE")
                     .required(true)
-                    .help("The type of input file given"),
+                    .help("The type of input file given {{lcgs, json}}"),
             )
             .arg(
                 Arg::with_name("formula")
