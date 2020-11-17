@@ -64,8 +64,8 @@ fn main() {
             "off" => LevelFilter::Off,
             level => {
                 eprintln!( // Cannot use logging error-macro before logging is initialised
-                    "Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}",
-                    level
+                           "Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}",
+                           level
                 );
                 exit(1);
             }
@@ -73,14 +73,8 @@ fn main() {
     )) {
         match args.subcommand() {
             ("solver", Some(solver_args)) => {
-                match solver_args.value_of("model_type").unwrap() {
-                    "json" => {
-                        model_check(solver_args);
-                        ()
-                    }
-                    "lcgs" => { () }
-                    _ => { () }
-                }
+                model_check(solver_args);
+                ()
             }
             ("graph", Some(graph_args)) => (),
             _ => (),
@@ -175,12 +169,6 @@ fn parse() -> ArgMatches<'static> {
                     .help("The path to write output to"),
             )
     }
-
-    let mut parser = App::new(PKG_NAME)
-        .version(VERSION)
-        .author(AUTHORS);
-    parser = build_common_arguments(parser);
-
 
     App::new(PKG_NAME)
         .version(VERSION)
