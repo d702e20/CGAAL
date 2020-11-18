@@ -4,18 +4,13 @@ use crossbeam_channel::{Receiver, Select};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-#[cfg(feature = "graph-printer")]
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
 
-#[cfg(feature = "graph-printer")]
 pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
-
-#[cfg(not(feature = "graph-printer"))]
-pub trait Vertex: Hash + Eq + PartialEq + Clone + Debug {}
 
 pub trait ExtendedDependencyGraph<V: Vertex> {
     /// Return out going edges from `vertex`.
