@@ -7,11 +7,10 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
+use crate::lcgs::ast::{BinaryOpKind, Expr, Identifier};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
@@ -76,7 +75,7 @@ fn ws() -> Parser<'static, u8, ()> {
 
 /// Parser that parses a typical positive integer number
 fn number() -> Parser<'static, u8, Expr> {
-    let integer = non_0_digit() - digit().repeat(0..) | sym(b'0');
+    let integer = (non_0_digit() - digit().repeat(0..)) | sym(b'0');
     let parsed = integer
         .collect()
         .convert(str::from_utf8)
@@ -298,7 +297,7 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
     temp.map(|((name, params), decls)| TemplateDecl {
         name,
         decls,
-        params: params.unwrap_or(vec![]),
+        params: params.unwrap_or_default(),
     })
 }
 

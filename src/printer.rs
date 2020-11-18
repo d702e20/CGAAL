@@ -2,7 +2,7 @@ use crate::common::Edges;
 use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashSet, VecDeque};
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 
@@ -11,7 +11,7 @@ use std::io::Write;
 fn print_vertex<V: Hash + Display, W: Write>(vertex: V, mut output: W) -> std::io::Result<()> {
     println!("{} = {}", hash_name(&vertex), vertex);
 
-    output.write(format!("v{}[label=\"{}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
+    output.write_all(format!("v{}[label=\"{}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
     Ok(())
 }
 
@@ -26,7 +26,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
     v0: V,
     mut output: W,
 ) -> std::io::Result<()> {
-    output.write("digraph edg {\n".as_bytes())?;
+    output.write_all(b"digraph edg {\n")?;
 
     let mut visited: HashSet<V> = HashSet::new();
     let mut queue: VecDeque<V> = VecDeque::new();
@@ -47,12 +47,13 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
             match edge {
                 Edges::HYPER(hyper) => {
-                    output
-                        .write(format!("v{}[shape=box];\n", hash_name(&hyper.source)).as_bytes())?;
+                    output.write_all(
+                        format!("v{}[shape=box];\n", hash_name(&hyper.source)).as_bytes(),
+                    )?;
 
                     if hyper.targets.is_empty() {
                         let empty_id = hash_name(&hyper);
-                        output.write(
+                        output.write_all(
                             format!(
                                 "empty{}[shape=none,label=\"∅\"];\nv{} -> empty{};\n",
                                 empty_id,
@@ -61,54 +62,51 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                             )
                             .as_bytes(),
                         )?;
-                    } else {
-                        if hyper.targets.len() == 1 {
-                            let target = hyper.targets.get(0).unwrap();
+                    } else if hyper.targets.len() == 1 {
+                        let target = hyper.targets.get(0).unwrap();
 
-                            output.write(
-                                format!(
-                                    "v{} -> v{};\n",
-                                    hash_name(&hyper.source),
-                                    hash_name(&target)
-                                )
+                        output.write_all(
+                            format!(
+                                "v{} -> v{};\n",
+                                hash_name(&hyper.source),
+                                hash_name(&target)
+                            )
+                            .as_bytes(),
+                        )?;
+
+                        if !visited.contains(&target) {
+                            print_vertex(&target, &mut output)?;
+                            queue.push_back(target.clone());
+                            visited.insert(target.clone());
+                        }
+                    } else {
+                        output.write_all(
+                            format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_id)
                                 .as_bytes(),
+                        )?;
+                        output.write_all(
+                            format!(
+                                "v{} -> h{}[dir=none];\n",
+                                hash_name(&hyper.source),
+                                hyper_id
+                            )
+                            .as_bytes(),
+                        )?;
+                        for target in hyper.targets {
+                            output.write_all(
+                                format!("h{} -> v{};\n", hyper_id, hash_name(&target)).as_bytes(),
                             )?;
 
                             if !visited.contains(&target) {
-                                print_vertex(&target, &mut output);
+                                print_vertex(&target, &mut output)?;
                                 queue.push_back(target.clone());
-                                visited.insert(target.clone());
-                            }
-                        } else {
-                            output.write(
-                                format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_id)
-                                    .as_bytes(),
-                            )?;
-                            output.write(
-                                format!(
-                                    "v{} -> h{}[dir=none];\n",
-                                    hash_name(&hyper.source),
-                                    hyper_id
-                                )
-                                .as_bytes(),
-                            )?;
-                            for target in hyper.targets {
-                                output.write(
-                                    format!("h{} -> v{};\n", hyper_id, hash_name(&target))
-                                        .as_bytes(),
-                                )?;
-
-                                if !visited.contains(&target) {
-                                    print_vertex(&target, &mut output);
-                                    queue.push_back(target.clone());
-                                    visited.insert(target);
-                                }
+                                visited.insert(target);
                             }
                         }
                     }
                 }
                 Edges::NEGATION(neg) => {
-                    output.write(
+                    output.write_all(
                         format!(
                             "v{}[shape=box];\nv{} -> v{}[style=dashed];\n",
                             hash_name(&neg.source),
@@ -119,7 +117,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                     )?;
 
                     if !visited.contains(&neg.target) {
-                        print_vertex(&neg.target, &mut output);
+                        print_vertex(&neg.target, &mut output)?;
                         queue.push_back(neg.target.clone());
                         visited.insert(neg.target);
                     }
@@ -128,7 +126,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
         }
     }
 
-    output.write("}\n".as_bytes())?;
+    output.write_all(b"}\n")?;
 
     Ok(())
 }
