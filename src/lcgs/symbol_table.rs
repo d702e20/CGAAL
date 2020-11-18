@@ -6,7 +6,7 @@ use crate::lcgs::ast::{
 };
 
 /// An identifier for a symbol with a given owner.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct SymbolIdentifier {
     pub owner: Owner,
     pub name: String,
@@ -106,7 +106,7 @@ impl SymbolTable {
     /// Creates and inserts a symbol for the given declaration for the given owner with the
     /// given name. If the owner is new, a PlayerSymbolTable will be created for them. If the
     /// name is already associated with a different symbol, the previous symbol is returned.
-    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<Symbol> {
+    pub fn insert_(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<Symbol> {
         let table = match owner {
             Owner::Player(player_name) => self
                 .player_tables
@@ -117,18 +117,45 @@ impl SymbolTable {
         return table.insert(name, decl);
     }
 
+    /// Creates and inserts a symbol for the given declaration for the given owner with the
+    /// given name. If the owner is new, a PlayerSymbolTable will be created for them. If the
+    /// name is already associated with a different symbol, the previous symbol is returned.
+    pub fn insert(&mut self, sym_id: &SymbolIdentifier, decl: Decl) -> Option<Symbol> {
+        self.insert_(&sym_id.owner, &sym_id.name, decl)
+    }
+
     /// Get the symbol associated with the given owner and name. If the owner does not
     /// exists, [None] is returned. If the owner exists, but not the name, [Some(None)] is
     /// returned.
-    pub fn get(&self, owner: &Owner, name: &str) -> Option<Option<&Symbol>> {
+    pub fn get_(&self, owner: &Owner, name: &str) -> Option<Option<&Symbol>> {
         self.get_table(owner).map(|table| table.get(name))
+    }
+
+    pub fn get(&self, sym_id: &SymbolIdentifier) -> Option<Option<&Symbol>> {
+        self.get_(&sym_id.owner, &sym_id.name)
+    }
+}
+
+impl Default for SymbolTable {
+    fn default() -> Self {
+        SymbolTable::new()
     }
 }
 
 /// OwnedIdentifiers always belongs to a player or the global scope. This enum allows
 /// us to abstract over both possibilities.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Owner {
     Player(String),
     Global,
+}
+
+impl Owner {
+    #[inline]
+    pub fn symbol_id(&self, name: &str) -> SymbolIdentifier {
+        SymbolIdentifier {
+            owner: self.clone(),
+            name: name.to_string(),
+        }
+    }
 }
