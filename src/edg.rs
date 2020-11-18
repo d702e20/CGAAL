@@ -465,6 +465,19 @@ mod test {
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
             fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                // A -> B
+                // A -> E
+                // B -> C
+                // C -> F
+                // C -> T
+                // D -> E
+                // D -> C
+                // E -> (D, F)
+                // F -> Ø
+                // N ..> A
+                // T -> G
+                // G
+
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -597,6 +610,11 @@ mod test {
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
             fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                // A -> B
+                // A -> C
+                // B -> D
+                // C
+                // D -> Ø
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -666,6 +684,11 @@ mod test {
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
             fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                // A -> B
+                // B -> C
+                // C -> B
+                // D -> Ø
+
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -733,6 +756,11 @@ mod test {
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            // A -> B
+            // B -> (A, C)
+            // C -> D
+            // D -> Ø
+
             fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
                 match vertex {
                     ExampleEDGVertices::A => {
@@ -798,6 +826,9 @@ mod test {
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            // A ..> B
+            // B -> Ø
+
             fn succ(&self, vertex: &ExampleEDGVertices) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
                 match vertex {
                     ExampleEDGVertices::A => {
