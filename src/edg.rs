@@ -355,7 +355,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
         // Final assignment of `vertex` is not yet known
         self.mark_interest(vertex, requester);
-        if let None = self.assignment.get(&vertex) {
+        if self.assignment.get(&vertex).is_none() {
             // UNEXPLORED
             self.explore(&vertex);
         }

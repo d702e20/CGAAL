@@ -11,7 +11,7 @@ use std::io::Write;
 fn print_vertex<V: Hash + Display, W: Write>(vertex: V, mut output: W) -> std::io::Result<()> {
     println!("{} = {}", hash_name(&vertex), vertex);
 
-    output.write(format!("v{}[label=\"{}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
+    output.write_all(format!("v{}[label=\"{}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
     Ok(())
 }
 
@@ -26,7 +26,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
     v0: V,
     mut output: W,
 ) -> std::io::Result<()> {
-    output.write("digraph edg {\n".as_bytes())?;
+    output.write_all("digraph edg {\n".as_bytes())?;
 
     let mut visited: HashSet<V> = HashSet::new();
     let mut queue: VecDeque<V> = VecDeque::new();
@@ -48,12 +48,13 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
             match edge {
                 Edges::HYPER(hyper) => {
-                    output
-                        .write(format!("v{}[shape=box];\n", hash_name(&hyper.source)).as_bytes())?;
+                    output.write_all(
+                        format!("v{}[shape=box];\n", hash_name(&hyper.source)).as_bytes(),
+                    )?;
 
                     if hyper.targets.is_empty() {
                         let empty_id = hash_name(&hyper);
-                        output.write(
+                        output.write_all(
                             format!(
                                 "empty{}[shape=none,label=\"∅\"];\nv{} -> empty{};\n",
                                 empty_id,
@@ -66,7 +67,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                         if hyper.targets.len() == 1 {
                             let target = hyper.targets.get(0).unwrap();
 
-                            output.write(
+                            output.write_all(
                                 format!(
                                     "v{} -> v{};\n",
                                     hash_name(&hyper.source),
@@ -76,16 +77,16 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                             )?;
 
                             if !visited.contains(&target) {
-                                print_vertex(&target, &mut output);
+                                print_vertex(&target, &mut output)?;
                                 queue.push_back(target.clone());
                                 visited.insert(target.clone());
                             }
                         } else {
-                            output.write(
+                            output.write_all(
                                 format!("h{}[shape=none,label=\"\",width=0,height=0];\n", hyper_id)
                                     .as_bytes(),
                             )?;
-                            output.write(
+                            output.write_all(
                                 format!(
                                     "v{} -> h{}[dir=none];\n",
                                     hash_name(&hyper.source),
@@ -94,13 +95,13 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 .as_bytes(),
                             )?;
                             for target in hyper.targets {
-                                output.write(
+                                output.write_all(
                                     format!("h{} -> v{};\n", hyper_id, hash_name(&target))
                                         .as_bytes(),
                                 )?;
 
                                 if !visited.contains(&target) {
-                                    print_vertex(&target, &mut output);
+                                    print_vertex(&target, &mut output)?;
                                     queue.push_back(target.clone());
                                     visited.insert(target);
                                 }
@@ -109,7 +110,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                     }
                 }
                 Edges::NEGATION(neg) => {
-                    output.write(
+                    output.write_all(
                         format!(
                             "v{}[shape=box];\nv{} -> v{}[style=dashed];\n",
                             hash_name(&neg.source),
@@ -120,7 +121,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                     )?;
 
                     if !visited.contains(&neg.target) {
-                        print_vertex(&neg.target, &mut output);
+                        print_vertex(&neg.target, &mut output)?;
                         queue.push_back(neg.target.clone());
                         visited.insert(neg.target);
                     }
@@ -129,7 +130,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
         }
     }
 
-    output.write("}\n".as_bytes())?;
+    output.write_all("}\n".as_bytes())?;
 
     Ok(())
 }

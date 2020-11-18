@@ -275,7 +275,7 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
 }
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
-    fn invert_players(&self, players: &Vec<Player>) -> HashSet<Player> {
+    fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
         let max_players = self.game_structure.max_player() as usize;
         let mut inv_players =
             HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
@@ -371,7 +371,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     pre,
                     until,
                 } => {
-                    let inv_players = self.invert_players(players);
+                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // hyper-edges with pre occurring

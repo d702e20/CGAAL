@@ -1,8 +1,6 @@
-use serde::de::{Error, SeqAccess, Visitor};
-use serde::export::Formatter;
-use serde::{Deserialize, Deserializer};
-use std::any::{Any, TypeId};
 use std::sync::Arc;
+
+use serde::Deserialize;
 
 pub(crate) type Proposition = usize;
 pub(crate) type Player = usize;

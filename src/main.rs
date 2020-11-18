@@ -34,9 +34,9 @@ mod lcgs;
 #[cfg(feature = "graph-printer")]
 mod printer;
 
-const PKG_NAME: &'static str = env!("CARGO_PKG_NAME");
-const AUTHORS: &'static str = env!("CARGO_PKG_AUTHORS");
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
@@ -49,7 +49,7 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let args = parse();
 
     // Load config for logging to stdout and logfile.
@@ -71,8 +71,10 @@ fn main() {
             }
         },
     )) {
-        model_check(args); // not sure whether this requires match on Result
+        model_check(args)?; // not sure whether this requires match on Result
     }
+
+    Ok(())
 }
 
 fn model_check(args: ArgMatches) -> Result<(), Box<dyn Error>> {
