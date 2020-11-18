@@ -1,7 +1,6 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-#[cfg(feature = "graph-printer")]
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -14,11 +13,7 @@ use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, W
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 
-#[cfg(feature = "graph-printer")]
 pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
-
-#[cfg(not(feature = "graph-printer"))]
-pub trait Vertex: Hash + Eq + PartialEq + Clone + Debug {}
 
 pub trait ExtendedDependencyGraph<V: Vertex> {
     /// Return out going edges from `vertex`.
