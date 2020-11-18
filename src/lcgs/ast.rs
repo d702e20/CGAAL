@@ -2,6 +2,7 @@ use core::fmt;
 use std::fmt::{Display, Formatter};
 
 use crate::lcgs::ast::BinaryOpKind::*;
+use std::ops::{Add, Mul, Sub, Div};
 
 /// The root of a LCGS program.
 #[derive(Debug, Eq, PartialEq)]
@@ -169,6 +170,15 @@ pub enum UnaryOpKind {
     Negation, // eg -4
 }
 
+impl UnaryOpKind {
+    pub fn as_fun(&self) -> fn(i32) -> i32 {
+        match self {
+            UnaryOpKind::Not => |e| (e == 0) as i32,
+            UnaryOpKind::Negation => |e| -e,
+        }
+    }
+}
+
 /// Binary operators
 #[derive(Debug, Eq, PartialEq)]
 pub enum BinaryOpKind {
@@ -186,6 +196,27 @@ pub enum BinaryOpKind {
     Or,
     Xor,
     Implication,
+}
+
+impl BinaryOpKind {
+    pub fn as_fn(&self) -> fn(i32, i32) -> i32 {
+        match op {
+            BinaryOpKind::Addition => i32::add,
+            BinaryOpKind::Multiplication => i32::mul,
+            BinaryOpKind::Subtraction => i32::sub,
+            BinaryOpKind::Division => i32::div,
+            BinaryOpKind::Equality => |e1, e2| (e1 == e2) as i32,
+            BinaryOpKind::Inequality => |e1, e2| (e1 != e2) as i32,
+            BinaryOpKind::GreaterThan => |e1, e2| (e1 > e2) as i32,
+            BinaryOpKind::LessThan => |e1, e2| (e1 < e2) as i32,
+            BinaryOpKind::GreaterOrEqual => |e1, e2| (e1 >= e2) as i32,
+            BinaryOpKind::LessOrEqual => |e1, e2| (e1 <= e2) as i32,
+            BinaryOpKind::And => |e1, e2| (e1 != 0 && e2 != 0) as i32,
+            BinaryOpKind::Or => |e1, e2| (e1 != 0 || e2 != 0) as i32,
+            BinaryOpKind::Xor => |e1, e2| ((e1 == 0 && e2 != 0) || e1 != 0 && e2 == 0) as i32,
+            BinaryOpKind::Implication => |e1, e2| (e1 == 0 || e2 != 0) as i32,
+        }
+    }
 }
 
 impl From<&[u8]> for BinaryOpKind {
