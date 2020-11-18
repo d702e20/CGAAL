@@ -3,41 +3,47 @@ start := (constdecl semicolon | simpledecl semicolon | moduledecl)*
 simpledecl := labeldecl
     | vardecl
     | playerdecl
+    | statevarchangedecl
+    | transitondecl
 
 constdecl := "const" identifier eq expr;
 labeldecl := "label" identifier eq expr
 playerdecl := "player" identifier eq identifier relabeling?
 
-moduledecl := "template" identifier eq identifier relabeling "endtemplate"
-    | "template" identifier (simpledecl semicolon)* "endtemplate"
+templatedecl := "template" identifier params? (simpledecl semicolon)* "endtemplate"
 
-vardecl := identifier colon type ("init" expr)?
-transitiondecl := lbrac identifier rbrac expr arrow stateupdate
+params := lpar (param (comma param)*)? rpar
+param := identifier colon identifier
 
-stateupdate := simplestateupdate
-    | lpar simplestateupdate rpar (and lpar simplestateupdate rpar)*
-simplestateupdate := identifier prime eq expr
+vardecl := identifier colon type "init" expr
+
+transitiondecl := lbrac identifier rbrac expr
+
+statevarchangedecl := identifier prime eq expr
 
 relabeling := lbrac (identifier eq identifier (comma identifier eq identifier)*)? rbrac
 
 type := lbrac expr rangedots expr rbrac
 
+param := lbrac identifier colon type (comma identifier colon type)* rbrac
+
 expr := identifier
-    | identifier dot identifier
-	| int
-	| true
-	| false
-	| not expr
-	| expr binop expr
-	| bexpr questionmark expr colon expr
-	| lpar expr rpar
+    | identifier dot identifier(
+    | int
+    | true
+    | false
+    | not expr
+    | expr binop expr
+    | expr questionmark expr colon expr
+    | lpar expr rpar
+    | "max" lpar expr comma expr rpar
+    | "min" lpar expr comma expr rpar
 	...
 
 comma := ","
 dot := "."
 semicolon := ";"
 colon := ":"
-arrow := "->"
 assign := ":="
 
 true := "true"
@@ -54,7 +60,7 @@ leq := "<="
 and := "&"
 or := "|"
 xor := "^"
-implies := "=>"
+implies := "->"
 questionmark := "?"
 plus := "+"
 minus := "-"
