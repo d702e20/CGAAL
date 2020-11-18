@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 pub type WorkerId = u64;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VertexAssignment {
     // UNEXPLORED is implemented as hashmap doesn't contain the key/vertex
     UNDECIDED,
@@ -28,14 +28,16 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
     NEGATION(NegationEdge<V>),
 }
 
+/// Inter-Worker communication
 #[derive(Clone)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
+    /// Send when a hyper-edge is discovered
     HYPER(HyperEdge<V>),
+    /// Send when a negation-edge is discovered
     NEGATION(NegationEdge<V>),
-    REQUEST {
-        vertex: V,
-        worker_id: WorkerId,
-    },
+    /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
+    REQUEST { vertex: V, worker_id: WorkerId },
+    /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
     ANSWER {
         vertex: V,
         assignment: VertexAssignment,
