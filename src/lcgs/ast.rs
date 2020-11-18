@@ -1,6 +1,5 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
 
 use crate::lcgs::ast::BinaryOpKind::*;
 
@@ -21,13 +20,13 @@ pub struct Decl {
 /// Every kind of declaration
 #[derive(Debug, Eq, PartialEq)]
 pub enum DeclKind {
-    Const(Rc<ConstDecl>),
-    Label(Rc<LabelDecl>),
-    StateVar(Rc<StateVarDecl>),
-    StateVarChange(Rc<StateVarChangeDecl>),
-    Player(Rc<PlayerDecl>),
-    Template(Rc<TemplateDecl>),
-    Transition(Rc<TransitionDecl>),
+    Const(Box<ConstDecl>),
+    Label(Box<LabelDecl>),
+    StateVar(Box<StateVarDecl>),
+    StateVarChange(Box<StateVarChangeDecl>),
+    Player(Box<PlayerDecl>),
+    Template(Box<TemplateDecl>),
+    Transition(Box<TransitionDecl>),
 }
 
 /// An identifier with an optional owner, eg "`p1.health`". In this language we only ever
@@ -157,10 +156,10 @@ pub struct Expr {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ExprKind {
     Number(i32),
-    OwnedIdent(Rc<OwnedIdentifier>),
-    UnaryOp(UnaryOpKind, Rc<Expr>),
-    BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
-    TernaryIf(Rc<Expr>, Rc<Expr>, Rc<Expr>),
+    OwnedIdent(Box<OwnedIdentifier>),
+    UnaryOp(UnaryOpKind, Box<Expr>),
+    BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
+    TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 /// Unary operators

@@ -151,7 +151,7 @@ fn solve_binary_precedence(
             }
             // Combine lhs and rhs using the given binary operator
             lhs = Expr {
-                kind: BinaryOp(op, Rc::from(lhs), Rc::from(rhs)),
+                kind: BinaryOp(op, Box::new(lhs), Box::new(rhs)),
             }
         } else {
             break;
@@ -168,7 +168,7 @@ fn expr() -> Parser<'static, u8, Expr> {
         - ws()
         + binary_expr();
     tern.map(|((cond, then), els)| Expr {
-        kind: TernaryIf(Rc::from(cond), Rc::from(then), Rc::from(els)),
+        kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
     }) | binary_expr()
 }
 
@@ -183,14 +183,14 @@ fn binary_expr() -> Parser<'static, u8, Expr> {
 /// or a primary expression, i.e. number, identifier, or a parenthesised expression
 fn primary_expr() -> Parser<'static, u8, Expr> {
     let neg = (sym(b'-') * call(primary_expr)).map(|e| Expr {
-        kind: UnaryOp(Negation, Rc::from(e)),
+        kind: UnaryOp(Negation, Box::new(e)),
     });
     let not = (sym(b'!') * call(primary_expr)).map(|e| Expr {
-        kind: UnaryOp(Not, Rc::from(e)),
+        kind: UnaryOp(Not, Box::new(e)),
     });
     let num = number();
     let ident = owned_identifier().map(|i| Expr {
-        kind: OwnedIdent(Rc::from(i)),
+        kind: OwnedIdent(Box::new(i)),
     });
     let par = sym(b'(') * ws() * call(expr) - ws() - sym(b')');
     neg | not | num | ident | par
@@ -282,13 +282,13 @@ fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
 /// Parser that parses template declarations
 fn template_decl() -> Parser<'static, u8, TemplateDecl> {
     let simple_decl = label_decl().map(|ld| Decl {
-        kind: Label(Rc::from(ld)),
+        kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
-        kind: StateVar(Rc::from(vd)),
+        kind: StateVar(Box::new(vd)),
     }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Rc::from(vcd)),
+        kind: StateVarChange(Box::new(vcd)),
     }) | transition_decl().map(|td| Decl {
-        kind: Transition(Rc::from(td)),
+        kind: Transition(Box::new(td)),
     });
     let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
     let temp = seq(b"template") * ws() * identifier() - ws() + template_params().opt() - ws()
@@ -316,19 +316,19 @@ fn template_params() -> Parser<'static, u8, Vec<Param>> {
 /// Parser that parses root level, i.e. all the global declarations
 fn root() -> Parser<'static, u8, Root> {
     let simple_decl = label_decl().map(|ld| Decl {
-        kind: Label(Rc::from(ld)),
+        kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
-        kind: StateVar(Rc::from(vd)),
+        kind: StateVar(Box::new(vd)),
     }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Rc::from(vcd)),
+        kind: StateVarChange(Box::new(vcd)),
     }) | player_decl().map(|pd| Decl {
-        kind: Player(Rc::from(pd)),
+        kind: Player(Box::new(pd)),
     }) | const_decl().map(|cd| Decl {
-        kind: Const(Rc::from(cd)),
+        kind: Const(Box::new(cd)),
     });
     let any_decl = simple_decl.with_semi()
         | template_decl().map(|td| Decl {
-            kind: Template(Rc::from(td)),
+            kind: Template(Box::new(td)),
         });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
@@ -390,9 +390,9 @@ mod tests {
             parser.parse(input),
             Ok(Expr {
                 kind: TernaryIf(
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr { kind: Number(2) }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr { kind: Number(2) }),
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -415,17 +415,17 @@ mod tests {
             parser.parse(input),
             Ok(Expr {
                 kind: TernaryIf(
-                    Rc::from(Expr {
-                        kind: UnaryOp(Not, Rc::from(Expr { kind: Number(1) }))
+                    Box::new(Expr {
+                        kind: UnaryOp(Not, Box::new(Expr { kind: Number(1) }))
                     }),
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr { kind: Number(2) }),
-                            Rc::from(Expr { kind: Number(3) })
+                            Box::new(Expr { kind: Number(2) }),
+                            Box::new(Expr { kind: Number(3) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(4) })
+                    Box::new(Expr { kind: Number(4) })
                 )
             })
         );
@@ -441,8 +441,8 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr { kind: Number(2) })
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr { kind: Number(2) })
                 )
             })
         );
@@ -458,14 +458,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -481,14 +481,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Subtraction,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Subtraction,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -504,8 +504,8 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Multiplication,
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr { kind: Number(2) })
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr { kind: Number(2) })
                 )
             })
         );
@@ -521,14 +521,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Multiplication,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Multiplication,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -544,14 +544,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Division,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Division,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -565,7 +565,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(Expr {
-                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) })),
+                kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) })),
             })
         );
     }
@@ -580,9 +580,9 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Subtraction,
-                    Rc::from(Expr { kind: Number(1) },),
-                    Rc::from(Expr {
-                        kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) })),
+                    Box::new(Expr { kind: Number(1) },),
+                    Box::new(Expr {
+                        kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) })),
                     })
                 )
             })
@@ -599,14 +599,14 @@ mod tests {
             Ok(Expr {
                 kind: UnaryOp(
                     Not,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Equality,
-                            Rc::from(Expr {
-                                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(1) }))
+                            Box::new(Expr {
+                                kind: UnaryOp(Negation, Box::new(Expr { kind: Number(1) }))
                             }),
-                            Rc::from(Expr {
-                                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) }))
+                            Box::new(Expr {
+                                kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) }))
                             }),
                         )
                     }),
@@ -625,14 +625,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Multiplication,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) }),
+                    Box::new(Expr { kind: Number(3) }),
                 )
             })
         );
@@ -648,12 +648,12 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr {
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Multiplication,
-                            Rc::from(Expr { kind: Number(2) }),
-                            Rc::from(Expr { kind: Number(3) })
+                            Box::new(Expr { kind: Number(2) }),
+                            Box::new(Expr { kind: Number(3) })
                         )
                     }),
                 )
@@ -671,26 +671,26 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
-                                    Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr { kind: Number(2) }),
+                                    Box::new(Expr { kind: Number(1) }),
+                                    Box::new(Expr { kind: Number(2) }),
                                 )
                             }),
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
-                                    Rc::from(Expr { kind: Number(3) }),
-                                    Rc::from(Expr { kind: Number(4) }),
+                                    Box::new(Expr { kind: Number(3) }),
+                                    Box::new(Expr { kind: Number(4) }),
                                 )
                             })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) }),
+                    Box::new(Expr { kind: Number(5) }),
                 )
             })
         );
@@ -706,26 +706,26 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Division,
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
-                                    Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr {
+                                    Box::new(Expr { kind: Number(1) }),
+                                    Box::new(Expr {
                                         kind: BinaryOp(
                                             Addition,
-                                            Rc::from(Expr { kind: Number(2) }),
-                                            Rc::from(Expr { kind: Number(3) }),
+                                            Box::new(Expr { kind: Number(2) }),
+                                            Box::new(Expr { kind: Number(3) }),
                                         )
                                     }),
                                 )
                             }),
-                            Rc::from(Expr { kind: Number(4) }),
+                            Box::new(Expr { kind: Number(4) }),
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) }),
+                    Box::new(Expr { kind: Number(5) }),
                 )
             })
         );
@@ -741,26 +741,26 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Implication,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             And,
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     LessThan,
-                                    Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr {
+                                    Box::new(Expr { kind: Number(1) }),
+                                    Box::new(Expr {
                                         kind: BinaryOp(
                                             Multiplication,
-                                            Rc::from(Expr { kind: Number(2) }),
-                                            Rc::from(Expr { kind: Number(3) }),
+                                            Box::new(Expr { kind: Number(2) }),
+                                            Box::new(Expr { kind: Number(3) }),
                                         )
                                     }),
                                 )
                             }),
-                            Rc::from(Expr { kind: Number(4) }),
+                            Box::new(Expr { kind: Number(4) }),
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) })
+                    Box::new(Expr { kind: Number(5) })
                 )
             })
         );
@@ -808,14 +808,14 @@ mod tests {
                 range: TypeRange {
                     min: Expr { kind: Number(0) },
                     max: Expr {
-                        kind: OwnedIdent(Rc::from(OwnedIdentifier {
+                        kind: OwnedIdent(Box::new(OwnedIdentifier {
                             owner: None,
                             name: "max_health".to_string(),
                         }))
                     },
                 },
                 initial_value: Expr {
-                    kind: OwnedIdent(Rc::from(OwnedIdentifier {
+                    kind: OwnedIdent(Box::new(OwnedIdentifier {
                         owner: None,
                         name: "max_health".to_string(),
                     }))
@@ -849,7 +849,7 @@ mod tests {
             parser.parse(input),
             Ok(LabelDecl {
                 condition: Expr {
-                    kind: OwnedIdent(Rc::from(OwnedIdentifier {
+                    kind: OwnedIdent(Box::new(OwnedIdentifier {
                         owner: None,
                         name: "health".to_string(),
                     }))

@@ -16,7 +16,7 @@ pub struct SymbolIdentifier {
 #[derive(Debug)]
 pub struct Symbol {
     pub identifier: SymbolIdentifier,
-    pub declaration: Rc<Decl>,
+    pub declaration: Decl,
 }
 
 /// A `PlayerSymbolTable` contains registered symbols belonging to a player
@@ -38,7 +38,7 @@ impl PlayerSymbolTable {
     /// Insert a symbol with the given name pointing at the given declaration.
     /// If the name is new [None] is returned. If the name was already association
     /// with a symbol, the previous symbol is returned.
-    pub fn insert(&mut self, name: &str, decl: Rc<Decl>) -> Option<Symbol> {
+    pub fn insert(&mut self, name: &str, decl: Decl) -> Option<Symbol> {
         let symb = Symbol {
             identifier: SymbolIdentifier {
                 owner: self.player.clone(),
@@ -106,7 +106,7 @@ impl SymbolTable {
     /// Creates and inserts a symbol for the given declaration for the given owner with the
     /// given name. If the owner is new, a PlayerSymbolTable will be created for them. If the
     /// name is already associated with a different symbol, the previous symbol is returned.
-    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Rc<Decl>) -> Option<Symbol> {
+    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<Symbol> {
         let table = match owner {
             Owner::Player(player_name) => self
                 .player_tables
