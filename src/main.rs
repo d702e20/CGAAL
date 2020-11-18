@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match args.subcommand() {
         ("solver", Some(solver_args)) => {
-            model_check(solver_args);
+            model_check(solver_args)?;
         }
         ("graph", Some(graph_args)) => {
             let graph = ATLDependencyGraph {
@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 _ => Box::new(stdout()),
             };
 
-            print_graph(graph, v0, output);
+            print_graph(graph, v0, output)?;
         }
         _ => (),
     };
@@ -148,9 +148,9 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
     match args.value_of("output") {
         Some(path) => {
-            let mut file = File::create(path)?;
+            let file = File::create(path)?;
             let mut writer = BufWriter::new(&file);
-            write!(&mut writer, "Result: {:?}", result);
+            write!(&mut writer, "Result: {:?}", result)?;
             Ok(())
         }
         _ => {

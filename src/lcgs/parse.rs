@@ -297,7 +297,7 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
     temp.map(|((name, params), decls)| TemplateDecl {
         name,
         decls,
-        params: params.unwrap_or(vec![]),
+        params: params.unwrap_or_default(),
     })
 }
 
