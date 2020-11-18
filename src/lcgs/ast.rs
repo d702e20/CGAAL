@@ -38,7 +38,7 @@ pub enum DeclKind {
 /// template (if such declaration exists) or the global scope.
 #[derive(Debug, Eq, PartialEq)]
 pub struct OwnedIdentifier {
-    /// The owner of the declaration, i.e. the name in from of the dot in "`p1.health`".
+    /// The owner of the declaration, i.e. the name in front of the dot in "`p1.health`".
     /// None implies that the owner is the current template or global
     pub owner: Option<String>,
     pub name: String,
