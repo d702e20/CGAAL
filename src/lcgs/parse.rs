@@ -7,12 +7,12 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Ident, Number, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::precedence::{precedence, Precedence};
+use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::precedence::Associativity::RightToLeft;
+use crate::lcgs::precedence::{precedence, Precedence};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
