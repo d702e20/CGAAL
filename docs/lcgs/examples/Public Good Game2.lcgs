@@ -1,0 +1,61 @@
+
+player p1 = capitalist [other: p2]
+player p2 = capitalist [other: p1]
+
+
+const number_of_rounds = 10;
+const cap_of_capital = 1000;
+const initial_endowment = 10;
+const multiplier = 10;
+
+rounds : [0 .. number_of_rounds+1] init 0;
+rounds' = min(rounds + 1, number_of_rounds);
+
+template capitalist [other: capitalist]
+    capital : [0 .. cap_of_capital] init initial_endowment;
+    profit : [0 .. cap_of_capital] init initial_endowment;
+
+    profit' = ((capital - ((25 * (capital / 100) * i_25) + (50 * (capital / 100) * i_50) +
+                       (75 * (capital / 100) * i_75) + (100 * (capital / 100) * i_100)
+                      )) + (
+                          multiplier *
+                                // Player 1 pays
+                              ((25 * (capital / 100) * i_25) + (50 * (capital / 100) * i_50) +
+                               (75 * (capital / 100) * i_75) + (100 * (capital / 100) * i_100))
+                               +
+                               // Player 2 pays
+                              ((25 * (other.capital / 100) * other.i_25) + (50 * (other.capital / 100) * other.i_50) +
+                               (75 * (other.capital / 100) * other.i_75) + (100 * (other.capital / 100) * other.i_100))
+                              )
+                              // Half to each player.
+                              / 2) - initial_endowment;
+
+
+    label worth_most = capital > other.capital;
+
+    capital' = (
+        capital - ((25 * (capital / 100) * i_25) + (50 * (capital / 100) * i_50) +
+         (75 * (capital / 100) * i_75) + (100 * (capital / 100) * i_100)
+        )) + (
+            multiplier *
+                  // Player 1 pays
+                ((25 * (capital / 100) * i_25) + (50 * (capital / 100) * i_50) +
+                 (75 * (capital / 100) * i_75) + (100 * (capital / 100) * i_100))
+                 +
+                 // Player 2 pays
+                ((25 * (other.capital / 100) * other.i_25) + (50 * (other.capital / 100) * other.i_50) +
+                 (75 * (other.capital / 100) * other.i_75) + (100 * (other.capital / 100) * other.i_100))
+                )
+                // Half to each player.
+                / 2;
+
+
+	[i_0]   rounds' <  number_of_rounds;
+	[i_25]  rounds' <  number_of_rounds;
+	[i_50]  rounds' <  number_of_rounds;
+	[i_75]  rounds' <  number_of_rounds;
+	[i_100] rounds' <  number_of_rounds;
+	[done]  rounds' >= number_of_rounds;
+
+
+endtemplate
