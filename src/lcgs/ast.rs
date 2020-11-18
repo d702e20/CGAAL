@@ -19,14 +19,20 @@ pub enum DeclKind {
     Const(Rc<ConstDecl>),
     Label(Rc<LabelDecl>),
     StateVar(Rc<StateVarDecl>),
+    StateVarChange(Rc<StateVarChangeDecl>),
     Player(Rc<PlayerDecl>),
-    Module(Rc<TemplateDecl>),
+    Template(Rc<TemplateDecl>),
     Transition(Rc<TransitionDecl>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Identifier {
+pub struct OwnedIdentifier {
     pub owner: Option<String>,
+    pub name: String,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Identifier {
     pub name: String,
 }
 
@@ -38,14 +44,14 @@ pub struct ConstDecl {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct LabelDecl {
-    pub guard: Expr,
+    pub condition: Expr,
     pub name: Identifier,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PlayerDecl {
     pub name: Identifier,
-    pub module: Identifier,
+    pub template: Identifier,
     pub relabelling: Relabelling,
 }
 
@@ -64,6 +70,19 @@ pub struct RelabelCase {
 pub struct TemplateDecl {
     pub name: Identifier,
     pub decls: Vec<Decl>,
+    pub params: Vec<Param>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Param {
+    pub name: Identifier,
+    pub typ: ParamType,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ParamType {
+    IdentType(Identifier),
+    IntType,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -71,6 +90,12 @@ pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
     pub initial_value: Expr,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct StateVarChangeDecl {
+    pub name: Identifier,
+    pub next_value: Expr,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -83,13 +108,6 @@ pub struct TypeRange {
 pub struct TransitionDecl {
     pub name: Identifier,
     pub condition: Expr,
-    pub state_changes: Vec<StateChange>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct StateChange {
-    pub name: Identifier,
-    pub new_value: Expr,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -100,8 +118,7 @@ pub struct Expr {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ExprKind {
     Number(i32),
-    Ident(Rc<Identifier>),
-    Negation(Rc<Expr>),
+    OwnedIdent(Rc<OwnedIdentifier>),
     UnaryOp(UnaryOpKind, Rc<Expr>),
     BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
     TernaryIf(Rc<Expr>, Rc<Expr>, Rc<Expr>),
@@ -110,7 +127,7 @@ pub enum ExprKind {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum UnaryOpKind {
-    LogicalNegation,
+    Not,
     Negation, // eg -4
 }
 
@@ -132,17 +149,26 @@ pub enum BinaryOpKind {
     Implication,
 }
 
-// TODO Binary operators consisting of multiple characters, e.g. "==" or "&&"
-impl From<u8> for BinaryOpKind {
-    fn from(op: u8) -> BinaryOpKind {
+impl From<&[u8]> for BinaryOpKind {
+    fn from(op: &[u8]) -> BinaryOpKind {
         match op {
-            b'+' => Addition,
-            b'*' => Multiplication,
-            b'-' => Subtraction,
-            b'/' => Division,
+            b"+" => Addition,
+            b"*" => Multiplication,
+            b"-" => Subtraction,
+            b"/" => Division,
+            b"==" => Equality,
+            b"!=" => Inequality,
+            b">" => GreaterThan,
+            b"<" => LessThan,
+            b">=" => GreaterOrEqual,
+            b"<=" => LessOrEqual,
+            b"&&" => And,
+            b"||" => Or,
+            b"^" => Xor,
+            b"->" => Implication,
             _ => unimplemented!(
                 "Unrecognized operator '{}'. See 'impl From<u8> for BinaryOpKind' clause.",
-                op
+                String::from_utf8(op.to_vec()).unwrap()
             ),
         }
     }
