@@ -268,20 +268,21 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 5-8
         for target in &edge.targets {
-            // Condition from line 5
-            let assignment = self.assignment.get(&target);
-            if let Some(f) = assignment {
-                match f {
-                    VertexAssignment::UNDECIDED => {}
-                    _ => continue,
+            // Line 5 condition
+            match self.assignment.get(&target) {
+                Some(VertexAssignment::UNDECIDED) => {
+                    // UNDECIDED
+                    // Line 7
+                    self.add_depend(target, Edges::HYPER(edge.clone()));
                 }
-            } // else assigment of target is UNEXPLORED
-
-            // Line 7, target = u
-            self.add_depend(target, Edges::HYPER(edge.clone()));
-            // Line 8
-            if let None = assignment {
-                self.explore(target)
+                None => {
+                    // UNEXPLORED
+                    // Line 7
+                    self.add_depend(target, Edges::HYPER(edge.clone()));
+                    // Line 8
+                    self.explore(target);
+                }
+                _ => {}
             }
         }
     }
