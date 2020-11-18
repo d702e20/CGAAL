@@ -101,7 +101,6 @@ pub struct Expr {
 pub enum ExprKind {
     Number(i32),
     Ident(Rc<Identifier>),
-    Negation(Rc<Expr>),
     UnaryOp(UnaryOpKind, Rc<Expr>),
     BinaryOp(BinaryOpKind, Rc<Expr>, Rc<Expr>),
     TernaryIf(Rc<Expr>, Rc<Expr>, Rc<Expr>),
@@ -110,7 +109,7 @@ pub enum ExprKind {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum UnaryOpKind {
-    LogicalNegation,
+    Not,
     Negation, // eg -4
 }
 
@@ -132,17 +131,26 @@ pub enum BinaryOpKind {
     Implication,
 }
 
-// TODO Binary operators consisting of multiple characters, e.g. "==" or "&&"
-impl From<u8> for BinaryOpKind {
-    fn from(op: u8) -> BinaryOpKind {
+impl From<&[u8]> for BinaryOpKind {
+    fn from(op: &[u8]) -> BinaryOpKind {
         match op {
-            b'+' => Addition,
-            b'*' => Multiplication,
-            b'-' => Subtraction,
-            b'/' => Division,
+            b"+" => Addition,
+            b"*" => Multiplication,
+            b"-" => Subtraction,
+            b"/" => Division,
+            b"==" => Equality,
+            b"!=" => Inequality,
+            b">" => GreaterThan,
+            b"<" => LessThan,
+            b">=" => GreaterOrEqual,
+            b"<=" => LessOrEqual,
+            b"&&" => And,
+            b"||" => Or,
+            b"^" => Xor,
+            b"->" => Implication,
             _ => unimplemented!(
                 "Unrecognized operator '{}'. See 'impl From<u8> for BinaryOpKind' clause.",
-                op
+                String::from_utf8(op.to_vec()).unwrap()
             ),
         }
     }
