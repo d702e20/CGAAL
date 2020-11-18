@@ -35,12 +35,9 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     HYPER(HyperEdge<V>),
     /// Send when a negation-edge is discovered
     NEGATION(NegationEdge<V>),
-    /// Send from a worker that need the final assignment of `vertex` but is not the owner of the vertex.
-    REQUEST {
-        vertex: V,
-        worker_id: WorkerId,
-    },
-    /// Send from the owner `vertex` to all workers that have request the final assignment of `vertex`
+    /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
+    REQUEST { vertex: V, worker_id: WorkerId },
+    /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
     ANSWER {
         vertex: V,
         assignment: VertexAssignment,
