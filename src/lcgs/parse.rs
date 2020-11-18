@@ -8,15 +8,15 @@ use std::vec::Drain;
 use pom::parser::*;
 
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
-use crate::lcgs::ast::*;
-use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number, TernaryIf, UnaryOp};
+use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
+use crate::lcgs::ast::*;
 use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
 use crate::lcgs::ast::DeclKind::{
-    Const, Label, Template, Player, StateVar, StateVarChange, Transition,
+    Const, Label, Player, StateVar, StateVarChange, Template, Transition,
 };
 
 /// A `Span` describes the position of a slice of text in the original program.
@@ -165,10 +165,7 @@ fn solve_binary_precedence(
 
 /// Parser that parses an expression
 fn expr() -> Parser<'static, u8, Expr> {
-    let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr()
-        - ws()
-        - sym(b':')
-        - ws()
+    let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr();
     tern.map(|((cond, then), els)| Expr {
         kind: TernaryIf(Rc::from(cond), Rc::from(then), Rc::from(els)),
@@ -307,11 +304,14 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
 
 /// Parser that parses a template's parameters, i.e. `(target1: shooter, dmg: int)`
 fn template_params() -> Parser<'static, u8, Vec<Param>> {
-    let param = (identifier() - ws() - sym(b':') - ws() + identifier())
-        .map(|(name, t)| Param {
-            name,
-            typ: if t.name == "int" { ParamType::IntType } else { ParamType::IdentType(t) }
-        });
+    let param = (identifier() - ws() - sym(b':') - ws() + identifier()).map(|(name, t)| Param {
+        name,
+        typ: if t.name == "int" {
+            ParamType::IntType
+        } else {
+            ParamType::IdentType(t)
+        },
+    });
     let params = list(param, ws() * sym(b',') - ws());
     sym(b'(') * ws() * params - ws() - sym(b')')
 }
@@ -331,8 +331,8 @@ fn root() -> Parser<'static, u8, Root> {
     });
     let any_decl = simple_decl.with_semi()
         | template_decl().map(|td| Decl {
-        kind: Template(Rc::from(td)),
-    });
+            kind: Template(Rc::from(td)),
+        });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
 }
