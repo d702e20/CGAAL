@@ -139,7 +139,7 @@ pub struct TypeRange {
 
 /// A transition declaration defines what actions a player can take.
 /// If the condition is not satisfied, then the player cannot take the action in the
-/// current state. Transitions in a CGS is the combination of all
+/// current state. Transitions in a concurrent game structure is the combination of all
 /// players' actions. Each player must have at least one action available to them.
 #[derive(Debug, Eq, PartialEq)]
 pub struct TransitionDecl {
