@@ -43,7 +43,6 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
         for edge in graph.succ(&vertex) {
             // TODO maybe print labels on edges
-
             let hyper_id = hash_name(&edge);
 
             match edge {
