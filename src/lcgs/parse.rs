@@ -343,7 +343,9 @@ pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lcgs::ast::BinaryOpKind::{And, Equality, Implication, Inequality, LessThan};
+    use crate::lcgs::ast::BinaryOpKind::{
+        Addition, And, Division, Equality, Implication, LessThan, Multiplication, Subtraction,
+    };
 
     use super::*;
 
