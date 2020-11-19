@@ -239,7 +239,7 @@ fn const_decl() -> Parser<'static, u8, ConstDecl> {
 
 /// Parser that parses a relabelling, e.g.
 /// "`[target1=p2, target2=p3]`"
-fn relabelling() -> Parser<'static, u8, Relabelling> {
+fn relabelling() -> Parser<'static, u8, Relabeling> {
     let raw_case = identifier() - ws() - sym(b'=') - ws() + identifier();
     let case = raw_case.map(|(prev, new)| RelabelCase {
         prev_name: prev,
@@ -247,7 +247,7 @@ fn relabelling() -> Parser<'static, u8, Relabelling> {
     });
     let inner = list(case, ws() * sym(b',') - ws());
     let whole = sym(b'[') * ws() * inner - ws() - sym(b']');
-    whole.map(|cases| Relabelling {
+    whole.map(|cases| Relabeling {
         relabellings: cases,
     })
 }
@@ -261,7 +261,7 @@ fn player_decl() -> Parser<'static, u8, PlayerDecl> {
     whole.map(|(name, (template, relabel))| PlayerDecl {
         name,
         template,
-        relabelling: relabel.unwrap_or_else(|| Relabelling {
+        relabeling: relabel.unwrap_or_else(|| Relabeling {
             relabellings: vec![],
         }),
     })
@@ -343,7 +343,9 @@ pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lcgs::ast::BinaryOpKind::{And, Equality, Implication, Inequality, LessThan};
+    use crate::lcgs::ast::BinaryOpKind::{
+        Addition, And, Division, Equality, Implication, LessThan, Multiplication, Subtraction,
+    };
 
     use super::*;
 
@@ -886,7 +888,7 @@ mod tests {
         let parser = relabelling();
         assert_eq!(
             parser.parse(input),
-            Ok(Relabelling {
+            Ok(Relabeling {
                 relabellings: vec![]
             })
         );
@@ -899,7 +901,7 @@ mod tests {
         let parser = relabelling();
         assert_eq!(
             parser.parse(input),
-            Ok(Relabelling {
+            Ok(Relabeling {
                 relabellings: vec![
                     RelabelCase {
                         prev_name: Identifier {
@@ -936,7 +938,7 @@ mod tests {
                 template: Identifier {
                     name: "shooter".to_string()
                 },
-                relabelling: Relabelling {
+                relabeling: Relabeling {
                     relabellings: vec![]
                 }
             })
@@ -957,7 +959,7 @@ mod tests {
                 template: Identifier {
                     name: "shooter".to_string()
                 },
-                relabelling: Relabelling {
+                relabeling: Relabeling {
                     relabellings: vec![RelabelCase {
                         prev_name: Identifier {
                             name: "target".to_string()
