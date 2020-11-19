@@ -1,7 +1,7 @@
 use crate::lcgs::ir::symbol_table::{SymbolTable, Owner};
 use crate::lcgs::ast::{ExprKind, Expr, OwnedIdentifier, DeclKind, UnaryOpKind, BinaryOpKind};
 
-struct Evaluator<'a> {
+pub struct Evaluator<'a> {
     symbols: &'a SymbolTable,
     scope_owner: Owner,
 }

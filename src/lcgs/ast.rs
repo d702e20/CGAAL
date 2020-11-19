@@ -36,7 +36,7 @@ pub enum DeclKind {
 /// Hence, identifier inside expressions can refer to a specific owner (the name in front
 /// of the dot in "`p1.health`". If the owner is omitted, the owner is either the current
 /// template (if such declaration exists) or the global scope.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct OwnedIdentifier {
     /// The owner of the declaration, i.e. the name in from of the dot in "`p1.health`".
     /// None implies that the owner is the current template or global
@@ -148,13 +148,13 @@ pub struct TransitionDecl {
 }
 
 /// An expression. Expressions are always of type integer.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
 }
 
 /// Every kind of expression
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ExprKind {
     Number(i32),
     OwnedIdent(Box<OwnedIdentifier>),
@@ -164,7 +164,7 @@ pub enum ExprKind {
 }
 
 /// Unary operators
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum UnaryOpKind {
     Not,
     Negation, // eg -4
@@ -180,7 +180,7 @@ impl UnaryOpKind {
 }
 
 /// Binary operators
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum BinaryOpKind {
     Addition,
     Multiplication,
@@ -200,7 +200,7 @@ pub enum BinaryOpKind {
 
 impl BinaryOpKind {
     pub fn as_fn(&self) -> fn(i32, i32) -> i32 {
-        match op {
+        match self {
             BinaryOpKind::Addition => i32::add,
             BinaryOpKind::Multiplication => i32::mul,
             BinaryOpKind::Subtraction => i32::sub,

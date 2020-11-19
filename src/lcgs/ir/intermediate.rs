@@ -6,6 +6,7 @@ use crate::lcgs::ast::{
 };
 use crate::lcgs::ast::ExprKind::Number;
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use crate::lcgs::ir::eval::Evaluator;
 
 pub struct Player {
     name: String,
@@ -29,7 +30,6 @@ pub struct IntermediateLCGS {
     templates: Vec<SymbolIdentifier>,
     vars: Vec<SymbolIdentifier>,
     var_changes: Vec<SymbolIdentifier>,
-    player_decls: Vec<Decl>,
     players: Vec<Player>,
 }
 
@@ -37,23 +37,29 @@ impl IntermediateLCGS {
     pub fn create(root: Root) -> Result<IntermediateLCGS, ()> {
         let mut ilcgs: IntermediateLCGS = Default::default();
 
-        ilcgs.register_global_decls(root);
-        ilcgs.register_player_decls();
+        let player_decls = ilcgs.register_global_decls(root);
+        ilcgs.register_player_decls(player_decls);
 
         return Ok(ilcgs);
     }
 
-    fn register_global_decls(&mut self, root: Root) {
+    fn register_global_decls(&mut self, root: Root) -> Vec<Decl> {
+        let mut player_decls = vec![];
         for decl in root.decls {
-            self.register_global_decl(decl);
+            let player_decl = self.register_global_decl(decl).unwrap(); // TODO Use custom error
+            if player_decl.is_some() {
+                player_decls.push(player_decl.unwrap())
+            }
         }
+        return player_decls
     }
 
-    fn register_global_decl(&mut self, decl: ast::Decl) -> Result<(), ()> {
+    // Returns PlayerDecl
+    fn register_global_decl(&mut self, mut decl: ast::Decl) -> Result<Option<Decl>, ()> {
         let global = Owner::Global;
         // TODO Check re-declarations
-        match &decl.kind {
-            DeclKind::Const(mut cons) => {
+        match &mut decl.kind {
+            DeclKind::Const(cons) => {
                 // We can evaluate constants immediately as constants can only refer to
                 // other constants that are above them in the program.
                 let result = Evaluator::new(&self.symbols, Owner::Global).eval(&cons.definition)?;
@@ -81,7 +87,7 @@ impl IntermediateLCGS {
             }
             DeclKind::Player(player) => {
                 // We handle player declarations later
-                self.player_decls.push(decl);
+                return Ok(Some(decl))
             }
             DeclKind::Template(temp) => {
                 let sym_id = global.symbol_id(&temp.name.name);
@@ -90,11 +96,11 @@ impl IntermediateLCGS {
             }
             _ => panic!("Not a global declaration. Parser must have failed."), // Not a global decl
         }
-        Ok(())
+        Ok(None)
     }
 
-    fn register_player_decls(&mut self) {
-        for player_decl in &self.player_decls {
+    fn register_player_decls(&mut self, player_decls: Vec<Decl>) {
+        for player_decl in player_decls {
             if let DeclKind::Player(player_decl) = &player_decl.kind {
                 let mut player = Player::new(&player_decl.name.name);
                 let temp = self
