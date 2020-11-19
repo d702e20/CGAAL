@@ -41,14 +41,11 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
     }
 }
 
+type WorkQueue<V> = Receiver<Message<V>>;
+type TermQueue = Receiver<VertexAssignment>;
+
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
-    pub fn new(
-        worker_count: u64,
-    ) -> (
-        Self,
-        Vec<Receiver<Message<V>>>,
-        Vec<Receiver<VertexAssignment>>,
-    ) {
+    pub fn new(worker_count: u64) -> (Self, Vec<WorkQueue<V>>, Vec<TermQueue>) {
         // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);

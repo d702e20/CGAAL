@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::lcgs::ast::{
-    ConstDecl, Decl, LabelDecl, PlayerDecl, StateVarDecl, TemplateDecl, TransitionDecl,
-};
+use crate::lcgs::ast::Decl;
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -114,7 +112,7 @@ impl SymbolTable {
                 .or_insert_with(|| PlayerSymbolTable::new(owner.clone())),
             Owner::Global => &mut self.global_table,
         };
-        return table.insert(name, decl);
+        table.insert(name, decl)
     }
 
     /// Get the symbol associated with the given owner and name. If the owner does not
