@@ -149,14 +149,9 @@ impl ControllerWeight {
         // NOTE: This functions fails to allocate the last slot if MAX_SLOTS is equal to Num::MAX
         assert_ne!(slot, Num::MAX);
 
-        for _ in self.slots.len()..=slot {
-            self.slots.push(0);
+        if self.slots.len() < slot + 1 {
+            self.slots.resize(slot + 1, 0);
         }
-
-        assert!(
-            self.slots.len() >= slot + 1,
-            "Didn't allocate enough slots. The code is broken!"
-        );
     }
 
     pub(crate) fn receive_weight(&mut self, weight: Weight) {
