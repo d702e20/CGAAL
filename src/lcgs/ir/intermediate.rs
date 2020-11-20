@@ -87,7 +87,6 @@ impl IntermediateLCGS {
             let mut player = Player::new(&player_decl.name.name);
             let template_decl = symbols
                 .get(&Owner::Global, &player_decl.template.name)
-                .unwrap() // Global exists
                 .expect("Unknown template") // TODO Use custom error
                 .declaration.clone();
             if let DeclKind::Template(template) = template_decl.kind {

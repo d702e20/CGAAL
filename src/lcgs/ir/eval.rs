@@ -1,5 +1,5 @@
-use crate::lcgs::ir::symbol_table::{SymbolTable, Owner};
-use crate::lcgs::ast::{ExprKind, Expr, OwnedIdentifier, DeclKind, UnaryOpKind, BinaryOpKind};
+use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, OwnedIdentifier, UnaryOpKind};
+use crate::lcgs::ir::symbol_table::{Owner, SymbolTable};
 
 pub struct Evaluator<'a> {
     symbols: &'a SymbolTable,
@@ -32,13 +32,11 @@ impl<'a> Evaluator<'a> {
             let owner = Owner::Player(player_name.to_string());
             self.symbols
                 .get(&owner, &name)
-                .expect("Unknown player") // TODO Use custom error
-                .expect("Unknown identifier") // TODO Use custom error
+                .expect("Unknown player or identifier") // TODO Use custom error
         } else {
             self.symbols
                 .get(&self.scope_owner, &name)
-                .unwrap()
-                .or_else(|| self.symbols.get(&Owner::Global, &name).unwrap())
+                .or_else(|| self.symbols.get(&Owner::Global, &name))
                 .expect("Unknown identifier, neither declared locally or globally")
             // TODO Use custom error
         };
