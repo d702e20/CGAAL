@@ -146,56 +146,63 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
 
         let term_rx = self.term_rx.clone();
+        let hyper_rx = self.hyper_rx.clone();
+        let negation_rx = self.negation_rx.clone();
         let msg_rx = self.msg_rx.clone();
-
-        // Use crossbeam-channel::Select to listen to both the term_rx and msg_rx channel
-        let mut select = Select::new();
-        let oper_term = select.recv(&term_rx);
-        let oper_msg = select.recv(&msg_rx);
 
         // TODO terminate if all queues empty and all workers are idle
         loop {
-            let oper = select.select();
-            match oper.index() {
-                // Termination signal indicating result have been found
-                i if i == oper_term => {
-                    // Alg 1, Line 10
-                    match oper.recv(&term_rx) {
-                        Ok(assignment) => {
-                            // Alg 1, Line 11-12
-                            return match assignment {
-                                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                                VertexAssignment::FALSE => VertexAssignment::FALSE,
-                                VertexAssignment::TRUE => VertexAssignment::TRUE,
-                            };
-                        }
-                        Err(err) => {
-                            panic!("Receiving from termination channel failed with: {}", err)
-                        }
+            // Termination signal indicating result have been found
+            if !term_rx.is_empty() {
+                match term_rx.recv() {
+                    Ok(assignment) => {
+                        // Alg 1, Line 11-12
+                        return match assignment {
+                            VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
+                            VertexAssignment::FALSE => VertexAssignment::FALSE,
+                            VertexAssignment::TRUE => VertexAssignment::TRUE,
+                        };
+                    }
+                    Err(err) => {
+                        panic!("Receiving from termination channel failed with: {}", err)
                     }
                 }
-                // Received more work
-                i if i == oper_msg => {
-                    match oper.recv(&msg_rx) {
-                        // Alg 1, Line 5-9
-                        Ok(msg) => match msg {
-                            // Alg 1, Line 6
-                            Message::HYPER(edge) => self.process_hyper_edge(edge),
-                            // Alg 1, Line 7
-                            Message::NEGATION(edge) => self.process_negation_edge(edge),
-                            // Alg 1, Line 8
-                            Message::REQUEST { vertex, worker_id } => {
-                                self.process_request(&vertex, worker_id)
-                            }
-                            // Alg 1, Line 9
-                            Message::ANSWER { vertex, assignment } => {
-                                self.process_answer(&vertex, assignment)
-                            }
-                        },
-                        Err(err) => panic!("Receiving from message channel failed with: {}", err),
-                    }
+            } else if !msg_rx.is_empty() {
+                match msg_rx.recv() {
+                    // Alg 1, Line 5-9
+                    Ok(msg) => match msg {
+                        // Alg 1, Line 8
+                        Message::REQUEST { vertex, worker_id } => {
+                            self.process_request(&vertex, worker_id)
+                        }
+                        // Alg 1, Line 9
+                        Message::ANSWER { vertex, assignment } => {
+                            self.process_answer(&vertex, assignment)
+                        }
+                    },
+                    Err(err) => panic!("Receiving from message channel failed with: {}", err),
                 }
-                _ => unreachable!(),
+            } else if !hyper_rx.is_empty() {
+                match hyper_rx.recv() {
+                    // Alg 1, Line 6
+                    Ok(edge) => self.process_hyper_edge(edge),
+                    Err(err) => panic!(
+                        "Receiving from hyper edge waiting channel failed with: {}",
+                        err
+                    ),
+                }
+            } else if !negation_rx.is_empty() {
+                match negation_rx.recv() {
+                    Ok(edge) => match self.assignment.get(&edge.target) {
+                        None => self.broker.queue_negation(self.id, edge.clone()),
+                        // Alg 1, Line 7
+                        Some(_) => self.process_negation_edge(edge.clone()),
+                    },
+                    Err(err) => panic!(
+                        "Receiving from negation edge waiting channel failed with: {}",
+                        err
+                    ),
+                } //TODO mangler case hvor alle workers er idle
             }
         }
     }
