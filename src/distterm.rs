@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::cmp::{min, Ordering};
 
 type Num = usize;
 
@@ -87,42 +87,42 @@ impl Weight {
     /// The seconds half of the tuple is None if the combined value fits in a single slot, otherwise the least significant part is returned in the second half of the tuple.
     /// If the second half of the the tuple is Some, that value should be should be returned to the controller.
     pub(crate) fn join(self, other: Self) -> (Self, Option<Self>) {
-        if self.slot < other.slot {
-            (other, Some(self))
-        } else if self.slot > other.slot {
-            (self, Some(other))
-        } else {
-            let (val, carry) = self.weight.overflowing_add(other.weight);
-            if carry {
-                assert_ne!(
-                    self.slot, 0,
-                    "Total weight have overflowed. Is weight being added out of nowhere?"
-                );
+        match self.slot.cmp(&other.slot) {
+            Ordering::Less => (other, Some(self)),
+            Ordering::Greater => (self, Some(other)),
+            Ordering::Equal => {
+                let (val, carry) = self.weight.overflowing_add(other.weight);
+                if carry {
+                    assert_ne!(
+                        self.slot, 0,
+                        "Total weight have overflowed. Is weight being added out of nowhere?"
+                    );
 
-                let rhs = if val == 0 {
-                    None
+                    let rhs = if val == 0 {
+                        None
+                    } else {
+                        Some(Self {
+                            weight: val,
+                            slot: self.slot,
+                        })
+                    };
+
+                    (
+                        Self {
+                            weight: 1,
+                            slot: self.slot - 1,
+                        },
+                        rhs,
+                    )
                 } else {
-                    Some(Self {
-                        weight: val,
-                        slot: self.slot,
-                    })
-                };
-
-                (
-                    Self {
-                        weight: 1,
-                        slot: self.slot - 1,
-                    },
-                    rhs,
-                )
-            } else {
-                (
-                    Self {
-                        weight: val,
-                        slot: self.slot,
-                    },
-                    None,
-                )
+                    (
+                        Self {
+                            weight: val,
+                            slot: self.slot,
+                        },
+                        None,
+                    )
+                }
             }
         }
     }
