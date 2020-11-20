@@ -39,12 +39,16 @@ pub fn distributed_certain_zero<
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
+        let hyper_rx = hyper_rxs.pop().unwrap();
+        let negation_rx = negation_rxs.pop().unwrap();
         let term_rx = term_rxs.pop().unwrap();
         let mut worker = Worker::new(
             i,
             worker_count,
             v0.clone(),
             msg_rx,
+            hyper_rx,
+            negation_rx,
             term_rx,
             broker.clone(),
             edg.clone(),
@@ -71,6 +75,8 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
     msg_rx: Receiver<Message<V>>,
+    hyper_rx: Receiver<HyperEdge<V>>,
+    negation_rx: Receiver<NegationEdge<V>>,
     term_rx: Receiver<VertexAssignment>,
     broker: Arc<B>,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
@@ -103,6 +109,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         worker_count: u64,
         v0: V,
         msg_rx: Receiver<Message<V>>,
+        hyper_rx: Receiver<HyperEdge<V>>,
+        negation_rx: Receiver<NegationEdge<V>>,
         term_rx: Receiver<VertexAssignment>,
         broker: Arc<B>,
         edg: G,
@@ -121,6 +129,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             depends,
             interests,
             msg_rx,
+            hyper_rx,
+            negation_rx,
             term_rx,
             broker,
             successors,
