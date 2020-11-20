@@ -203,12 +203,9 @@ impl ControllerWeight {
             Some(slot) => slot,
         };
 
-        println!("init slot: {:?}", init_slot);
-        println!("slots: {:?}", self.slots);
         if init_slot < MIN_TAKE_SLOT {
             self.slots[init_slot] -= 1;
             for i in (init_slot + 1)..=MIN_TAKE_SLOT {
-                println!("i: {:?}", i);
                 self.slots[i] = FULL_WEIGHT - 1;
             }
             Some(Weight {
@@ -231,13 +228,11 @@ impl ControllerWeight {
         self.allocate_slot(MIN_TAKE_SLOT);
 
         if let Some(weight) = self.reduce_weight_to_take() {
-            println!("Reduced weight");
             return Ok(weight);
         }
 
         // Take the most significant slot between MIN_TAKE_SLOT and MAX_TAKE_SLOT
         for i in (MIN_TAKE_SLOT..=min(MAX_TAKE_SLOT, self.slots.len() - 1)).rev() {
-            println!("Taking smaller slot");
             if self.slots[i] > 0 {
                 let weight = Weight {
                     weight: self.slots[i],
