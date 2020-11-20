@@ -75,7 +75,7 @@ impl IntermediateLCGS {
                 }
                 DeclKind::Player(player) => {
                     // We handle player declarations later
-                    player_decls.push(*player.clone());
+                    player_decls.push(decl);
                 }
                 _ => panic!("Not a global declaration. Parser must have failed."), // Not a global decl
             }
@@ -84,30 +84,35 @@ impl IntermediateLCGS {
         // Register player declarations. Here we clone the declarations since multiple
         // players can use the same template
         let mut players = vec![];
-        for player_decl in player_decls {
-            let mut player = Player::new(&player_decl.name.name);
-            let template_decl = symbols
-                .get(&Owner::Global, &player_decl.template.name)
-                .expect("Unknown template") // TODO Use custom error
-                .declaration.clone();
-            if let DeclKind::Template(template) = template_decl.kind {
-                for decl in template.decls {
-                    let scope_owner = player.to_owner();
-                    match &decl.kind {
-                        DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::StateVarChange(_) => {
-                            symbols.insert(&scope_owner, &decl.kind.ident().name.clone(), decl.clone());
+        for decl in player_decls {
+            if let DeclKind::Player(player_decl) = &decl.kind {
+                let mut player = Player::new(&player_decl.name.name);
+                let template_decl = symbols
+                    .get(&Owner::Global, &player_decl.template.name)
+                    .expect("Unknown template") // TODO Use custom error
+                    .declaration.clone();
+                if let DeclKind::Template(template) = template_decl.kind {
+                    for decl in template.decls {
+                        let scope_owner = player.to_owner();
+                        match &decl.kind {
+                            DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::StateVarChange(_) => {
+                                symbols.insert(&scope_owner, &decl.kind.ident().name.clone(), decl.clone());
+                            }
+                            DeclKind::Transition(tran) => {
+                                symbols.insert(&scope_owner, &tran.name.name.clone(), decl.clone());
+                                player.actions.push(scope_owner.symbol_id(&tran.name.name));
+                            }
+                            _ => panic!("Not a declaration allowed in templates. Parser must have failed."),
                         }
-                        DeclKind::Transition(tran) => {
-                            symbols.insert(&scope_owner, &tran.name.name.clone(), decl.clone());
-                            player.actions.push(scope_owner.symbol_id(&tran.name.name));
-                        }
-                        _ => panic!("Not a declaration allowed in templates. Parser must have failed."),
                     }
+                } else {
+                    panic!("Not a template"); // TODO Use custom error
                 }
+                players.push(player);
+                symbols.insert(&Owner::Global, &player_decl.name.name.clone(), decl);
             } else {
-                panic!("Not a template"); // TODO Use custom error
+                panic!("A non-PlayerDecl got into this vector");
             }
-            players.push(player);
         }
         Ok(players)
     }
@@ -120,7 +125,7 @@ mod test {
     use crate::lcgs::ir::symbol_table::Owner;
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_symbol_01() {
         let input = br"
         const max_health = 1;
@@ -133,8 +138,10 @@ mod test {
         endtemplate
         ";
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
-        assert_eq!(lcgs.symbols.len(), 6);
+        assert_eq!(lcgs.symbols.len(), 8);
         assert!(lcgs.symbols.get(&Owner::Global, "max_health").is_some());
+        assert!(lcgs.symbols.get(&Owner::Global, "anna").is_some());
+        assert!(lcgs.symbols.get(&Owner::Global, "bob").is_some());
         assert!(lcgs.symbols.get(&Owner::Global, "gamer").is_some());
         assert!(lcgs.symbols.get(&Owner::Player("anna".to_string()), "health").is_some());
         assert!(lcgs.symbols.get(&Owner::Player("anna".to_string()), "alive").is_some());
