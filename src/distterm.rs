@@ -37,6 +37,7 @@ impl Weight {
     }
 
     /// Does this `Weight` have all the weight, or is it a fraction of the total weight?
+    #[allow(clippy::absurd_extreme_comparisons)]
     pub(crate) fn is_full(&self) -> bool {
         assert!(
             (self.slot == 0 && self.weight <= FULL_WEIGHT) || self.slot > 0,
