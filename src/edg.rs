@@ -194,15 +194,27 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             } else if !negation_rx.is_empty() {
                 match negation_rx.recv() {
                     Ok(edge) => match self.assignment.get(&edge.target) {
-                        None => self.broker.queue_negation(self.id, edge.clone()),
+                        None => self.process_negation_edge(edge.clone()),
                         // Alg 1, Line 7
-                        Some(_) => self.process_negation_edge(edge.clone()),
+                        Some(assignment) => {
+                            match assignment {
+                                VertexAssignment::FALSE => self.process_negation_edge(edge.clone()),
+                                VertexAssignment::TRUE => self.process_negation_edge(edge.clone()),
+                                VertexAssignment::UNDECIDED => {
+                                    if false {
+                                        //TODO mangler case hvor alle workers er idle
+                                    } else {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
                     },
                     Err(err) => panic!(
                         "Receiving from negation edge waiting channel failed with: {}",
                         err
                     ),
-                } //TODO mangler case hvor alle workers er idle
+                }
             }
         }
     }
