@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::lcgs::ast::Decl;
-use std::fmt::Display;
-use serde::export::Formatter;
+use std::fmt::{Display, Formatter};
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -41,6 +40,10 @@ impl SymbolTable {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.symbols.len()
+    }
+
     /// Creates and inserts a symbol for the given declaration for the given owner with the
     /// given name. If the name is already associated with a different symbol, the previous
     /// symbol is returned.
@@ -69,6 +72,15 @@ impl SymbolTable {
 impl Default for SymbolTable {
     fn default() -> Self {
         SymbolTable::new()
+    }
+}
+
+impl IntoIterator for SymbolTable {
+    type Item = (SymbolIdentifier, Symbol);
+    type IntoIter = std::collections::hash_map::IntoIter<SymbolIdentifier, Symbol>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.symbols.into_iter()
     }
 }
 

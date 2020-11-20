@@ -30,11 +30,11 @@ impl Player {
 #[derive(Default)]
 pub struct IntermediateLCGS {
     symbols: SymbolTable,
-    constants: Vec<SymbolIdentifier>,
-    labels: Vec<SymbolIdentifier>,
-    templates: Vec<SymbolIdentifier>,
-    vars: Vec<SymbolIdentifier>,
-    var_changes: Vec<SymbolIdentifier>,
+    // constants: Vec<SymbolIdentifier>,
+    // labels: Vec<SymbolIdentifier>,
+    // templates: Vec<SymbolIdentifier>,
+    // vars: Vec<SymbolIdentifier>,
+    // var_changes: Vec<SymbolIdentifier>,
     players: Vec<Player>,
 }
 
@@ -45,8 +45,9 @@ impl IntermediateLCGS {
 
         let mut symbols = SymbolTable::new();
         let players = IntermediateLCGS::register_decls(&mut symbols, root)?;
+        let ilcgs = IntermediateLCGS { symbols, players };
 
-        return Err(());
+        return Ok(ilcgs);
     }
 
     fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, ()> {
@@ -109,5 +110,35 @@ impl IntermediateLCGS {
             players.push(player);
         }
         Ok(players)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lcgs::parse::parse_lcgs;
+    use crate::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::lcgs::ir::symbol_table::Owner;
+
+    #[test]
+    #[ignore]
+    fn test_symbol_01() {
+        let input = br"
+        const max_health = 1;
+        player anna = gamer;
+        player bob = gamer;
+
+        template gamer
+            health : [0 .. max_health] init max_health;
+            label alive = health > 0;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(lcgs.symbols.len(), 6);
+        assert!(lcgs.symbols.get(&Owner::Global, "max_health").is_some());
+        assert!(lcgs.symbols.get(&Owner::Global, "gamer").is_some());
+        assert!(lcgs.symbols.get(&Owner::Player("anna".to_string()), "health").is_some());
+        assert!(lcgs.symbols.get(&Owner::Player("anna".to_string()), "alive").is_some());
+        assert!(lcgs.symbols.get(&Owner::Player("bob".to_string()), "health").is_some());
+        assert!(lcgs.symbols.get(&Owner::Player("bob".to_string()), "alive").is_some());
     }
 }
