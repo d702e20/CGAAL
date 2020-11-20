@@ -46,7 +46,7 @@ impl IntermediateLCGS {
         let mut symbols = SymbolTable::new();
         let players = IntermediateLCGS::register_decls(&mut symbols, root)?;
 
-        return Ok(ilcgs);
+        return Err(());
     }
 
     fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, ()> {
@@ -61,17 +61,20 @@ impl IntermediateLCGS {
                     // We can evaluate constants immediately as constants can only refer to
                     // other constants that are above them in the program.
                     let result = Evaluator::new(&symbols, &Owner::Global).eval(&cons.definition)?;
-                    cons.definition = Expr {
-                        kind: Number(result),
+                    let evaluated = Decl {
+                        kind: DeclKind::Const(Box::new(ConstDecl {
+                            name: cons.name.clone(),
+                            definition: Expr { kind: Number(result) },
+                        }))
                     };
-                    symbols.insert(&Owner::Global, &cons.name.name, decl);
+                    symbols.insert(&Owner::Global, &cons.name.name.clone(), evaluated);
                 }
                 DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::StateVarChange(_) | DeclKind::Template(_) => {
-                    symbols.insert(&Owner::Global, &decl.kind.ident().name, decl);
+                    symbols.insert(&Owner::Global, &decl.kind.ident().name.clone(), decl);
                 }
                 DeclKind::Player(player) => {
                     // We handle player declarations later
-                    player_decls.push(**player);
+                    player_decls.push(*player.clone());
                 }
                 _ => panic!("Not a global declaration. Parser must have failed."), // Not a global decl
             }
@@ -82,19 +85,20 @@ impl IntermediateLCGS {
         let mut players = vec![];
         for player_decl in player_decls {
             let mut player = Player::new(&player_decl.name.name);
-            let temp = symbols
+            let template_decl = symbols
                 .get(&Owner::Global, &player_decl.template.name)
                 .unwrap() // Global exists
-                .expect("Unknown template"); // TODO Use custom error
-            if let DeclKind::Template(temp_decl) = &temp.declaration.kind {
-                for decl in &temp_decl.decls {
+                .expect("Unknown template") // TODO Use custom error
+                .declaration.clone();
+            if let DeclKind::Template(template) = template_decl.kind {
+                for decl in template.decls {
                     let scope_owner = player.to_owner();
                     match &decl.kind {
                         DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::StateVarChange(_) => {
-                            symbols.insert(&scope_owner, &decl.kind.ident().name, decl.clone());
+                            symbols.insert(&scope_owner, &decl.kind.ident().name.clone(), decl.clone());
                         }
                         DeclKind::Transition(tran) => {
-                            symbols.insert(&scope_owner, &tran.name.name, decl.clone());
+                            symbols.insert(&scope_owner, &tran.name.name.clone(), decl.clone());
                             player.actions.push(scope_owner.symbol_id(&tran.name.name));
                         }
                         _ => panic!("Not a declaration allowed in templates. Parser must have failed."),
