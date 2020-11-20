@@ -203,6 +203,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                                 VertexAssignment::UNDECIDED => {
                                     if false {
                                         //TODO mangler case hvor alle workers er idle
+                                        self.process_negation_edge(edge.clone());
                                     } else {
                                         continue;
                                     }
