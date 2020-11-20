@@ -30,7 +30,8 @@ pub fn distributed_certain_zero<
     worker_count: u64,
 ) -> VertexAssignment {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(worker_count);
+    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs) =
+        ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
     // Channel used for returning the final assigment of `v0` to the calling thread
