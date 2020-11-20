@@ -30,6 +30,7 @@ use crate::printer::print_graph;
 mod atl;
 mod com;
 mod common;
+mod distterm;
 mod edg;
 mod lcgs;
 mod printer;
