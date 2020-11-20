@@ -31,10 +31,6 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
 /// Inter-Worker communication
 #[derive(Clone)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
-    /// Send when a hyper-edge is discovered
-    HYPER(HyperEdge<V>),
-    /// Send when a negation-edge is discovered
-    NEGATION(NegationEdge<V>),
     /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
     REQUEST { vertex: V, worker_id: WorkerId },
     /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
