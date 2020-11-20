@@ -3,11 +3,11 @@ use crate::lcgs::ast::{ExprKind, Expr, OwnedIdentifier, DeclKind, UnaryOpKind, B
 
 pub struct Evaluator<'a> {
     symbols: &'a SymbolTable,
-    scope_owner: Owner,
+    scope_owner: &'a Owner,
 }
 
 impl<'a> Evaluator<'a> {
-    pub fn new(symbols: &'a SymbolTable, scope_owner: Owner) -> Evaluator<'a> {
+    pub fn new(symbols: &'a SymbolTable, scope_owner: &'a Owner) -> Evaluator<'a> {
         Evaluator {
             symbols,
             scope_owner,
@@ -31,14 +31,14 @@ impl<'a> Evaluator<'a> {
         let symb = if let Some(player_name) = owner {
             let owner = Owner::Player(player_name.to_string());
             self.symbols
-                .get_(&owner, &name)
+                .get(&owner, &name)
                 .expect("Unknown player") // TODO Use custom error
                 .expect("Unknown identifier") // TODO Use custom error
         } else {
             self.symbols
-                .get_(&self.scope_owner, &name)
+                .get(&self.scope_owner, &name)
                 .unwrap()
-                .or_else(|| self.symbols.get_(&Owner::Global, &name).unwrap())
+                .or_else(|| self.symbols.get(&Owner::Global, &name).unwrap())
                 .expect("Unknown identifier, neither declared locally or globally")
             // TODO Use custom error
         };

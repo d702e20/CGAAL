@@ -13,13 +13,13 @@ pub struct Root {
 }
 
 /// A declaration
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Decl {
     pub kind: DeclKind,
 }
 
 /// Every kind of declaration
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclKind {
     Const(Box<ConstDecl>),
     Label(Box<LabelDecl>),
@@ -28,6 +28,22 @@ pub enum DeclKind {
     Player(Box<PlayerDecl>),
     Template(Box<TemplateDecl>),
     Transition(Box<TransitionDecl>),
+}
+
+impl DeclKind {
+    /// Returns the identifier of the declaration
+    pub fn ident(&self) -> &Identifier {
+        // This may seem a bit silly, but we don't want to lift the name out of the declarations
+        match self {
+            DeclKind::Const(decl) => &decl.name,
+            DeclKind::Label(decl) => &decl.name,
+            DeclKind::StateVar(decl) => &decl.name,
+            DeclKind::StateVarChange(decl) => &decl.name,
+            DeclKind::Player(decl) => &decl.name,
+            DeclKind::Template(decl) => &decl.name,
+            DeclKind::Transition(decl) => &decl.name,
+        }
+    }
 }
 
 /// An identifier with an optional owner, eg "`p1.health`". In this language we only ever
@@ -45,20 +61,20 @@ pub struct OwnedIdentifier {
 }
 
 /// An identifier (with no explicit owner). This is typically the name of a declaration.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Identifier {
     pub name: String,
 }
 
 /// A constant. E.g. "`const max_health = 1`"
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ConstDecl {
     pub name: Identifier,
     pub definition: Expr,
 }
 
 /// A label declaration. Labels are also called propositions. Example: "`label alive = health > 0`"
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LabelDecl {
     pub condition: Expr,
     pub name: Identifier,
@@ -66,7 +82,7 @@ pub struct LabelDecl {
 
 /// A player declaration. A player based on a template with some optional relabelling.
 /// E.g. "`player p1 = shooter [target1=p2, target2=p3]`"
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PlayerDecl {
     pub name: Identifier,
     pub template: Identifier,
@@ -76,21 +92,21 @@ pub struct PlayerDecl {
 /// A list of relabeling cases. Relabeling means replacing name with another name or a
 /// number. This allows the user to slightly tweak a template. It can be thought of
 /// as passing arguments to a template.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Relabeling {
     pub relabellings: Vec<RelabelCase>,
 }
 
 /// A relabeling case. Whenever the `prev_name` is found in the given template, it is
 /// replaced with `new_name`.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RelabelCase {
     pub prev_name: Identifier,
     pub new_name: Identifier,
 }
 
 /// A template declaration. Essentially a player type.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TemplateDecl {
     pub name: Identifier,
     /// The parser ensures that only the allowed declaration kinds are present
@@ -100,14 +116,14 @@ pub struct TemplateDecl {
 }
 
 /// A parameter to a template. I.e. something that must be relabeled.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Param {
     pub name: Identifier,
     pub typ: ParamType,
 }
 
 /// A parameter type. It is only possible to relabel to new identifiers or integers.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ParamType {
     IdentType(Identifier),
     IntType,
@@ -115,7 +131,7 @@ pub enum ParamType {
 
 /// A variable declaration. The state of the CGS is the combination of all variables.
 /// E.g. "`health : [0 .. max_health] init max_health`"
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
@@ -124,14 +140,14 @@ pub struct StateVarDecl {
 
 /// A variable-change declaration. In this declaration the user defines how a variable
 /// changes based on the previous state and the actions taken.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarChangeDecl {
     pub name: Identifier,
     pub next_value: Expr,
 }
 
 /// A range for state variables.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TypeRange {
     pub min: Expr,
     pub max: Expr,
@@ -141,7 +157,7 @@ pub struct TypeRange {
 /// If the condition is not satisfied, then the player cannot take the action in the
 /// current state. Transitions in a CGS is the combination of all
 /// players' actions. Each player must have at least one action available to them.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TransitionDecl {
     pub name: Identifier,
     pub condition: Expr,
