@@ -226,12 +226,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 // Line 5
                 for edge in successors {
                     match edge {
-                        Edges::HYPER(edge) => {
-                            self.broker.send(self.id, Message::HYPER(edge.clone()))
-                        }
-                        Edges::NEGATION(edge) => {
-                            self.broker.send(self.id, Message::NEGATION(edge.clone()))
-                        }
+                        Edges::HYPER(edge) => self.broker.queue_hyper(self.id, edge.clone()),
+                        Edges::NEGATION(edge) => self.broker.queue_negation(self.id, edge.clone()),
                     }
                 }
             }
@@ -320,7 +316,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 // UNEXPLORED
                 // Line 6
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                self.broker.send(self.id, Message::NEGATION(edge.clone()));
+                self.broker.queue_negation(self.id, edge.clone());
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
@@ -395,10 +391,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         // Line 5
         if let Some(depends) = self.depends.get(&vertex) {
             depends.iter().for_each(|edge| match edge {
-                Edges::HYPER(edge) => self.broker.send(self.id, Message::<V>::HYPER(edge.clone())),
-                Edges::NEGATION(edge) => self
-                    .broker
-                    .send(self.id, Message::<V>::NEGATION(edge.clone())),
+                Edges::HYPER(edge) => self.broker.queue_hyper(self.id, edge.clone()),
+                Edges::NEGATION(edge) => self.broker.queue_negation(self.id, edge.clone()),
             });
         }
     }
