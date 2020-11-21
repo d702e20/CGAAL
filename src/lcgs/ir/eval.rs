@@ -4,6 +4,7 @@ use crate::lcgs::ir::symbol_table::{Owner, SymbolTable};
 pub struct Evaluator<'a> {
     symbols: &'a SymbolTable,
     scope_owner: &'a Owner,
+    expect_constant: bool,
 }
 
 impl<'a> Evaluator<'a> {
@@ -11,7 +12,13 @@ impl<'a> Evaluator<'a> {
         Evaluator {
             symbols,
             scope_owner,
+            expect_constant: false,
         }
+    }
+
+    pub fn expect_constant(&mut self, expect_constant: bool) -> &mut Evaluator<'a> {
+        self.expect_constant = expect_constant;
+        self
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<i32, ()> {
@@ -29,24 +36,41 @@ impl<'a> Evaluator<'a> {
         // does not exist, then we assume it's global. If we still can't find it, we have an error.
         let OwnedIdentifier { owner, name } = id;
         let symb = if let Some(player_name) = owner {
-            let owner = Owner::Player(player_name.to_string());
-            self.symbols
-                .get(&owner, &name)
-                .expect("Unknown player or identifier") // TODO Use custom error
+            if self.expect_constant {
+                panic!("Unknown constant. Player's cannot own constants.") // TODO Use custom error
+            } else {
+                let owner = Owner::Player(player_name.to_string());
+                self.symbols
+                    .get(&owner, &name)
+                    .expect("Unknown player or identifier") // TODO Use custom error
+            }
         } else {
-            self.symbols
-                .get(&self.scope_owner, &name)
-                .or_else(|| self.symbols.get(&Owner::Global, &name))
-                .expect("Unknown identifier, neither declared locally or globally")
-            // TODO Use custom error
+            if self.expect_constant {
+                self.symbols
+                    .get(&Owner::Global, &name)
+                    .expect("Unknown constant")
+            } else {
+                self.symbols
+                    .get(&self.scope_owner, &name)
+                    .or_else(|| self.symbols.get(&Owner::Global, &name))
+                    .expect("Unknown identifier, neither declared locally or globally")
+                // TODO Use custom error
+            }
         };
 
-        match &symb.declaration.kind {
-            DeclKind::Const(con) => self.eval(&con.definition),
-            DeclKind::Label(_) => unimplemented!(), // TODO Depends on context
-            DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on context
-            DeclKind::Transition(_) => unimplemented!(), // TODO Depends on context
-            _ => Err(()),
+        if self.expect_constant {
+            match &symb.declaration.kind {
+                DeclKind::Const(con) => self.eval(&con.definition),
+                _ => Err(()),
+            }
+        } else {
+            match &symb.declaration.kind {
+                DeclKind::Const(con) => self.eval(&con.definition),
+                DeclKind::Label(_) => unimplemented!(), // TODO Depends on context
+                DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on context
+                DeclKind::Transition(_) => unimplemented!(), // TODO Depends on context
+                _ => Err(()),
+            }
         }
     }
 

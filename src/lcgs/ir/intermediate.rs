@@ -61,7 +61,9 @@ impl IntermediateLCGS {
                 DeclKind::Const(cons) => {
                     // We can evaluate constants immediately as constants can only refer to
                     // other constants that are above them in the program.
-                    let result = Evaluator::new(&symbols, &Owner::Global).eval(&cons.definition)?;
+                    let result = Evaluator::new(&symbols, &Owner::Global)
+                        .expect_constant(true)
+                        .eval(&cons.definition)?;
                     let evaluated = Decl {
                         kind: DeclKind::Const(Box::new(ConstDecl {
                             name: cons.name.clone(),
@@ -125,7 +127,6 @@ mod test {
     use crate::lcgs::ir::symbol_table::Owner;
 
     #[test]
-    // #[ignore]
     fn test_symbol_01() {
         let input = br"
         const max_health = 1;
