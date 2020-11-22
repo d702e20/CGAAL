@@ -2,6 +2,7 @@ use core::fmt;
 use std::fmt::{Display, Formatter};
 
 use crate::lcgs::ast::BinaryOpKind::*;
+use crate::lcgs::ir::symbol_table::Owner;
 use std::ops::{Add, Mul, Sub, Div};
 
 /// The root of a LCGS program.
@@ -46,24 +47,32 @@ impl DeclKind {
     }
 }
 
-/// An identifier with an optional owner, eg "`p1.health`". In this language we only ever
-/// have two scopes, template or global. Templates are essentially player types, so once
-/// instantiated, the player will own an instance of each declaration inside the template.
-/// Hence, identifier inside expressions can refer to a specific owner (the name in front
-/// of the dot in "`p1.health`". If the owner is omitted, the owner is either the current
-/// template (if such declaration exists) or the global scope.
+
+/// An identifier.
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct OwnedIdentifier {
-    /// The owner of the declaration, i.e. the name in from of the dot in "`p1.health`".
-    /// None implies that the owner is the current template or global
-    pub owner: Option<String>,
-    pub name: String,
+pub enum Identifier {
+    /// This is the name of a declaration.
+    Simple { name: String },
+    /// An identifier with an optional owner, eg "`p1.health`". In this language we only ever
+    /// have two scopes, template or global. If the owner is omitted, the owner is either the
+    /// current template (if such declaration exists) or the global scope. This variant only
+    /// occurs in unresolved expressions.
+    OptionalOwner { owner: Option<String>, name: String },
+    /// The Resolved variant is only created in later phases of the compilation once we know
+    /// exactly who the owner is. In other words, this variant implies that an associated symbol
+    /// exists.
+    Resolved { owner: Owner, name: String }
 }
 
-/// An identifier (with no explicit owner). This is typically the name of a declaration.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Identifier {
-    pub name: String,
+impl Identifier {
+    /// Returns the identifiers name regardless of kind.
+    pub fn name(&self) -> &str {
+        match self {
+            Identifier::Simple { name, .. } => name,
+            Identifier::OptionalOwner { name, .. } => name,
+            Identifier::Resolved { name, .. } => name
+        }
+    }
 }
 
 /// A constant. E.g. "`const max_health = 1`"
@@ -112,21 +121,6 @@ pub struct TemplateDecl {
     /// The parser ensures that only the allowed declaration kinds are present
     /// (not constants, players, or other templates)
     pub decls: Vec<Decl>,
-    pub params: Vec<Param>,
-}
-
-/// A parameter to a template. I.e. something that must be relabeled.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Param {
-    pub name: Identifier,
-    pub typ: ParamType,
-}
-
-/// A parameter type. It is only possible to relabel to new identifiers or integers.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum ParamType {
-    IdentType(Identifier),
-    IntType,
 }
 
 /// A variable declaration. The state of the CGS is the combination of all variables.
@@ -173,7 +167,7 @@ pub struct Expr {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ExprKind {
     Number(i32),
-    OwnedIdent(Box<OwnedIdentifier>),
+    OwnedIdent(Box<Identifier>),
     UnaryOp(UnaryOpKind, Box<Expr>),
     BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
     TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),

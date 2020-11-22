@@ -1,4 +1,4 @@
-use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, OwnedIdentifier, UnaryOpKind};
+use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolTable};
 
 pub struct Evaluator<'a> {
@@ -31,31 +31,17 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn eval_ident(&self, id: &OwnedIdentifier) -> Result<i32, ()> {
+    fn eval_ident(&self, id: &Identifier) -> Result<i32, ()> {
         // Owner may be omitted. If omitted, we assume it is the scope owner, unless such thing
         // does not exist, then we assume it's global. If we still can't find it, we have an error.
-        let OwnedIdentifier { owner, name } = id;
-        let symb = if let Some(player_name) = owner {
-            if self.expect_constant {
-                panic!("Unknown constant. Player's cannot own constants.") // TODO Use custom error
-            } else {
-                let owner = Owner::Player(player_name.to_string());
-                self.symbols
-                    .get(&owner, &name)
-                    .expect("Unknown player or identifier") // TODO Use custom error
+        let symb = match id {
+            Identifier::Simple { .. } | Identifier::OptionalOwner { .. } => {
+                panic!("Should never be evaluated")
             }
-        } else {
-            if self.expect_constant {
-                self.symbols
-                    .get(&Owner::Global, &name)
-                    .expect("Unknown constant")
-            } else {
-                self.symbols
-                    .get(&self.scope_owner, &name)
-                    .or_else(|| self.symbols.get(&Owner::Global, &name))
-                    .expect("Unknown identifier, neither declared locally or globally")
-                // TODO Use custom error
-            }
+            Identifier::Resolved { owner, name } => self
+                .symbols
+                .get(owner, name)
+                .expect("Symbol does not exist. Compiler should have failed already."),
         };
 
         if self.expect_constant {

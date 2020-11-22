@@ -1,5 +1,5 @@
-use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, OwnedIdentifier, UnaryOpKind};
-use crate::lcgs::ir::symbol_table::{Owner, SymbolTable};
+use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
+use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 pub struct Reducer<'a> {
     symbols: &'a SymbolTable,
@@ -24,30 +24,46 @@ impl<'a> Reducer<'a> {
         }
     }
 
-    fn reduce_ident(&self, id: &OwnedIdentifier) -> Result<Expr, ()> {
+    fn reduce_ident(&self, id: &Identifier) -> Result<Expr, ()> {
         // Owner may be omitted. If omitted, we assume it is the scope owner, unless such thing
         // does not exist, then we assume it's global. If we still can't find it, we have an error.
-        let OwnedIdentifier { owner, name } = id;
-        let symb = if let Some(player_name) = owner {
-            let owner = Owner::Player(player_name.to_string());
-            self.symbols
-                .get(&owner, &name)
-                .expect("Unknown player or identifier") // TODO Use custom error
-        } else {
-            self.symbols
-                .get(&self.scope_owner, &name)
-                .or_else(|| self.symbols.get(&Owner::Global, &name))
-                .expect("Unknown identifier, neither declared locally or globally")
-            // TODO Use custom error
+        let symb = match id {
+            // Simple identifiers are typically declaration names and should be resolved differently
+            Identifier::Simple { .. } => panic!("Should not be reduced."),
+            Identifier::OptionalOwner { owner, name } => {
+                if let Some(player_name) = owner {
+                    let owner = Owner::Player(player_name.to_string());
+                    self.symbols
+                        .get(&owner, &name)
+                        .expect("Unknown player or identifier") // TODO Use custom error
+                } else {
+                    self.symbols
+                        .get(&self.scope_owner, &name)
+                        .or_else(|| self.symbols.get(&Owner::Global, &name))
+                        .expect("Unknown identifier, neither declared locally or globally")
+                    // TODO Use custom error
+                }
+            }
+            // Already resolved. Compiler error
+            Identifier::Resolved { .. } => panic!("Identifier was already resolved once.")
         };
 
         match &symb.declaration.kind {
-            DeclKind::Const(con) => self.reduce(&con.definition),
+            // If symbol points to a constant declaration we can inline the value
+            DeclKind::Const(con) => return self.reduce(&con.definition),
             DeclKind::Label(_) => unimplemented!(), // TODO Depends on context
             DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on context
             DeclKind::Transition(_) => unimplemented!(), // TODO Depends on context
-            _ => Err(()),
+            _ => return Err(()),
         }
+
+        let SymbolIdentifier { owner, name } = &symb.identifier;
+        return Ok(Expr {
+            kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
+                owner: owner.clone(),
+                name: name.clone(),
+            })),
+        });
     }
 
     fn reduce_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, ()> {

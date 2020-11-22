@@ -7,14 +7,14 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, OwnedIdentifier, TypeRange, StateVarDecl, Decl};
 use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
-use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number, TernaryIf, UnaryOp};
-use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::precedence::{precedence, Precedence};
-use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::ast::DeclKind::*;
+use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
+use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
+use crate::lcgs::ast::{BinaryOpKind, Decl, Expr, ExprKind, Identifier, StateVarDecl, TypeRange};
+use crate::lcgs::precedence::Associativity::RightToLeft;
+use crate::lcgs::precedence::{precedence, Precedence};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -92,16 +92,16 @@ fn name() -> Parser<'static, u8, String> {
 
 /// Parser that parses an identifier.
 fn identifier() -> Parser<'static, u8, Identifier> {
-    name().map(|name| Identifier { name })
+    name().map(|name| Identifier::Simple { name })
 }
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
 /// I.e. "health" or "p1.health"
-fn owned_identifier() -> Parser<'static, u8, OwnedIdentifier> {
+fn owned_identifier() -> Parser<'static, u8, Identifier> {
     let identifier = (name() - sym(b'.')).opt() + name();
     identifier
         .with_span()
-        .map(|(_span, (owner, name))| OwnedIdentifier { owner, name })
+        .map(|(_span, (owner, name))| Identifier::OptionalOwner { owner, name })
 }
 
 /// Parser that parses binary operators
@@ -162,10 +162,7 @@ fn solve_binary_precedence(
 
 /// Parser that parses an expression
 fn expr() -> Parser<'static, u8, Expr> {
-    let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr()
-        - ws()
-        - sym(b':')
-        - ws()
+    let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr();
     tern.map(|((cond, then), els)| Expr {
         kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
@@ -291,26 +288,9 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
         kind: Transition(Box::new(td)),
     });
     let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
-    let temp = seq(b"template") * ws() * identifier() - ws() + template_params().opt() - ws()
-        + inner_decls
-        - ws()
-        - seq(b"endtemplate");
-    temp.map(|((name, params), decls)| TemplateDecl {
-        name,
-        decls,
-        params: params.unwrap_or(vec![]),
-    })
-}
-
-/// Parser that parses a template's parameters, i.e. `(target1: shooter, dmg: int)`
-fn template_params() -> Parser<'static, u8, Vec<Param>> {
-    let param = (identifier() - ws() - sym(b':') - ws() + identifier())
-        .map(|(name, t)| Param {
-            name,
-            typ: if t.name == "int" { ParamType::IntType } else { ParamType::IdentType(t) }
-        });
-    let params = list(param, ws() * sym(b',') - ws());
-    sym(b'(') * ws() * params - ws() - sym(b')')
+    let temp =
+        seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
+    temp.map(|(name, decls)| TemplateDecl { name, decls })
 }
 
 /// Parser that parses root level, i.e. all the global declarations
@@ -352,7 +332,7 @@ mod tests {
         let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
-            Ok(OwnedIdentifier {
+            Ok(Identifier::OptionalOwner {
                 owner: None,
                 name: "abc_ident_1".into()
             })
@@ -374,7 +354,7 @@ mod tests {
         let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
-            Ok(OwnedIdentifier {
+            Ok(Identifier::OptionalOwner {
                 owner: Some("player".into()),
                 name: "variable".into()
             })
@@ -802,20 +782,20 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(StateVarDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "health".to_string()
                 },
                 range: TypeRange {
                     min: Expr { kind: Number(0) },
                     max: Expr {
-                        kind: OwnedIdent(Box::new(OwnedIdentifier {
+                        kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                             owner: None,
                             name: "max_health".to_string(),
                         }))
                     },
                 },
                 initial_value: Expr {
-                    kind: OwnedIdent(Box::new(OwnedIdentifier {
+                    kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,
                         name: "max_health".to_string(),
                     }))
@@ -832,7 +812,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(StateVarChangeDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "health".to_string()
                 },
                 next_value: Expr { kind: Number(2) },
@@ -849,12 +829,12 @@ mod tests {
             parser.parse(input),
             Ok(LabelDecl {
                 condition: Expr {
-                    kind: OwnedIdent(Box::new(OwnedIdentifier {
+                    kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,
                         name: "health".to_string(),
                     }))
                 },
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "alive".to_string(),
                 }
             })
@@ -869,7 +849,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(ConstDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "max_health".to_string(),
                 },
                 definition: Expr { kind: Number(1) }
@@ -900,18 +880,18 @@ mod tests {
             Ok(Relabeling {
                 relabellings: vec![
                     RelabelCase {
-                        prev_name: Identifier {
+                        prev_name: Identifier::Simple {
                             name: "target1".to_string()
                         },
-                        new_name: Identifier {
+                        new_name: Identifier::Simple {
                             name: "p2".to_string()
                         }
                     },
                     RelabelCase {
-                        prev_name: Identifier {
+                        prev_name: Identifier::Simple {
                             name: "target2".to_string()
                         },
-                        new_name: Identifier {
+                        new_name: Identifier::Simple {
                             name: "p3".to_string()
                         }
                     }
@@ -928,10 +908,10 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "p1".to_string()
                 },
-                template: Identifier {
+                template: Identifier::Simple {
                     name: "shooter".to_string()
                 },
                 relabeling: Relabeling {
@@ -949,18 +929,18 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "p1".to_string()
                 },
-                template: Identifier {
+                template: Identifier::Simple {
                     name: "shooter".to_string()
                 },
                 relabeling: Relabeling {
                     relabellings: vec![RelabelCase {
-                        prev_name: Identifier {
+                        prev_name: Identifier::Simple {
                             name: "target".to_string()
                         },
-                        new_name: Identifier {
+                        new_name: Identifier::Simple {
                             name: "p2".to_string()
                         }
                     }]
@@ -977,7 +957,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(TransitionDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "shoot_right".to_string()
                 },
                 condition: Expr { kind: Number(1) },
