@@ -41,7 +41,8 @@ impl<'a> Evaluator<'a> {
             Identifier::Resolved { owner, name } => self
                 .symbols
                 .get(owner, name)
-                .expect("Symbol does not exist. Compiler should have failed already."),
+                .expect("Symbol does not exist. Compiler should have failed already.")
+                .borrow(),
         };
 
         if self.expect_constant {

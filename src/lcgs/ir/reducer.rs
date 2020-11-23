@@ -1,16 +1,30 @@
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
+#[derive(Eq, PartialEq)]
+pub enum ReduceMode {
+    /// In Const mode, identifiers in expressions can only refer to constants.
+    Const,
+    /// In LabelOrTransition mode, identifiers in expressions can only refer to constants
+    /// and state variables.
+    LabelOrTransition,
+    /// In StateVarChange mode, identifiers in expressions can only refer constants, state
+    /// variables, and transitions (actions)
+    StateVarChange,
+}
+
 pub struct Reducer<'a> {
     symbols: &'a SymbolTable,
     scope_owner: Owner,
+    mode: ReduceMode,
 }
 
 impl<'a> Reducer<'a> {
-    pub fn new(symbols: &'a SymbolTable, scope_owner: Owner) -> Reducer<'a> {
+    pub fn new(symbols: &'a SymbolTable, scope_owner: Owner, mode: ReduceMode) -> Reducer<'a> {
         Reducer {
             symbols,
             scope_owner,
+            mode,
         }
     }
 
@@ -31,29 +45,68 @@ impl<'a> Reducer<'a> {
             // Simple identifiers are typically declaration names and should be resolved differently
             Identifier::Simple { .. } => panic!("Should not be reduced."),
             Identifier::OptionalOwner { owner, name } => {
-                if let Some(player_name) = owner {
-                    let owner = Owner::Player(player_name.to_string());
-                    self.symbols
-                        .get(&owner, &name)
-                        .expect("Unknown player or identifier") // TODO Use custom error
+                // Constants are reduced and evaluated early, so we differentiate here to
+                // give better error messages.
+                if self.mode == ReduceMode::Const {
+                    if let Some(player_name) = owner {
+                            // TODO Use custom error
+                        panic!("Unknown constant. Constants can only depend on other constants declared above itself.")
+                    } else {
+                        self.symbols
+                        .get(&Owner::Global, &name)
+                            // TODO Use custom error
+                        .expect("Unknown constant. Constants can only depend on constants declared above itself.")
+                        .borrow()
+                    }
                 } else {
-                    self.symbols
-                        .get(&self.scope_owner, &name)
-                        .or_else(|| self.symbols.get(&Owner::Global, &name))
-                        .expect("Unknown identifier, neither declared locally or globally")
-                    // TODO Use custom error
+                    if let Some(player_name) = owner {
+                        // We first ensure that the player exists in order to give a
+                        // more accurate error message, if necessary
+                        self.symbols
+                            .get(&Owner::Global, player_name)
+                            .expect("Unknown player"); // TODO Use custom error
+
+                        // The player exists, so now we fetch the symbol
+                        let owner = Owner::Player(player_name.to_string());
+                        self.symbols
+                            .get(&owner, &name)
+                                // TODO Use custom error
+                            .expect("Unknown identifier. The player does not own a declaration of that name")
+                    } else {
+                        self.symbols
+                            .get(&self.scope_owner, &name)
+                            .or_else(|| self.symbols.get(&Owner::Global, &name))
+                                // TODO Use custom error
+                            .expect("Unknown identifier, neither declared locally or globally")
+                    }
+                    .try_borrow()
+                        // If the try_borrow fails, it means that the RefCell is currently being
+                        // mutated by someone. We are only reducing one declaration at a time,
+                        // so the declaration has an identifier referring to itself.
+                    .expect("Declaration refers to itself.") // TODO Use custom error
                 }
             }
-            // Already resolved. Compiler error
-            Identifier::Resolved { .. } => panic!("Identifier was already resolved once.")
+            // Already resolved once ... which should never happen.
+            Identifier::Resolved { .. } => panic!("Identifier was already resolved once."),
         };
 
         match &symb.declaration.kind {
             // If symbol points to a constant declaration we can inline the value
             DeclKind::Const(con) => return self.reduce(&con.definition),
-            DeclKind::Label(_) => unimplemented!(), // TODO Depends on context
-            DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on context
-            DeclKind::Transition(_) => unimplemented!(), // TODO Depends on context
+            DeclKind::StateVar(_) => {
+                if !matches!(
+                    self.mode,
+                    ReduceMode::LabelOrTransition | ReduceMode::StateVarChange
+                ) {
+                    return Err(());
+                }
+            }
+            DeclKind::Transition(_) => {
+                if !matches!(self.mode, ReduceMode::StateVarChange) {
+                    return Err(());
+                }
+            }
+            // DeclKind::Label(_) => .., // Maybe in the future
             _ => return Err(()),
         }
 

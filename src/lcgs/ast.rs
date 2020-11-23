@@ -47,11 +47,10 @@ impl DeclKind {
     }
 }
 
-
 /// An identifier.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Identifier {
-    /// This is the name of a declaration.
+    /// Name of a declaration.
     Simple { name: String },
     /// An identifier with an optional owner, eg "`p1.health`". In this language we only ever
     /// have two scopes, template or global. If the owner is omitted, the owner is either the

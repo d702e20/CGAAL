@@ -6,6 +6,7 @@ use crate::lcgs::ast::{
     BinaryOpKind, ConstDecl, Decl, DeclKind, Expr, ExprKind, Identifier, Root, UnaryOpKind,
 };
 use crate::lcgs::ir::eval::Evaluator;
+use crate::lcgs::ir::reducer::{ReduceMode, Reducer};
 use crate::lcgs::ir::symbol_table::Owner::Global;
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
@@ -58,20 +59,25 @@ impl IntermediateLCGS {
         for decl in root.decls {
             match &decl.kind {
                 DeclKind::Const(cons) => {
-                    // We can evaluate constants immediately as constants can only refer to
-                    // other constants that are above them in the program.
-                    let result = Evaluator::new(&symbols, &Owner::Global)
-                        .expect_constant(true)
-                        .eval(&cons.definition)?;
-                    let evaluated = Decl {
+                    // We can reduce (evaluate) constants immediately as constants can only
+                    // refer to other constants that are above them in the program.
+                    // If they don't reduce to a single number, then the Reducer produces
+                    // an error.
+                    let result = Reducer::new(&symbols, Owner::Global, ReduceMode::Const)
+                        .reduce(&cons.definition)?;
+                    let name = cons.name.name().to_string();
+                    debug_assert!(matches!(result.kind, ExprKind::Number(_)));
+                    // Construct resolved and reduced decl
+                    let decl = Decl {
                         kind: DeclKind::Const(Box::new(ConstDecl {
-                            name: cons.name.clone(),
-                            definition: Expr {
-                                kind: Number(result),
+                            name: Identifier::Resolved {
+                                owner: Owner::Global,
+                                name: name.clone(),
                             },
+                            definition: result,
                         })),
                     };
-                    symbols.insert(&Owner::Global, &cons.name.name().clone(), evaluated);
+                    symbols.insert(&Owner::Global, &name, decl);
                 }
                 DeclKind::Label(_)
                 | DeclKind::StateVar(_)
@@ -97,6 +103,7 @@ impl IntermediateLCGS {
                 let template_decl = symbols
                     .get(&Owner::Global, &player_decl.template.name())
                     .expect("Unknown template") // TODO Use custom error
+                    .borrow()
                     .declaration
                     .clone();
                 if let DeclKind::Template(template) = template_decl.kind {

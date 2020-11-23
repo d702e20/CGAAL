@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::lcgs::ast::Decl;
 use std::fmt::{Display, Formatter};
+use std::cell::RefCell;
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -28,9 +29,10 @@ pub struct Symbol {
 
 /// A `SymbolTable` keeps track of registered symbols and their properties.
 /// In this language symbols always belongs to either the global scope or a
-/// player. The player's name gives access to the symbols owner by that player.
+/// player. Hence, keys are `SymbolIdentifier`s consisting of both an
+/// owner and a name.
 pub struct SymbolTable {
-    symbols: HashMap<SymbolIdentifier, Symbol>,
+    symbols: HashMap<SymbolIdentifier, RefCell<Symbol>>,
 }
 
 impl SymbolTable {
@@ -47,7 +49,7 @@ impl SymbolTable {
     /// Creates and inserts a symbol for the given declaration for the given owner with the
     /// given name. If the name is already associated with a different symbol, the previous
     /// symbol is returned.
-    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<Symbol> {
+    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<RefCell<Symbol>> {
         let symb_id = SymbolIdentifier {
             owner: owner.clone(),
             name: name.to_string(),
@@ -56,11 +58,11 @@ impl SymbolTable {
             identifier: symb_id.clone(),
             declaration: decl,
         };
-        self.symbols.insert(symb_id, symb)
+        self.symbols.insert(symb_id, RefCell::new(symb))
     }
 
     /// Get the symbol associated with the given owner and name, if it exists.
-    pub fn get(&self, owner: &Owner, name: &str) -> Option<&Symbol> {
+    pub fn get(&self, owner: &Owner, name: &str) -> Option<&RefCell<Symbol>> {
         let symb_id = SymbolIdentifier {
             owner: owner.clone(),
             name: name.to_string(),
@@ -76,8 +78,8 @@ impl Default for SymbolTable {
 }
 
 impl IntoIterator for SymbolTable {
-    type Item = (SymbolIdentifier, Symbol);
-    type IntoIter = std::collections::hash_map::IntoIter<SymbolIdentifier, Symbol>;
+    type Item = (SymbolIdentifier, RefCell<Symbol>);
+    type IntoIter = std::collections::hash_map::IntoIter<SymbolIdentifier, RefCell<Symbol>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.symbols.into_iter()
