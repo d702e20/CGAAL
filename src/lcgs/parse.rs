@@ -323,6 +323,7 @@ pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
 #[cfg(test)]
 mod tests {
     use crate::lcgs::ast::BinaryOpKind::*;
+
     use super::*;
 
     #[test]

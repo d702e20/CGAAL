@@ -1,8 +1,8 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 use crate::lcgs::ast::Decl;
-use std::fmt::{Display, Formatter};
-use std::cell::RefCell;
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -107,9 +107,13 @@ impl Owner {
 
 impl Display for Owner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Owner::Player(pname) => pname,
-            Owner::Global => ":global",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Owner::Player(pname) => pname,
+                Owner::Global => ":global",
+            }
+        )
     }
 }

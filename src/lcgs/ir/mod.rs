@@ -1,4 +1,4 @@
-mod intermediate;
 mod eval;
-pub mod symbol_table;
+mod intermediate;
 mod symbol_checker;
+pub mod symbol_table;

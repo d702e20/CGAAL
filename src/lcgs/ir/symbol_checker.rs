@@ -78,10 +78,10 @@ impl<'a> SymbolChecker<'a> {
                         panic!("Expected constant expression. Found reference to player.")
                     } else {
                         self.symbols
-                        .get(&Owner::Global, &name)
+                            .get(&Owner::Global, &name)
                             // TODO Use custom error
-                        .expect("Expected constant expression. Found unknown constant.")
-                        .borrow()
+                            .expect("Expected constant expression. Found unknown constant.")
+                            .borrow()
                     }
                 } else {
                     if let Some(player_name) = owner {

@@ -1,9 +1,9 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
+use std::ops::{Add, Div, Mul, Sub};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
-use std::ops::{Add, Mul, Sub, Div};
 
 /// The root of a LCGS program.
 #[derive(Debug, Eq, PartialEq)]
@@ -60,7 +60,7 @@ pub enum Identifier {
     /// The Resolved variant is only created in later phases of the compilation once we know
     /// exactly who the owner is. In other words, this variant implies that an associated symbol
     /// exists.
-    Resolved { owner: Owner, name: String }
+    Resolved { owner: Owner, name: String },
 }
 
 impl Identifier {
@@ -69,7 +69,7 @@ impl Identifier {
         match self {
             Identifier::Simple { name, .. } => name,
             Identifier::OptionalOwner { name, .. } => name,
-            Identifier::Resolved { name, .. } => name
+            Identifier::Resolved { name, .. } => name,
         }
     }
 }
