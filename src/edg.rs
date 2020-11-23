@@ -463,6 +463,7 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
+    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -652,6 +653,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn test_small_dg_all_true_except_for_c() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -834,6 +836,7 @@ mod test {
         );
     }
     #[test]
+    #[ignore]
     fn test_a_node_with_no_succsessors() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1012,6 +1015,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
