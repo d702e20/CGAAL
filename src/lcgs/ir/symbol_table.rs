@@ -13,10 +13,7 @@ pub struct SymbolIdentifier {
 
 impl Display for SymbolIdentifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}", match &self.owner {
-            Owner::Player(pname) => pname,
-            Owner::Global => ":global",
-        }, &self.name)
+        write!(f, "{}.{}", &self.owner, &self.name)
     }
 }
 
@@ -69,6 +66,10 @@ impl SymbolTable {
         };
         self.symbols.get(&symb_id)
     }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, SymbolIdentifier, RefCell<Symbol>> {
+        self.into_iter()
+    }
 }
 
 impl Default for SymbolTable {
@@ -101,5 +102,14 @@ impl Owner {
             owner: self.clone(),
             name: name.to_string(),
         }
+    }
+}
+
+impl Display for Owner {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Owner::Player(pname) => pname,
+            Owner::Global => ":global",
+        })
     }
 }

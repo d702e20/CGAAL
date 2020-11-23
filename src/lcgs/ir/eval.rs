@@ -4,7 +4,6 @@ use crate::lcgs::ir::symbol_table::{Owner, SymbolTable};
 pub struct Evaluator<'a> {
     symbols: &'a SymbolTable,
     scope_owner: &'a Owner,
-    expect_constant: bool,
 }
 
 impl<'a> Evaluator<'a> {
@@ -12,13 +11,7 @@ impl<'a> Evaluator<'a> {
         Evaluator {
             symbols,
             scope_owner,
-            expect_constant: false,
         }
-    }
-
-    pub fn expect_constant(&mut self, expect_constant: bool) -> &mut Evaluator<'a> {
-        self.expect_constant = expect_constant;
-        self
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<i32, ()> {
@@ -32,11 +25,10 @@ impl<'a> Evaluator<'a> {
     }
 
     fn eval_ident(&self, id: &Identifier) -> Result<i32, ()> {
-        // Owner may be omitted. If omitted, we assume it is the scope owner, unless such thing
-        // does not exist, then we assume it's global. If we still can't find it, we have an error.
+        // At this point identifiers should be resolved and easily found in the symbol table
         let symb = match id {
             Identifier::Simple { .. } | Identifier::OptionalOwner { .. } => {
-                panic!("Should never be evaluated")
+                panic!("Unresolved identifier. Something went wrong in symbol checking.")
             }
             Identifier::Resolved { owner, name } => self
                 .symbols
@@ -53,9 +45,9 @@ impl<'a> Evaluator<'a> {
         } else {
             match &symb.declaration.kind {
                 DeclKind::Const(con) => self.eval(&con.definition),
-                DeclKind::Label(_) => unimplemented!(), // TODO Depends on context
-                DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on context
-                DeclKind::Transition(_) => unimplemented!(), // TODO Depends on context
+                DeclKind::Label(_) => unimplemented!(), // TODO Depends on current state
+                DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on current state
+                DeclKind::Transition(_) => unimplemented!(), // TODO Depends on current transition
                 _ => Err(()),
             }
         }
