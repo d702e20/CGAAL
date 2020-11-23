@@ -15,7 +15,7 @@ impl Display for SymbolIdentifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}", match &self.owner {
             Owner::Player(pname) => pname,
-            Owner::Global => "_global",
+            Owner::Global => ":global",
         }, &self.name)
     }
 }
@@ -77,12 +77,12 @@ impl Default for SymbolTable {
     }
 }
 
-impl IntoIterator for SymbolTable {
-    type Item = (SymbolIdentifier, RefCell<Symbol>);
-    type IntoIter = std::collections::hash_map::IntoIter<SymbolIdentifier, RefCell<Symbol>>;
+impl<'a> IntoIterator for &'a SymbolTable {
+    type Item = (&'a SymbolIdentifier, &'a RefCell<Symbol>);
+    type IntoIter = std::collections::hash_map::Iter<'a, SymbolIdentifier, RefCell<Symbol>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.symbols.into_iter()
+        self.symbols.iter()
     }
 }
 
