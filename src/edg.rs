@@ -477,7 +477,7 @@ mod test {
             G,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
@@ -598,7 +598,7 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::G => {
-                        let mut successors = HashSet::new();
+                        let successors = HashSet::new();
                         successors
                     }
                 }
@@ -661,7 +661,7 @@ mod test {
             D,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
@@ -704,7 +704,7 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::C => {
-                        let mut successors = HashSet::new();
+                        let successors = HashSet::new();
 
                         successors
                     }
@@ -754,7 +754,7 @@ mod test {
             D,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
@@ -840,7 +840,7 @@ mod test {
             A,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
@@ -853,7 +853,7 @@ mod test {
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
                 match vertex {
                     ExampleEDGVertices::A => {
-                        let mut successors = HashSet::new();
+                        let successors = HashSet::new();
 
                         successors
                     }
@@ -876,7 +876,7 @@ mod test {
             C,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
@@ -898,12 +898,12 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::B => {
-                        let mut successors = HashSet::new();
+                        let successors = HashSet::new();
 
                         successors
                     }
                     ExampleEDGVertices::C => {
-                        let mut successors = HashSet::new();
+                        let successors = HashSet::new();
 
                         successors
                     }
@@ -931,7 +931,7 @@ mod test {
             D,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
@@ -1019,7 +1019,7 @@ mod test {
             B,
         }
         impl Display for ExampleEDGVertices {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
