@@ -1,0 +1,30 @@
+// Power Control in Cellular Networks - http://www.prismmodelchecker.org/casestudies/power_control.php
+// NEED A RAND FUNCTION FOR THIS TO WORK
+
+player p1 = phoneuser [otheruser = p2];
+player p2 = phoneuser [otheruser = p1];
+
+const powmax = 10;
+const energymax = 10;
+const fail = 10;
+
+totalquality : int init 0;
+totalquality' = p1.quality + p2.quality;
+
+template phoneuser(otheruser: phoneuser)
+
+	power : [1 .. powmax] init 1;
+	power' = power + (fail < (rand(0,100) ? increase_power : 0));
+	energy : [0 .. energymax] init energymax;
+	energy' = max(0, energy - power);
+	
+	quality = 
+		(0 < energy & 0 < otheruser.energy) * (1000*(1 - pow(2,-0.5*power / (otheruser.power + 1))))
+		+
+		(0 < energy & 0 = otheruser.energy) * 1000*(1 - pow(2,-0.5*power));
+
+	
+	[empty_battery] energy = 0;
+	[no_increase] 0 < energy;
+	[increase_power] 0 < energy & power < powmax;
+endtemplate
