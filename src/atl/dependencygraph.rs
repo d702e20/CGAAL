@@ -275,7 +275,7 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
 }
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
-    fn invert_players(&self, players: &Vec<Player>) -> HashSet<Player> {
+    fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
         let max_players = self.game_structure.max_player() as usize;
         let mut inv_players =
             HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
@@ -294,7 +294,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
     fn succ(&self, vert: &ATLVertex) -> HashSet<Edges<ATLVertex>, RandomState> {
         match vert {
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
-                Phi::PROPOSITION(prop) => {
+                Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(&prop) {
                         let mut edges: HashSet<Edges<ATLVertex>> = HashSet::new();
@@ -307,7 +307,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         HashSet::new()
                     }
                 }
-                Phi::NOT(phi) => {
+                Phi::Not(phi) => {
                     let mut edges: HashSet<Edges<ATLVertex>> = HashSet::new();
 
                     edges.insert(Edges::NEGATION(NegationEdge {
@@ -320,7 +320,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::OR(left, right) => {
+                Phi::Or(left, right) => {
                     let mut edges = HashSet::new();
 
                     let left_targets = vec![ATLVertex::FULL {
@@ -343,7 +343,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::NEXT { players, formula } => {
+                Phi::Next { players, formula } => {
                     let moves: Vec<usize> = self
                         .game_structure
                         .move_count(*state)
@@ -366,12 +366,12 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         })
                         .collect::<HashSet<Edges<ATLVertex>>>()
                 }
-                Phi::DESPITE_UNTIL {
+                Phi::DespiteUntil {
                     players,
                     pre,
                     until,
                 } => {
-                    let inv_players = self.invert_players(players);
+                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // hyper-edges with pre occurring
@@ -412,7 +412,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::ENFORCE_UNTIL {
+                Phi::EnforceUntil {
                     players,
                     pre,
                     until,

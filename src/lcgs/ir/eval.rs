@@ -37,19 +37,12 @@ impl<'a> Evaluator<'a> {
                 .borrow(),
         };
 
-        if self.expect_constant {
-            match &symb.declaration.kind {
-                DeclKind::Const(con) => self.eval(&con.definition),
-                _ => Err(()),
-            }
-        } else {
-            match &symb.declaration.kind {
-                DeclKind::Const(con) => self.eval(&con.definition),
-                DeclKind::Label(_) => unimplemented!(), // TODO Depends on current state
-                DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on current state
-                DeclKind::Transition(_) => unimplemented!(), // TODO Depends on current transition
-                _ => Err(()),
-            }
+        match &symb.declaration.kind {
+            DeclKind::Const(con) => self.eval(&con.definition),
+            DeclKind::Label(_) => unimplemented!(), // TODO Depends on current state
+            DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on current state
+            DeclKind::Transition(_) => unimplemented!(), // TODO Depends on current transition
+            _ => Err(()),
         }
     }
 

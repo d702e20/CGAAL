@@ -7,14 +7,15 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::BinaryOpKind::{Addition, Division, Multiplication, Subtraction};
+use crate::lcgs::ast::*;
 use crate::lcgs::ast::DeclKind::*;
+use crate::lcgs::ast::DeclKind::{
+    Const, Label, Player, StateVar, StateVarChange, Template, Transition,
+};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::ast::*;
-use crate::lcgs::ast::{BinaryOpKind, Decl, Expr, ExprKind, Identifier, StateVarDecl, TypeRange};
-use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
+use crate::lcgs::precedence::Associativity::RightToLeft;
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -73,7 +74,7 @@ fn ws() -> Parser<'static, u8, ()> {
 
 /// Parser that parses a typical positive integer number
 fn number() -> Parser<'static, u8, Expr> {
-    let integer = non_0_digit() - digit().repeat(0..) | sym(b'0');
+    let integer = (non_0_digit() - digit().repeat(0..)) | sym(b'0');
     let parsed = integer
         .collect()
         .convert(str::from_utf8)
@@ -302,7 +303,7 @@ fn root() -> Parser<'static, u8, Root> {
     }) | var_change_decl().map(|vcd| Decl {
         kind: StateVarChange(Box::new(vcd)),
     }) | player_decl().map(|pd| Decl {
-        kind: Player(Box::new(pd)),
+        kind: DeclKind::Player(Box::new(pd)),
     }) | const_decl().map(|cd| Decl {
         kind: Const(Box::new(cd)),
     });
@@ -321,8 +322,7 @@ pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lcgs::ast::BinaryOpKind::{And, Equality, Implication, Inequality, LessThan};
-
+    use crate::lcgs::ast::BinaryOpKind::*;
     use super::*;
 
     #[test]
