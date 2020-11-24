@@ -11,7 +11,7 @@ pub enum CheckMode {
     LabelOrTransition,
     /// In StateVarChange mode, identifiers in expressions can only refer constants, state
     /// variables, and transitions (actions)
-    StateVarChange,
+    StateVarUpdate,
 }
 
 impl CheckMode {
@@ -23,7 +23,7 @@ impl CheckMode {
             CheckMode::LabelOrTransition => {
                 matches!(decl_kind, DeclKind::Const(_) | DeclKind::StateVar(_))
             }
-            CheckMode::StateVarChange => {
+            CheckMode::StateVarUpdate => {
                 matches!(decl_kind, DeclKind::Const(_) | DeclKind::StateVar(_) | DeclKind::Transition(_))
             }
         }

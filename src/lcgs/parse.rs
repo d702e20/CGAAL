@@ -9,7 +9,7 @@ use pom::parser::*;
 
 use crate::lcgs::ast::DeclKind::*;
 use crate::lcgs::ast::DeclKind::{
-    Const, Label, Player, StateVar, StateVarChange, Template, Transition,
+    Const, Label, Player, StateVar, Template, Transition,
 };
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
@@ -207,7 +207,7 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
     let base = identifier() - ws() - sym(b':') - ws() + type_range();
     let init = seq(b"init") * ws() * expr();
     let change = identifier() - sym(b'\'') - ws() - sym(b'=') - ws() + expr();
-    let whole = base - ws() + init - ws() - sym(b':') - ws() + change;
+    let whole = base - ws() + init - ws() - sym(b';') - ws() + change;
     whole.convert(|(((name, range), initv), (prime, nextv))| {
         if name == prime {
             Ok(StateVarDecl {
@@ -220,14 +220,6 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
             Err("The names of the state variable and the following update declaration does not match.")
         }
     })
-}
-
-/// Parser that parses a variable-change declaration, e.g.
-/// /// "`health' = health - 1`"
-fn var_change_decl() -> Parser<'static, u8, StateVarChangeDecl> {
-    let name = identifier() - sym(b'\'');
-    let change = name - ws() - sym(b'=') - ws() + expr();
-    change.map(|(name, next_value)| StateVarChangeDecl { name, next_value })
 }
 
 /// Parser that parses a label declaration, e.g.
@@ -291,8 +283,6 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
         kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
         kind: StateVar(Box::new(vd)),
-    }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Box::new(vcd)),
     }) | transition_decl().map(|td| Decl {
         kind: Transition(Box::new(td)),
     });
@@ -308,8 +298,6 @@ fn root() -> Parser<'static, u8, Root> {
         kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
         kind: StateVar(Box::new(vd)),
-    }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Box::new(vcd)),
     }) | player_decl().map(|pd| Decl {
         kind: DeclKind::Player(Box::new(pd)),
     }) | const_decl().map(|cd| Decl {
@@ -823,7 +811,7 @@ mod tests {
     fn test_var_decl_02() {
         // Var decl where change name does not match
         let input = br"health : [0 .. max_health] init max_health; foo' = health";
-        let parser = var_change_decl();
+        let parser = var_decl();
         assert!(parser.parse(input).is_err());
     }
 

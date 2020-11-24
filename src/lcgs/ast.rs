@@ -25,7 +25,6 @@ pub enum DeclKind {
     Const(Box<ConstDecl>),
     Label(Box<LabelDecl>),
     StateVar(Box<StateVarDecl>),
-    StateVarChange(Box<StateVarChangeDecl>),
     Player(Box<PlayerDecl>),
     Template(Box<TemplateDecl>),
     Transition(Box<TransitionDecl>),
@@ -39,7 +38,6 @@ impl DeclKind {
             DeclKind::Const(decl) => &decl.name,
             DeclKind::Label(decl) => &decl.name,
             DeclKind::StateVar(decl) => &decl.name,
-            DeclKind::StateVarChange(decl) => &decl.name,
             DeclKind::Player(decl) => &decl.name,
             DeclKind::Template(decl) => &decl.name,
             DeclKind::Transition(decl) => &decl.name,
@@ -130,14 +128,6 @@ pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
     pub initial_value: Expr,
-    pub next_value: Expr,
-}
-
-/// A variable-change declaration. In this declaration the user defines how a variable
-/// changes based on the previous state and the actions taken.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct StateVarChangeDecl {
-    pub name: Identifier,
     pub next_value: Expr,
 }
 
