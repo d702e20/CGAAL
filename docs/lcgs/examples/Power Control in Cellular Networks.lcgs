@@ -11,7 +11,7 @@ const fail = 10;
 totalquality : int init 0;
 totalquality' = p1.quality + p2.quality;
 
-template phoneuser(otheruser: phoneuser)
+template phoneuser
 
 	power : [1 .. powmax] init 1;
 	power' = power + (fail < (rand(0,100) ? increase_power : 0));

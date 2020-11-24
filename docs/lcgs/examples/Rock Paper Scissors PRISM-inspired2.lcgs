@@ -4,7 +4,7 @@
 player p1 = rsplayer[other=p2];
 player p2 = rsplayer[other=p1];
 
-template rsplayer[other: rsplayer]
+template rsplayer
     won : [0..1] init 0;
     won' = (other.paper & scissors) || (other.scissors & rock) || (other.rock & paper);
 

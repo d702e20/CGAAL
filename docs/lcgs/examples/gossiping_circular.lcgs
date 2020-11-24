@@ -12,7 +12,7 @@ player p3 = girl [friend1 = p2, friend2 = p4,
 player p4 = girl [friend1 = p3, friend2 = p1,
 	secret1 = 0, secret2 = 0, secret3 = 0, secret4 = 1];
 
-template girl [friend1: girl, friend2: girl, secret1: int, secret2: int, secret 3: int, secret4: int]
+template girl
 	secret1' = 
 		// Max between currently known, and max recieved
 		max(

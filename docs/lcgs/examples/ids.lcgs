@@ -11,14 +11,13 @@ const INIT_HEALTH = 5;
 rounds : [0..MAX_ROUNDS];
 rounds' = max(rounds + 1, MAX_ROUNDS);
 
-template attacker_defender [opposition: attacker_defender, is_attacker: number]
+template attacker_defender
     system_state : [0..1] //0 healthy, 1 compromised
     system_state' = is_attacker ? 
                        (opposition.defend1 * attack2) + (defender.defend2 * attack1)
                      : (opposition.attack2 * defend1) + (opposition.attack1 * defend2);
 
     system_health : [0..MAX_SYSTEM_HEALTH] init INIT_HEALTH;
-
     system_health' = is_attacker ?
                         system_state + (opposition.defend1 * attack2) + (defender.defend2 * attack1)
                       : system_state + (opposition.attack2 * defend1) + (opposition.attack1 * defend2);

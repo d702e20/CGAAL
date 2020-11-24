@@ -11,8 +11,7 @@ const MULTIPLIER = 10;
 rounds : [0 .. NUMBER_OF_ROUNDS+1] init 0;
 rounds' = min(rounds + 1, NUMBER_OF_ROUNDS);
 
-template capitalist [other: capitalist]
-    capital : [0 .. CAP_OF_CAPITAL] init INITIAL_ENDOWMENT;
+template capitalist
     profit : [0 .. CAP_OF_CAPITAL] init INITIAL_ENDOWMENT;
 
     profit' = ((capital - ((25 * (capital / 100) * i_25) + (50 * (capital / 100) * i_50) +
@@ -31,7 +30,7 @@ template capitalist [other: capitalist]
                               / 2) - INITIAL_ENDOWMENT;
 
 
-    label worth_most = capital > other.capital;
+    capital : [0 .. CAP_OF_CAPITAL] init INITIAL_ENDOWMENT;
 
     capital' = (
         capital - ((25 * (capital / 100) * i_25) + (50 * (capital / 100) * i_50) +
@@ -49,6 +48,7 @@ template capitalist [other: capitalist]
                 // Half to each player.
                 / 2;
 
+    label worth_most = capital > other.capital;
 
 	[i_0]   rounds' <  NUMBER_OF_ROUNDS;
 	[i_25]  rounds' <  NUMBER_OF_ROUNDS;
