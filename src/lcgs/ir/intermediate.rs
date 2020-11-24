@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use crate::atl::gamestructure::GameStructure;
 use crate::lcgs::ast;
 use crate::lcgs::ast::ExprKind::Number;
 use crate::lcgs::ast::{
@@ -11,6 +12,7 @@ use crate::lcgs::ir::symbol_table::Owner::Global;
 use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::collections::hash_map::RandomState;
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
@@ -68,6 +70,33 @@ impl IntermediateLCGS {
         };
 
         return Ok(ilcgs);
+    }
+
+    /// Transforms a state index to a [State].
+    fn make_state(&self, state_index: u32) -> State {
+        let mut state = State(HashMap::new());
+        let mut carry = state_index as i32;
+
+        // The following method resembles the typically way of transforming a number of seconds
+        // into seconds, minutes, hours, and days. In this case the time units are state variables
+        // instead, and similarly to time units, each state variable has a different size.
+        for symb_id in &self.vars {
+            let SymbolIdentifier { owner, name } = symb_id;
+            if let DeclKind::StateVar(var) =
+                &self.symbols.get(owner, name).unwrap().declaration.borrow().kind
+            {
+                let value = {
+                    let size = var.ir_range.len() as i32;
+                    let quotient = carry / size;
+                    let remainder = carry.rem_euclid(size);
+                    carry = quotient;
+                    var.ir_range.start + remainder
+                };
+                state.0.insert(symb_id.clone(), value);
+            }
+        }
+        debug_assert!(carry == 0, "State overflow. Invalid state index.");
+        state
     }
 }
 
@@ -223,11 +252,13 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
             }
             DeclKind::StateVar(var) => {
                 var.name = resolved_name;
-                // Both initial value, min, and max are expected to be constant
+                // Both initial value, min, and max are expected to be constant.
+                // Hence, we also evaluate them now so we don't have to do that each time.
                 let checker = SymbolChecker::new(symbols, owner.clone(), CheckMode::Const);
-                var.initial_value = checker.check(&var.initial_value)?;
-                var.range.min = checker.check(&var.range.min)?;
-                var.range.max = checker.check(&var.range.max)?;
+                var.ir_initial_value = checker.check_eval(&var.initial_value)?;
+                let min = checker.check_eval(&var.range.min)?;
+                let max = checker.check_eval(&var.range.max)?;
+                var.ir_range = min..(max + 1);
                 var.next_value =
                     SymbolChecker::new(symbols, owner.clone(), CheckMode::StateVarUpdate)
                         .check(&var.next_value)?;
@@ -248,6 +279,30 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
         }
     }
     Ok(())
+}
+
+struct State(HashMap<SymbolIdentifier, i32>);
+
+impl GameStructure for IntermediateLCGS {
+    fn max_player(&self) -> u32 {
+        self.players.len() as u32
+    }
+
+    fn labels(&self, state: usize) -> HashSet<usize, RandomState> {
+        unimplemented!()
+    }
+
+    fn transitions(&self, state: usize, choices: Vec<usize>) -> usize {
+        unimplemented!()
+    }
+
+    fn available_moves(&self, state: usize, player: usize) -> u32 {
+        unimplemented!()
+    }
+
+    fn move_count(&self, state: usize) -> Vec<u32> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub, Range};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
@@ -127,7 +127,11 @@ pub struct TemplateDecl {
 pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
+    /// The range is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_range: Range<i32>,
     pub initial_value: Expr,
+    /// The initial value is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_initial_value: i32,
     pub next_value: Expr,
 }
 

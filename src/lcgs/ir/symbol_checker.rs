@@ -48,6 +48,17 @@ impl<'a> SymbolChecker<'a> {
         }
     }
 
+    /// Checks and evaluates an expressions. This is typically only used in [CheckMode::Const]
+    /// where we assume the expression can be reduced to a value already during symbol checking.
+    pub fn check_eval(&self, expr: &Expr) -> Result<i32, ()> {
+        let checked = self.check(expr)?;
+        if let ExprKind::Number(n) = checked.kind {
+            Ok(n)
+        } else {
+            Err(())
+        }
+    }
+
     /// Checks the given expressions
     pub fn check(&self, expr: &Expr) -> Result<Expr, ()> {
         match &expr.kind {
