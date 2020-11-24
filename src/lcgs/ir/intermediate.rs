@@ -54,10 +54,10 @@ impl IntermediateLCGS {
 
         // Collect all symbol names that will be relevant for the game structure
         let labels = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(rf_decl.borrow().declaration.kind, DeclKind::Label(_))
+            matches!(rf_decl.declaration.borrow().kind, DeclKind::Label(_))
         });
         let vars = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(rf_decl.borrow().declaration.kind, DeclKind::StateVar(_))
+            matches!(rf_decl.declaration.borrow().kind, DeclKind::StateVar(_))
         });
 
         let ilcgs = IntermediateLCGS {
@@ -75,7 +75,7 @@ impl IntermediateLCGS {
 /// predicate.
 fn fetch_decls<F>(symbols: &SymbolTable, pred: F) -> Vec<SymbolIdentifier>
 where
-    F: Fn(&SymbolIdentifier, &RefCell<Symbol>) -> bool,
+    F: Fn(&SymbolIdentifier, &Symbol) -> bool,
 {
     symbols
         .iter()
@@ -156,8 +156,8 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
             let template_decl = symbols
                 .get(&Owner::Global, &player_decl.template.name())
                 .expect("Unknown template") // TODO Use custom error
-                .borrow()
                 .declaration
+                .borrow()
                 .clone();
 
             if let DeclKind::Template(template) = template_decl.kind {
@@ -215,9 +215,9 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
             name: name.clone(),
         };
 
-        // Reduce the declaration's expression(s)
-        let mut symb = rc_symb.borrow_mut();
-        match symb.declaration.kind.borrow_mut() {
+        // Optimize the declaration's expression(s)
+        let mut declaration = rc_symb.declaration.borrow_mut();
+        match declaration.kind.borrow_mut() {
             DeclKind::Label(label) => {
                 label.name = resolved_name;
                 label.condition =
