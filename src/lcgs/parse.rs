@@ -206,11 +206,19 @@ fn type_range() -> Parser<'static, u8, TypeRange> {
 fn var_decl() -> Parser<'static, u8, StateVarDecl> {
     let base = identifier() - ws() - sym(b':') - ws() + type_range();
     let init = seq(b"init") * ws() * expr();
-    let whole = base - ws() + init;
-    whole.map(|((name, range), init_e)| StateVarDecl {
-        name,
-        range,
-        initial_value: init_e,
+    let change = identifier() - sym(b'\'') - ws() - sym(b'=') - ws() + expr();
+    let whole = base - ws() + init - ws() - sym(b':') - ws() + change;
+    whole.convert(|(((name, range), initv), (prime, nextv))| {
+        if name == prime {
+            Ok(StateVarDecl {
+                name,
+                range,
+                initial_value: initv,
+                next_value: nextv,
+            })
+        } else {
+            Err("The names of the state variable and the following update declaration does not match.")
+        }
     })
 }
 
@@ -778,7 +786,7 @@ mod tests {
     #[test]
     fn test_var_decl_01() {
         // Simple var decl
-        let input = br"health : [0 .. max_health] init max_health";
+        let input = br"health : [0 .. max_health] init max_health; health' = health";
         let parser = var_decl();
         assert_eq!(
             parser.parse(input),
@@ -800,25 +808,23 @@ mod tests {
                         owner: None,
                         name: "max_health".to_string(),
                     }))
+                },
+                next_value: Expr {
+                    kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
+                        owner: None,
+                        name: "health".to_string(),
+                    }))
                 }
             })
         );
     }
 
     #[test]
-    fn test_var_change_decl_01() {
-        // Simple var change decl
-        let input = br"health' = 2";
+    fn test_var_decl_02() {
+        // Var decl where change name does not match
+        let input = br"health : [0 .. max_health] init max_health; foo' = health";
         let parser = var_change_decl();
-        assert_eq!(
-            parser.parse(input),
-            Ok(StateVarChangeDecl {
-                name: Identifier::Simple {
-                    name: "health".to_string()
-                },
-                next_value: Expr { kind: Number(2) },
-            })
-        );
+        assert!(parser.parse(input).is_err());
     }
 
     #[test]

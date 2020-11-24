@@ -123,12 +123,14 @@ pub struct TemplateDecl {
 }
 
 /// A variable declaration. The state of the CGS is the combination of all variables.
-/// E.g. "`health : [0 .. max_health] init max_health`"
+/// All variable declaration also define how it is updated each transition.
+/// E.g. "`health : [0 .. max_health] init max_health; health' = health - 1`"
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
     pub initial_value: Expr,
+    pub next_value: Expr,
 }
 
 /// A variable-change declaration. In this declaration the user defines how a variable
