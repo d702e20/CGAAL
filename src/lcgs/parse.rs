@@ -7,16 +7,15 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
-use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::ast::*;
-use crate::lcgs::ast::{BinaryOpKind, Expr, Identifier};
-use crate::lcgs::precedence::Associativity::RightToLeft;
-use crate::lcgs::precedence::{precedence, Precedence};
-
+use crate::lcgs::ast::DeclKind::*;
 use crate::lcgs::ast::DeclKind::{
     Const, Label, Player, StateVar, StateVarChange, Template, Transition,
 };
+use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
+use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
+use crate::lcgs::ast::*;
+use crate::lcgs::precedence::Associativity::RightToLeft;
+use crate::lcgs::precedence::{precedence, Precedence};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -94,16 +93,16 @@ fn name() -> Parser<'static, u8, String> {
 
 /// Parser that parses an identifier.
 fn identifier() -> Parser<'static, u8, Identifier> {
-    name().map(|name| Identifier { name })
+    name().map(|name| Identifier::Simple { name })
 }
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
 /// I.e. "health" or "p1.health"
-fn owned_identifier() -> Parser<'static, u8, OwnedIdentifier> {
+fn owned_identifier() -> Parser<'static, u8, Identifier> {
     let identifier = (name() - sym(b'.')).opt() + name();
     identifier
         .with_span()
-        .map(|(_span, (owner, name))| OwnedIdentifier { owner, name })
+        .map(|(_span, (owner, name))| Identifier::OptionalOwner { owner, name })
 }
 
 /// Parser that parses binary operators
@@ -153,7 +152,7 @@ fn solve_binary_precedence(
             }
             // Combine lhs and rhs using the given binary operator
             lhs = Expr {
-                kind: BinaryOp(op, Rc::from(lhs), Rc::from(rhs)),
+                kind: BinaryOp(op, Box::new(lhs), Box::new(rhs)),
             }
         } else {
             break;
@@ -167,7 +166,7 @@ fn expr() -> Parser<'static, u8, Expr> {
     let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr();
     tern.map(|((cond, then), els)| Expr {
-        kind: TernaryIf(Rc::from(cond), Rc::from(then), Rc::from(els)),
+        kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
     }) | binary_expr()
 }
 
@@ -182,14 +181,14 @@ fn binary_expr() -> Parser<'static, u8, Expr> {
 /// or a primary expression, i.e. number, identifier, or a parenthesised expression
 fn primary_expr() -> Parser<'static, u8, Expr> {
     let neg = (sym(b'-') * call(primary_expr)).map(|e| Expr {
-        kind: UnaryOp(Negation, Rc::from(e)),
+        kind: UnaryOp(Negation, Box::new(e)),
     });
     let not = (sym(b'!') * call(primary_expr)).map(|e| Expr {
-        kind: UnaryOp(Not, Rc::from(e)),
+        kind: UnaryOp(Not, Box::new(e)),
     });
     let num = number();
     let ident = owned_identifier().map(|i| Expr {
-        kind: OwnedIdent(Rc::from(i)),
+        kind: OwnedIdent(Box::new(i)),
     });
     let par = sym(b'(') * ws() * call(expr) - ws() - sym(b')');
     neg | not | num | ident | par
@@ -281,56 +280,36 @@ fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
 /// Parser that parses template declarations
 fn template_decl() -> Parser<'static, u8, TemplateDecl> {
     let simple_decl = label_decl().map(|ld| Decl {
-        kind: Label(Rc::from(ld)),
+        kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
-        kind: StateVar(Rc::from(vd)),
+        kind: StateVar(Box::new(vd)),
     }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Rc::from(vcd)),
+        kind: StateVarChange(Box::new(vcd)),
     }) | transition_decl().map(|td| Decl {
-        kind: Transition(Rc::from(td)),
+        kind: Transition(Box::new(td)),
     });
     let inner_decls = (simple_decl.with_semi() - ws()).repeat(0..);
-    let temp = seq(b"template") * ws() * identifier() - ws() + template_params().opt() - ws()
-        + inner_decls
-        - ws()
-        - seq(b"endtemplate");
-    temp.map(|((name, params), decls)| TemplateDecl {
-        name,
-        decls,
-        params: params.unwrap_or_default(),
-    })
-}
-
-/// Parser that parses a template's parameters, i.e. `(target1: shooter, dmg: int)`
-fn template_params() -> Parser<'static, u8, Vec<Param>> {
-    let param = (identifier() - ws() - sym(b':') - ws() + identifier()).map(|(name, t)| Param {
-        name,
-        typ: if t.name == "int" {
-            ParamType::IntType
-        } else {
-            ParamType::IdentType(t)
-        },
-    });
-    let params = list(param, ws() * sym(b',') - ws());
-    sym(b'(') * ws() * params - ws() - sym(b')')
+    let temp =
+        seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
+    temp.map(|(name, decls)| TemplateDecl { name, decls })
 }
 
 /// Parser that parses root level, i.e. all the global declarations
 fn root() -> Parser<'static, u8, Root> {
     let simple_decl = label_decl().map(|ld| Decl {
-        kind: Label(Rc::from(ld)),
+        kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
-        kind: StateVar(Rc::from(vd)),
+        kind: StateVar(Box::new(vd)),
     }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Rc::from(vcd)),
+        kind: StateVarChange(Box::new(vcd)),
     }) | player_decl().map(|pd| Decl {
-        kind: Player(Rc::from(pd)),
+        kind: DeclKind::Player(Box::new(pd)),
     }) | const_decl().map(|cd| Decl {
-        kind: Const(Rc::from(cd)),
+        kind: Const(Box::new(cd)),
     });
     let any_decl = simple_decl.with_semi()
         | template_decl().map(|td| Decl {
-            kind: Template(Rc::from(td)),
+            kind: Template(Box::new(td)),
         });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
@@ -343,9 +322,7 @@ pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lcgs::ast::BinaryOpKind::{
-        Addition, And, Division, Equality, Implication, LessThan, Multiplication, Subtraction,
-    };
+    use crate::lcgs::ast::BinaryOpKind::*;
 
     use super::*;
 
@@ -356,7 +333,7 @@ mod tests {
         let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
-            Ok(OwnedIdentifier {
+            Ok(Identifier::OptionalOwner {
                 owner: None,
                 name: "abc_ident_1".into()
             })
@@ -378,7 +355,7 @@ mod tests {
         let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
-            Ok(OwnedIdentifier {
+            Ok(Identifier::OptionalOwner {
                 owner: Some("player".into()),
                 name: "variable".into()
             })
@@ -394,9 +371,9 @@ mod tests {
             parser.parse(input),
             Ok(Expr {
                 kind: TernaryIf(
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr { kind: Number(2) }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr { kind: Number(2) }),
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -419,17 +396,17 @@ mod tests {
             parser.parse(input),
             Ok(Expr {
                 kind: TernaryIf(
-                    Rc::from(Expr {
-                        kind: UnaryOp(Not, Rc::from(Expr { kind: Number(1) }))
+                    Box::new(Expr {
+                        kind: UnaryOp(Not, Box::new(Expr { kind: Number(1) }))
                     }),
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr { kind: Number(2) }),
-                            Rc::from(Expr { kind: Number(3) })
+                            Box::new(Expr { kind: Number(2) }),
+                            Box::new(Expr { kind: Number(3) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(4) })
+                    Box::new(Expr { kind: Number(4) })
                 )
             })
         );
@@ -445,8 +422,8 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr { kind: Number(2) })
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr { kind: Number(2) })
                 )
             })
         );
@@ -462,14 +439,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -485,14 +462,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Subtraction,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Subtraction,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -508,8 +485,8 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Multiplication,
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr { kind: Number(2) })
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr { kind: Number(2) })
                 )
             })
         );
@@ -525,14 +502,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Multiplication,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Multiplication,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -548,14 +525,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Division,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Division,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) })
+                    Box::new(Expr { kind: Number(3) })
                 )
             })
         );
@@ -569,7 +546,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(Expr {
-                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) })),
+                kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) })),
             })
         );
     }
@@ -584,9 +561,9 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Subtraction,
-                    Rc::from(Expr { kind: Number(1) },),
-                    Rc::from(Expr {
-                        kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) })),
+                    Box::new(Expr { kind: Number(1) },),
+                    Box::new(Expr {
+                        kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) })),
                     })
                 )
             })
@@ -603,14 +580,14 @@ mod tests {
             Ok(Expr {
                 kind: UnaryOp(
                     Not,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Equality,
-                            Rc::from(Expr {
-                                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(1) }))
+                            Box::new(Expr {
+                                kind: UnaryOp(Negation, Box::new(Expr { kind: Number(1) }))
                             }),
-                            Rc::from(Expr {
-                                kind: UnaryOp(Negation, Rc::from(Expr { kind: Number(2) }))
+                            Box::new(Expr {
+                                kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) }))
                             }),
                         )
                     }),
@@ -629,14 +606,14 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Multiplication,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr { kind: Number(1) }),
-                            Rc::from(Expr { kind: Number(2) })
+                            Box::new(Expr { kind: Number(1) }),
+                            Box::new(Expr { kind: Number(2) })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(3) }),
+                    Box::new(Expr { kind: Number(3) }),
                 )
             })
         );
@@ -652,12 +629,12 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr { kind: Number(1) }),
-                    Rc::from(Expr {
+                    Box::new(Expr { kind: Number(1) }),
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Multiplication,
-                            Rc::from(Expr { kind: Number(2) }),
-                            Rc::from(Expr { kind: Number(3) })
+                            Box::new(Expr { kind: Number(2) }),
+                            Box::new(Expr { kind: Number(3) })
                         )
                     }),
                 )
@@ -675,26 +652,26 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Addition,
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
-                                    Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr { kind: Number(2) }),
+                                    Box::new(Expr { kind: Number(1) }),
+                                    Box::new(Expr { kind: Number(2) }),
                                 )
                             }),
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
-                                    Rc::from(Expr { kind: Number(3) }),
-                                    Rc::from(Expr { kind: Number(4) }),
+                                    Box::new(Expr { kind: Number(3) }),
+                                    Box::new(Expr { kind: Number(4) }),
                                 )
                             })
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) }),
+                    Box::new(Expr { kind: Number(5) }),
                 )
             })
         );
@@ -710,26 +687,26 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Addition,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             Division,
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     Multiplication,
-                                    Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr {
+                                    Box::new(Expr { kind: Number(1) }),
+                                    Box::new(Expr {
                                         kind: BinaryOp(
                                             Addition,
-                                            Rc::from(Expr { kind: Number(2) }),
-                                            Rc::from(Expr { kind: Number(3) }),
+                                            Box::new(Expr { kind: Number(2) }),
+                                            Box::new(Expr { kind: Number(3) }),
                                         )
                                     }),
                                 )
                             }),
-                            Rc::from(Expr { kind: Number(4) }),
+                            Box::new(Expr { kind: Number(4) }),
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) }),
+                    Box::new(Expr { kind: Number(5) }),
                 )
             })
         );
@@ -745,26 +722,26 @@ mod tests {
             Ok(Expr {
                 kind: BinaryOp(
                     Implication,
-                    Rc::from(Expr {
+                    Box::new(Expr {
                         kind: BinaryOp(
                             And,
-                            Rc::from(Expr {
+                            Box::new(Expr {
                                 kind: BinaryOp(
                                     LessThan,
-                                    Rc::from(Expr { kind: Number(1) }),
-                                    Rc::from(Expr {
+                                    Box::new(Expr { kind: Number(1) }),
+                                    Box::new(Expr {
                                         kind: BinaryOp(
                                             Multiplication,
-                                            Rc::from(Expr { kind: Number(2) }),
-                                            Rc::from(Expr { kind: Number(3) }),
+                                            Box::new(Expr { kind: Number(2) }),
+                                            Box::new(Expr { kind: Number(3) }),
                                         )
                                     }),
                                 )
                             }),
-                            Rc::from(Expr { kind: Number(4) }),
+                            Box::new(Expr { kind: Number(4) }),
                         )
                     }),
-                    Rc::from(Expr { kind: Number(5) })
+                    Box::new(Expr { kind: Number(5) })
                 )
             })
         );
@@ -806,20 +783,20 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(StateVarDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "health".to_string()
                 },
                 range: TypeRange {
                     min: Expr { kind: Number(0) },
                     max: Expr {
-                        kind: OwnedIdent(Rc::from(OwnedIdentifier {
+                        kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                             owner: None,
                             name: "max_health".to_string(),
                         }))
                     },
                 },
                 initial_value: Expr {
-                    kind: OwnedIdent(Rc::from(OwnedIdentifier {
+                    kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,
                         name: "max_health".to_string(),
                     }))
@@ -836,7 +813,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(StateVarChangeDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "health".to_string()
                 },
                 next_value: Expr { kind: Number(2) },
@@ -853,12 +830,12 @@ mod tests {
             parser.parse(input),
             Ok(LabelDecl {
                 condition: Expr {
-                    kind: OwnedIdent(Rc::from(OwnedIdentifier {
+                    kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,
                         name: "health".to_string(),
                     }))
                 },
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "alive".to_string(),
                 }
             })
@@ -873,7 +850,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(ConstDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "max_health".to_string(),
                 },
                 definition: Expr { kind: Number(1) }
@@ -904,18 +881,18 @@ mod tests {
             Ok(Relabeling {
                 relabellings: vec![
                     RelabelCase {
-                        prev_name: Identifier {
+                        prev_name: Identifier::Simple {
                             name: "target1".to_string()
                         },
-                        new_name: Identifier {
+                        new_name: Identifier::Simple {
                             name: "p2".to_string()
                         }
                     },
                     RelabelCase {
-                        prev_name: Identifier {
+                        prev_name: Identifier::Simple {
                             name: "target2".to_string()
                         },
-                        new_name: Identifier {
+                        new_name: Identifier::Simple {
                             name: "p3".to_string()
                         }
                     }
@@ -932,10 +909,10 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "p1".to_string()
                 },
-                template: Identifier {
+                template: Identifier::Simple {
                     name: "shooter".to_string()
                 },
                 relabeling: Relabeling {
@@ -953,18 +930,18 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "p1".to_string()
                 },
-                template: Identifier {
+                template: Identifier::Simple {
                     name: "shooter".to_string()
                 },
                 relabeling: Relabeling {
                     relabellings: vec![RelabelCase {
-                        prev_name: Identifier {
+                        prev_name: Identifier::Simple {
                             name: "target".to_string()
                         },
-                        new_name: Identifier {
+                        new_name: Identifier::Simple {
                             name: "p2".to_string()
                         }
                     }]
@@ -981,7 +958,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(TransitionDecl {
-                name: Identifier {
+                name: Identifier::Simple {
                     name: "shoot_right".to_string()
                 },
                 condition: Expr { kind: Number(1) },
