@@ -3,6 +3,7 @@ use std::cmp::{min, Ordering};
 type Num = usize;
 
 #[derive(Debug, Eq, PartialEq)]
+#[must_use = "this `Weight` is not used and might result in lost weight"]
 pub struct Weight {
     weight: Num,
     /// Slot 0 is the slot with the most significant weight
