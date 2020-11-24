@@ -2,7 +2,7 @@ use std::cmp::{min, Ordering};
 
 type Num = usize;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 #[must_use = "this `Weight` is not used and might result in lost weight"]
 pub struct Weight {
     weight: Num,
