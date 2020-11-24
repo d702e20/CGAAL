@@ -12,7 +12,7 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
     fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>, weight: Weight);
 
     /// Send negation edge for queuing to worker with id `to`
-    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>, weight: Weight);
+    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>);
 
     /// Signal to all workers to terminate because a result has been found
     fn terminate(&self, assignment: VertexAssignment);
@@ -24,8 +24,8 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
 #[derive(Debug)]
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
-    hyper_chans: Vec<Sender<(HyperEdge<V>, Weight)>>,
-    negation_chans: Vec<Sender<(NegationEdge<V>, Weight)>>,
+    hyper_chans: Vec<Sender<HyperEdge<V>>>,
+    negation_chans: Vec<Sender<NegationEdge<V>>>,
     term_chans: Vec<Sender<VertexAssignment>>,
     weight: Sender<Weight>,
 }
@@ -76,8 +76,8 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
 }
 
 type WorkQueue<V> = Receiver<Message<V>>;
-type HyperQueue<V> = Receiver<(HyperEdge<V>, Weight)>;
-type NegationQueue<V> = Receiver<(NegationEdge<V>, Weight)>;
+type HyperQueue<V> = Receiver<HyperEdge<V>>;
+type NegationQueue<V> = Receiver<NegationEdge<V>>;
 type TermQueue = Receiver<VertexAssignment>;
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
@@ -111,7 +111,7 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
             hyper_receivers.push(receiver);
         }
 
-        // Create a message channel foreach worker
+        // Create negation channel foreach worker
         let mut negation_senders = Vec::with_capacity(worker_count as usize);
         let mut negation_receivers = Vec::with_capacity(worker_count as usize);
 
