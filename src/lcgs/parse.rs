@@ -7,15 +7,15 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::*;
 use crate::lcgs::ast::DeclKind::*;
 use crate::lcgs::ast::DeclKind::{
     Const, Label, Player, StateVar, StateVarChange, Template, Transition,
 };
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::precedence::{precedence, Precedence};
+use crate::lcgs::ast::*;
 use crate::lcgs::precedence::Associativity::RightToLeft;
+use crate::lcgs::precedence::{precedence, Precedence};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
