@@ -8,9 +8,7 @@ use std::vec::Drain;
 use pom::parser::*;
 
 use crate::lcgs::ast::DeclKind::*;
-use crate::lcgs::ast::DeclKind::{
-    Const, Label, Player, StateVar, Template, Transition,
-};
+use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Template, Transition};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
@@ -206,8 +204,8 @@ fn type_range() -> Parser<'static, u8, TypeRange> {
 fn var_decl() -> Parser<'static, u8, StateVarDecl> {
     let base = identifier() - ws() - sym(b':') - ws() + type_range();
     let init = seq(b"init") * ws() * expr();
-    let change = identifier() - sym(b'\'') - ws() - sym(b'=') - ws() + expr();
-    let whole = base - ws() + init - ws() - sym(b';') - ws() + change;
+    let update = identifier() - sym(b'\'') - ws() - sym(b'=') - ws() + expr();
+    let whole = base - ws() + init - ws() - sym(b';') - ws() + update;
     whole.convert(|(((name, range), initv), (prime, nextv))| {
         if name == prime {
             Ok(StateVarDecl {
@@ -809,7 +807,7 @@ mod tests {
 
     #[test]
     fn test_var_decl_02() {
-        // Var decl where change name does not match
+        // Var decl where update name does not match
         let input = br"health : [0 .. max_health] init max_health; foo' = health";
         let parser = var_decl();
         assert!(parser.parse(input).is_err());

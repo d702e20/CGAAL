@@ -10,7 +10,7 @@ pub enum CheckMode {
     /// In LabelOrTransition mode, identifiers in expressions can only refer to constants
     /// and state variables.
     LabelOrTransition,
-    /// In StateVarChange mode, identifiers in expressions can only refer constants, state
+    /// In StateVarUpdate mode, identifiers in expressions can only refer constants, state
     /// variables, and transitions (actions)
     StateVarUpdate,
 }
@@ -130,7 +130,6 @@ impl<'a> SymbolChecker<'a> {
                     name: name.clone(),
                 })),
             });
-
         } else {
             // The try_borrow must have failed, which means that the
             // RefCell is currently being mutated by someone. We are only reducing
