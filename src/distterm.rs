@@ -3,7 +3,7 @@ use std::cmp::{min, Ordering};
 type Num = usize;
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) struct Weight {
+pub struct Weight {
     weight: Num,
     /// Slot 0 is the slot with the most significant weight
     slot: Num,
@@ -26,7 +26,7 @@ const MIN_TAKE_SLOT: Num = 0b1 << 14;
 impl Weight {
     /// Create weight with initial value for the beginning of a distributed computation.
     /// The distributed computation can be terminated once the controller value become this value again.
-    pub(crate) fn new_full() -> Self {
+    pub fn new_full() -> Self {
         Self {
             weight: FULL_WEIGHT,
             slot: 0,
@@ -35,7 +35,7 @@ impl Weight {
 
     /// Does this `Weight` have all the weight, or is it a fraction of the total weight?
     #[allow(clippy::absurd_extreme_comparisons)]
-    pub(crate) fn is_full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         assert!(
             (self.slot == 0 && self.weight <= FULL_WEIGHT) || self.slot > 0,
             "Total weight have overflowed. Is weight being added out of nowhere?"
@@ -46,7 +46,7 @@ impl Weight {
 
     /// Split weight evenly among two new weights.
     /// Returns Err if self if the minimal weight manual. Instead of splitting further, request more weight from the controller.
-    pub(crate) fn split(self) -> Result<(Weight, Weight), ()> {
+    pub fn split(self) -> Result<(Weight, Weight), ()> {
         if self.slot == Num::MAX && self.weight <= 1usize {
             // Can't split the smallest possible weight
             return Err(());
@@ -83,7 +83,7 @@ impl Weight {
     /// If the combined weight spans multiple slots the most significant part is returned as the first half of the tuple.
     /// The seconds half of the tuple is None if the combined value fits in a single slot, otherwise the least significant part is returned in the second half of the tuple.
     /// If the second half of the the tuple is Some, that value should be should be returned to the controller.
-    pub(crate) fn join(self, other: Self) -> (Self, Option<Self>) {
+    pub fn join(self, other: Self) -> (Self, Option<Self>) {
         match self.slot.cmp(&other.slot) {
             Ordering::Less => (other, Some(self)),
             Ordering::Greater => (self, Some(other)),
@@ -125,18 +125,18 @@ impl Weight {
     }
 }
 
-struct ControllerWeight {
+pub struct ControllerWeight {
     slots: Vec<Num>,
 }
 
 impl ControllerWeight {
     /// Create new ControllerWeight with zero weight present on the controller
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self { slots: vec![0] }
     }
 
     /// Return true if the controller have received all weight, when this happens the controller may terminate the computation.
-    pub(crate) fn is_full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         // if slot 0 if full, and any of the other slots have a weight of greater than 0 then the total weight have overflowed.
 
         self.slots[0] == FULL_WEIGHT
@@ -152,7 +152,7 @@ impl ControllerWeight {
         }
     }
 
-    pub(crate) fn receive_weight(&mut self, weight: Weight) {
+    pub fn receive_weight(&mut self, weight: Weight) {
         self.allocate_slot(weight.slot);
 
         let mut slot = weight.slot;
@@ -217,7 +217,7 @@ impl ControllerWeight {
 
     /// Take weight from the controller. This should only be used if a `Weight` have reached the minimum possible value, and needs to be refiled.
     /// Returns Err if the controller have no weight. Consider waiting for the controller to receive more weight from computations in-flight.
-    pub(crate) fn take_weight(&mut self) -> Result<Weight, ()> {
+    pub fn take_weight(&mut self) -> Result<Weight, ()> {
         self.allocate_slot(MIN_TAKE_SLOT);
 
         if let Some(weight) = self.reduce_weight_to_take() {
