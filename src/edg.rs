@@ -31,7 +31,7 @@ pub fn distributed_certain_zero<
     worker_count: u64,
 ) -> VertexAssignment {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs, weight_rx) =
+    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs) =
         ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
@@ -147,6 +147,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         msg_rx: Receiver<Message<V>>,
         hyper_rx: Receiver<(HyperEdge<V>, Weight)>,
         negation_rx: Receiver<(NegationEdge<V>, Weight)>,
+        unsafe_rx: Vec<Vec<NegationEdge<V>>>,
         term_rx: Receiver<VertexAssignment>,
         broker: Arc<B>,
         edg: G,
@@ -167,6 +168,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             msg_rx,
             hyper_rx,
             negation_rx,
+            unsafe_rx,
             term_rx,
             broker,
             successors,
@@ -208,6 +210,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         // Alg 1, Line 8
                         Message::REQUEST {
                             vertex,
+                            distance,
                             worker_id,
                             weight,
                         } => self.process_request(&vertex, worker_id, weight),
@@ -315,7 +318,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 Message::REQUEST {
                     vertex: vertex.clone(),
                     worker_id: self.id,
-                    weight,
                 },
             )
         }
