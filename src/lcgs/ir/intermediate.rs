@@ -125,9 +125,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
                     panic!("Constant '{}' is already declared.", &name); // TODO Use custom error
                 }
             }
-            DeclKind::Label(_)
-            | DeclKind::StateVar(_)
-            | DeclKind::Template(_) => {
+            DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::Template(_) => {
                 // All of the above declaration kinds can simply be inserted into the symbol table
                 let name = decl.kind.ident().name().to_string();
                 if symbols.insert(&Owner::Global, &name, decl).is_some() {
@@ -166,8 +164,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
                 let scope_owner = player.to_owner();
                 for decl in template.decls {
                     match &decl.kind {
-                        DeclKind::Label(_)
-                        | DeclKind::StateVar(_) => {
+                        DeclKind::Label(_) | DeclKind::StateVar(_) => {
                             // The above declarations can simply be inserted into the symbol table
                             let name = decl.kind.ident().name().to_string();
                             if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
@@ -315,5 +312,25 @@ mod test {
             .symbols
             .get(&Owner::Player("bob".to_string()), "shoot")
             .is_some());
+    }
+
+    #[test]
+    fn test_symbol_02() {
+        // State vars can refer to themselves in the update clause
+        let input1 = br"
+        foo : [1 .. 10] init 1;
+        foo' = foo;
+        ";
+        let lcgs1 = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
+        assert_eq!(lcgs1.symbols.len(), 1);
+        assert!(lcgs1.symbols.get(&Owner::Global, "foo").is_some());
+
+        // But other declarations cannot refer to themselves
+        let input2 = br"
+        label foo = foo > 0;
+        ";
+        let lcgs2 =
+            std::panic::catch_unwind(|| IntermediateLCGS::create(parse_lcgs(input2).unwrap()));
+        assert!(lcgs2.is_err());
     }
 }
