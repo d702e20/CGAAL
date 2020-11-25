@@ -135,6 +135,24 @@ impl IntermediateLCGS {
             .map(|s| s.clone())
             .collect()
     }
+
+    /// Returns the initial state of the LCGS game
+    fn initial_state(&self) -> State {
+        let mut res = State(HashMap::new());
+        for symb_id in &self.vars {
+            let SymbolIdentifier { owner, name } = symb_id;
+            let symb = self.symbols.get(owner, name).unwrap();
+            if let DeclKind::StateVar(var) = &symb.declaration.borrow().kind {
+                res.0.insert(symb_id.clone(), var.ir_initial_value);
+            }
+        }
+        res
+    }
+
+    /// Returns the initial state index of the LCGS game
+    fn initial_state_index(&self) -> usize {
+        self.index_of_state(&self.initial_state())
+    }
 }
 
 /// Helper function to find symbols in the given [SymbolTable] that satisfies the given
@@ -661,5 +679,32 @@ mod test {
         assert_eq!(1, lcgs.transitions(0, vec![1]));
         assert_eq!(0, lcgs.transitions(1, vec![0]));
         assert_eq!(1, lcgs.transitions(1, vec![1]));
+    }
+
+    #[test]
+    fn test_initial_state_01() {
+        // Is initial state what we expect?
+        let input = br"
+        foo : [0 .. 1] init 0;
+        foo' = foo;
+        bar : [0 .. 1] init 1;
+        bar' = bar;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(2, lcgs.initial_state_index());
+    }
+
+    #[test]
+    fn test_initial_state_02() {
+        // Is initial state what we expect?
+        // Wack ranges
+        let input = br"
+        foo : [5 .. 9] init 6;
+        foo' = foo;
+        bar : [1 .. 6] init 1;
+        bar' = bar;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(1, lcgs.initial_state_index());
     }
 }
