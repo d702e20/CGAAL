@@ -1,7 +1,8 @@
-use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
-use crate::atl::gamestructure::GameStructure;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
+
+use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
+use crate::atl::gamestructure::GameStructure;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {

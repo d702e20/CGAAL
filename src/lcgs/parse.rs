@@ -1,7 +1,6 @@
 extern crate pom;
 
 use std::iter::Peekable;
-use std::rc::Rc;
 use std::str::{self, FromStr};
 use std::vec::Drain;
 

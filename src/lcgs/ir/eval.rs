@@ -1,6 +1,6 @@
-use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
+use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::intermediate::State;
-use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use crate::lcgs::ir::symbol_table::SymbolIdentifier;
 
 pub struct Evaluator<'a> {
     state: &'a State,

@@ -1,17 +1,12 @@
 use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast;
-use crate::lcgs::ast::ExprKind::Number;
 use crate::lcgs::ast::{
     BinaryOpKind, ConstDecl, Decl, DeclKind, Expr, ExprKind, Identifier, Root, UnaryOpKind,
 };
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
-use crate::lcgs::ir::symbol_table::Owner::Global;
 use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
@@ -153,24 +148,6 @@ impl IntermediateLCGS {
     fn initial_state_index(&self) -> usize {
         self.index_of_state(&self.initial_state())
     }
-}
-
-/// Helper function to find symbols in the given [SymbolTable] that satisfies the given
-/// predicate.
-fn fetch_decls<F>(symbols: &SymbolTable, pred: F) -> Vec<SymbolIdentifier>
-where
-    F: Fn(&SymbolIdentifier, &Symbol) -> bool,
-{
-    symbols
-        .iter()
-        .filter_map(|(symb, rf_decl)| {
-            if pred(symb, rf_decl) {
-                Some(symb.clone())
-            } else {
-                None
-            }
-        })
-        .collect()
 }
 
 /// Registers all declarations from the root in the symbol table. Constants are optimized to

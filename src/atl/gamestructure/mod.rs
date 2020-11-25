@@ -1,10 +1,11 @@
-use crate::atl::common::{Player, Proposition, State};
 use std::collections::HashSet;
-
-mod eager;
 
 #[allow(unused_imports)]
 pub use eager::EagerGameStructure;
+
+use crate::atl::common::{Proposition, State};
+
+mod eager;
 
 pub trait GameStructure {
     fn max_player(&self) -> u32;

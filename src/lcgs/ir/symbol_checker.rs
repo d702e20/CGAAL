@@ -1,6 +1,7 @@
+use pom::parser::sym;
+
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
-use pom::parser::sym;
 
 /// [CheckMode]s control which declaration identifiers are allow to refer to in the [SymbolChecker].
 #[derive(Eq, PartialEq)]
@@ -84,7 +85,7 @@ impl<'a> SymbolChecker<'a> {
                 // Constants are evaluated early, so we differentiate here to
                 // give better error messages.
                 if self.mode == CheckMode::Const {
-                    if let Some(player_name) = owner {
+                    if let Some(_player_name) = owner {
                         // Constants are never owned by players
                         // TODO Use custom error
                         panic!("Expected constant expression. Found reference to player.")
