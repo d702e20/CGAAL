@@ -23,7 +23,6 @@ impl<'a> Evaluator<'a> {
             ExprKind::TernaryIf(c, e1, e2) => self.eval_if(c, e1, e2),
             ExprKind::Max(op) => self.eval_min(op),
             ExprKind::Min(op) => self.eval_max(op),
-
         }
     }
 

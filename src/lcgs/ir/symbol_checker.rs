@@ -1,7 +1,7 @@
+use crate::lcgs::ast::ExprKind::Number;
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 use log4rs::append::Append;
-use crate::lcgs::ast::ExprKind::Number;
 use std::borrow::Borrow;
 
 /// [CheckMode]s control which declaration identifiers are allow to refer to in the [SymbolChecker].
@@ -195,53 +195,78 @@ impl<'a> SymbolChecker<'a> {
     /// Then returns a new checked Vec of Expr to find Min of.
     fn check_min(&self, ls: &Vec<Expr>) -> Result<Expr, ()> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
-        let number: Option<i32> = checked_list.iter().filter_map(|p|
-            match p.kind {
+        let number: Option<i32> = checked_list
+            .iter()
+            .filter_map(|p| match p.kind {
                 ExprKind::Number(v) => Some(v),
                 _ => None,
-            }).min();
+            })
+            .min();
         return if let Some(x) = number {
-            let mut res: Vec<Expr> = checked_list.into_iter()
-                .filter(|p| !matches!(p.kind, ExprKind::Number(_))).collect();
+            let mut res: Vec<Expr> = checked_list
+                .into_iter()
+                .filter(|p| !matches!(p.kind, ExprKind::Number(_)))
+                .collect();
             if res.is_empty() {
-                Ok(Expr { kind: ExprKind::Number(x) })
+                Ok(Expr {
+                    kind: ExprKind::Number(x),
+                })
             } else {
-                res.push(Expr { kind: ExprKind::Number(x) });
-                Ok(Expr { kind: ExprKind::Min(res) })
+                res.push(Expr {
+                    kind: ExprKind::Number(x),
+                });
+                Ok(Expr {
+                    kind: ExprKind::Min(res),
+                })
             }
         } else {
             Ok(Expr {
                 kind: ExprKind::Min(
-                    checked_list.iter().map(|p| self.check(p).unwrap()).collect()
-                )
+                    checked_list
+                        .iter()
+                        .map(|p| self.check(p).unwrap())
+                        .collect(),
+                ),
             })
-        }
-
+        };
     }
     /// First combines all numbers, as we already know the max of that
     /// Then returns a new checked Vec of Expr to find Max of.
     fn check_max(&self, ls: &Vec<Expr>) -> Result<Expr, ()> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
-        let number: Option<i32> = checked_list.iter().filter_map(|p|
-            match p.kind {
+        let number: Option<i32> = checked_list
+            .iter()
+            .filter_map(|p| match p.kind {
                 ExprKind::Number(v) => Some(v),
                 _ => None,
-            }).max();
+            })
+            .max();
         return if let Some(x) = number {
-            let mut res: Vec<Expr> = checked_list.into_iter()
-                .filter(|p| !matches!(p.kind, ExprKind::Number(_))).collect();
+            let mut res: Vec<Expr> = checked_list
+                .into_iter()
+                .filter(|p| !matches!(p.kind, ExprKind::Number(_)))
+                .collect();
             if res.is_empty() {
-                Ok(Expr { kind: ExprKind::Number(x) })
+                Ok(Expr {
+                    kind: ExprKind::Number(x),
+                })
             } else {
-                res.push(Expr { kind: ExprKind::Number(x) });
-                Ok(Expr { kind: ExprKind::Max(res) })
+                res.push(Expr {
+                    kind: ExprKind::Number(x),
+                });
+                Ok(Expr {
+                    kind: ExprKind::Max(res),
+                })
             }
         } else {
             Ok(Expr {
                 kind: ExprKind::Max(
-                    checked_list.iter().map(|p| self.check(p).unwrap()).collect()
-                )
+                    checked_list
+                        .iter()
+                        .map(|p| self.check(p).unwrap())
+                        .collect(),
+                ),
             })
-        }
+        };
     }
 }
