@@ -341,6 +341,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 _ => {}
             }
         }
+        // We don't know how many instances of `None` exists without iterating through the loop, so there will always be some left over weight
         self.broker.return_weight(weight);
     }
 
