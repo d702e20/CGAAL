@@ -388,8 +388,32 @@ impl GameStructure for IntermediateLCGS {
         res
     }
 
+    /// Returns the next state given a current state and an action for each player.
     fn transitions(&self, state: usize, choices: Vec<usize>) -> usize {
-        unimplemented!()
+        let mut state = self.state_from_index(state);
+        // To evaluate the next state we assign the actions to either 1 or 0 depending
+        // on whether or not the action was taken
+        for (p_index, player) in self.players.iter().enumerate() {
+            let moves = self.available_moves(&state, p_index);
+            for (a_index, a_symb_id) in moves.iter().enumerate() {
+                let val = if choices[p_index] == a_index { 1 } else { 0 };
+                state.0.insert(a_symb_id.clone(), val);
+            }
+        }
+
+        // Now we can evaluate the next state based on previous state and the actions taken
+        let evaluator = Evaluator::new(&state);
+        let mut next_state = State(HashMap::new());
+        for symb_id in &self.vars {
+            let SymbolIdentifier { owner, name } = symb_id;
+            let symb = self.symbols.get(owner, name).unwrap();
+            if let DeclKind::StateVar(var) = &symb.declaration.borrow().kind {
+                let val = evaluator.eval(&var.next_value).unwrap();
+                next_state.0.insert(symb_id.clone(), val);
+            }
+        }
+
+        self.index_of_state(&next_state)
     }
 
     /// Returns the number of moves available to each player in the given state.
@@ -600,5 +624,42 @@ mod test {
         let move_count = lcgs.move_count(4);
         assert_eq!(move_count[0], 1);
         assert_eq!(move_count[1], 2);
+    }
+
+    #[test]
+    fn test_transition_01() {
+        // Can we make transitions as expected when they depend on previous state
+        let input = br"
+        foo : [0 .. 1] init 0;
+        foo' = !foo;
+        player p = something;
+        template something
+            [swap] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let next_state = lcgs.transitions(0, vec![0]);
+        assert_eq!(1, next_state);
+        let next_next_state = lcgs.transitions(next_state, vec![0]);
+        assert_eq!(0, next_next_state);
+    }
+
+    #[test]
+    fn test_transition_02() {
+        // Can we make transitions as expected when they depend on player actions
+        let input = br"
+        foo : [0 .. 1] init 0;
+        foo' = p.set_foo;
+        player p = something;
+        template something
+            [reset_foo] 1;
+            [set_foo] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(0, lcgs.transitions(0, vec![0]));
+        assert_eq!(1, lcgs.transitions(0, vec![1]));
+        assert_eq!(0, lcgs.transitions(1, vec![0]));
+        assert_eq!(1, lcgs.transitions(1, vec![1]));
     }
 }
