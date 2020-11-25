@@ -1,3 +1,4 @@
+extern crate lazy_static;
 extern crate pom;
 
 use std::iter::Peekable;
@@ -7,6 +8,7 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
+use self::pom::set::Set;
 use crate::lcgs::ast::DeclKind::*;
 use crate::lcgs::ast::DeclKind::{
     Const, Label, Player, StateVar, StateVarChange, Template, Transition,
@@ -16,6 +18,27 @@ use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
+use std::borrow::Borrow;
+use std::collections::HashSet;
+
+/// Required for static allocation of a hashset
+lazy_static! {
+    static ref RESERVED_KEYWORDS: HashSet<&'static str> = {
+        let mut set = HashSet::new();
+        set.insert("const");
+        set.insert("label");
+        set.insert("player");
+        set.insert("template");
+        set.insert("init");
+        set.insert("int");
+        set.insert("true");
+        set.insert("false");
+        set.insert("not");
+        set.insert("min");
+        set.insert("max");
+        set
+    };
+}
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -91,9 +114,18 @@ fn name() -> Parser<'static, u8, String> {
     chars.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
-/// Parser that parses an identifier.
+/// Parser that parses an identifier and fails if identifier is a reserved keyword
 fn identifier() -> Parser<'static, u8, Identifier> {
-    name().map(|name| Identifier::Simple { name })
+    name().convert(|name| {
+        if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
+            Err(format!(
+                "Cannot use a reserved keyword as an identifier: {}",
+                name
+            ))
+        } else {
+            Ok(Identifier::Simple { name })
+        }
+    })
 }
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
@@ -1008,5 +1040,19 @@ mod tests {
         let parser = root();
         println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
+    }
+
+    #[test]
+    fn test_reserved_keyword_01() {
+        let input = br"label legal_ident = 1;";
+        let parser = identifier();
+        assert!(parser.parse(input).is_err());
+    }
+
+    #[test]
+    fn test_reserved_keyword_02() {
+        let input = br"label label = 1;";
+        let parser = identifier();
+        assert!(parser.parse(input).is_err());
     }
 }
