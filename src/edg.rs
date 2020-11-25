@@ -79,8 +79,7 @@ pub fn distributed_certain_zero<
                 controller_weight.receive_weight(weight);
                 if controller_weight.is_full() {
                     // Send term to all workers
-                    // TODO determine assignment of v0
-                    let assignment = VertexAssignment::UNDECIDED;
+                    let assignment = VertexAssignment::FALSE;
                     broker.terminate(assignment);
                     return assignment;
                 }
