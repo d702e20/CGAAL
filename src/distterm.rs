@@ -19,10 +19,10 @@ const SPLIT_WEIGHT: Num = 0b1 << (std::mem::size_of::<Num>() * 8 - 1);
 /// Remember to consider the maximum amount of physical memory addressable by the processor, and how much can physically be attached.
 const MAX_SLOT: Num = 0b1 << 16;
 /// The least significant slot the controller will give weight from.
-const MAX_TAKE_SLOT: Num = 0b1 << 10;
+const MAX_TAKE_SLOT: Num = 0b1 << 14;
 /// The most significant slot the controller will give weight from.
 /// If the controller have less than this amount of weight then it will either fail, or delay.
-const MIN_TAKE_SLOT: Num = 0b1 << 14;
+const MIN_TAKE_SLOT: Num = 0b1 << 10;
 
 impl Weight {
     /// Create weight with initial value for the beginning of a distributed computation.
