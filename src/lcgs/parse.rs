@@ -332,6 +332,7 @@ mod tests {
     use crate::lcgs::ast::BinaryOpKind::*;
 
     use super::*;
+    use crate::lcgs::ast::Identifier::Simple;
 
     #[test]
     fn test_ident_01() {
@@ -1030,5 +1031,44 @@ mod tests {
         const max_health = 1;"#;
         let parser = root();
         assert!(parser.parse(input).is_err())
+    }
+
+    #[test]
+    fn test_comment_03() {
+        let input = br#"//hunter2 is absolutely not my password
+        const max_health = 1;"#;
+        let parser = root();
+
+        assert_eq!(
+            parser.parse(input),
+            Ok(Root {
+                decls: vec![Decl {
+                    kind: Const(Box::new(ConstDecl {
+                        name: Identifier::Simple {
+                            name: "max_health".to_string(),
+                        },
+                        definition: Expr { kind: Number(1) },
+                    }))
+                }]
+            })
+        );
+    }
+
+    #[test]
+    fn test_comment_04() {
+        let input = br#"//const max_health = 1;
+        const asd = 2;
+        "#;
+        let parser = root();
+        assert_eq!(parser.parse(input).unwrap().decls.len(), 1)
+    }
+
+    #[test]
+    fn test_comment_05() {
+        let input = br#"const max_health = 1; // hunter2
+        const vvvv = 1;"#;
+        let parser = root();
+        assert!(parser.parse(input).is_ok());
+        assert_eq!(parser.parse(input).unwrap().decls.len(), 2);
     }
 }
