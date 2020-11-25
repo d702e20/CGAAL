@@ -51,16 +51,8 @@ impl IntermediateLCGS {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
-        let players = register_decls(&mut symbols, root)?;
+        let (players, labels, vars) = register_decls(&mut symbols, root)?;
         check_and_optimize_decls(&mut symbols)?;
-
-        // Collect all symbol names that will be relevant for the game structure
-        let labels = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(rf_decl.declaration.borrow().kind, DeclKind::Label(_))
-        });
-        let vars = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(rf_decl.declaration.borrow().kind, DeclKind::StateVar(_))
-        });
 
         let ilcgs = IntermediateLCGS {
             symbols,
@@ -73,7 +65,7 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state index to a [State].
-    fn state_from_index(&self, state_index: u32) -> State {
+    fn state_from_index(&self, state_index: usize) -> State {
         let mut state = State(HashMap::new());
         let mut carry = state_index as i32;
 
@@ -82,8 +74,13 @@ impl IntermediateLCGS {
         // instead, and similarly to time units, each state variable has a different size.
         for symb_id in &self.vars {
             let SymbolIdentifier { owner, name } = symb_id;
-            if let DeclKind::StateVar(var) =
-                &self.symbols.get(owner, name).unwrap().declaration.borrow().kind
+            if let DeclKind::StateVar(var) = &self
+                .symbols
+                .get(owner, name)
+                .unwrap()
+                .declaration
+                .borrow()
+                .kind
             {
                 let value = {
                     let size = var.ir_range.len() as i32;
@@ -100,9 +97,9 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state into its index
-    fn index_of_state(&self, state: &State) -> u32 {
+    fn index_of_state(&self, state: &State) -> usize {
         let mut combined_size = 1;
-        let mut res = 0u32;
+        let mut res = 0usize;
 
         // The following method resembles the typical way of transforming a number of seconds,
         // minutes, hours, and days into just seconds. In this case the time units are
@@ -114,7 +111,7 @@ impl IntermediateLCGS {
             if let DeclKind::StateVar(var) = &var.declaration.borrow().kind {
                 let size = var.ir_range.len() as i32;
                 let val = state.0.get(symb_id).unwrap();
-                res += ((val - var.ir_range.start) * combined_size) as u32;
+                res += ((val - var.ir_range.start) * combined_size) as usize;
                 combined_size *= size;
             }
         }
@@ -143,9 +140,14 @@ where
 /// Registers all declarations from the root in the symbol table. Constants are optimized to
 /// numbers immediately. On success, a vector of [Player]s is returned with information
 /// about players and the names of their actions.
-fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, ()> {
+fn register_decls(
+    symbols: &mut SymbolTable,
+    root: Root,
+) -> Result<(Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>), ()> {
     let mut player_decls = vec![];
     let mut player_names = HashSet::new();
+    let mut labels = vec![];
+    let mut vars = vec![];
 
     // Register global declarations.
     // Constants are evaluated immediately.
@@ -176,8 +178,29 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
                     panic!("Constant '{}' is already declared.", &name); // TODO Use custom error
                 }
             }
-            DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::Template(_) => {
-                // All of the above declaration kinds can simply be inserted into the symbol table
+            DeclKind::Label(_) => {
+                // Insert in symbol table and add to labels list
+                let name = decl.kind.ident().name().to_string();
+                if symbols.insert(&Owner::Global, &name, decl).is_some() {
+                    panic!("Symbol '{}' is already declared.", &name); // TODO Use custom error
+                }
+                labels.push(SymbolIdentifier {
+                    owner: Owner::Global,
+                    name,
+                });
+            }
+            DeclKind::StateVar(_) => {
+                // Insert in symbol table and add to vars list
+                let name = decl.kind.ident().name().to_string();
+                if symbols.insert(&Owner::Global, &name, decl).is_some() {
+                    panic!("Symbol '{}' is already declared.", &name); // TODO Use custom error
+                }
+                vars.push(SymbolIdentifier {
+                    owner: Owner::Global,
+                    name,
+                });
+            }
+            DeclKind::Template(_) => {
                 let name = decl.kind.ident().name().to_string();
                 if symbols.insert(&Owner::Global, &name, decl).is_some() {
                     panic!("Symbol '{}' is already declared.", &name); // TODO Use custom error
@@ -215,12 +238,27 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
                 let scope_owner = player.to_owner();
                 for decl in template.decls {
                     match &decl.kind {
-                        DeclKind::Label(_) | DeclKind::StateVar(_) => {
-                            // The above declarations can simply be inserted into the symbol table
+                        DeclKind::Label(_) => {
+                            // Insert into symbol table and add to labels list
                             let name = decl.kind.ident().name().to_string();
                             if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
                                 panic!("Symbol '{}.{}' is already declared.", &scope_owner, &name);
                             };
+                            labels.push(SymbolIdentifier {
+                                owner: scope_owner.clone(),
+                                name,
+                            });
+                        }
+                        DeclKind::StateVar(_) => {
+                            // Insert into symbol table and add to vars list
+                            let name = decl.kind.ident().name().to_string();
+                            if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
+                                panic!("Symbol '{}.{}' is already declared.", &scope_owner, &name);
+                            };
+                            vars.push(SymbolIdentifier {
+                                owner: scope_owner.clone(),
+                                name,
+                            });
                         }
                         DeclKind::Transition(tran) => {
                             // Transitions are inserted in the symbol table, but their name
@@ -249,7 +287,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
             panic!("A non-PlayerDecl got into this vector");
         }
     }
-    Ok(players)
+    Ok((players, labels, vars))
 }
 
 /// Reduces the declarations in a [SymbolTable] to a more compact version, if possible.
@@ -303,15 +341,32 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
     Ok(())
 }
 
-struct State(HashMap<SymbolIdentifier, i32>);
+/// A game structure state of an LCGS. Holds a mapping of symbol names to their current value
+pub struct State(pub HashMap<SymbolIdentifier, i32>);
 
 impl GameStructure for IntermediateLCGS {
     fn max_player(&self) -> u32 {
         self.players.len() as u32
     }
 
-    fn labels(&self, state: usize) -> HashSet<usize, RandomState> {
-        unimplemented!()
+    /// Returns the set of labels/propositions available in the given state.
+    fn labels(&self, state: usize) -> HashSet<usize> {
+        let state = self.state_from_index(state);
+        let mut res = HashSet::new();
+        // The labels id is their index in the self.labels vector
+        for (i, symb_id) in self.labels.iter().enumerate() {
+            let SymbolIdentifier { owner, name } = symb_id;
+            let symb = self.symbols.get(owner, name).unwrap();
+            if let DeclKind::Label(label) = &symb.declaration.borrow().kind {
+                // We evaluate the condition with the values of the current state to know
+                // whether the label is present or not
+                let value = Evaluator::new(&state).eval(&label.condition).unwrap();
+                if value != 0 {
+                    res.insert(i);
+                }
+            }
+        }
+        res
     }
 
     fn transitions(&self, state: usize, choices: Vec<usize>) -> usize {
@@ -329,6 +384,7 @@ impl GameStructure for IntermediateLCGS {
 
 #[cfg(test)]
 mod test {
+    use crate::atl::gamestructure::GameStructure;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
@@ -431,7 +487,7 @@ mod test {
     fn test_state_translation_02() {
         // Is translation back and forth between state and index correct
         // Wack ranges
-        let input1 = br"
+        let input = br"
         foo : [5 .. 23] init 0;
         foo' = foo;
         bar : [3 .. 5] init 3;
@@ -439,12 +495,66 @@ mod test {
         yum : [100 .. 102] init 100;
         yum' = yum;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         let indexes = [12, 55, 126, 78, 99];
         for i in &indexes {
             let state = lcgs.state_from_index(*i);
             let i2 = lcgs.index_of_state(&state);
             assert_eq!(*i, i2);
         }
+    }
+
+    #[test]
+    fn test_labels_01() {
+        // Are the expected labels present
+        let input = br"
+        foo : [0 .. 9] init 0;
+        foo' = foo;
+        bar : [0 .. 5] init 0;
+        bar' = bar;
+        label cool = foo;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let labels = lcgs.labels(23);
+        assert!(labels.contains(&0usize));
+    }
+
+    #[test]
+    fn test_labels_02() {
+        // Are the expected labels present
+        let input = br"
+        foo : [0 .. 9] init 0;
+        foo' = foo;
+        bar : [0 .. 5] init 0;
+        bar' = bar;
+        label cool = foo;
+        label great = bar == 0;
+        label awesome = foo > bar;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let labels = lcgs.labels(46);
+        assert!(labels.contains(&0usize));
+        assert!(!labels.contains(&1usize));
+        assert!(labels.contains(&2usize));
+    }
+
+    #[test]
+    fn test_labels_03() {
+        // Are the expected labels present
+        // With players and templates
+        let input = br"
+        foo : [0 .. 9] init 0;
+        foo' = foo;
+        player p1 = something;
+        player p2 = something;
+        template something
+            label yes = foo == 5;
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let labels = lcgs.labels(5);
+        assert!(labels.contains(&0usize));
+        assert!(labels.contains(&1usize));
     }
 }

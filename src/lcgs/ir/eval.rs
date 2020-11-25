@@ -1,17 +1,14 @@
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
-use crate::lcgs::ir::symbol_table::{Owner, SymbolTable};
+use crate::lcgs::ir::intermediate::State;
+use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 pub struct Evaluator<'a> {
-    symbols: &'a SymbolTable,
-    scope_owner: &'a Owner,
+    state: &'a State,
 }
 
 impl<'a> Evaluator<'a> {
-    pub fn new(symbols: &'a SymbolTable, scope_owner: &'a Owner) -> Evaluator<'a> {
-        Evaluator {
-            symbols,
-            scope_owner,
-        }
+    pub fn new(state: &'a State) -> Evaluator<'a> {
+        Evaluator { state }
     }
 
     pub fn eval(&self, expr: &Expr) -> Result<i32, ()> {
@@ -25,24 +22,21 @@ impl<'a> Evaluator<'a> {
     }
 
     fn eval_ident(&self, id: &Identifier) -> Result<i32, ()> {
-        // At this point identifiers should be resolved and easily found in the symbol table
-        let symb = match id {
+        // At this point identifiers should be resolved and easily found in the State's value table
+        let value = match id {
             Identifier::Simple { .. } | Identifier::OptionalOwner { .. } => {
                 panic!("Unresolved identifier. Something went wrong in symbol checking.")
             }
-            Identifier::Resolved { owner, name } => self
-                .symbols
-                .get(owner, name)
+            Identifier::Resolved { owner, name } => *self
+                .state
+                .0
+                .get(&SymbolIdentifier {
+                    owner: owner.clone(),
+                    name: name.to_string(),
+                })
                 .expect("Symbol does not exist. Compiler should have failed already."),
         };
-
-        match &symb.declaration.borrow().kind {
-            DeclKind::Const(con) => self.eval(&con.definition),
-            DeclKind::Label(_) => unimplemented!(), // TODO Depends on current state
-            DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on current state
-            DeclKind::Transition(_) => unimplemented!(), // TODO Depends on current transition
-            _ => Err(()),
-        }
+        Ok(value)
     }
 
     fn eval_unop(&self, op: &UnaryOpKind, e: &Expr) -> Result<i32, ()> {
