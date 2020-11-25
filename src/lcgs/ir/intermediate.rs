@@ -73,11 +73,11 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state index to a [State].
-    fn make_state(&self, state_index: u32) -> State {
+    fn state_from_index(&self, state_index: u32) -> State {
         let mut state = State(HashMap::new());
         let mut carry = state_index as i32;
 
-        // The following method resembles the typically way of transforming a number of seconds
+        // The following method resembles the typical way of transforming a number of seconds
         // into seconds, minutes, hours, and days. In this case the time units are state variables
         // instead, and similarly to time units, each state variable has a different size.
         for symb_id in &self.vars {
@@ -97,6 +97,28 @@ impl IntermediateLCGS {
         }
         debug_assert!(carry == 0, "State overflow. Invalid state index.");
         state
+    }
+
+    /// Transforms a state into its index
+    fn index_of_state(&self, state: &State) -> u32 {
+        let mut combined_size = 1;
+        let mut res = 0u32;
+
+        // The following method resembles the typical way of transforming a number of seconds,
+        // minutes, hours, and days into just seconds. In this case the time units are
+        // state variables instead, and similarly to time units, each state variable has a
+        // different size.
+        for symb_id in &self.vars {
+            let SymbolIdentifier { owner, name } = symb_id;
+            let var = self.symbols.get(owner, name).unwrap();
+            if let DeclKind::StateVar(var) = &var.declaration.borrow().kind {
+                let size = var.ir_range.len() as i32;
+                let val = state.0.get(symb_id).unwrap();
+                res += ((val - var.ir_range.start) * combined_size) as u32;
+                combined_size *= size;
+            }
+        }
+        res
     }
 }
 
@@ -387,5 +409,42 @@ mod test {
         let lcgs2 =
             std::panic::catch_unwind(|| IntermediateLCGS::create(parse_lcgs(input2).unwrap()));
         assert!(lcgs2.is_err());
+    }
+
+    #[test]
+    fn test_state_translation_01() {
+        // Is translation back and forth between state and index correct
+        let input = br"
+        foo : [0 .. 9] init 0;
+        foo' = foo;
+        bar : [0 .. 5] init 0;
+        bar' = bar;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let index = 23;
+        let state = lcgs.state_from_index(index);
+        let index2 = lcgs.index_of_state(&state);
+        assert_eq!(index, index2);
+    }
+
+    #[test]
+    fn test_state_translation_02() {
+        // Is translation back and forth between state and index correct
+        // Wack ranges
+        let input1 = br"
+        foo : [5 .. 23] init 0;
+        foo' = foo;
+        bar : [3 .. 5] init 3;
+        bar' = bar;
+        yum : [100 .. 102] init 100;
+        yum' = yum;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
+        let indexes = [12, 55, 126, 78, 99];
+        for i in &indexes {
+            let state = lcgs.state_from_index(*i);
+            let i2 = lcgs.index_of_state(&state);
+            assert_eq!(*i, i2);
+        }
     }
 }
