@@ -581,6 +581,7 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
+    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
