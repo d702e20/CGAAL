@@ -70,12 +70,10 @@ pub fn distributed_certain_zero<
                 let assignment = oper
                     .recv(&early_rx)
                     .expect("Error receiving final assigment from early termination");
-                println!("received early termination: {:?}", assignment);
                 return assignment;
             }
             i if i == weight_index => {
                 let weight = oper.recv(&weight_rx).expect("Error receiving weight");
-                println!("Received weight: {:?}", weight);
                 controller_weight.receive_weight(weight);
                 if controller_weight.is_full() {
                     // Send term to all workers
@@ -174,12 +172,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let oper_msg = select.recv(&msg_rx);
 
         loop {
-            println!("worker {} waiting for message", self.id);
             let oper = select.select();
             match oper.index() {
                 // Termination signal indicating result have been found
                 i if i == oper_term => {
-                    println!("worker {} received term", self.id);
                     // Alg 1, Line 10
                     match oper.recv(&term_rx) {
                         Ok(assignment) => {
@@ -200,7 +196,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     match oper.recv(&msg_rx) {
                         // Alg 1, Line 5-9
                         Ok(msg) => {
-                            println!("worker {} received msg: {:?}", self.id, msg);
                             match msg {
                                 // Alg 1, Line 6
                                 Message::HYPER(edge, weight) => {
@@ -1000,7 +995,6 @@ mod test {
                 }
             }
         }
-        eprintln!("Hello");
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
