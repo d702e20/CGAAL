@@ -191,8 +191,8 @@ fn primary_expr() -> Parser<'static, u8, Expr> {
         kind: OwnedIdent(Box::new(i)),
     });
     let par = sym(b'(') * ws() * call(expr) - ws() - sym(b')');
-    let min = seq(b"min") * type_min();
-    let max = seq(b"max") * type_max();
+    let min = seq(b"min") * ws()* type_min();
+    let max = seq(b"max") * ws() * type_max();
 
     neg | not | num | min | max | ident | par
 }
@@ -385,6 +385,19 @@ mod tests {
         )
     }
     #[test]
+    fn test_min_04() {
+        let input = br"min ( 1 , 5 )";
+        let parser = expr();
+        let rs = vec![
+            Expr{kind: ExprKind::Number(1)},
+            Expr{kind: ExprKind::Number(5)},
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr{kind: ExprKind::Min(rs)})
+        )
+    }
+    #[test]
     fn test_max_01() {
         let input = br"max(1,23)";
         let parser = expr();
@@ -422,6 +435,19 @@ mod tests {
                 Box::new(Expr { kind: Number(23) }),
                 Box::new(Expr { kind: Number(5) })
             )},
+            Expr{kind: ExprKind::Number(5)},
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr{kind: ExprKind::Max(rs)})
+        )
+    }
+    #[test]
+    fn test_max_04() {
+        let input = br"max ( 1 , 5 )";
+        let parser = expr();
+        let rs = vec![
+            Expr{kind: ExprKind::Number(1)},
             Expr{kind: ExprKind::Number(5)},
         ];
         assert_eq!(
