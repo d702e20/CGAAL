@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, Select};
+use crossbeam_channel::{Receiver, Select, TrySendError};
 
 use crate::com::{Broker, ChannelBroker};
 use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
@@ -53,8 +53,16 @@ pub fn distributed_certain_zero<
         let tx = early_tx.clone();
         thread::spawn(move || {
             let result = worker.run();
-            tx.send(result)
-                .expect("Failed to submit final assignment of v0");
+            match tx.try_send(result) {
+                Ok(_) => {}
+                Err(err) => match err {
+                    TrySendError::Full(_) => panic!(
+                        "Failed to submit final assignment of v0 because the channel is full: {}",
+                        err
+                    ),
+                    TrySendError::Disconnected(_) => {}
+                },
+            }
         });
     }
 
