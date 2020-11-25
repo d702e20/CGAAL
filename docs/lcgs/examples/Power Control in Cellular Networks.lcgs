@@ -18,6 +18,7 @@ template phoneuser
 	energy : [0 .. energymax] init energymax;
 	energy' = max(0, energy - power);
 	
+	quality : init 0; 	
 	quality = 
 		(0 < energy & 0 < otheruser.energy) * (1000*(1 - pow(2,-0.5*power / (otheruser.power + 1))))
 		+
