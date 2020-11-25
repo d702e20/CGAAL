@@ -69,7 +69,14 @@ fn non_0_digit() -> Parser<'static, u8, u8> {
 
 /// Parser that parses 0 or more whitespace characters discards them. Include newlines and tabs.
 fn ws() -> Parser<'static, u8, ()> {
-    one_of(b" \t\r\n").repeat(0..).discard()
+    (one_of(b" \t\r\n").discard() | comment())
+        .repeat(0..)
+        .discard()
+}
+
+/// Parser for comments that matches on '//' and whatever until \r or \n, and discards everything
+fn comment() -> Parser<'static, u8, ()> {
+    (seq(b"//") + none_of(b"\r\n").repeat(0..) + one_of(b"\r\n")).discard()
 }
 
 /// Parser that parses a typical positive integer number
@@ -1008,5 +1015,20 @@ mod tests {
         let parser = root();
         println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
+    }
+
+    #[test]
+    fn test_comment_01() {
+        let input = br"//hunter2 is absolutely not my password";
+        let parser = ws();
+        assert!(parser.parse(input).is_ok())
+    }
+
+    #[test]
+    fn test_comment_02() {
+        let input = br#"/hunter2 is absolutely not my password
+        const max_health = 1;"#;
+        let parser = root();
+        assert!(parser.parse(input).is_err())
     }
 }
