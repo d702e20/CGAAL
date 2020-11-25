@@ -529,7 +529,7 @@ mod test {
         // Is translation back and forth between state and index correct
         // Wack ranges
         let input = br"
-        foo : [5 .. 23] init 0;
+        foo : [5 .. 23] init 5;
         foo' = foo;
         bar : [3 .. 5] init 3;
         bar' = bar;
