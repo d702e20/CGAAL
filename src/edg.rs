@@ -553,7 +553,6 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
-    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -567,11 +566,13 @@ mod test {
             T,
             G,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -695,6 +696,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
@@ -743,7 +745,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_small_dg_all_true_except_for_c() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -752,11 +753,13 @@ mod test {
             C,
             D,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -796,9 +799,8 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::C => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                     ExampleEDGVertices::D => {
                         let mut successors = HashSet::new();
@@ -813,6 +815,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
@@ -836,7 +839,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_small_dg_all_false_except_for_d() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -845,11 +847,13 @@ mod test {
             C,
             D,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -885,6 +889,7 @@ mod test {
                     }
                     ExampleEDGVertices::C => {
                         let mut successors = HashSet::new();
+
                         successors.insert(Edges::HYPER(HyperEdge {
                             source: ExampleEDGVertices::C,
                             targets: vec![ExampleEDGVertices::B],
@@ -904,6 +909,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
@@ -925,18 +931,20 @@ mod test {
             "Vertex D"
         );
     }
+
     #[test]
-    #[ignore]
     fn test_a_node_with_no_succsessors() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -946,21 +954,21 @@ mod test {
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
                 match vertex {
                     ExampleEDGVertices::A => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
             "Vertex A"
         );
     }
+
     #[test]
-    #[ignore]
     fn test_termination_condtion() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -968,11 +976,13 @@ mod test {
             B,
             C,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -983,6 +993,7 @@ mod test {
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
+
                         successors.insert(Edges::HYPER(HyperEdge {
                             source: ExampleEDGVertices::A,
                             targets: vec![ExampleEDGVertices::B, ExampleEDGVertices::C],
@@ -991,14 +1002,12 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::B => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                     ExampleEDGVertices::C => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                 }
             }
@@ -1013,7 +1022,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_loop_di_loops() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1022,11 +1030,13 @@ mod test {
             C,
             D,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -1081,6 +1091,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
@@ -1104,18 +1115,19 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
             B,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -1150,6 +1162,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
