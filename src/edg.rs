@@ -301,12 +301,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 3
         if all_final {
-            let (weight_for_task, remaining_weight) = weight
-                .split()
-                .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
-            weight = remaining_weight;
-            // TODO fix compiler warning about value assigned to `weight` never being used
-            self.final_assign(&edge.source, VertexAssignment::TRUE, weight_for_task);
+            self.final_assign(&edge.source, VertexAssignment::TRUE, weight);
             return;
         }
 
@@ -319,12 +314,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 4
         if any_target {
-            let (weight_for_task, remaining_weight) = weight
-                .split()
-                .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
-            weight = remaining_weight;
-            // TODO fix compiler warning about value assigned to `weight` never being used
-            self.delete_edge(Edges::HYPER(edge), weight_for_task);
+            self.delete_edge(Edges::HYPER(edge), weight);
             return;
         }
 
