@@ -221,7 +221,7 @@ impl<'a> SymbolChecker<'a> {
             }
         } else {
             Ok(Expr {
-                kind: ExprKind::Min(checked_list.iter().map(|p| p.unwrap()).collect()),
+                kind: ExprKind::Min(checked_list),
             })
         };
     }
@@ -255,7 +255,7 @@ impl<'a> SymbolChecker<'a> {
             }
         } else {
             Ok(Expr {
-                kind: ExprKind::Max(checked_list.iter().map(|p| p.unwrap()).collect()),
+                kind: ExprKind::Max(checked_list),
             })
         };
     }
