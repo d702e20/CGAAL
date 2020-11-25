@@ -1,3 +1,4 @@
+use crate::distterm::Weight;
 use std::hash::Hash;
 
 pub type WorkerId = u64;
@@ -29,13 +30,18 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
 }
 
 /// Inter-Worker communication
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
-    REQUEST { vertex: V, worker_id: WorkerId },
+    REQUEST {
+        vertex: V,
+        worker_id: WorkerId,
+        weight: Weight,
+    },
     /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
     ANSWER {
         vertex: V,
         assignment: VertexAssignment,
+        weight: Weight,
     },
 }

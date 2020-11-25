@@ -1,5 +1,6 @@
 use crate::common::{HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crate::distterm::Weight;
+use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use std::hash::Hash;
 
 /// Broker implement the function of W_E, W_N, M_R and M_A
@@ -8,22 +9,25 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
     fn send(&self, to: WorkerId, msg: Message<V>);
 
     /// Send hyper edge for queuing to worker with id `to`
-    fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>);
+    fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>, weight: Weight);
 
     /// Send negation edge for queuing to worker with id `to`
-    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>);
+    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>, weight: Weight);
 
     /// Signal to all workers to terminate because a result has been found
     fn terminate(&self, assignment: VertexAssignment);
+
+    fn return_weight(&self, weight: Weight);
 }
 
 /// Implements Broker using channels from crossbeam_channel
 #[derive(Debug)]
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
-    hyper_chans: Vec<Sender<HyperEdge<V>>>,
-    negation_chans: Vec<Sender<NegationEdge<V>>>,
+    hyper_chans: Vec<Sender<(HyperEdge<V>, Weight)>>,
+    negation_chans: Vec<Sender<(NegationEdge<V>, Weight)>>,
     term_chans: Vec<Sender<VertexAssignment>>,
+    weight: Sender<Weight>,
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
@@ -35,19 +39,19 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
             .expect(&*format!("Send to worker {} failed", to));
     }
 
-    fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>) {
+    fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>, weight: Weight) {
         self.hyper_chans
             .get(to as usize)
             .expect("receiver id out of bounds")
-            .send(edge)
+            .send((edge, weight))
             .expect(&*format!("Send to worker {} failed", to));
     }
 
-    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>) {
+    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>, weight: Weight) {
         self.negation_chans
             .get(to as usize)
             .expect("receiver id out of bounds")
-            .send(edge)
+            .send((edge, weight))
             .expect(&*format!("Send to worker {} failed", to));
     }
 
@@ -63,11 +67,17 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
                 ));
         }
     }
+
+    fn return_weight(&self, weight: Weight) {
+        self.weight
+            .send(weight)
+            .expect("Failed to return weight to controller")
+    }
 }
 
 type WorkQueue<V> = Receiver<Message<V>>;
-type HyperQueue<V> = Receiver<HyperEdge<V>>;
-type NegationQueue<V> = Receiver<NegationEdge<V>>;
+type HyperQueue<V> = Receiver<(HyperEdge<V>, Weight)>;
+type NegationQueue<V> = Receiver<(NegationEdge<V>, Weight)>;
 type TermQueue = Receiver<VertexAssignment>;
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
@@ -79,6 +89,7 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
         Vec<HyperQueue<V>>,
         Vec<NegationQueue<V>>,
         Vec<TermQueue>,
+        Receiver<Weight>,
     ) {
         // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
@@ -121,17 +132,22 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
             term_receivers.push(receiver);
         }
 
+        // Create channel for returning weight from workers to the controller
+        let (weight_tx, weight_rx) = bounded(32);
+
         (
             Self {
                 workers: msg_senders,
                 hyper_chans: hyper_senders,
                 negation_chans: negation_senders,
                 term_chans: term_senders,
+                weight: weight_tx,
             },
             msg_receivers,
             hyper_receivers,
             negation_receivers,
             term_receivers,
+            weight_rx,
         )
     }
 }

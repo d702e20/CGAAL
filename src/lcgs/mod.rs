@@ -1,5 +1,4 @@
 mod ast;
+mod ir;
 mod parse;
 mod precedence;
-mod program;
-mod symbol_table;
