@@ -392,8 +392,14 @@ impl GameStructure for IntermediateLCGS {
         unimplemented!()
     }
 
+    /// Returns the number of moves available to each player in the given state.
     fn move_count(&self, state: usize) -> Vec<u32> {
-        unimplemented!()
+        let state = self.state_from_index(state);
+        self.players
+            .iter()
+            .enumerate()
+            .map(|(i, player)| self.available_moves(&state, i).len() as u32)
+            .collect()
     }
 }
 
@@ -571,5 +577,28 @@ mod test {
         let labels = lcgs.labels(5);
         assert!(labels.contains(&0usize));
         assert!(labels.contains(&1usize));
+    }
+
+    #[test]
+    fn test_move_count_01() {
+        // Are the expected moves available
+        let input = br"
+        foo : [0 .. 9] init 0;
+        foo' = foo;
+        player p1 = something1;
+        player p2 = something2;
+        template something1
+            [wait] 1;
+            [move] foo == 0;
+        endtemplate
+        template something2
+            [wait] 1;
+            [move] foo > 0;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let move_count = lcgs.move_count(4);
+        assert_eq!(move_count[0], 1);
+        assert_eq!(move_count[1], 2);
     }
 }
