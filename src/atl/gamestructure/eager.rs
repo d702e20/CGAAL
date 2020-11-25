@@ -15,6 +15,23 @@ pub struct EagerGameStructure {
     pub moves: Vec<Vec<u32>>,
 }
 
+impl EagerGameStructure {
+    /// Returns the number of moves `player` can take when the game is in `state`.
+    pub fn available_moves(&self, state: State, player: Player) -> u32 {
+        *self
+            .moves
+            .get(state)
+            .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
+            .get(player)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Request move for non-existent player {} from state {}",
+                    player, state
+                )
+            })
+    }
+}
+
 impl GameStructure for EagerGameStructure {
     fn max_player(&self) -> u32 {
         self.player_count
@@ -35,20 +52,6 @@ impl GameStructure for EagerGameStructure {
                 .get(state)
                 .unwrap_or_else(|| panic!("Undefined state {}, no transitions", state)),
         )
-    }
-
-    fn available_moves(&self, state: State, player: Player) -> u32 {
-        *self
-            .moves
-            .get(state)
-            .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
-            .get(player)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Request move for non-existent player {} from state {}",
-                    player, state
-                )
-            })
     }
 
     fn move_count(&self, state: State) -> Vec<u32> {

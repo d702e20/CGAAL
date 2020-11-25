@@ -117,6 +117,24 @@ impl IntermediateLCGS {
         }
         res
     }
+
+    /// Returns a list of the moves available to the given player in the given state.
+    fn available_moves(&self, state: &State, player: usize) -> Vec<SymbolIdentifier> {
+        self.players[player]
+            .actions
+            .iter()
+            .filter(|symb_id| {
+                let SymbolIdentifier { owner, name } = symb_id;
+                let symb = self.symbols.get(owner, name).unwrap();
+                if let DeclKind::Transition(trans) = &symb.declaration.borrow().kind {
+                    // The action is available if the condition is not evaluated to 0 in this state
+                    return 0 != Evaluator::new(state).eval(&trans.condition).unwrap();
+                }
+                panic!("Transition was not a transition.")
+            })
+            .map(|s| s.clone())
+            .collect()
+    }
 }
 
 /// Helper function to find symbols in the given [SymbolTable] that satisfies the given
@@ -353,6 +371,7 @@ impl GameStructure for IntermediateLCGS {
     fn labels(&self, state: usize) -> HashSet<usize> {
         let state = self.state_from_index(state);
         let mut res = HashSet::new();
+
         // The labels id is their index in the self.labels vector
         for (i, symb_id) in self.labels.iter().enumerate() {
             let SymbolIdentifier { owner, name } = symb_id;
@@ -370,10 +389,6 @@ impl GameStructure for IntermediateLCGS {
     }
 
     fn transitions(&self, state: usize, choices: Vec<usize>) -> usize {
-        unimplemented!()
-    }
-
-    fn available_moves(&self, state: usize, player: usize) -> u32 {
         unimplemented!()
     }
 
