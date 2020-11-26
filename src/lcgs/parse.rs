@@ -29,11 +29,10 @@ lazy_static! {
         set.insert("label");
         set.insert("player");
         set.insert("template");
+        set.insert("endtemplate");
         set.insert("init");
-        set.insert("int");
         set.insert("true");
         set.insert("false");
-        set.insert("not");
         set.insert("min");
         set.insert("max");
         set
