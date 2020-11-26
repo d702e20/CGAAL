@@ -170,9 +170,12 @@ impl<'a> SymbolChecker<'a> {
                 UnaryOpKind::Negation => *n = (*n == 0) as i32,
             }
         }
-        Ok(Expr {
-            kind: ExprKind::UnaryOp(op.clone(), Box::new(res)),
-        })
+        match op {
+            UnaryOpKind::Not => Ok(Expr {
+                kind: ExprKind::UnaryOp(op.clone(), Box::new(res)),
+            }),
+            UnaryOpKind::Negation => Ok(res),
+        }
     }
 
     /// Optimizes the given binary operator and checks the operands

@@ -854,6 +854,39 @@ mod tests {
         let parser = var_decl();
         assert!(parser.parse(input).is_err());
     }
+    #[test]
+    fn test_type_range_3() {
+        // Test range with negative number
+        let input = br"[-1..20]";
+        let parser = type_range();
+        assert_eq!(
+            parser.parse(input),
+            Ok(TypeRange {
+                min: Expr {
+                    kind: UnaryOp(Negation, Box::new(Expr { kind: Number(1) }))
+                },
+                max: Expr { kind: Number(20) }
+            })
+        );
+    }
+    #[test]
+    fn test_type_range_4() {
+        // Test range with only negative number
+        let input = br"[-20..-1]";
+        let parser = type_range();
+        println!("{:?}", parser.parse(input));
+        assert_eq!(
+            parser.parse(input),
+            Ok(TypeRange {
+                min: Expr {
+                    kind: UnaryOp(Negation, Box::new(Expr { kind: Number(20) }))
+                },
+                max: Expr {
+                    kind: UnaryOp(Negation, Box::new(Expr { kind: Number(1) }))
+                }
+            })
+        );
+    }
 
     #[test]
     fn test_label_decl_01() {
@@ -888,6 +921,23 @@ mod tests {
                     name: "max_health".to_string(),
                 },
                 definition: Expr { kind: Number(1) }
+            })
+        );
+    }
+    #[test]
+    fn test_const_decl_02() {
+        // Negation
+        let input = br"const max_health = -1";
+        let parser = const_decl();
+        assert_eq!(
+            parser.parse(input),
+            Ok(ConstDecl {
+                name: Identifier::Simple {
+                    name: "max_health".to_string(),
+                },
+                definition: Expr {
+                    kind: UnaryOp(Negation, Box::new(Expr { kind: Number(1) }))
+                },
             })
         );
     }
