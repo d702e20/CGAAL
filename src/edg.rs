@@ -456,8 +456,15 @@ mod test {
 
     use serde::export::Formatter;
 
+    use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
+    use crate::atl::formula::Phi;
+    use crate::atl::gamestructure::EagerGameStructure;
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
+    use pom::set::Set;
+    use std::hint::black_box;
+    use std::sync::Arc;
+    use test::Bencher;
 
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
@@ -1071,5 +1078,24 @@ mod test {
             VertexAssignment::TRUE,
             "Vertex B"
         );
+    }
+
+    #[bench]
+    fn bench_mexican_standoff(b: &mut Bencher) {
+        b.iter(|| {
+            let json = String::from_utf8_lossy(include_bytes!("../mexican-standoff.json"));
+            let game_structure: EagerGameStructure = serde_json::from_str(json.to_str()).unwrap();
+            let formula = Arc::new(Phi::Next {
+                players: vec![0],
+                formula: Arc::new(Phi::Proposition(0)),
+            });
+            let graph = ATLDependencyGraph { game_structure };
+
+            black_box(super::distributed_certain_zero)(
+                graph,
+                ATLVertex::FULL { state: 0, formula },
+                1,
+            );
+        })
     }
 }

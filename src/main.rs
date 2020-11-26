@@ -1,3 +1,5 @@
+#![feature(test)]
+extern crate test;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
