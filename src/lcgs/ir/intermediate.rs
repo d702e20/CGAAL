@@ -125,7 +125,7 @@ impl IntermediateLCGS {
     }
 
     /// Returns the initial state of the LCGS game
-    fn initial_state(&self) -> State {
+    pub fn initial_state(&self) -> State {
         let mut res = State(HashMap::new());
         for symb_id in &self.vars {
             let symb = self.symbols.get(symb_id).unwrap();
@@ -137,7 +137,7 @@ impl IntermediateLCGS {
     }
 
     /// Returns the initial state index of the LCGS game
-    fn initial_state_index(&self) -> usize {
+    pub fn initial_state_index(&self) -> usize {
         self.index_of_state(&self.initial_state())
     }
 }

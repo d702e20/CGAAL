@@ -13,7 +13,7 @@ use std::io::{stdout, BufWriter, Read, Write};
 use std::process::exit;
 use std::sync::Arc;
 
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
@@ -25,9 +25,9 @@ use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::{Edges, VertexAssignment};
 use crate::edg::Vertex;
-use crate::printer::print_graph;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::parse::parse_lcgs;
+use crate::printer::print_graph;
 
 mod atl;
 mod com;
@@ -103,16 +103,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Tries to perform a model check from the given arguments.
 fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
     info!("Model checking on formula: {:?}", args.value_of("formula"));
 
+    // Perform model check using the specified model type
     let result = match args.value_of("model_type") {
-        Some("lcgs") => {
-            model_check_lazy_cgs(args)
-        }
-        Some("json") => {
-            model_check_json_cgs(args)
-        }
+        Some("lcgs") => model_check_lazy_cgs(args),
+        Some("json") => model_check_json_cgs(args),
         _ => {
             error!(
                 "Model type '{:?}' not supported!",
@@ -120,8 +118,10 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
             );
             exit(1)
         }
-    }.unwrap();
+    }
+    .unwrap();
 
+    // Output the result
     match args.value_of("output") {
         Some(path) => {
             let file = File::create(path)?;
@@ -136,9 +136,12 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
     }
 }
 
+/// Loads the given "input_model" json file as an EagerGameStructure, then evaluates the given
+/// "formula" starting from the state with index 0.
 fn model_check_json_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn Error>> {
     let game_structure = load_json_cgs(args.value_of("input_model").unwrap());
 
+    // Load formula from json file
     let mut file = File::open(args.value_of("formula").unwrap())?;
     let mut formula = String::new();
     file.read_to_string(&mut formula)?;
@@ -151,6 +154,7 @@ fn model_check_json_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn E
     ))
 }
 
+/// Loads an EagerGameStructure from a json file
 fn load_json_cgs(path: &str) -> EagerGameStructure {
     let mut file = File::open(path).unwrap();
     let mut game_structure = String::new();
@@ -158,21 +162,28 @@ fn load_json_cgs(path: &str) -> EagerGameStructure {
     serde_json::from_str(game_structure.as_str()).unwrap()
 }
 
+/// Loads the given "input_model" as an LCGS program, then evaluates the given "formula" starting
+/// from the initial state given in the LCGS program.
 fn model_check_lazy_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn Error>> {
     let game_structure = load_lazy_cgs(args.value_of("input_model").unwrap());
 
+    // Load formula from json
     let mut file = File::open(args.value_of("formula").unwrap())?;
     let mut formula = String::new();
     file.read_to_string(&mut formula)?;
     let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
 
+    let v0 = game_structure.initial_state_index();
+
+    // Run algorithm to solve
     Ok(edg::distributed_certain_zero(
         ATLDependencyGraph { game_structure },
-        ATLVertex::FULL { state: 0, formula },
+        ATLVertex::FULL { state: v0, formula },
         num_cpus::get() as u64,
     ))
 }
 
+/// Loads an LCGS from a file
 fn load_lazy_cgs(path: &str) -> IntermediateLCGS {
     let mut file = File::open(path).unwrap();
     let mut content = String::new();
