@@ -35,7 +35,7 @@ impl Player {
 /// declarations.
 #[derive(Clone, Debug)]
 pub struct IntermediateLCGS {
-    symbols: SymbolTable,
+    symbols: HashMap<SymbolIdentifier, Decl>,
     labels: Vec<SymbolIdentifier>,
     vars: Vec<SymbolIdentifier>,
     players: Vec<Player>,
@@ -52,7 +52,7 @@ impl IntermediateLCGS {
         check_and_optimize_decls(&mut symbols)?;
 
         let ilcgs = IntermediateLCGS {
-            symbols,
+            symbols: symbols.solidify(),
             labels,
             vars,
             players,
@@ -70,15 +70,8 @@ impl IntermediateLCGS {
         // into seconds, minutes, hours, and days. In this case the time units are state variables
         // instead, and similarly to time units, each state variable has a different size.
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            if let DeclKind::StateVar(var) = &self
-                .symbols
-                .get(owner, name)
-                .unwrap()
-                .declaration
-                .borrow()
-                .kind
-            {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 let value = {
                     let size = var.ir_range.len() as i32;
                     let quotient = carry / size;
@@ -103,9 +96,8 @@ impl IntermediateLCGS {
         // state variables instead, and similarly to time units, each state variable has a
         // different size.
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let var = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::StateVar(var) = &var.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 let size = var.ir_range.len() as i32;
                 let val = state.0.get(symb_id).unwrap();
                 res += ((val - var.ir_range.start) * combined_size) as usize;
@@ -121,9 +113,8 @@ impl IntermediateLCGS {
             .actions
             .iter()
             .filter(|symb_id| {
-                let SymbolIdentifier { owner, name } = symb_id;
-                let symb = self.symbols.get(owner, name).unwrap();
-                if let DeclKind::Transition(trans) = &symb.declaration.borrow().kind {
+                let symb = self.symbols.get(symb_id).unwrap();
+                if let DeclKind::Transition(trans) = &symb.kind {
                     // The action is available if the condition is not evaluated to 0 in this state
                     return 0 != Evaluator::new(state).eval(&trans.condition).unwrap();
                 }
@@ -137,9 +128,8 @@ impl IntermediateLCGS {
     fn initial_state(&self) -> State {
         let mut res = State(HashMap::new());
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let symb = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::StateVar(var) = &symb.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 res.0.insert(symb_id.clone(), var.ir_initial_value);
             }
         }
@@ -372,9 +362,8 @@ impl GameStructure for IntermediateLCGS {
 
         // The labels id is their index in the self.labels vector
         for (i, symb_id) in self.labels.iter().enumerate() {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let symb = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::Label(label) = &symb.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::Label(label) = &symb.kind {
                 // We evaluate the condition with the values of the current state to know
                 // whether the label is present or not
                 let value = Evaluator::new(&state).eval(&label.condition).unwrap();
@@ -403,9 +392,8 @@ impl GameStructure for IntermediateLCGS {
         let evaluator = Evaluator::new(&state);
         let mut next_state = State(HashMap::new());
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let symb = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::StateVar(var) = &symb.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 let val = evaluator.eval(&var.next_value).unwrap();
                 next_state.0.insert(symb_id.clone(), val);
             }
@@ -452,42 +440,18 @@ mod test {
         ";
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 12);
-        assert!(lcgs.symbols.get(&Owner::Global, "max_health").is_some());
-        assert!(lcgs.symbols.get(&Owner::Global, "anna").is_some());
-        assert!(lcgs.symbols.get(&Owner::Global, "bob").is_some());
-        assert!(lcgs.symbols.get(&Owner::Global, "gamer").is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "health")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "alive")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "wait")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "shoot")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "health")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "alive")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "wait")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "shoot")
-            .is_some());
+        assert!(lcgs.symbols.get(&":global.max_health".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.gamer".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.shoot".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.shoot".into()).is_some());
     }
 
     #[test]
@@ -499,7 +463,7 @@ mod test {
         ";
         let lcgs1 = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
         assert_eq!(lcgs1.symbols.len(), 1);
-        assert!(lcgs1.symbols.get(&Owner::Global, "foo").is_some());
+        assert!(lcgs1.symbols.get(&":global.foo".into()).is_some());
 
         // But other declarations cannot refer to themselves
         let input2 = br"

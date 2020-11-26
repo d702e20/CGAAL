@@ -11,6 +11,21 @@ pub struct SymbolIdentifier {
     pub name: String,
 }
 
+impl From<&str> for SymbolIdentifier {
+    /// Converts a string into a symbol identifier. The string must be on the form "owner.name".
+    /// If the owner is ":global", then the owner will be the global scope.
+    fn from(string: &str) -> SymbolIdentifier {
+        let split: Vec<&str> = string.split(".").collect();
+        debug_assert!(split.len() == 2, "Invalid symbol identifier. Must consist of an owner and a name.");
+        let owner = match split[0] {
+            ":global" => Owner::Global,
+            player => Owner::Player(player.to_string())
+        };
+        let name = split[1].to_string();
+        SymbolIdentifier { owner, name }
+    }
+}
+
 impl Display for SymbolIdentifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}", &self.owner, &self.name)
@@ -70,6 +85,13 @@ impl SymbolTable {
 
     pub fn iter(&self) -> std::collections::hash_map::Iter<'_, SymbolIdentifier, Symbol> {
         self.into_iter()
+    }
+
+    /// Consume the symbol table to construct a simple declaration table.
+    pub fn solidify(mut self) -> HashMap<SymbolIdentifier, Decl> {
+        self.symbols.drain().map(|(symb_id, symb)| {
+            (symb_id, symb.declaration.into_inner())
+        }).collect()
     }
 }
 

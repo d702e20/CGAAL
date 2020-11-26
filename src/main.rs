@@ -107,7 +107,7 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
     let result = match args.value_of("model_type") {
         Some("lcgs") => {
-            model_check_json_cgs(args)
+            model_check_lazy_cgs(args)
         }
         Some("json") => {
             model_check_json_cgs(args)
@@ -165,12 +165,11 @@ fn model_check_lazy_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn E
     file.read_to_string(&mut formula)?;
     let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
 
-    unimplemented!()
-    // Ok(edg::distributed_certain_zero(
-    //     ATLDependencyGraph { game_structure },
-    //     ATLVertex::FULL { state: 0, formula },
-    //     num_cpus::get() as u64,
-    // ))
+    Ok(edg::distributed_certain_zero(
+        ATLDependencyGraph { game_structure },
+        ATLVertex::FULL { state: 0, formula },
+        num_cpus::get() as u64,
+    ))
 }
 
 fn load_lazy_cgs(_path: &str) -> IntermediateLCGS {
