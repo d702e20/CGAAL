@@ -423,7 +423,7 @@ mod test {
     #[test]
     fn test_symbol_01() {
         // Check if the correct symbols are inserted into the symbol table
-        let input = br"
+        let input = "
         const max_health = 100;
         player anna = gamer;
         player bob = gamer;
@@ -457,7 +457,7 @@ mod test {
     #[test]
     fn test_symbol_02() {
         // State vars can refer to themselves in the update clause
-        let input1 = br"
+        let input1 = "
         foo : [1 .. 10] init 1;
         foo' = foo;
         ";
@@ -466,7 +466,7 @@ mod test {
         assert!(lcgs1.symbols.get(&":global.foo".into()).is_some());
 
         // But other declarations cannot refer to themselves
-        let input2 = br"
+        let input2 = "
         label foo = foo > 0;
         ";
         let lcgs2 =
@@ -477,7 +477,7 @@ mod test {
     #[test]
     fn test_state_translation_01() {
         // Is translation back and forth between state and index correct
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         bar : [0 .. 5] init 0;
@@ -494,7 +494,7 @@ mod test {
     fn test_state_translation_02() {
         // Is translation back and forth between state and index correct
         // Wack ranges
-        let input = br"
+        let input = "
         foo : [5 .. 23] init 5;
         foo' = foo;
         bar : [3 .. 5] init 3;
@@ -514,7 +514,7 @@ mod test {
     #[test]
     fn test_labels_01() {
         // Are the expected labels present
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         bar : [0 .. 5] init 0;
@@ -529,7 +529,7 @@ mod test {
     #[test]
     fn test_labels_02() {
         // Are the expected labels present
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         bar : [0 .. 5] init 0;
@@ -549,7 +549,7 @@ mod test {
     fn test_labels_03() {
         // Are the expected labels present
         // With players and templates
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         player p1 = something;
@@ -568,7 +568,7 @@ mod test {
     #[test]
     fn test_move_count_01() {
         // Are the expected moves available
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         player p1 = something1;
@@ -591,7 +591,7 @@ mod test {
     #[test]
     fn test_transition_01() {
         // Can we make transitions as expected when they depend on previous state
-        let input = br"
+        let input = "
         foo : [0 .. 1] init 0;
         foo' = !foo;
         player p = something;
@@ -609,7 +609,7 @@ mod test {
     #[test]
     fn test_transition_02() {
         // Can we make transitions as expected when they depend on player actions
-        let input = br"
+        let input = "
         foo : [0 .. 1] init 0;
         foo' = p.set_foo;
         player p = something;
@@ -628,7 +628,7 @@ mod test {
     #[test]
     fn test_initial_state_01() {
         // Is initial state what we expect?
-        let input = br"
+        let input = "
         foo : [0 .. 1] init 0;
         foo' = foo;
         bar : [0 .. 1] init 1;
@@ -642,7 +642,7 @@ mod test {
     fn test_initial_state_02() {
         // Is initial state what we expect?
         // Wack ranges
-        let input = br"
+        let input = "
         foo : [5 .. 9] init 6;
         foo' = foo;
         bar : [1 .. 6] init 1;
