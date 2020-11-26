@@ -27,6 +27,7 @@ use crate::common::{Edges, VertexAssignment};
 use crate::edg::Vertex;
 use crate::printer::print_graph;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
+use crate::lcgs::parse::parse_lcgs;
 
 mod atl;
 mod com;
@@ -172,8 +173,11 @@ fn model_check_lazy_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn E
     ))
 }
 
-fn load_lazy_cgs(_path: &str) -> IntermediateLCGS {
-    unimplemented!()
+fn load_lazy_cgs(path: &str) -> IntermediateLCGS {
+    let mut file = File::open(path).unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+    IntermediateLCGS::create(parse_lcgs(&content).unwrap()).unwrap()
 }
 
 /// Define and parse command line arguments

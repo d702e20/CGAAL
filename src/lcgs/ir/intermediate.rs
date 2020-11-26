@@ -44,7 +44,7 @@ pub struct IntermediateLCGS {
 impl IntermediateLCGS {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(mut root: Root) -> Result<IntermediateLCGS, ()> {
+    pub fn create(root: Root) -> Result<IntermediateLCGS, ()> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
@@ -380,7 +380,7 @@ impl GameStructure for IntermediateLCGS {
         let mut state = self.state_from_index(state);
         // To evaluate the next state we assign the actions to either 1 or 0 depending
         // on whether or not the action was taken
-        for (p_index, player) in self.players.iter().enumerate() {
+        for (p_index, _player) in self.players.iter().enumerate() {
             let moves = self.available_moves(&state, p_index);
             for (a_index, a_symb_id) in moves.iter().enumerate() {
                 let val = if choices[p_index] == a_index { 1 } else { 0 };
@@ -408,7 +408,7 @@ impl GameStructure for IntermediateLCGS {
         self.players
             .iter()
             .enumerate()
-            .map(|(i, player)| self.available_moves(&state, i).len() as u32)
+            .map(|(i, _player)| self.available_moves(&state, i).len() as u32)
             .collect()
     }
 }
