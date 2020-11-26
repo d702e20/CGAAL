@@ -18,7 +18,7 @@ impl Display for SymbolIdentifier {
 }
 
 /// A `Symbol` is an identifier and information about it.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Symbol {
     pub identifier: SymbolIdentifier,
     pub declaration: RefCell<Decl>,
@@ -28,6 +28,7 @@ pub struct Symbol {
 /// In this language symbols always belongs to either the global scope or a
 /// player. Hence, keys are `SymbolIdentifier`s consisting of both an
 /// owner and a name.
+#[derive(Clone, Debug)]
 pub struct SymbolTable {
     symbols: HashMap<SymbolIdentifier, Symbol>,
 }

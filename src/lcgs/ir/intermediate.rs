@@ -11,6 +11,7 @@ use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
+#[derive(Clone, Debug)]
 pub struct Player {
     name: String,
     actions: Vec<SymbolIdentifier>,
@@ -32,6 +33,7 @@ impl Player {
 
 /// An [IntermediateLCGS] is created from processing an AST and checking the validity of the
 /// declarations.
+#[derive(Clone, Debug)]
 pub struct IntermediateLCGS {
     symbols: SymbolTable,
     labels: Vec<SymbolIdentifier>,
