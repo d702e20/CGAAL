@@ -21,7 +21,7 @@ use crate::lcgs::precedence::{precedence, Precedence};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 
-/// Required for static allocation of a hashset
+// Required for static allocation of a hashset
 lazy_static! {
     static ref RESERVED_KEYWORDS: HashSet<&'static str> = {
         let mut set = HashSet::new();
@@ -1043,15 +1043,23 @@ mod tests {
 
     #[test]
     fn test_reserved_keyword_01() {
-        let input = br"label legal_ident = 1;";
+        let input = br"legal_ident";
+        let parser = identifier();
+        assert!(parser.parse(input).is_ok());
+    }
+
+    #[test]
+    fn test_reserved_keyword_02() {
+        let input = br"label;";
         let parser = identifier();
         assert!(parser.parse(input).is_err());
     }
 
     #[test]
-    fn test_reserved_keyword_02() {
-        let input = br"label label = 1;";
-        let parser = identifier();
-        assert!(parser.parse(input).is_err());
+    fn test_reserved_keyword_03() {
+        for RESERVED_KEYWORD in RESERVED_KEYWORDS.iter() {
+            let parser = identifier();
+            assert!(parser.parse(RESERVED_KEYWORD.as_bytes()).is_err());
+        }
     }
 }
