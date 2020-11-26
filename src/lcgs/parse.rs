@@ -1,3 +1,4 @@
+extern crate lazy_static;
 extern crate pom;
 
 use std::iter::Peekable;
@@ -7,6 +8,7 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
+use self::pom::set::Set;
 use crate::lcgs::ast::DeclKind::*;
 use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Template, Transition};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
@@ -14,6 +16,26 @@ use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
+use std::borrow::Borrow;
+use std::collections::HashSet;
+
+// Required for static allocation of a hashset
+lazy_static! {
+    static ref RESERVED_KEYWORDS: HashSet<&'static str> = {
+        let mut set = HashSet::new();
+        set.insert("const");
+        set.insert("label");
+        set.insert("player");
+        set.insert("template");
+        set.insert("endtemplate");
+        set.insert("init");
+        set.insert("true");
+        set.insert("false");
+        set.insert("min");
+        set.insert("max");
+        set
+    };
+}
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -67,7 +89,14 @@ fn non_0_digit() -> Parser<'static, u8, u8> {
 
 /// Parser that parses 0 or more whitespace characters discards them. Include newlines and tabs.
 fn ws() -> Parser<'static, u8, ()> {
-    one_of(b" \t\r\n").repeat(0..).discard()
+    (one_of(b" \t\r\n").discard() | comment())
+        .repeat(0..)
+        .discard()
+}
+
+/// Parser for comments that matches on '//' and whatever until \r or \n, and discards everything
+fn comment() -> Parser<'static, u8, ()> {
+    (seq(b"//") + none_of(b"\r\n").repeat(0..) + one_of(b"\r\n")).discard()
 }
 
 /// Parser that parses a typical positive integer number
@@ -89,9 +118,18 @@ fn name() -> Parser<'static, u8, String> {
     chars.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
-/// Parser that parses an identifier.
+/// Parser that parses an identifier and fails if identifier is a reserved keyword
 fn identifier() -> Parser<'static, u8, Identifier> {
-    name().map(|name| Identifier::Simple { name })
+    name().convert(|name| {
+        if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
+            Err(format!(
+                "Cannot use a reserved keyword as an identifier: {}",
+                name
+            ))
+        } else {
+            Ok(Identifier::Simple { name })
+        }
+    })
 }
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
@@ -319,6 +357,7 @@ mod tests {
     use crate::lcgs::ast::BinaryOpKind::*;
 
     use super::*;
+    use crate::lcgs::ast::Identifier::Simple;
 
     #[test]
     fn test_ident_01() {
@@ -1000,5 +1039,80 @@ mod tests {
         let parser = root();
         println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
+    }
+
+    #[test]
+    fn test_reserved_keyword_01() {
+        let input = br"legal_ident";
+        let parser = identifier();
+        assert!(parser.parse(input).is_ok());
+    }
+
+    #[test]
+    fn test_reserved_keyword_02() {
+        let input = br"label;";
+        let parser = identifier();
+        assert!(parser.parse(input).is_err());
+    }
+
+    #[test]
+    fn test_reserved_keyword_03() {
+        for RESERVED_KEYWORD in RESERVED_KEYWORDS.iter() {
+            let parser = identifier();
+            assert!(parser.parse(RESERVED_KEYWORD.as_bytes()).is_err());
+        }
+    }
+
+    fn test_comment_01() {
+        let input = br"//hunter2 is absolutely not my password";
+        let parser = ws();
+        assert!(parser.parse(input).is_ok())
+    }
+
+    #[test]
+    fn test_comment_02() {
+        let input = br#"/hunter2 is absolutely not my password
+        const max_health = 1;"#;
+        let parser = root();
+        assert!(parser.parse(input).is_err())
+    }
+
+    #[test]
+    fn test_comment_03() {
+        let input = br#"//hunter2 is absolutely not my password
+        const max_health = 1;"#;
+        let parser = root();
+
+        assert_eq!(
+            parser.parse(input),
+            Ok(Root {
+                decls: vec![Decl {
+                    kind: Const(Box::new(ConstDecl {
+                        name: Identifier::Simple {
+                            name: "max_health".to_string(),
+                        },
+                        definition: Expr { kind: Number(1) },
+                    }))
+                }]
+            })
+        );
+    }
+
+    #[test]
+    fn test_comment_04() {
+        let input = br#"//const max_health = 1;
+        const asd = 2;
+        "#;
+        let parser = root();
+        assert_eq!(parser.parse(input).unwrap().decls.len(), 1)
+    }
+
+    #[test]
+    fn test_comment_05() {
+        let input = br#"const max_health = 1; // hunter2
+        const vvvv = 1;"#;
+        let parser = root();
+        assert!(parser.parse(input).is_ok());
+        assert_eq!(parser.parse(input).unwrap().decls.len(), 2);
     }
 }
