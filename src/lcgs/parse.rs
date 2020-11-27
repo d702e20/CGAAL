@@ -1,25 +1,22 @@
 extern crate lazy_static;
 extern crate pom;
 
+use std::borrow::Borrow;
+use std::collections::HashSet;
 use std::iter::Peekable;
-use std::rc::Rc;
 use std::str::{self, FromStr};
 use std::vec::Drain;
 
 use pom::parser::*;
 
-use self::pom::set::Set;
-use crate::lcgs::ast::DeclKind::*;
-use crate::lcgs::ast::DeclKind::{
-    Const, Label, Player, StateVar, StateVarChange, Template, Transition,
-};
+use crate::lcgs::ast::DeclKind::{Const, Label, StateVar, StateVarChange, Template, Transition};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Max, Min, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
-use std::borrow::Borrow;
-use std::collections::HashSet;
+
+use self::pom::set::Set;
 
 // Required for static allocation of a hashset
 lazy_static! {
@@ -375,9 +372,9 @@ pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
 #[cfg(test)]
 mod tests {
     use crate::lcgs::ast::BinaryOpKind::*;
+    use crate::lcgs::ast::Identifier::Simple;
 
     use super::*;
-    use crate::lcgs::ast::Identifier::Simple;
 
     #[test]
     fn test_min_01() {

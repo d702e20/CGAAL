@@ -1,8 +1,5 @@
-use crate::lcgs::ast::ExprKind::Number;
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
-use log4rs::append::Append;
-use std::borrow::Borrow;
 
 /// [CheckMode]s control which declaration identifiers are allow to refer to in the [SymbolChecker].
 #[derive(Eq, PartialEq)]

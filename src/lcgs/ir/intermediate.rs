@@ -1,16 +1,10 @@
-use std::collections::HashSet;
-
-use crate::lcgs::ast;
-use crate::lcgs::ast::ExprKind::Number;
-use crate::lcgs::ast::{
-    BinaryOpKind, ConstDecl, Decl, DeclKind, Expr, ExprKind, Identifier, Root, UnaryOpKind,
-};
-use crate::lcgs::ir::eval::Evaluator;
-use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
-use crate::lcgs::ir::symbol_table::Owner::Global;
-use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::collections::HashSet;
+
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
+use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
+use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
