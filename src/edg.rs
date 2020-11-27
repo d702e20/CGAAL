@@ -11,6 +11,7 @@ use crossbeam_channel::{Receiver, Select, TrySendError};
 use crate::com::{Broker, ChannelBroker};
 use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
 use crate::distterm::{ControllerWeight, Weight};
+use std::cmp::max;
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 
@@ -31,7 +32,7 @@ pub fn distributed_certain_zero<
     worker_count: u64,
 ) -> VertexAssignment {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs) =
+    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs, weight_rx) =
         ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
@@ -110,9 +111,11 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     depends: HashMap<V, HashSet<Edges<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
+    distances: HashMap<V, u32>,
     msg_rx: Receiver<Message<V>>,
     hyper_rx: Receiver<(HyperEdge<V>, Weight)>,
     negation_rx: Receiver<(NegationEdge<V>, Weight)>,
+    unsafe_edges: Vec<Vec<(NegationEdge<V>, Weight)>>,
     term_rx: Receiver<VertexAssignment>,
     broker: Arc<B>,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
@@ -120,6 +123,7 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
+    counter: u32,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -147,7 +151,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         msg_rx: Receiver<Message<V>>,
         hyper_rx: Receiver<(HyperEdge<V>, Weight)>,
         negation_rx: Receiver<(NegationEdge<V>, Weight)>,
-        unsafe_rx: Vec<Vec<NegationEdge<V>>>,
         term_rx: Receiver<VertexAssignment>,
         broker: Arc<B>,
         edg: G,
@@ -157,6 +160,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let interests = HashMap::<V, HashSet<WorkerId>>::new();
         let depends = HashMap::<V, HashSet<Edges<V>>>::new();
         let successors = HashMap::<V, HashSet<Edges<V>>>::new();
+        let distances = HashMap::<V, u32>::new();
+        let unsafe_edges = Vec::<Vec<(NegationEdge<V>, Weight)>>::new();
+        let counter = 0;
 
         Self {
             id,
@@ -168,11 +174,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             msg_rx,
             hyper_rx,
             negation_rx,
-            unsafe_rx,
+            unsafe_edges,
+            distances,
             term_rx,
             broker,
             successors,
             edg,
+            counter,
         }
     }
 
@@ -213,7 +221,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                             distance,
                             worker_id,
                             weight,
-                        } => self.process_request(&vertex, worker_id, weight),
+                        } => self.process_request(&vertex, worker_id, weight, distance),
                         // Alg 1, Line 9
                         Message::ANSWER {
                             vertex,
@@ -237,34 +245,46 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Ok((edge, weight)) => match self.assignment.get(&edge.target) {
                         None => self.process_negation_edge(edge.clone(), weight),
                         // Alg 1, Line 7
-                        Some(assignment) => {
-                            match assignment {
-                                VertexAssignment::FALSE => {
+                        Some(assignment) => match assignment {
+                            VertexAssignment::FALSE => {
+                                self.process_negation_edge(edge.clone(), weight)
+                            }
+                            VertexAssignment::TRUE => {
+                                self.process_negation_edge(edge.clone(), weight)
+                            }
+                            VertexAssignment::UNDECIDED => {
+                                if self.counter == 9 {
+                                    self.counter = 0;
                                     self.process_negation_edge(edge.clone(), weight)
-                                }
-                                VertexAssignment::TRUE => {
-                                    self.process_negation_edge(edge.clone(), weight)
-                                }
-                                VertexAssignment::UNDECIDED => {
-                                    if false {
-                                        //TODO mangler case hvor alle workers er idle
-                                        self.process_negation_edge(edge.clone(), weight);
-                                    } else {
-                                        continue;
-                                    }
+                                } else {
+                                    self.counter = self.counter + 1;
                                 }
                             }
-                        }
+                        },
                     },
                     Err(err) => panic!(
                         "Receiving from negation edge waiting channel failed with: {}",
                         err
                     ),
                 }
+            } else {
+                self.release_negations(max(self.unsafe_edges.len(), 0));
             }
         }
     }
 
+    fn release_negations(&mut self, dist: usize) {
+        while self.unsafe_edges.len() >= dist && self.unsafe_edges.len() > 0 {
+            if let Some(edges) = self.unsafe_edges.last() {
+                let edges = self.unsafe_edges.last_mut().unwrap();
+                while !edges.is_empty() {
+                    let (edge, weight) = edges.pop().unwrap();
+                    self.broker.queue_negation(self.id, edge, weight);
+                }
+            }
+            self.unsafe_edges.pop();
+        }
+    }
     /// Adds worker to C^i(vertex)
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         if let Some(set) = self.interests.get_mut(vertex) {
@@ -302,22 +322,23 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     };
                     match edge {
                         Edges::HYPER(edge) => {
-                            self.broker.queue_hyper(self.id, edge.clone(), split_weight)
-                        }
-                        Edges::NEGATION(edge) => {
                             self.broker
-                                .queue_negation(self.id, edge.clone(), split_weight)
+                                .queue_hyper(self.id, edge.clone(), weight.clone())
                         }
+                        Edges::NEGATION(edge) => self.queue_negation(edge.clone(), weight.clone()),
                     }
                 }
             }
         } else {
+            let default = 0;
             // Line 7
             self.broker.send(
                 self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
+                    distance: self.distances.get(vertex).unwrap_or(&default).clone(),
                     worker_id: self.id,
+                    weight,
                 },
             )
         }
@@ -378,13 +399,27 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.broker.return_weight(weight);
     }
 
-    // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+        // Update the distance
+        let default = 0;
+        let tdist = self.distances.get(vertex).unwrap_or(&default).clone();
+        match dependency.clone() {
+            Edges::NEGATION(edge) => {
+                let sdist = self.distances.get(&edge.source).unwrap_or(&default).clone() + 1;
+                self.distances.insert(vertex.clone(), max(sdist, tdist));
+            }
+            Edges::HYPER(edge) => {
+                let sdist = self.distances.get(&edge.source).unwrap_or(&default).clone();
+                self.distances.insert(vertex.clone(), max(sdist, tdist));
+            }
+        }
+
+        // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
         if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.insert(dependency);
+            dependencies.insert(dependency.clone());
         } else {
             let mut dependencies = HashSet::new();
-            dependencies.insert(dependency);
+            dependencies.insert(dependency.clone());
             self.depends.insert(vertex.clone(), dependencies);
         }
     }
@@ -403,11 +438,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 // UNEXPLORED
                 // Line 6
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                let (weight1, weight2) = weight
-                    .split()
-                    .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
-                self.broker.queue_negation(self.id, edge.clone(), weight1);
-                self.explore(&edge.target, weight2);
+                self.queue_negation(edge.clone(), weight.clone());
+                self.explore(&edge.target, weight.clone());
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
@@ -421,8 +453,24 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
+    fn queue_negation(&mut self, edge: NegationEdge<V>, weight: Weight) {
+        let mut len = self.unsafe_edges.len();
+        let mut dist = 0;
+        if let Some(n) = self.distances.get(&edge.source) {
+            dist = n.clone();
+        }
+        while len <= dist as usize {
+            self.unsafe_edges.push(Vec::new());
+            len = len + 1
+        }
+        self.unsafe_edges
+            .get_mut(dist as usize)
+            .unwrap()
+            .push((edge, weight));
+    }
+
     // Another worker has requested the final assignment of a `vertex`
-    fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight) {
+    fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight, distance: u32) {
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             match assigned {
@@ -446,7 +494,23 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         },
                     );
                 }
-                VertexAssignment::UNDECIDED => {} // fallthrough
+                _ => {
+                    // update distance
+                    let dist = self.distances.get(vertex).unwrap_or(&0);
+                    self.distances
+                        .insert(vertex.clone(), max(dist.clone(), distance));
+
+                    self.mark_interest(vertex, requester);
+
+                    if let Some(dependencies) = self.depends.get(vertex) {
+                        if let Some(assignment) = self.assignment.get(vertex) {
+                            match assignment {
+                                VertexAssignment::UNDECIDED => self.explore(vertex, weight.clone()),
+                                _ => {}
+                            }
+                        }
+                    }
+                }
             }
         }
         // Final assignment of `vertex` is not yet known
@@ -492,7 +556,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 5
         if let Some(depends) = self.depends.get(&vertex) {
-            for edge in depends {
+            for edge in depends.clone() {
                 let (new_weight, split_weight) = weight
                     .split()
                     .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
@@ -501,10 +565,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Edges::HYPER(edge) => {
                         self.broker.queue_hyper(self.id, edge.clone(), split_weight)
                     }
-                    Edges::NEGATION(edge) => {
-                        self.broker
-                            .queue_negation(self.id, edge.clone(), split_weight)
-                    }
+                    Edges::NEGATION(edge) => self.queue_negation(edge.clone(), split_weight),
                 }
             }
         }
@@ -583,7 +644,6 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
-    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -729,12 +789,12 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, 1),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
             "Vertex B"
         );
