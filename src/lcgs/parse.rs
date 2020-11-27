@@ -262,7 +262,7 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
             Ok(StateVarDecl {
                 name,
                 range,
-                ir_range: 0..0,
+                ir_range: 0..=0,
                 initial_value: initv,
                 ir_initial_value: 0,
                 next_value: nextv,
@@ -1022,7 +1022,7 @@ mod tests {
                         }))
                     },
                 },
-                ir_range: 0..0,
+                ir_range: 0..=0,
                 initial_value: Expr {
                     kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,

@@ -76,11 +76,11 @@ impl IntermediateLCGS {
                 .kind
             {
                 let value = {
-                    let size = var.ir_range.len() as i32;
+                    let size = var.ir_range.end() - var.ir_range.start() + 1;
                     let quotient = carry / size;
                     let remainder = carry.rem_euclid(size);
                     carry = quotient;
-                    var.ir_range.start + remainder
+                    var.ir_range.start() + remainder
                 };
                 state.0.insert(symb_id.clone(), value);
             }
@@ -106,9 +106,9 @@ impl IntermediateLCGS {
             let SymbolIdentifier { owner, name } = symb_id;
             let var = self.symbols.get(owner, name).unwrap();
             if let DeclKind::StateVar(var) = &var.declaration.borrow().kind {
-                let size = var.ir_range.len() as i32;
+                let size = var.ir_range.end() - var.ir_range.start() + 1;
                 let val = state.0.get(symb_id).unwrap();
-                res += ((val - var.ir_range.start) * combined_size) as usize;
+                res += ((val - var.ir_range.start()) * combined_size) as usize;
                 combined_size *= size;
             }
         }
