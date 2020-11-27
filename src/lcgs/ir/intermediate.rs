@@ -82,7 +82,11 @@ impl IntermediateLCGS {
                 state.0.insert(symb_id.clone(), value);
             }
         }
-        debug_assert!(carry == 0, "State overflow. Invalid state index.");
+        debug_assert!(
+            carry == 0,
+            "State overflow (carry was {}). Invalid state index.",
+            carry
+        );
         state
     }
 
@@ -416,6 +420,7 @@ impl GameStructure for IntermediateLCGS {
 #[cfg(test)]
 mod test {
     use crate::atl::gamestructure::GameStructure;
+    use crate::lcgs::ast::UnaryOpKind;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
@@ -509,6 +514,33 @@ mod test {
             let i2 = lcgs.index_of_state(&state);
             assert_eq!(*i, i2);
         }
+    }
+
+    #[test]
+    fn test_state_translation_03() {
+        // Is translation back and forth between state and index correct
+        // Wack ranges
+        let input = "
+        foo : [-2 .. 13] init 5;
+        foo' = foo;
+        bar : [-5 .. -3] init -3;
+        bar' = bar;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let index = 14;
+        let state = lcgs.state_from_index(index);
+        let index2 = lcgs.index_of_state(&state);
+        assert_eq!(index, index2);
+    }
+
+    #[test]
+    fn test_negation_const_01() {
+        let input = "
+        const t = -5;
+        ";
+        let pp = parse_lcgs(input);
+        let lcgs = IntermediateLCGS::create(pp.unwrap()).unwrap();
+        assert!(lcgs.symbols.get(&":global.t".into()).is_some());
     }
 
     #[test]

@@ -41,7 +41,7 @@ impl<'a> Evaluator<'a> {
 
     fn eval_unop(&self, op: &UnaryOpKind, e: &Expr) -> Result<i32, ()> {
         let res = self.eval(e)?;
-        Ok(op.as_fun()(res))
+        Ok(op.as_fn()(res))
     }
 
     fn eval_binop(&self, op: &BinaryOpKind, e1: &Expr, e2: &Expr) -> Result<i32, ()> {
