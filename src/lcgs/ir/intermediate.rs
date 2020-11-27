@@ -2,12 +2,10 @@ use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast::{
-    BinaryOpKind, ConstDecl, Decl, DeclKind, Expr, ExprKind, Identifier, Root, UnaryOpKind,
-};
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
-use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
+use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
@@ -42,12 +40,12 @@ pub struct IntermediateLCGS {
 impl IntermediateLCGS {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(mut root: Root) -> Result<IntermediateLCGS, ()> {
+    pub fn create(root: Root) -> Result<IntermediateLCGS, ()> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
         let (players, labels, vars) = register_decls(&mut symbols, root)?;
-        check_and_optimize_decls(&mut symbols)?;
+        check_and_optimize_decls(&symbols)?;
 
         let ilcgs = IntermediateLCGS {
             symbols,
@@ -56,7 +54,7 @@ impl IntermediateLCGS {
             players,
         };
 
-        return Ok(ilcgs);
+        Ok(ilcgs)
     }
 
     /// Transforms a state index to a [State].
@@ -393,7 +391,7 @@ impl GameStructure for IntermediateLCGS {
         let mut state = self.state_from_index(state);
         // To evaluate the next state we assign the actions to either 1 or 0 depending
         // on whether or not the action was taken
-        for (p_index, player) in self.players.iter().enumerate() {
+        for (p_index, _player) in self.players.iter().enumerate() {
             let moves = self.available_moves(&state, p_index);
             for (a_index, a_symb_id) in moves.iter().enumerate() {
                 let val = if choices[p_index] == a_index { 1 } else { 0 };
@@ -422,7 +420,7 @@ impl GameStructure for IntermediateLCGS {
         self.players
             .iter()
             .enumerate()
-            .map(|(i, player)| self.available_moves(&state, i).len() as u32)
+            .map(|(i, _player)| self.available_moves(&state, i).len() as u32)
             .collect()
     }
 }
@@ -430,7 +428,6 @@ impl GameStructure for IntermediateLCGS {
 #[cfg(test)]
 mod test {
     use crate::atl::gamestructure::GameStructure;
-    use crate::lcgs::ast::UnaryOpKind;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
