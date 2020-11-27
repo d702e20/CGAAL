@@ -111,24 +111,24 @@ fn number<'a>() -> Parser<'a, u8, Expr> {
 }
 
 /// Parser that parses a symbol name. It must start with an alpha character, but subsequent
-/// characters can be digits or "_" too.
+/// characters can be digits or "_" too. Parser fails if it is a keyword.
 fn name<'a>() -> Parser<'a, u8, String> {
     let chars = alpha() - (alpha() | digit() | sym(b'_')).repeat(0..);
-    chars.collect().convert(|s| String::from_utf8(s.to_vec()))
-}
-
-/// Parser that parses an identifier and fails if identifier is a reserved keyword
-fn identifier<'a>() -> Parser<'a, u8, Identifier> {
-    name().convert(|name| {
+    chars.collect().convert(|s| String::from_utf8(s.to_vec())).convert(|name| {
         if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
             Err(format!(
                 "Cannot use a reserved keyword as an identifier: {}",
                 name
             ))
         } else {
-            Ok(Identifier::Simple { name })
+            Ok(name)
         }
     })
+}
+
+/// Parser that parses an identifier.
+fn identifier<'a>() -> Parser<'a, u8, Identifier> {
+    name().map(|name| Identifier::Simple { name })
 }
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
@@ -274,13 +274,10 @@ fn const_decl<'a>() -> Parser<'a, u8, ConstDecl> {
 }
 
 /// Parser that parses a relabelling, e.g.
-/// "`[target1=p2, target2=p3]`"
+/// "`[target1=p2, dmg=2]`"
 fn relabelling<'a>() -> Parser<'a, u8, Relabeling> {
-    let raw_case = identifier() - ws() - sym(b'=') - ws() + identifier();
-    let case = raw_case.map(|(prev, new)| RelabelCase {
-        prev_name: prev,
-        new_name: new,
-    });
+    let raw_case = name() - ws() - sym(b'=') - ws() + expr();
+    let case = raw_case.map(|(prev, new)| RelabelCase { prev, new });
     let inner = list(case, ws() * sym(b',') - ws());
     let whole = sym(b'[') * ws() * inner - ws() - sym(b']');
     whole.map(|cases| Relabeling {
@@ -385,12 +382,12 @@ mod tests {
     #[test]
     fn test_ident_03() {
         // Should be a valid identifier with owner
-        let input = br"player.variable";
+        let input = br"player1.variable";
         let parser = owned_identifier();
         assert_eq!(
             parser.parse(input),
             Ok(Identifier::OptionalOwner {
-                owner: Some("player".into()),
+                owner: Some("player1".into()),
                 name: "variable".into()
             })
         );
@@ -958,26 +955,25 @@ mod tests {
     #[test]
     fn test_relabelling_02() {
         // Simple relabelling
-        let input = br"[target1=p2, target2=p3]";
+        let input = br"[target=p2, dmg=2]";
         let parser = relabelling();
         assert_eq!(
             parser.parse(input),
             Ok(Relabeling {
                 relabellings: vec![
                     RelabelCase {
-                        prev_name: Identifier::Simple {
-                            name: "target1".to_string()
-                        },
-                        new_name: Identifier::Simple {
-                            name: "p2".to_string()
+                        prev: "target".to_string(),
+                        new: Expr {
+                            kind: ExprKind::OwnedIdent(Box::from(Identifier::OptionalOwner {
+                                owner: None,
+                                name: "p2".to_string()
+                            })),
                         }
                     },
                     RelabelCase {
-                        prev_name: Identifier::Simple {
-                            name: "target2".to_string()
-                        },
-                        new_name: Identifier::Simple {
-                            name: "p3".to_string()
+                        prev: "dmg".to_string(),
+                        new: Expr {
+                            kind: ExprKind::Number(2),
                         }
                     }
                 ]
@@ -1022,11 +1018,12 @@ mod tests {
                 },
                 relabeling: Relabeling {
                     relabellings: vec![RelabelCase {
-                        prev_name: Identifier::Simple {
-                            name: "target".to_string()
-                        },
-                        new_name: Identifier::Simple {
-                            name: "p2".to_string()
+                        prev: "target".to_string(),
+                        new: Expr {
+                            kind: ExprKind::OwnedIdent(Box::from(Identifier::OptionalOwner {
+                                owner: None,
+                                name: "p2".to_string()
+                            }))
                         }
                     }]
                 }
