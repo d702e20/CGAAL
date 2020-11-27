@@ -75,7 +75,7 @@ impl IntermediateLCGS {
             players,
         };
 
-        return Ok(ilcgs);
+        Ok(ilcgs)
     }
 }
 

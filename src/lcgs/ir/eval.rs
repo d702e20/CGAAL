@@ -66,10 +66,10 @@ impl<'a> Evaluator<'a> {
             self.eval(e2)
         }
     }
-    fn eval_min(&self, ls: &Vec<Expr>) -> Result<i32, ()> {
+    fn eval_min(&self, ls: &[Expr]) -> Result<i32, ()> {
         return ls.iter().map(|p| self.eval(p)).min().unwrap();
     }
-    fn eval_max(&self, ls: &Vec<Expr>) -> Result<i32, ()> {
+    fn eval_max(&self, ls: &[Expr]) -> Result<i32, ()> {
         return ls.iter().map(|p| self.eval(p)).max().unwrap();
     }
 }

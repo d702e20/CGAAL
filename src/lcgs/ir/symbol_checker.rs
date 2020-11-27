@@ -133,12 +133,12 @@ impl<'a> SymbolChecker<'a> {
 
         // Identifier is okay. Return a resolved identifier where owner is specified.
         let SymbolIdentifier { owner, name } = &symb.identifier;
-        return Ok(Expr {
+        Ok(Expr {
             kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
                 owner: owner.clone(),
                 name: name.clone(),
             })),
-        });
+        })
     }
 
     /// Optimizes the given unary operator and checks the operand
@@ -193,7 +193,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the min of that
     /// Then returns a new checked Vec of Expr to find Min of.
-    fn check_min(&self, ls: &Vec<Expr>) -> Result<Expr, ()> {
+    fn check_min(&self, ls: &[Expr]) -> Result<Expr, ()> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
             .iter()
@@ -202,7 +202,7 @@ impl<'a> SymbolChecker<'a> {
                 _ => None,
             })
             .min();
-        return if let Some(x) = number {
+        if let Some(x) = number {
             let mut res: Vec<Expr> = checked_list
                 .into_iter()
                 .filter(|p| !matches!(p.kind, ExprKind::Number(_)))
@@ -223,11 +223,11 @@ impl<'a> SymbolChecker<'a> {
             Ok(Expr {
                 kind: ExprKind::Min(checked_list),
             })
-        };
+        }
     }
     /// First combines all numbers, as we already know the max of that
     /// Then returns a new checked Vec of Expr to find Max of.
-    fn check_max(&self, ls: &Vec<Expr>) -> Result<Expr, ()> {
+    fn check_max(&self, ls: &[Expr]) -> Result<Expr, ()> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
             .iter()
@@ -236,7 +236,7 @@ impl<'a> SymbolChecker<'a> {
                 _ => None,
             })
             .max();
-        return if let Some(x) = number {
+        if let Some(x) = number {
             let mut res: Vec<Expr> = checked_list
                 .into_iter()
                 .filter(|p| !matches!(p.kind, ExprKind::Number(_)))
@@ -257,6 +257,6 @@ impl<'a> SymbolChecker<'a> {
             Ok(Expr {
                 kind: ExprKind::Max(checked_list),
             })
-        };
+        }
     }
 }
