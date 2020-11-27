@@ -35,11 +35,10 @@ impl<'a> Evaluator<'a> {
             Identifier::Resolved { owner, name } => self
                 .symbols
                 .get(owner, name)
-                .expect("Symbol does not exist. Compiler should have failed already.")
-                .borrow(),
+                .expect("Symbol does not exist. Compiler should have failed already."),
         };
 
-        match &symb.declaration.kind {
+        match &symb.declaration.borrow().kind {
             DeclKind::Const(con) => self.eval(&con.definition),
             DeclKind::Label(_) => unimplemented!(), // TODO Depends on current state
             DeclKind::StateVar(_) => unimplemented!(), // TODO Depends on current state

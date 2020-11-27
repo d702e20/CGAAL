@@ -21,7 +21,7 @@ impl Display for SymbolIdentifier {
 #[derive(Debug)]
 pub struct Symbol {
     pub identifier: SymbolIdentifier,
-    pub declaration: Decl,
+    pub declaration: RefCell<Decl>,
 }
 
 /// A `SymbolTable` keeps track of registered symbols and their properties.
@@ -29,7 +29,7 @@ pub struct Symbol {
 /// player. Hence, keys are `SymbolIdentifier`s consisting of both an
 /// owner and a name.
 pub struct SymbolTable {
-    symbols: HashMap<SymbolIdentifier, RefCell<Symbol>>,
+    symbols: HashMap<SymbolIdentifier, Symbol>,
 }
 
 impl SymbolTable {
@@ -46,20 +46,20 @@ impl SymbolTable {
     /// Creates and inserts a symbol for the given declaration for the given owner with the
     /// given name. If the name is already associated with a different symbol, the previous
     /// symbol is returned.
-    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<RefCell<Symbol>> {
+    pub fn insert(&mut self, owner: &Owner, name: &str, decl: Decl) -> Option<Symbol> {
         let symb_id = SymbolIdentifier {
             owner: owner.clone(),
             name: name.to_string(),
         };
         let symb = Symbol {
             identifier: symb_id.clone(),
-            declaration: decl,
+            declaration: RefCell::new(decl),
         };
-        self.symbols.insert(symb_id, RefCell::new(symb))
+        self.symbols.insert(symb_id, symb)
     }
 
     /// Get the symbol associated with the given owner and name, if it exists.
-    pub fn get(&self, owner: &Owner, name: &str) -> Option<&RefCell<Symbol>> {
+    pub fn get(&self, owner: &Owner, name: &str) -> Option<&Symbol> {
         let symb_id = SymbolIdentifier {
             owner: owner.clone(),
             name: name.to_string(),
@@ -67,7 +67,7 @@ impl SymbolTable {
         self.symbols.get(&symb_id)
     }
 
-    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, SymbolIdentifier, RefCell<Symbol>> {
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, SymbolIdentifier, Symbol> {
         self.into_iter()
     }
 }
@@ -79,8 +79,8 @@ impl Default for SymbolTable {
 }
 
 impl<'a> IntoIterator for &'a SymbolTable {
-    type Item = (&'a SymbolIdentifier, &'a RefCell<Symbol>);
-    type IntoIter = std::collections::hash_map::Iter<'a, SymbolIdentifier, RefCell<Symbol>>;
+    type Item = (&'a SymbolIdentifier, &'a Symbol);
+    type IntoIter = std::collections::hash_map::Iter<'a, SymbolIdentifier, Symbol>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.symbols.iter()
