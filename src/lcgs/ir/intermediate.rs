@@ -39,7 +39,6 @@ pub struct IntermediateLCGS {
     symbols: SymbolTable,
     labels: Vec<SymbolIdentifier>,
     vars: Vec<SymbolIdentifier>,
-    var_changes: Vec<SymbolIdentifier>,
     players: Vec<Player>,
 }
 
@@ -55,23 +54,16 @@ impl IntermediateLCGS {
 
         // Collect all symbol names that will be relevant for the game structure
         let labels = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(rf_decl.borrow().declaration.kind, DeclKind::Label(_))
+            matches!(rf_decl.declaration.borrow().kind, DeclKind::Label(_))
         });
         let vars = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(rf_decl.borrow().declaration.kind, DeclKind::StateVar(_))
-        });
-        let var_changes = fetch_decls(&symbols, |_, rf_decl| {
-            matches!(
-                rf_decl.borrow().declaration.kind,
-                DeclKind::StateVarChange(_)
-            )
+            matches!(rf_decl.declaration.borrow().kind, DeclKind::StateVar(_))
         });
 
         let ilcgs = IntermediateLCGS {
             symbols,
             labels,
             vars,
-            var_changes,
             players,
         };
 
@@ -83,7 +75,7 @@ impl IntermediateLCGS {
 /// predicate.
 fn fetch_decls<F>(symbols: &SymbolTable, pred: F) -> Vec<SymbolIdentifier>
 where
-    F: Fn(&SymbolIdentifier, &RefCell<Symbol>) -> bool,
+    F: Fn(&SymbolIdentifier, &Symbol) -> bool,
 {
     symbols
         .iter()
@@ -133,10 +125,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
                     panic!("Constant '{}' is already declared.", &name); // TODO Use custom error
                 }
             }
-            DeclKind::Label(_)
-            | DeclKind::StateVar(_)
-            | DeclKind::StateVarChange(_)
-            | DeclKind::Template(_) => {
+            DeclKind::Label(_) | DeclKind::StateVar(_) | DeclKind::Template(_) => {
                 // All of the above declaration kinds can simply be inserted into the symbol table
                 let name = decl.kind.ident().name().to_string();
                 if symbols.insert(&Owner::Global, &name, decl).is_some() {
@@ -165,8 +154,8 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
             let template_decl = symbols
                 .get(&Owner::Global, &player_decl.template.name())
                 .expect("Unknown template") // TODO Use custom error
-                .borrow()
                 .declaration
+                .borrow()
                 .clone();
 
             if let DeclKind::Template(template) = template_decl.kind {
@@ -175,9 +164,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<Vec<Player>, 
                 let scope_owner = player.to_owner();
                 for decl in template.decls {
                     match &decl.kind {
-                        DeclKind::Label(_)
-                        | DeclKind::StateVar(_)
-                        | DeclKind::StateVarChange(_) => {
+                        DeclKind::Label(_) | DeclKind::StateVar(_) => {
                             // The above declarations can simply be inserted into the symbol table
                             let name = decl.kind.ident().name().to_string();
                             if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
@@ -225,9 +212,9 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
             name: name.clone(),
         };
 
-        // Reduce the declaration's expression(s)
-        let mut symb = rc_symb.borrow_mut();
-        match symb.declaration.kind.borrow_mut() {
+        // Optimize the declaration's expression(s)
+        let mut declaration = rc_symb.declaration.borrow_mut();
+        match declaration.kind.borrow_mut() {
             DeclKind::Label(label) => {
                 label.name = resolved_name;
                 label.condition =
@@ -241,12 +228,9 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
                 var.initial_value = checker.check(&var.initial_value)?;
                 var.range.min = checker.check(&var.range.min)?;
                 var.range.max = checker.check(&var.range.max)?;
-            }
-            DeclKind::StateVarChange(var_change) => {
-                var_change.name = resolved_name;
-                var_change.next_value =
-                    SymbolChecker::new(symbols, owner.clone(), CheckMode::StateVarChange)
-                        .check(&var_change.next_value)?;
+                var.next_value =
+                    SymbolChecker::new(symbols, owner.clone(), CheckMode::StateVarUpdate)
+                        .check(&var.next_value)?;
             }
             DeclKind::Transition(tran) => {
                 tran.name = resolved_name;
@@ -282,6 +266,7 @@ mod test {
 
         template gamer
             health : [0 .. max_health] init max_health;
+            health' = health - 1;
 
             label alive = health > 0;
 
@@ -327,5 +312,25 @@ mod test {
             .symbols
             .get(&Owner::Player("bob".to_string()), "shoot")
             .is_some());
+    }
+
+    #[test]
+    fn test_symbol_02() {
+        // State vars can refer to themselves in the update clause
+        let input1 = br"
+        foo : [1 .. 10] init 1;
+        foo' = foo;
+        ";
+        let lcgs1 = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
+        assert_eq!(lcgs1.symbols.len(), 1);
+        assert!(lcgs1.symbols.get(&Owner::Global, "foo").is_some());
+
+        // But other declarations cannot refer to themselves
+        let input2 = br"
+        label foo = foo > 0;
+        ";
+        let lcgs2 =
+            std::panic::catch_unwind(|| IntermediateLCGS::create(parse_lcgs(input2).unwrap()));
+        assert!(lcgs2.is_err());
     }
 }

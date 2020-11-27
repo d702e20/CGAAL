@@ -10,9 +10,7 @@ use pom::parser::*;
 
 use self::pom::set::Set;
 use crate::lcgs::ast::DeclKind::*;
-use crate::lcgs::ast::DeclKind::{
-    Const, Label, Player, StateVar, StateVarChange, Template, Transition,
-};
+use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Template, Transition};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
@@ -244,20 +242,20 @@ fn type_range() -> Parser<'static, u8, TypeRange> {
 fn var_decl() -> Parser<'static, u8, StateVarDecl> {
     let base = identifier() - ws() - sym(b':') - ws() + type_range();
     let init = seq(b"init") * ws() * expr();
-    let whole = base - ws() + init;
-    whole.map(|((name, range), init_e)| StateVarDecl {
-        name,
-        range,
-        initial_value: init_e,
+    let update = identifier() - sym(b'\'') - ws() - sym(b'=') - ws() + expr();
+    let whole = base - ws() + init - ws() - sym(b';') - ws() + update;
+    whole.convert(|(((name, range), initv), (prime, nextv))| {
+        if name == prime {
+            Ok(StateVarDecl {
+                name,
+                range,
+                initial_value: initv,
+                next_value: nextv,
+            })
+        } else {
+            Err("The names of the state variable and the following update declaration does not match.")
+        }
     })
-}
-
-/// Parser that parses a variable-change declaration, e.g.
-/// /// "`health' = health - 1`"
-fn var_change_decl() -> Parser<'static, u8, StateVarChangeDecl> {
-    let name = identifier() - sym(b'\'');
-    let change = name - ws() - sym(b'=') - ws() + expr();
-    change.map(|(name, next_value)| StateVarChangeDecl { name, next_value })
 }
 
 /// Parser that parses a label declaration, e.g.
@@ -321,8 +319,6 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
         kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
         kind: StateVar(Box::new(vd)),
-    }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Box::new(vcd)),
     }) | transition_decl().map(|td| Decl {
         kind: Transition(Box::new(td)),
     });
@@ -338,8 +334,6 @@ fn root() -> Parser<'static, u8, Root> {
         kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
         kind: StateVar(Box::new(vd)),
-    }) | var_change_decl().map(|vcd| Decl {
-        kind: StateVarChange(Box::new(vcd)),
     }) | player_decl().map(|pd| Decl {
         kind: DeclKind::Player(Box::new(pd)),
     }) | const_decl().map(|cd| Decl {
@@ -817,7 +811,7 @@ mod tests {
     #[test]
     fn test_var_decl_01() {
         // Simple var decl
-        let input = br"health : [0 .. max_health] init max_health";
+        let input = br"health : [0 .. max_health] init max_health; health' = health";
         let parser = var_decl();
         assert_eq!(
             parser.parse(input),
@@ -839,25 +833,23 @@ mod tests {
                         owner: None,
                         name: "max_health".to_string(),
                     }))
+                },
+                next_value: Expr {
+                    kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
+                        owner: None,
+                        name: "health".to_string(),
+                    }))
                 }
             })
         );
     }
 
     #[test]
-    fn test_var_change_decl_01() {
-        // Simple var change decl
-        let input = br"health' = 2";
-        let parser = var_change_decl();
-        assert_eq!(
-            parser.parse(input),
-            Ok(StateVarChangeDecl {
-                name: Identifier::Simple {
-                    name: "health".to_string()
-                },
-                next_value: Expr { kind: Number(2) },
-            })
-        );
+    fn test_var_decl_02() {
+        // Var decl where update name does not match
+        let input = br"health : [0 .. max_health] init max_health; foo' = health";
+        let parser = var_decl();
+        assert!(parser.parse(input).is_err());
     }
 
     #[test]

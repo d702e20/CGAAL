@@ -1,5 +1,6 @@
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use pom::parser::sym;
 
 /// [CheckMode]s control which declaration identifiers are allow to refer to in the [SymbolChecker].
 #[derive(Eq, PartialEq)]
@@ -9,9 +10,9 @@ pub enum CheckMode {
     /// In LabelOrTransition mode, identifiers in expressions can only refer to constants
     /// and state variables.
     LabelOrTransition,
-    /// In StateVarChange mode, identifiers in expressions can only refer constants, state
+    /// In StateVarUpdate mode, identifiers in expressions can only refer constants, state
     /// variables, and transitions (actions)
-    StateVarChange,
+    StateVarUpdate,
 }
 
 impl CheckMode {
@@ -23,7 +24,7 @@ impl CheckMode {
             CheckMode::LabelOrTransition => {
                 matches!(decl_kind, DeclKind::Const(_) | DeclKind::StateVar(_))
             }
-            CheckMode::StateVarChange => {
+            CheckMode::StateVarUpdate => {
                 matches!(decl_kind, DeclKind::Const(_) | DeclKind::StateVar(_) | DeclKind::Transition(_))
             }
         }
@@ -81,7 +82,6 @@ impl<'a> SymbolChecker<'a> {
                             .get(&Owner::Global, &name)
                             // TODO Use custom error
                             .expect("Expected constant expression. Found unknown constant.")
-                            .borrow()
                     }
                 } else {
                     if let Some(player_name) = owner {
@@ -95,45 +95,58 @@ impl<'a> SymbolChecker<'a> {
                         let owner = Owner::Player(player_name.to_string());
                         self.symbols
                             .get(&owner, &name)
-                                // TODO Use custom error
+                            // TODO Use custom error
                             .expect("Unknown identifier. The player does not own a declaration of that name")
                     } else {
                         // Player is omitted. Assume it is scope owner. If not, then try global.
                         self.symbols
                             .get(&self.scope_owner, &name)
                             .or_else(|| self.symbols.get(&Owner::Global, &name))
-                                // TODO Use custom error
+                            // TODO Use custom error
                             .expect("Unknown identifier, neither declared locally or globally")
                     }
-                    .try_borrow()
-                        // If the try_borrow fails, it means that the RefCell is currently being
-                        // mutated by someone. We are only reducing one declaration at a time,
-                        // so the declaration must have an identifier referring to itself.
-                    .expect("Declaration refers to itself.") // TODO Use custom error
                 }
             }
             // Already resolved once ... which should never happen.
             Identifier::Resolved { .. } => panic!("Identifier was already resolved once."),
         };
 
-        // Check if symbol is allow to be reference in this mode
-        if !self.mode.allows(&symb.declaration.kind) {
-            return Err(());
-        }
+        if let Ok(declaration) = &symb.declaration.try_borrow() {
+            // Check if symbol is allow to be reference in this mode
+            if !self.mode.allows(&declaration.kind) {
+                return Err(());
+            }
 
-        if let DeclKind::Const(con) = &symb.declaration.kind {
-            // If symbol points to a constant declaration we can inline the value
-            return self.check(&con.definition);
-        }
+            if let DeclKind::Const(con) = &declaration.kind {
+                // If symbol points to a constant declaration we can inline the value
+                return self.check(&con.definition);
+            }
 
-        // Identifier is okay. Return a resolved identifier where owner is specified.
-        let SymbolIdentifier { owner, name } = &symb.identifier;
-        return Ok(Expr {
-            kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
-                owner: owner.clone(),
-                name: name.clone(),
-            })),
-        });
+            // Identifier is okay. Return a resolved identifier where owner is specified.
+            let SymbolIdentifier { owner, name } = &symb.identifier;
+            return Ok(Expr {
+                kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
+                    owner: owner.clone(),
+                    name: name.clone(),
+                })),
+            });
+        } else {
+            // The try_borrow must have failed, which means that the
+            // RefCell is currently being mutated by someone. We are only reducing
+            // one declaration at a time, so the declaration must have an identifier
+            // referring to the declaration itself. This is only okay, if we are
+            // in CheckMode::StateVarUpdate. In such case we can return immediately.
+            if self.mode == CheckMode::StateVarUpdate {
+                return Ok(Expr {
+                    kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
+                        owner: symb.identifier.owner.clone(),
+                        name: symb.identifier.name.clone(),
+                    })),
+                });
+            } else {
+                panic!("Declaration refers to itself.") // TODO Use custom error
+            }
+        };
     }
 
     /// Optimizes the given unary operator and checks the operand
