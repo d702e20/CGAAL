@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, Div, Mul, Sub, RangeInclusive};
+use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
