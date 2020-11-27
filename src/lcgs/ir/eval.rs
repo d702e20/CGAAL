@@ -67,9 +67,9 @@ impl<'a> Evaluator<'a> {
         }
     }
     fn eval_min(&self, ls: &[Expr]) -> Result<i32, ()> {
-        return ls.iter().map(|p| self.eval(p)).min().unwrap();
+        ls.iter().map(|p| self.eval(p)).min().unwrap()
     }
     fn eval_max(&self, ls: &[Expr]) -> Result<i32, ()> {
-        return ls.iter().map(|p| self.eval(p)).max().unwrap();
+        ls.iter().map(|p| self.eval(p)).max().unwrap()
     }
 }

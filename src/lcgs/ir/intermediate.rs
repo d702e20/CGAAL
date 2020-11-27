@@ -40,12 +40,12 @@ pub struct IntermediateLCGS {
 impl IntermediateLCGS {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(mut root: Root) -> Result<IntermediateLCGS, ()> {
+    pub fn create(root: Root) -> Result<IntermediateLCGS, ()> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
         let players = register_decls(&mut symbols, root)?;
-        check_and_optimize_decls(&mut symbols)?;
+        check_and_optimize_decls(&symbols)?;
 
         // Collect all symbol names that will be relevant for the game structure
         let labels = fetch_decls(&symbols, |_, rf_decl| {
