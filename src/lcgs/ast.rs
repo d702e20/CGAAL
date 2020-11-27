@@ -176,7 +176,7 @@ pub enum UnaryOpKind {
 }
 
 impl UnaryOpKind {
-    pub fn as_fun(&self) -> fn(i32) -> i32 {
+    pub fn as_fn(&self) -> fn(i32) -> i32 {
         match self {
             UnaryOpKind::Not => |e| (e == 0) as i32,
             UnaryOpKind::Negation => |e| -e,

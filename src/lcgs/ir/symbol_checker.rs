@@ -163,19 +163,15 @@ impl<'a> SymbolChecker<'a> {
 
     /// Optimizes the given unary operator and checks the operand
     fn check_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, ()> {
-        let mut res = self.check(expr)?;
-        if let ExprKind::Number(n) = &mut res.kind {
-            match op {
-                UnaryOpKind::Not => *n = -*n,
-                UnaryOpKind::Negation => *n = (*n == 0) as i32,
-            }
+        let res = self.check(expr)?;
+        if let ExprKind::Number(n) = &res.kind {
+            return Ok(Expr {
+                kind: ExprKind::Number(op.as_fn()(*n)),
+            });
         }
-        match op {
-            UnaryOpKind::Not => Ok(Expr {
-                kind: ExprKind::UnaryOp(op.clone(), Box::new(res)),
-            }),
-            UnaryOpKind::Negation => Ok(res),
-        }
+        Ok(Expr {
+            kind: ExprKind::UnaryOp(op.clone(), Box::new(res)),
+        })
     }
 
     /// Optimizes the given binary operator and checks the operands

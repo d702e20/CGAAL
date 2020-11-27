@@ -87,7 +87,11 @@ impl IntermediateLCGS {
                 state.0.insert(symb_id.clone(), value);
             }
         }
-        debug_assert!(carry == 0, "State overflow. Invalid state index.");
+        debug_assert!(
+            carry == 0,
+            "State overflow (carry was {}). Invalid state index.",
+            carry
+        );
         state
     }
 
@@ -426,11 +430,10 @@ impl GameStructure for IntermediateLCGS {
 #[cfg(test)]
 mod test {
     use crate::atl::gamestructure::GameStructure;
-    use crate::lcgs::ast::{ConstDecl, DeclKind, Expr, ExprKind, Identifier};
+    use crate::lcgs::ast::UnaryOpKind;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
-    use serde_json::Number;
 
     #[test]
     fn test_symbol_01() {
@@ -548,37 +551,30 @@ mod test {
     }
 
     #[test]
-    fn negation_const() {
+    fn test_state_translation_03() {
+        // Is translation back and forth between state and index correct
+        // Wack ranges
+        let input = br"
+        foo : [-2 .. 13] init 5;
+        foo' = foo;
+        bar : [-5 .. -3] init -3;
+        bar' = bar;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let index = 14;
+        let state = lcgs.state_from_index(index);
+        let index2 = lcgs.index_of_state(&state);
+        assert_eq!(index, index2);
+    }
+
+    #[test]
+    fn test_negation_const_01() {
         let input = br"
         const t = -5;
         ";
         let pp = parse_lcgs(input);
         let lcgs = IntermediateLCGS::create(pp.unwrap()).unwrap();
         assert!(lcgs.symbols.get(&Owner::Global, "t").is_some());
-    }
-    #[test]
-    fn test_range_negation_01() {
-        // Is translation back and forth between state and index correct
-        // Wack ranges
-        let input = br"
-        foo : [-2 .. 23] init 5;
-        foo' = foo;
-        ";
-        let pp = parse_lcgs(input);
-        let lcgs = IntermediateLCGS::create(pp.unwrap()).unwrap();
-        assert!(lcgs.symbols.get(&Owner::Global, "foo").is_some());
-    }
-    #[test]
-    fn test_range_negation_02() {
-        // Is translation back and forth between state and index correct
-        // Wack ranges
-        let input = br"
-        foo : [-20 .. -5] init -19;
-        foo' = foo;
-        ";
-        let pp = parse_lcgs(input);
-        let lcgs = IntermediateLCGS::create(pp.unwrap()).unwrap();
-        assert!(lcgs.symbols.get(&Owner::Global, "foo").is_some());
     }
 
     #[test]
