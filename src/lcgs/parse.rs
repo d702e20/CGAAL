@@ -7,6 +7,7 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
+use self::pom::set::Set;
 use crate::lcgs::ast::DeclKind::*;
 use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Template, Transition};
 use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
@@ -16,7 +17,6 @@ use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 use std::borrow::Borrow;
 use std::collections::HashSet;
-use self::pom::set::Set;
 
 // Required for static allocation of a hashset
 lazy_static! {
