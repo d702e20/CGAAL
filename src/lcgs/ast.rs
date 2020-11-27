@@ -162,6 +162,8 @@ pub enum ExprKind {
     UnaryOp(UnaryOpKind, Box<Expr>),
     BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
     TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
+    Min(Vec<Expr>),
+    Max(Vec<Expr>),
 }
 
 /// Unary operators

@@ -1,16 +1,9 @@
+use std::borrow::BorrowMut;
 use std::collections::HashSet;
 
-use crate::lcgs::ast;
-use crate::lcgs::ast::ExprKind::Number;
-use crate::lcgs::ast::{
-    BinaryOpKind, ConstDecl, Decl, DeclKind, Expr, ExprKind, Identifier, Root, UnaryOpKind,
-};
-use crate::lcgs::ir::eval::Evaluator;
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
-use crate::lcgs::ir::symbol_table::Owner::Global;
 use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
@@ -45,12 +38,12 @@ pub struct IntermediateLCGS {
 impl IntermediateLCGS {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(mut root: Root) -> Result<IntermediateLCGS, ()> {
+    pub fn create(root: Root) -> Result<IntermediateLCGS, ()> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
         let players = register_decls(&mut symbols, root)?;
-        check_and_optimize_decls(&mut symbols)?;
+        check_and_optimize_decls(&symbols)?;
 
         // Collect all symbol names that will be relevant for the game structure
         let labels = fetch_decls(&symbols, |_, rf_decl| {
@@ -67,7 +60,7 @@ impl IntermediateLCGS {
             players,
         };
 
-        return Ok(ilcgs);
+        Ok(ilcgs)
     }
 }
 
