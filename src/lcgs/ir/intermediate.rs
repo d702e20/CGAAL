@@ -430,7 +430,7 @@ mod test {
         // Check if the correct symbols are inserted into the symbol table
         let input = "
         const max_health = 100;
-        player anna = gamer;
+        player alice = gamer;
         player bob = gamer;
 
         template gamer
@@ -446,13 +446,13 @@ mod test {
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 12);
         assert!(lcgs.symbols.get(&":global.max_health".into()).is_some());
-        assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.alice".into()).is_some());
         assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
         assert!(lcgs.symbols.get(&":global.gamer".into()).is_some());
-        assert!(lcgs.symbols.get(&"anna.health".into()).is_some());
-        assert!(lcgs.symbols.get(&"anna.alive".into()).is_some());
-        assert!(lcgs.symbols.get(&"anna.wait".into()).is_some());
-        assert!(lcgs.symbols.get(&"anna.shoot".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.shoot".into()).is_some());
         assert!(lcgs.symbols.get(&"bob.health".into()).is_some());
         assert!(lcgs.symbols.get(&"bob.alive".into()).is_some());
         assert!(lcgs.symbols.get(&"bob.wait".into()).is_some());
