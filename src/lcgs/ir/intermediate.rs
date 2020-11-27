@@ -333,7 +333,7 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
                 var.ir_initial_value = checker.check_eval(&var.initial_value)?;
                 let min = checker.check_eval(&var.range.min)?;
                 let max = checker.check_eval(&var.range.max)?;
-                var.ir_range = min..(max + 1);
+                var.ir_range = min..=max;
                 assert!(var.ir_range.contains(&var.ir_initial_value), "");
                 var.next_value =
                     SymbolChecker::new(symbols, owner.clone(), CheckMode::StateVarUpdate)
