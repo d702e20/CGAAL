@@ -24,11 +24,11 @@ pub struct Relabeler<'a> {
 }
 
 impl<'a> Relabeler<'a> {
-    fn new(relabeling: &'a Relabeling) -> Relabeler<'a> {
+    pub fn new(relabeling: &'a Relabeling) -> Relabeler<'a> {
         Relabeler { relabeling }
     }
 
-    fn relabel_decl(&self, decl: &Decl) -> Result<Decl, ()> {
+    pub fn relabel_decl(&self, decl: &Decl) -> Result<Decl, ()> {
         match &decl.kind {
             DeclKind::Label(label) => self.relabel_label(label),
             DeclKind::StateVar(var) => self.relabel_var(var),
@@ -111,7 +111,7 @@ impl<'a> Relabeler<'a> {
         Ok(ident.clone())
     }
 
-    fn relabel_expr(&self, expr: &Expr) -> Result<Expr, ()> {
+    pub fn relabel_expr(&self, expr: &Expr) -> Result<Expr, ()> {
         match &expr.kind {
             ExprKind::Number(_) => Ok(expr.clone()),
             ExprKind::OwnedIdent(ident) => self.relabel_owned_ident(ident),
@@ -211,5 +211,123 @@ impl<'a> Relabeler<'a> {
                 Box::new(self.relabel_expr(&false_expr)?),
             ),
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lcgs::ast::{BinaryOpKind, Decl, DeclKind, Expr, ExprKind, Identifier, LabelDecl};
+    use crate::lcgs::ir::relabeling::Relabeler;
+    use crate::lcgs::parse;
+
+    #[test]
+    fn test_relabeling_expr_01() {
+        // Check simple relabeling from one name to another
+        let relabeling = "[test=res]";
+        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
+        let expr = "5 + test";
+        let expr = parse::expr().parse(expr.as_bytes()).unwrap();
+        let relabeler = Relabeler::new(&relabeling);
+        let new_expr = relabeler.relabel_expr(&expr).unwrap();
+        assert_eq!(
+            new_expr,
+            Expr {
+                kind: ExprKind::BinaryOp(
+                    BinaryOpKind::Addition,
+                    Box::new(Expr {
+                        kind: ExprKind::Number(5),
+                    }),
+                    Box::new(Expr {
+                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
+                            owner: None,
+                            name: "res".to_string()
+                        }))
+                    })
+                )
+            }
+        )
+    }
+
+    #[test]
+    fn test_relabeling_expr_02() {
+        // Check simple relabeling to number
+        let relabeling = "[test=4]";
+        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
+        let expr = "5 + test";
+        let expr = parse::expr().parse(expr.as_bytes()).unwrap();
+        let relabeler = Relabeler::new(&relabeling);
+        let new_expr = relabeler.relabel_expr(&expr).unwrap();
+        assert_eq!(
+            new_expr,
+            Expr {
+                kind: ExprKind::BinaryOp(
+                    BinaryOpKind::Addition,
+                    Box::new(Expr {
+                        kind: ExprKind::Number(5),
+                    }),
+                    Box::new(Expr {
+                        kind: ExprKind::Number(4),
+                    }),
+                )
+            }
+        )
+    }
+
+    #[test]
+    fn test_relabeling_expr_03() {
+        // Check simple relabeling of identifier part
+        let relabeling = "[bar=yum]";
+        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
+        let expr = "foo.bar + bar.baz";
+        let expr = parse::expr().parse(expr.as_bytes()).unwrap();
+        let relabeler = Relabeler::new(&relabeling);
+        let new_expr = relabeler.relabel_expr(&expr).unwrap();
+        assert_eq!(
+            new_expr,
+            Expr {
+                kind: ExprKind::BinaryOp(
+                    BinaryOpKind::Addition,
+                    Box::new(Expr {
+                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
+                            owner: Some("foo".to_string()),
+                            name: "yum".to_string()
+                        }))
+                    }),
+                    Box::new(Expr {
+                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
+                            owner: Some("yum".to_string()),
+                            name: "baz".to_string()
+                        }))
+                    }),
+                )
+            }
+        )
+    }
+
+    #[test]
+    fn test_relabeling_label_01() {
+        // Check simple relabeling of label declaration name
+        let relabeling = "[foo=yum]";
+        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
+        let decl = "label foo = bar.baz";
+        let decl = parse::label_decl().parse(decl.as_bytes()).unwrap();
+        let relabeler = Relabeler::new(&relabeling);
+        let new_decl = relabeler.relabel_label(&decl).unwrap();
+        assert_eq!(
+            new_decl,
+            Decl {
+                kind: DeclKind::Label(Box::new(LabelDecl {
+                    condition: Expr {
+                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
+                            owner: Some("bar".to_string()),
+                            name: "baz".to_string()
+                        }))
+                    },
+                    name: Identifier::Simple {
+                        name: "yum".to_string()
+                    }
+                }))
+            }
+        )
     }
 }

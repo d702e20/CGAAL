@@ -197,7 +197,7 @@ fn solve_binary_precedence(
 }
 
 /// Parser that parses an expression
-fn expr<'a>() -> Parser<'a, u8, Expr> {
+pub(crate) fn expr<'a>() -> Parser<'a, u8, Expr> {
     let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr();
     tern.map(|((cond, then), els)| Expr {
@@ -261,7 +261,7 @@ fn var_decl<'a>() -> Parser<'a, u8, StateVarDecl> {
 
 /// Parser that parses a label declaration, e.g.
 /// "`label alive = health > 0`"
-fn label_decl<'a>() -> Parser<'a, u8, LabelDecl> {
+pub(crate) fn label_decl<'a>() -> Parser<'a, u8, LabelDecl> {
     let label = seq(b"label") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
     label.map(|(name, condition)| LabelDecl { condition, name })
 }
@@ -275,7 +275,7 @@ fn const_decl<'a>() -> Parser<'a, u8, ConstDecl> {
 
 /// Parser that parses a relabelling, e.g.
 /// "`[target1=p2, dmg=2]`"
-fn relabelling<'a>() -> Parser<'a, u8, Relabeling> {
+pub(crate) fn relabeling<'a>() -> Parser<'a, u8, Relabeling> {
     let raw_case = name() - ws() - sym(b'=') - ws() + expr();
     let case = raw_case.map(|(prev, new)| RelabelCase { prev, new });
     let inner = list(case, ws() * sym(b',') - ws());
@@ -289,7 +289,7 @@ fn relabelling<'a>() -> Parser<'a, u8, Relabeling> {
 /// "`player p1 = shooter [target1=p2, target2=p3]`"
 fn player_decl<'a>() -> Parser<'a, u8, PlayerDecl> {
     let rhs = seq(b"player") * ws() * identifier();
-    let lhs = identifier() - ws() + relabelling().opt();
+    let lhs = identifier() - ws() + relabeling().opt();
     let whole = rhs - ws() - sym(b'=') - ws() + lhs;
     whole.map(|(name, (template, relabel))| PlayerDecl {
         name,
@@ -943,7 +943,7 @@ mod tests {
     fn test_relabelling_01() {
         // Empty relabelling
         let input = br"[]";
-        let parser = relabelling();
+        let parser = relabeling();
         assert_eq!(
             parser.parse(input),
             Ok(Relabeling {
@@ -956,7 +956,7 @@ mod tests {
     fn test_relabelling_02() {
         // Simple relabelling
         let input = br"[target=p2, dmg=2]";
-        let parser = relabelling();
+        let parser = relabeling();
         assert_eq!(
             parser.parse(input),
             Ok(Relabeling {
