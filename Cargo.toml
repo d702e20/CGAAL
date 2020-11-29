@@ -15,6 +15,9 @@ edition = "2018"
 default = []
 graph-printer = []
 
+[dev-dependencies]
+test-env-log = { git = "https://github.com/d-e-s-o/test-env-log", branch = "topic/global-tracing", features = ["trace"], default-features = false }
+
 [dependencies]
 crossbeam-channel = "0.5.0"
 num_cpus = "1.13.0"
