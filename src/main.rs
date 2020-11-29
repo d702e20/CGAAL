@@ -1,9 +1,8 @@
-#[macro_use]
-extern crate log;
-extern crate log4rs;
 extern crate num_cpus;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate tracing;
 
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
@@ -14,11 +13,6 @@ use std::process::exit;
 use std::sync::Arc;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
-use log::LevelFilter;
-use log4rs::append::console::ConsoleAppender;
-use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Config, Root};
-use log4rs::encode::pattern::PatternEncoder;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
@@ -26,6 +20,7 @@ use crate::atl::gamestructure::EagerGameStructure;
 use crate::common::Edges;
 use crate::edg::Vertex;
 use crate::printer::print_graph;
+use tracing::trace;
 
 mod atl;
 mod com;
@@ -50,28 +45,14 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
     }
 }
 
+#[tracing::instrument]
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = parse();
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
 
-    // Load config for logging to stdout and logfile.
-    let _handle = log4rs::init_config(get_log4rs_config(
-        args.value_of("log_path"),
-        match args.value_of("log-level").unwrap().to_lowercase().as_str() {
-            "error" => LevelFilter::Error,
-            "warn" => LevelFilter::Warn,
-            "info" => LevelFilter::Info,
-            "debug" => LevelFilter::Debug,
-            "trace" => LevelFilter::Trace,
-            "off" => LevelFilter::Off,
-            level => {
-                eprintln!( // Cannot use logging error-macro before logging is initialised
-                           "Log-level was not in {{error, warn, info, debug, trace, off}}, received: {:?}",
-                           level
-                );
-                exit(1);
-            }
-        },
-    ))?;
+    let args = parse();
+    trace!(?args, "commandline arguments");
 
     match args.subcommand() {
         ("solver", Some(solver_args)) => {
@@ -130,7 +111,7 @@ fn decode_game_structure(args: &ArgMatches) -> EagerGameStructure {
 }
 
 fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
-    info!("Model checking on formula: {:?}", args.value_of("formula"));
+    info!(formula = ?args.value_of("formula"), "Model checking on formula");
 
     let game_structure = decode_game_structure(args);
 
@@ -219,41 +200,4 @@ fn parse() -> ArgMatches<'static> {
         .subcommand(build_common_arguments(SubCommand::with_name("solver")))
         .subcommand(build_common_arguments(SubCommand::with_name("graph")))
         .get_matches()
-}
-
-/// Create and return log4rs-config with some default values
-fn get_log4rs_config(
-    log_path: Option<&str>,
-    default_log_level: LevelFilter,
-) -> log4rs::config::Config {
-    // Create a stdout-appender for printing to stdout
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
-        .build();
-
-    // Create and return a config which incorporates the two built appenders
-    // and let both appenders be root loggers with 'info' as log-level
-    let builder = Config::builder().appender(Appender::builder().build("stdout", Box::new(stdout)));
-
-    // build with or without logfile appender depending on log_path arg
-    if let Some(log_path) = log_path {
-        // Create a logfile-appender for printing to file
-        let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("{d} [{l}] - {m}{n}")))
-            .build(log_path)
-            .unwrap();
-        builder
-            .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(
-                Root::builder()
-                    .appender("stdout")
-                    .appender("logfile")
-                    .build(default_log_level),
-            )
-            .unwrap()
-    } else {
-        builder
-            .build(Root::builder().appender("stdout").build(default_log_level))
-            .unwrap()
-    }
 }
