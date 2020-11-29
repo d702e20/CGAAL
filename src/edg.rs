@@ -12,6 +12,8 @@ use crate::com::{Broker, ChannelBroker};
 use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
 use crate::distterm::{ControllerWeight, Weight};
 use std::cmp::max;
+use tracing::field::debug;
+use tracing::{span, trace, Level};
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 
@@ -23,6 +25,7 @@ pub trait ExtendedDependencyGraph<V: Vertex> {
     fn succ(&self, vertex: &V) -> HashSet<Edges<V>>;
 }
 
+#[instrument]
 pub fn distributed_certain_zero<
     G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
     V: Vertex + Send + Sync + 'static,
@@ -31,6 +34,8 @@ pub fn distributed_certain_zero<
     v0: V,
     worker_count: u64,
 ) -> VertexAssignment {
+    trace!(?v0, worker_count, "starting distributed_certain_zero");
+
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
     let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs, weight_rx) =
         ChannelBroker::new(worker_count);
@@ -58,6 +63,7 @@ pub fn distributed_certain_zero<
         );
         let tx = early_tx.clone();
         thread::spawn(move || {
+            trace!("worker thread start");
             let result = worker.run();
             match tx.try_send(result) {
                 Ok(_) => {}
@@ -84,12 +90,15 @@ pub fn distributed_certain_zero<
                 let assignment = oper
                     .recv(&early_rx)
                     .expect("Error receiving final assigment from early termination");
+                trace!(v0_assignment = ?assignment, "early termination");
                 return assignment;
             }
             i if i == weight_index => {
                 let weight = oper.recv(&weight_rx).expect("Error receiving weight");
+                trace!(?weight, "controller received weight");
                 controller_weight.receive_weight(weight);
                 if controller_weight.is_full() {
+                    trace!("all weight received");
                     // Send term to all workers
                     let assignment = VertexAssignment::FALSE;
                     broker.terminate(assignment);
@@ -135,7 +144,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         // Static allocation of vertices to workers
         let mut hasher = DefaultHasher::new();
         vertex.hash::<DefaultHasher>(&mut hasher);
-        hasher.finish() % self.worker_count
+        let hash = hasher.finish();
+        trace!(hash);
+        hash % self.worker_count
     }
 
     /// Determines if `self` is responsible for computing the value of `vertex`
@@ -164,6 +175,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let unsafe_edges = Vec::<Vec<(NegationEdge<V>, Weight)>>::new();
         let counter = 0;
 
+        trace!(
+            worker_id = id,
+            worker_count,
+            ?v0,
+            "new distributed_certain_zero worker"
+        );
+
         Self {
             id,
             worker_count,
@@ -186,8 +204,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
     pub fn run(&mut self) -> VertexAssignment {
+        let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
+        let _enter = span.enter();
+        trace!("worker start");
+
         // Alg 1, Line 2
         if self.is_owner(&self.v0.clone()) {
+            trace!(worker_id = self.id, "exploring v0");
             let init_weight = Weight::new_full();
             self.explore(&self.v0.clone(), init_weight);
         }
@@ -274,11 +297,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn release_negations(&mut self, dist: usize) {
+        trace!(distance = dist, "release negation");
         while self.unsafe_edges.len() >= dist && self.unsafe_edges.len() > 0 {
             if let Some(edges) = self.unsafe_edges.last() {
                 let edges = self.unsafe_edges.last_mut().unwrap();
                 while !edges.is_empty() {
                     let (edge, weight) = edges.pop().unwrap();
+                    trace!(?edge, ?weight, "release negation edge");
                     self.broker.queue_negation(self.id, edge, weight);
                 }
             }
@@ -288,8 +313,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Adds worker to C^i(vertex)
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         if let Some(set) = self.interests.get_mut(vertex) {
+            trace!(is_initialized = true, ?vertex, "mark vertex interest");
             set.insert(worker);
         } else {
+            trace!(is_initialized = false, ?vertex, "mark vertex interest");
             let mut set = HashSet::new();
             set.insert(worker);
             self.interests.insert(vertex.clone(), set);
@@ -297,6 +324,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn explore(&mut self, vertex: &V, weight: Weight) {
+        trace!(?vertex, ?weight, "exploring vertex");
         let mut weight = weight;
         // Line 2
         self.assignment
@@ -330,13 +358,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             }
         } else {
-            let default = 0;
             // Line 7
             self.broker.send(
                 self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
-                    distance: self.distances.get(vertex).unwrap_or(&default).clone(),
+                    distance: self.distances.get(vertex).unwrap_or(&0).clone(),
                     worker_id: self.id,
                     weight,
                 },
@@ -399,6 +426,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.broker.return_weight(weight);
     }
 
+    // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         // Update the distance
         let default = 0;
@@ -437,18 +465,29 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             None => {
                 // UNEXPLORED
                 // Line 6
+                trace!(
+                    ?edge,
+                    ?weight,
+                    assignment = "UNEXPLORED",
+                    "processing negation edge"
+                );
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
                 self.queue_negation(edge.clone(), weight.clone());
                 self.explore(&edge.target, weight.clone());
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
+                    trace!(?edge, ?weight, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
                     self.final_assign(&edge.source, VertexAssignment::TRUE, weight)
                 }
                 VertexAssignment::FALSE => {
+                    trace!(?edge, ?weight, assignment = ?VertexAssignment::FALSE, "processing negation edge");
                     self.final_assign(&edge.source, VertexAssignment::TRUE, weight)
                 }
-                VertexAssignment::TRUE => self.delete_edge(Edges::NEGATION(edge), weight),
+                VertexAssignment::TRUE => {
+                    trace!(?edge, ?weight, assignment = ?VertexAssignment::TRUE, "processing negation edge");
+                    self.delete_edge(Edges::NEGATION(edge), weight)
+                }
             },
         }
     }
@@ -471,6 +510,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     // Another worker has requested the final assignment of a `vertex`
     fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight, distance: u32) {
+        trace!(
+            ?vertex,
+            ?requester,
+            ?weight,
+            distance,
+            "got request for vertex assignment"
+        );
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             match assigned {
@@ -524,6 +570,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment, weight: Weight) {
+        trace!(?vertex, ?assigned, ?weight, "received final assignment");
         self.final_assign(vertex, assigned, weight);
     }
 
@@ -561,6 +608,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     .split()
                     .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
                 weight = new_weight;
+                trace!(
+                    ?edge,
+                    ?weight,
+                    "requeueing edg because edge have received final assignment"
+                );
                 match edge {
                     Edges::HYPER(edge) => {
                         self.broker.queue_hyper(self.id, edge.clone(), split_weight)
@@ -570,6 +622,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             }
         }
 
+        trace!(?weight, "returning remaining weight to controller");
         self.broker.return_weight(weight);
     }
 
@@ -586,6 +639,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             successors.remove(&edge);
         } else {
             let mut successors = self.edg.succ(&source);
+            trace!(?successors, remove_edge = ?edge, "initializing successors hashmap in edg::delete_edge");
             successors.remove(&edge);
             self.successors.insert(source.clone(), successors);
         }
@@ -595,6 +649,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             Some(successors) => {
                 // Line 3
                 if successors.is_empty() {
+                    trace!(
+                        ?source,
+                        assignment = ?VertexAssignment::FALSE,
+                        ?weight,
+                        "no more successors, final assignment is FALSE"
+                    );
                     self.final_assign(&source, VertexAssignment::FALSE, weight);
                 }
             }
@@ -603,12 +663,14 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         match edge {
             // Line 4-6
             Edges::HYPER(ref edge) => {
+                debug!(source = ?edge, targets = ?edge.targets, "remove hyper-edge as dependency");
                 for target in &edge.targets {
                     self.remove_depend(target, Edges::HYPER(edge.clone()))
                 }
             }
             // Line 7-8
             Edges::NEGATION(ref edge) => {
+                debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
                 self.remove_depend(&edge.target, Edges::NEGATION(edge.clone()))
             }
         }
@@ -618,12 +680,19 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// See documentation for the `successors` field.
     fn succ(&mut self, vertex: &V) -> HashSet<Edges<V>> {
         if let Some(successors) = self.successors.get(vertex) {
+            debug!(?vertex, ?successors, known_vertex = true, "edg::succ");
             // List of successors is already allocated for the vertex
             successors.clone()
         } else {
             // Setup the successors list the first time it is requested
             let successors = self.edg.succ(vertex);
             self.successors.insert(vertex.clone(), successors.clone());
+            debug!(
+                ?vertex,
+                ?successors,
+                known_vertex = false,
+                "loaded successors from EDG"
+            );
             successors
         }
     }
