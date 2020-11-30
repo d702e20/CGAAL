@@ -15,7 +15,7 @@ use std::io::{stdout, BufWriter, Read, Write};
 use std::process::exit;
 use std::sync::Arc;
 
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg, ArgMatches, SubCommand};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
@@ -24,7 +24,7 @@ use log4rs::encode::pattern::PatternEncoder;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
-use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
+use crate::atl::gamestructure::{EagerGameStructure};
 use crate::common::{Edges, VertexAssignment};
 use crate::edg::Vertex;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
