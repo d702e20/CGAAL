@@ -1,0 +1,11 @@
+{
+	"proposition": "p2.secret2 = 1"
+}
+
+{
+	"enforce until": {
+		"players": "p1",
+		"pre" : "p1.secret2 = 0",
+		"until" : "10 < step"
+	}
+}
