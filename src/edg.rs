@@ -252,6 +252,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                             VertexAssignment::TRUE => {
                                 self.process_negation_edge(edge.clone(), weight)
                             }
+                            // In case of undecided the edge is only processed after 10 iterations
                             VertexAssignment::UNDECIDED => {
                                 if self.counter == 9 {
                                     self.counter = 0;
@@ -269,6 +270,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     ),
                 }
             } else {
+                // if the negation channel is empty, unsafe negation edges are released
                 self.release_negations(max(self.unsafe_edges.len(), 0));
             }
         }
