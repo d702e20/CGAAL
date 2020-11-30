@@ -61,45 +61,45 @@ trait SemiTerminated<'a, I, O: 'a> {
     fn with_semi(self) -> Parser<'a, I, O>;
 }
 
-impl<O: 'static> SemiTerminated<'static, u8, O> for Parser<'static, u8, O> {
+impl<'a, O: 'a> SemiTerminated<'a, u8, O> for Parser<'a, u8, O> {
     /// Declare that the parsing should end with whitespace and a semi-colon
-    fn with_semi(self) -> Parser<'static, u8, O> {
+    fn with_semi(self) -> Parser<'a, u8, O> {
         self - ws() - sym(b';')
     }
 }
 
 /// Parser to parse an ASCII alphabet character
 #[inline]
-fn alpha() -> Parser<'static, u8, u8> {
+fn alpha<'a>() -> Parser<'a, u8, u8> {
     one_of(b"abcdefghijklmnopqrstuvwxyz") | one_of(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 }
 
 /// Parser that parses a single digit 0-9
 #[inline]
-fn digit() -> Parser<'static, u8, u8> {
+fn digit<'a>() -> Parser<'a, u8, u8> {
     one_of(b"0123456789")
 }
 
 /// Parser that parses a single digit 1-9 (not 0)
 #[inline]
-fn non_0_digit() -> Parser<'static, u8, u8> {
+fn non_0_digit<'a>() -> Parser<'a, u8, u8> {
     one_of(b"123456789")
 }
 
 /// Parser that parses 0 or more whitespace characters discards them. Include newlines and tabs.
-fn ws() -> Parser<'static, u8, ()> {
+fn ws<'a>() -> Parser<'a, u8, ()> {
     (one_of(b" \t\r\n").discard() | comment())
         .repeat(0..)
         .discard()
 }
 
 /// Parser for comments that matches on '//' and whatever until \r or \n, and discards everything
-fn comment() -> Parser<'static, u8, ()> {
+fn comment<'a>() -> Parser<'a, u8, ()> {
     (seq(b"//") + none_of(b"\r\n").repeat(0..) + one_of(b"\r\n")).discard()
 }
 
 /// Parser that parses a typical positive integer number
-fn number() -> Parser<'static, u8, Expr> {
+fn number<'a>() -> Parser<'a, u8, Expr> {
     let integer = (non_0_digit() - digit().repeat(0..)) | sym(b'0');
     let parsed = integer
         .collect()
@@ -112,13 +112,13 @@ fn number() -> Parser<'static, u8, Expr> {
 
 /// Parser that parses a symbol name. It must start with an alpha character, but subsequent
 /// characters can be digits or "_" too.
-fn name() -> Parser<'static, u8, String> {
+fn name<'a>() -> Parser<'a, u8, String> {
     let chars = alpha() - (alpha() | digit() | sym(b'_')).repeat(0..);
     chars.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
 /// Parser that parses an identifier and fails if identifier is a reserved keyword
-fn identifier() -> Parser<'static, u8, Identifier> {
+fn identifier<'a>() -> Parser<'a, u8, Identifier> {
     name().convert(|name| {
         if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
             Err(format!(
@@ -133,7 +133,7 @@ fn identifier() -> Parser<'static, u8, Identifier> {
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
 /// I.e. "health" or "p1.health"
-fn owned_identifier() -> Parser<'static, u8, Identifier> {
+fn owned_identifier<'a>() -> Parser<'a, u8, Identifier> {
     let identifier = (name() - sym(b'.')).opt() + name();
     identifier
         .with_span()
@@ -141,7 +141,7 @@ fn owned_identifier() -> Parser<'static, u8, Identifier> {
 }
 
 /// Parser that parses binary operators
-fn binop() -> Parser<'static, u8, BinaryOpKind> {
+fn binop<'a>() -> Parser<'a, u8, BinaryOpKind> {
     // When operators share a common prefix the longer one should appear first
     let op = seq(b"+")
         | seq(b"->")
@@ -197,7 +197,7 @@ fn solve_binary_precedence(
 }
 
 /// Parser that parses an expression
-fn expr() -> Parser<'static, u8, Expr> {
+fn expr<'a>() -> Parser<'a, u8, Expr> {
     let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr();
     tern.map(|((cond, then), els)| Expr {
@@ -206,7 +206,7 @@ fn expr() -> Parser<'static, u8, Expr> {
 }
 
 /// Parser that parses an expression consisting of binary operators and primary expressions
-fn binary_expr() -> Parser<'static, u8, Expr> {
+fn binary_expr<'a>() -> Parser<'a, u8, Expr> {
     // TODO Spans and combining them
     let binexpr = primary_expr() + (ws() * binop() - ws() + primary_expr()).repeat(0..);
     binexpr.map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
@@ -214,7 +214,7 @@ fn binary_expr() -> Parser<'static, u8, Expr> {
 
 /// Parser that parses an expression with a unary operator
 /// or a primary expression, i.e. number, identifier, or a parenthesised expression
-fn primary_expr() -> Parser<'static, u8, Expr> {
+fn primary_expr<'a>() -> Parser<'a, u8, Expr> {
     let neg = (sym(b'-') * call(primary_expr)).map(|e| Expr {
         kind: UnaryOp(Negation, Box::new(e)),
     });
@@ -232,19 +232,19 @@ fn primary_expr() -> Parser<'static, u8, Expr> {
     neg | not | num | min | max | ident | par
 }
 
-fn type_min() -> Parser<'static, u8, Expr> {
+fn type_min<'a>() -> Parser<'a, u8, Expr> {
     let inner = list(call(expr), ws() * sym(b',') - ws());
     let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
     methoded.map(|min| Expr { kind: Min(min) })
 }
-fn type_max() -> Parser<'static, u8, Expr> {
+fn type_max<'a>() -> Parser<'a, u8, Expr> {
     let inner = list(call(expr), ws() - sym(b',') - ws());
     let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
     methoded.map(|max| Expr { kind: Max(max) })
 }
 
 /// Parser that parses a type range, e.g. "`[0 .. max_health]`"
-fn type_range() -> Parser<'static, u8, TypeRange> {
+fn type_range<'a>() -> Parser<'a, u8, TypeRange> {
     let inner = expr() - ws() - seq(b"..") - ws() + expr();
     let bracked = sym(b'[') * ws() * inner - ws() - sym(b']');
     bracked.map(|(min, max)| TypeRange { min, max })
@@ -252,7 +252,7 @@ fn type_range() -> Parser<'static, u8, TypeRange> {
 
 /// Parser that parses a variable, e.g.
 /// "`health : [0 .. max_health] init max_health`"
-fn var_decl() -> Parser<'static, u8, StateVarDecl> {
+fn var_decl<'a>() -> Parser<'a, u8, StateVarDecl> {
     let base = identifier() - ws() - sym(b':') - ws() + type_range();
     let init = seq(b"init") * ws() * expr();
     let update = identifier() - sym(b'\'') - ws() - sym(b'=') - ws() + expr();
@@ -275,21 +275,21 @@ fn var_decl() -> Parser<'static, u8, StateVarDecl> {
 
 /// Parser that parses a label declaration, e.g.
 /// "`label alive = health > 0`"
-fn label_decl() -> Parser<'static, u8, LabelDecl> {
+fn label_decl<'a>() -> Parser<'a, u8, LabelDecl> {
     let label = seq(b"label") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
     label.map(|(name, condition)| LabelDecl { condition, name })
 }
 
 /// Parser that parses a const declaration, e.g.
 /// "`const max_health = 1`"
-fn const_decl() -> Parser<'static, u8, ConstDecl> {
+fn const_decl<'a>() -> Parser<'a, u8, ConstDecl> {
     let con = seq(b"const") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
     con.map(|(name, definition)| ConstDecl { name, definition })
 }
 
 /// Parser that parses a relabelling, e.g.
 /// "`[target1=p2, target2=p3]`"
-fn relabelling() -> Parser<'static, u8, Relabeling> {
+fn relabelling<'a>() -> Parser<'a, u8, Relabeling> {
     let raw_case = identifier() - ws() - sym(b'=') - ws() + identifier();
     let case = raw_case.map(|(prev, new)| RelabelCase {
         prev_name: prev,
@@ -304,7 +304,7 @@ fn relabelling() -> Parser<'static, u8, Relabeling> {
 
 /// Parser that parses a player declaration, e.g.
 /// "`player p1 = shooter [target1=p2, target2=p3]`"
-fn player_decl() -> Parser<'static, u8, PlayerDecl> {
+fn player_decl<'a>() -> Parser<'a, u8, PlayerDecl> {
     let rhs = seq(b"player") * ws() * identifier();
     let lhs = identifier() - ws() + relabelling().opt();
     let whole = rhs - ws() - sym(b'=') - ws() + lhs;
@@ -319,7 +319,7 @@ fn player_decl() -> Parser<'static, u8, PlayerDecl> {
 
 /// Parser that parses a transition declaration, e.g.
 /// "`[shoot_right] health > 0 & target1.health > 0`"
-fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
+fn transition_decl<'a>() -> Parser<'a, u8, TransitionDecl> {
     let name = sym(b'[') * ws() * identifier() - ws() - sym(b']');
     let whole = name - ws() + expr();
     whole.map(|(name, cond)| TransitionDecl {
@@ -329,7 +329,7 @@ fn transition_decl() -> Parser<'static, u8, TransitionDecl> {
 }
 
 /// Parser that parses template declarations
-fn template_decl() -> Parser<'static, u8, TemplateDecl> {
+fn template_decl<'a>() -> Parser<'a, u8, TemplateDecl> {
     let simple_decl = label_decl().map(|ld| Decl {
         kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
@@ -344,7 +344,7 @@ fn template_decl() -> Parser<'static, u8, TemplateDecl> {
 }
 
 /// Parser that parses root level, i.e. all the global declarations
-fn root() -> Parser<'static, u8, Root> {
+fn root<'a>() -> Parser<'a, u8, Root> {
     let simple_decl = label_decl().map(|ld| Decl {
         kind: Label(Box::new(ld)),
     }) | var_decl().map(|vd| Decl {
@@ -363,8 +363,8 @@ fn root() -> Parser<'static, u8, Root> {
 }
 
 /// Parse a LCGS program
-pub fn parse_lcgs(input: &'static [u8]) -> pom::Result<Root> {
-    root().parse(input)
+pub fn parse_lcgs(input: &str) -> pom::Result<Root> {
+    root().parse(input.as_bytes())
 }
 
 #[cfg(test)]
