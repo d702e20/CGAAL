@@ -57,7 +57,7 @@ impl<'a> Relabeler<'a> {
                     min: self.relabel_expr(&var.range.min)?,
                     max: self.relabel_expr(&var.range.max)?,
                 },
-                ir_range: 0..0,
+                ir_range: 0..=0,
                 initial_value: self.relabel_expr(&var.initial_value)?,
                 ir_initial_value: 0,
                 next_value: self.relabel_expr(&var.next_value)?,
@@ -120,6 +120,8 @@ impl<'a> Relabeler<'a> {
             ExprKind::TernaryIf(cond, true_expr, false_expr) => {
                 self.relabel_if(cond, true_expr, false_expr)
             }
+            ExprKind::Min(exprs) => self.relabel_min(exprs),
+            ExprKind::Max(exprs) => self.relabel_max(exprs),
         }
     }
 
@@ -209,6 +211,28 @@ impl<'a> Relabeler<'a> {
                 Box::new(self.relabel_expr(&cond)?),
                 Box::new(self.relabel_expr(&true_expr)?),
                 Box::new(self.relabel_expr(&false_expr)?),
+            ),
+        })
+    }
+
+    fn relabel_min(&self, exprs: &[Expr]) -> Result<Expr, ()> {
+        Ok(Expr {
+            kind: ExprKind::Min(
+                exprs
+                    .iter()
+                    .map(|e| self.relabel_expr(e))
+                    .collect::<Result<Vec<Expr>, ()>>()?,
+            ),
+        })
+    }
+
+    fn relabel_max(&self, exprs: &[Expr]) -> Result<Expr, ()> {
+        Ok(Expr {
+            kind: ExprKind::Max(
+                exprs
+                    .iter()
+                    .map(|e| self.relabel_expr(e))
+                    .collect::<Result<Vec<Expr>, ()>>()?,
             ),
         })
     }

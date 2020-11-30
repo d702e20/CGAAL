@@ -281,7 +281,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
                                 name,
                             });
                         }
-                        DeclKind::Transition(tran) => {
+                        DeclKind::Transition(_) => {
                             // Transitions are inserted in the symbol table, but their name
                             // is also stored in the player.actions so they can easily be found
                             // later when run.

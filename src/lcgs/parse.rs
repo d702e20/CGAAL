@@ -114,16 +114,19 @@ fn number<'a>() -> Parser<'a, u8, Expr> {
 /// characters can be digits or "_" too. Parser fails if it is a keyword.
 fn name<'a>() -> Parser<'a, u8, String> {
     let chars = alpha() - (alpha() | digit() | sym(b'_')).repeat(0..);
-    chars.collect().convert(|s| String::from_utf8(s.to_vec())).convert(|name| {
-        if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
-            Err(format!(
-                "Cannot use a reserved keyword as an identifier: {}",
-                name
-            ))
-        } else {
-            Ok(name)
-        }
-    })
+    chars
+        .collect()
+        .convert(|s| String::from_utf8(s.to_vec()))
+        .convert(|name| {
+            if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
+                Err(format!(
+                    "Cannot use a reserved keyword as an identifier: {}",
+                    name
+                ))
+            } else {
+                Ok(name)
+            }
+        })
 }
 
 /// Parser that parses an identifier.
