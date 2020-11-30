@@ -1,4 +1,5 @@
 use crate::atl::common::{Player, Proposition};
+use joinery::prelude::*;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
@@ -45,87 +46,62 @@ pub(crate) enum Phi {
 impl Display for Phi {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Phi::Proposition(id) => f.write_fmt(format_args!("'{}'", id)),
-            Phi::Not(formula) => {
-                f.write_str("¬(")?;
-                formula.fmt(f)?;
-                f.write_str(")")
-            }
-            Phi::Or(left, right) => {
-                f.write_str("(")?;
-                left.fmt(f)?;
-                f.write_str(") ∨ (")?;
-                right.fmt(f)?;
-                f.write_str(")")
-            }
-            Phi::DespiteNext { players, formula } => {
-                f.write_str("⟦")?;
-                f.write_str(
-                    players
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                        .as_str(),
-                )?;
-                f.write_str("⟧◯[")?;
-                formula.fmt(f)?;
-                f.write_str("]")
-            }
-            Phi::EnforceNext { players, formula } => {
-                f.write_str("⟪")?;
-                f.write_str(
-                    players
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                        .as_str(),
-                )?;
-                f.write_str("⟫◯[")?;
-                formula.fmt(f)?;
-                f.write_str("]")
-            }
+            Phi::Proposition(id) => write!(f, "'{}'", id),
+            Phi::Not(formula) => write!(f, "¬({})", formula),
+            Phi::Or(left, right) => write!(f, "({} ∨ {})", left, right),
+            Phi::DespiteNext { players, formula } => write!(
+                f,
+                "⟦{}⟧◯{}",
+                players.iter().join_with(",").to_string(),
+                formula
+            ),
+            Phi::EnforceNext { players, formula } => write!(
+                f,
+                "⟪{}⟫◯{}",
+                players.iter().join_with(",").to_string(),
+                formula
+            ),
             Phi::DespiteUntil {
                 players,
                 pre,
                 until,
-            } => {
-                f.write_str("⟦")?;
-                f.write_str(
-                    players
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                        .as_str(),
-                )?;
-                f.write_str("⟧((")?;
-                pre.fmt(f)?;
-                f.write_str(") 𝑼 (")?;
-                until.fmt(f)?;
-                f.write_str("))")
-            }
+            } => write!(
+                f,
+                "⟦{}⟧({} 𝑼 {})",
+                players.iter().join_with(",").to_string(),
+                pre,
+                until
+            ),
             Phi::EnforceUntil {
                 players,
                 pre,
                 until,
-            } => {
-                f.write_str("⟪")?;
-                f.write_str(
-                    players
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<String>>()
-                        .join(",")
-                        .as_str(),
-                )?;
-                f.write_str("⟫((")?;
-                pre.fmt(f)?;
-                f.write_str(") 𝑼 (")?;
-                until.fmt(f)?;
-                f.write_str("))")
-            }
+            } => write!(
+                f,
+                "⟪{}⟫({} 𝑼 {})",
+                players.iter().join_with(",").to_string(),
+                pre,
+                until
+            ),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::atl::formula::Phi::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_display_01() {
+        let formula = EnforceUntil {
+            players: vec![0, 1],
+            pre: Arc::new(Or {
+                0: Arc::new(Proposition(1)),
+                1: Arc::new(Proposition(2)),
+            }),
+            until: Arc::new(Proposition(0)),
+        };
+        assert_eq!("⟪0,1⟫(('1' ∨ '2') 𝑼 '0')", format!("{}", formula));
     }
 }
