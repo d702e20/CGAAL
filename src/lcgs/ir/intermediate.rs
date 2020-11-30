@@ -9,6 +9,7 @@ use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
+#[derive(Clone, Debug)]
 pub struct Player {
     name: String,
     actions: Vec<SymbolIdentifier>,
@@ -30,8 +31,9 @@ impl Player {
 
 /// An [IntermediateLCGS] is created from processing an AST and checking the validity of the
 /// declarations.
+#[derive(Clone, Debug)]
 pub struct IntermediateLCGS {
-    symbols: SymbolTable,
+    symbols: HashMap<SymbolIdentifier, Decl>,
     labels: Vec<SymbolIdentifier>,
     vars: Vec<SymbolIdentifier>,
     players: Vec<Player>,
@@ -48,7 +50,7 @@ impl IntermediateLCGS {
         check_and_optimize_decls(&symbols)?;
 
         let ilcgs = IntermediateLCGS {
-            symbols,
+            symbols: symbols.solidify(),
             labels,
             vars,
             players,
@@ -66,15 +68,8 @@ impl IntermediateLCGS {
         // into seconds, minutes, hours, and days. In this case the time units are state variables
         // instead, and similarly to time units, each state variable has a different size.
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            if let DeclKind::StateVar(var) = &self
-                .symbols
-                .get(owner, name)
-                .unwrap()
-                .declaration
-                .borrow()
-                .kind
-            {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 let value = {
                     let size = var.ir_range.end() - var.ir_range.start() + 1;
                     let quotient = carry / size;
@@ -103,9 +98,8 @@ impl IntermediateLCGS {
         // state variables instead, and similarly to time units, each state variable has a
         // different size.
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let var = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::StateVar(var) = &var.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 let size = var.ir_range.end() - var.ir_range.start() + 1;
                 let val = state.0.get(symb_id).unwrap();
                 res += ((val - var.ir_range.start()) * combined_size) as usize;
@@ -121,9 +115,8 @@ impl IntermediateLCGS {
             .actions
             .iter()
             .filter(|symb_id| {
-                let SymbolIdentifier { owner, name } = symb_id;
-                let symb = self.symbols.get(owner, name).unwrap();
-                if let DeclKind::Transition(trans) = &symb.declaration.borrow().kind {
+                let symb = self.symbols.get(symb_id).unwrap();
+                if let DeclKind::Transition(trans) = &symb.kind {
                     // The action is available if the condition is not evaluated to 0 in this state
                     return 0 != Evaluator::new(state).eval(&trans.condition).unwrap();
                 }
@@ -134,12 +127,11 @@ impl IntermediateLCGS {
     }
 
     /// Returns the initial state of the LCGS game
-    fn initial_state(&self) -> State {
+    pub fn initial_state(&self) -> State {
         let mut res = State(HashMap::new());
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let symb = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::StateVar(var) = &symb.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 res.0.insert(symb_id.clone(), var.ir_initial_value);
             }
         }
@@ -147,7 +139,7 @@ impl IntermediateLCGS {
     }
 
     /// Returns the initial state index of the LCGS game
-    fn initial_state_index(&self) -> usize {
+    pub fn initial_state_index(&self) -> usize {
         self.index_of_state(&self.initial_state())
     }
 }
@@ -373,9 +365,8 @@ impl GameStructure for IntermediateLCGS {
 
         // The labels id is their index in the self.labels vector
         for (i, symb_id) in self.labels.iter().enumerate() {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let symb = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::Label(label) = &symb.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::Label(label) = &symb.kind {
                 // We evaluate the condition with the values of the current state to know
                 // whether the label is present or not
                 let value = Evaluator::new(&state).eval(&label.condition).unwrap();
@@ -404,9 +395,8 @@ impl GameStructure for IntermediateLCGS {
         let evaluator = Evaluator::new(&state);
         let mut next_state = State(HashMap::new());
         for symb_id in &self.vars {
-            let SymbolIdentifier { owner, name } = symb_id;
-            let symb = self.symbols.get(owner, name).unwrap();
-            if let DeclKind::StateVar(var) = &symb.declaration.borrow().kind {
+            let symb = self.symbols.get(symb_id).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
                 let val = evaluator.eval(&var.next_value).unwrap();
                 next_state.0.insert(symb_id.clone(), val);
             }
@@ -436,9 +426,9 @@ mod test {
     #[test]
     fn test_symbol_01() {
         // Check if the correct symbols are inserted into the symbol table
-        let input = br"
+        let input = "
         const max_health = 100;
-        player anna = gamer;
+        player alice = gamer;
         player bob = gamer;
 
         template gamer
@@ -453,57 +443,33 @@ mod test {
         ";
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 12);
-        assert!(lcgs.symbols.get(&Owner::Global, "max_health").is_some());
-        assert!(lcgs.symbols.get(&Owner::Global, "anna").is_some());
-        assert!(lcgs.symbols.get(&Owner::Global, "bob").is_some());
-        assert!(lcgs.symbols.get(&Owner::Global, "gamer").is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "health")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "alive")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "wait")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("anna".to_string()), "shoot")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "health")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "alive")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "wait")
-            .is_some());
-        assert!(lcgs
-            .symbols
-            .get(&Owner::Player("bob".to_string()), "shoot")
-            .is_some());
+        assert!(lcgs.symbols.get(&":global.max_health".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.alice".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.gamer".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"alice.shoot".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.shoot".into()).is_some());
     }
 
     #[test]
     fn test_symbol_02() {
         // State vars can refer to themselves in the update clause
-        let input1 = br"
+        let input1 = "
         foo : [1 .. 10] init 1;
         foo' = foo;
         ";
         let lcgs1 = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
         assert_eq!(lcgs1.symbols.len(), 1);
-        assert!(lcgs1.symbols.get(&Owner::Global, "foo").is_some());
+        assert!(lcgs1.symbols.get(&":global.foo".into()).is_some());
 
         // But other declarations cannot refer to themselves
-        let input2 = br"
+        let input2 = "
         label foo = foo > 0;
         ";
         let lcgs2 =
@@ -514,7 +480,7 @@ mod test {
     #[test]
     fn test_state_translation_01() {
         // Is translation back and forth between state and index correct
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         bar : [0 .. 5] init 0;
@@ -531,7 +497,7 @@ mod test {
     fn test_state_translation_02() {
         // Is translation back and forth between state and index correct
         // Wack ranges
-        let input = br"
+        let input = "
         foo : [5 .. 23] init 5;
         foo' = foo;
         bar : [3 .. 5] init 3;
@@ -552,7 +518,7 @@ mod test {
     fn test_state_translation_03() {
         // Is translation back and forth between state and index correct
         // Wack ranges
-        let input = br"
+        let input = "
         foo : [-2 .. 13] init 5;
         foo' = foo;
         bar : [-5 .. -3] init -3;
@@ -567,18 +533,18 @@ mod test {
 
     #[test]
     fn test_negation_const_01() {
-        let input = br"
+        let input = "
         const t = -5;
         ";
         let pp = parse_lcgs(input);
         let lcgs = IntermediateLCGS::create(pp.unwrap()).unwrap();
-        assert!(lcgs.symbols.get(&Owner::Global, "t").is_some());
+        assert!(lcgs.symbols.get(&":global.t".into()).is_some());
     }
 
     #[test]
     fn test_labels_01() {
         // Are the expected labels present
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         bar : [0 .. 5] init 0;
@@ -593,7 +559,7 @@ mod test {
     #[test]
     fn test_labels_02() {
         // Are the expected labels present
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         bar : [0 .. 5] init 0;
@@ -613,7 +579,7 @@ mod test {
     fn test_labels_03() {
         // Are the expected labels present
         // With players and templates
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         player p1 = something;
@@ -632,7 +598,7 @@ mod test {
     #[test]
     fn test_move_count_01() {
         // Are the expected moves available
-        let input = br"
+        let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
         player p1 = something1;
@@ -655,7 +621,7 @@ mod test {
     #[test]
     fn test_transition_01() {
         // Can we make transitions as expected when they depend on previous state
-        let input = br"
+        let input = "
         foo : [0 .. 1] init 0;
         foo' = !foo;
         player p = something;
@@ -673,7 +639,7 @@ mod test {
     #[test]
     fn test_transition_02() {
         // Can we make transitions as expected when they depend on player actions
-        let input = br"
+        let input = "
         foo : [0 .. 1] init 0;
         foo' = p.set_foo;
         player p = something;
@@ -692,7 +658,7 @@ mod test {
     #[test]
     fn test_initial_state_01() {
         // Is initial state what we expect?
-        let input = br"
+        let input = "
         foo : [0 .. 1] init 0;
         foo' = foo;
         bar : [0 .. 1] init 1;
@@ -706,7 +672,7 @@ mod test {
     fn test_initial_state_02() {
         // Is initial state what we expect?
         // Wack ranges
-        let input = br"
+        let input = "
         foo : [5 .. 9] init 6;
         foo' = foo;
         bar : [1 .. 6] init 1;

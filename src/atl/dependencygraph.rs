@@ -256,9 +256,7 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
                 .game_structure
                 .transitions(self.state, self.current_move.clone());
 
-            println!("before: {:?}", self.current_move);
             let has_more_moves = self.next_move();
-            println!(" after: {:?}", self.current_move);
             let is_known = self.known.contains(&target);
 
             if is_known && has_more_moves {
@@ -655,7 +653,6 @@ mod test {
         let mut iter = VarsIterator::new(vec![2, 3, 2], players);
 
         let value = iter.next().unwrap();
-        println!("{:?}", value);
         assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
         assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
         assert_eq!(value[2], PartialMoveChoice::RANGE(2));
