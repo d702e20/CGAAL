@@ -506,6 +506,46 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
+                Phi::DespiteEventually {
+                    players,
+                    formula: subformula,
+                } => {
+                    let inv_players = self.invert_players(players.as_slice());
+                    let mut edges = HashSet::new();
+
+                    // Is the formula eventually satisfied in the next state?
+                    let moves = self
+                        .game_structure
+                        .move_count(*state)
+                        .iter()
+                        .map(|&count| count as usize)
+                        .collect();
+                    let targets: Vec<ATLVertex> = VarsIterator::new(
+                        moves,
+                        inv_players.iter().map(|player| *player as usize).collect(),
+                    )
+                    .map(|pmove| ATLVertex::PARTIAL {
+                        state: *state,
+                        partial_move: pmove.clone(),
+                        formula: formula.clone(),
+                    })
+                    .collect();
+                    edges.insert(Edges::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        targets,
+                    }));
+
+                    // Is the sub formula satisfied in current state?
+                    edges.insert(Edges::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        targets: vec![ATLVertex::FULL {
+                            state: *state,
+                            formula: subformula.clone(),
+                        }],
+                    }));
+
+                    edges
+                }
                 Phi::EnforcedEventually {
                     players,
                     formula: subformula,
@@ -547,7 +587,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::DespiteEventually {
+                Phi::DespiteAlways {
                     players,
                     formula: subformula,
                 } => {
@@ -561,7 +601,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         .iter()
                         .map(|&count| count as usize)
                         .collect();
-                    let targets: Vec<ATLVertex> = VarsIterator::new(
+                    let mut targets: Vec<ATLVertex> = VarsIterator::new(
                         moves,
                         inv_players.iter().map(|player| *player as usize).collect(),
                     )
@@ -571,19 +611,57 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         formula: formula.clone(),
                     })
                     .collect();
+
+                    // Is the sub formula satisfied in the current state?
+                    targets.push(ATLVertex::FULL {
+                        state: *state,
+                        formula: subformula.clone(),
+                    });
+
                     edges.insert(Edges::HYPER(HyperEdge {
                         source: vert.clone(),
                         targets,
                     }));
 
-                    // Is the sub formula satisfied in current state?
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: subformula.clone(),
-                        }],
-                    }));
+                    edges
+                }
+                Phi::EnforcedAlways {
+                    players,
+                    formula: subformula,
+                } => {
+                    // Is the sub formula satisfied in the current state?
+                    // This target is included in all branches
+                    let sub = ATLVertex::FULL {
+                        state: *state,
+                        formula: subformula.clone(),
+                    };
+
+                    // Is the formula eventually satisfied in the next state?
+                    let moves = self
+                        .game_structure
+                        .move_count(*state)
+                        .iter()
+                        .map(|&count| count as usize)
+                        .collect();
+                    let edges: HashSet<Edges<ATLVertex>> = VarsIterator::new(
+                        moves,
+                        players.iter().map(|player| *player as usize).collect(),
+                    )
+                    .map(|pmove| {
+                        let mut targets: Vec<ATLVertex> =
+                            DeltaIterator::new(&self.game_structure, *state, pmove)
+                                .map(|state| ATLVertex::FULL {
+                                    state,
+                                    formula: formula.clone(),
+                                })
+                                .collect();
+                        targets.push(sub.clone());
+                        Edges::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            targets,
+                        })
+                    })
+                    .collect();
 
                     edges
                 }

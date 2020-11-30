@@ -45,14 +45,26 @@ pub(crate) enum Phi {
         until: Arc<Phi>,
     },
     /// It must be the case that `formula` is satisfied in some coming step despite what actions `players` choose.
-    #[serde(rename = "despite until")]
+    #[serde(rename = "despite eventually")]
     DespiteEventually {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
     /// It must be the case that `players` can enforce that `formula` is satisfied in some coming step.
-    #[serde(rename = "despite until")]
+    #[serde(rename = "enforced eventually")]
     EnforcedEventually {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
+    },
+    /// It must be the case that `formula` always is satisfied despite what actions `players` choose.
+    #[serde(rename = "despite always")]
+    DespiteAlways {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
+    },
+    /// It must be the case that `players` can enforce that `formula` always is satisfied.
+    #[serde(rename = "enforced always")]
+    EnforcedAlways {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
@@ -108,6 +120,18 @@ impl Display for Phi {
             Phi::EnforcedEventually { players, formula } => write!(
                 f,
                 "⟪{}⟫◇{}",
+                players.iter().join_with(",").to_string(),
+                formula
+            ),
+            Phi::DespiteAlways { players, formula } => write!(
+                f,
+                "⟦{}⟧□{}",
+                players.iter().join_with(",").to_string(),
+                formula
+            ),
+            Phi::EnforcedAlways { players, formula } => write!(
+                f,
+                "⟪{}⟫□{}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
