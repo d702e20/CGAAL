@@ -1,22 +1,22 @@
 extern crate lazy_static;
 extern crate pom;
 
+use std::borrow::Borrow;
+use std::collections::HashSet;
 use std::iter::Peekable;
 use std::str::{self, FromStr};
 use std::vec::Drain;
 
 use pom::parser::*;
 
-use self::pom::set::Set;
-use crate::lcgs::ast::DeclKind::*;
-use crate::lcgs::ast::DeclKind::{Const, Label, Player, StateVar, Template, Transition};
-use crate::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent, TernaryIf, UnaryOp};
+use crate::lcgs::ast::DeclKind::{Const, Label, StateVar, Template, Transition};
+use crate::lcgs::ast::ExprKind::{BinaryOp, Max, Min, Number, OwnedIdent, TernaryIf, UnaryOp};
 use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
 use crate::lcgs::ast::*;
 use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
-use std::borrow::Borrow;
-use std::collections::HashSet;
+
+use self::pom::set::Set;
 
 // Required for static allocation of a hashset
 lazy_static! {
@@ -226,7 +226,21 @@ fn primary_expr<'a>() -> Parser<'a, u8, Expr> {
         kind: OwnedIdent(Box::new(i)),
     });
     let par = sym(b'(') * ws() * call(expr) - ws() - sym(b')');
-    neg | not | num | ident | par
+    let min = seq(b"min") * ws() * type_min();
+    let max = seq(b"max") * ws() * type_max();
+
+    neg | not | num | min | max | ident | par
+}
+
+fn type_min() -> Parser<'static, u8, Expr> {
+    let inner = list(call(expr), ws() * sym(b',') - ws());
+    let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
+    methoded.map(|min| Expr { kind: Min(min) })
+}
+fn type_max() -> Parser<'static, u8, Expr> {
+    let inner = list(call(expr), ws() - sym(b',') - ws());
+    let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
+    methoded.map(|max| Expr { kind: Max(max) })
 }
 
 /// Parser that parses a type range, e.g. "`[0 .. max_health]`"
@@ -248,7 +262,7 @@ fn var_decl<'a>() -> Parser<'a, u8, StateVarDecl> {
             Ok(StateVarDecl {
                 name,
                 range,
-                ir_range: 0..0,
+                ir_range: 0..=0,
                 initial_value: initv,
                 ir_initial_value: 0,
                 next_value: nextv,
@@ -358,7 +372,186 @@ mod tests {
     use crate::lcgs::ast::BinaryOpKind::*;
 
     use super::*;
-    use crate::lcgs::ast::Identifier::Simple;
+
+    #[test]
+    fn test_min_01() {
+        let input = br"min(1,23)";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: ExprKind::Number(23),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Min(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_min_02() {
+        let input = br"min(1,23,5)";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: ExprKind::Number(23),
+            },
+            Expr {
+                kind: ExprKind::Number(5),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Min(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_min_03() {
+        let input = br"min(1,23+5,5)";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Box::new(Expr { kind: Number(23) }),
+                    Box::new(Expr { kind: Number(5) }),
+                ),
+            },
+            Expr {
+                kind: ExprKind::Number(5),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Min(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_min_04() {
+        let input = br"min ( 1 , 5 )";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: ExprKind::Number(5),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Min(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_max_01() {
+        let input = br"max(1,23)";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: ExprKind::Number(23),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Max(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_max_02() {
+        let input = br"max(1,23,5)";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: ExprKind::Number(23),
+            },
+            Expr {
+                kind: ExprKind::Number(5),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Max(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_max_03() {
+        let input = br"max(1,23+5,5)";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: BinaryOp(
+                    Addition,
+                    Box::new(Expr { kind: Number(23) }),
+                    Box::new(Expr { kind: Number(5) }),
+                ),
+            },
+            Expr {
+                kind: ExprKind::Number(5),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Max(rs)
+            })
+        )
+    }
+
+    #[test]
+    fn test_max_04() {
+        let input = br"max ( 1 , 5 )";
+        let parser = expr();
+        let rs = vec![
+            Expr {
+                kind: ExprKind::Number(1),
+            },
+            Expr {
+                kind: ExprKind::Number(5),
+            },
+        ];
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: ExprKind::Max(rs)
+            })
+        )
+    }
 
     #[test]
     fn test_ident_01() {
@@ -829,7 +1022,7 @@ mod tests {
                         }))
                     },
                 },
-                ir_range: 0..0,
+                ir_range: 0..=0,
                 initial_value: Expr {
                     kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,
@@ -1116,6 +1309,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn test_comment_01() {
         let input = br"//hunter2 is absolutely not my password";
         let parser = ws();

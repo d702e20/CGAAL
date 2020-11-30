@@ -2,12 +2,10 @@ use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast::{
-    BinaryOpKind, ConstDecl, Decl, DeclKind, Expr, ExprKind, Identifier, Root, UnaryOpKind,
-};
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
-use crate::lcgs::ir::symbol_table::{Owner, Symbol, SymbolIdentifier, SymbolTable};
+use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
@@ -49,7 +47,7 @@ impl IntermediateLCGS {
 
         // Register global decls. Then check and optimize them
         let (players, labels, vars) = register_decls(&mut symbols, root)?;
-        check_and_optimize_decls(&mut symbols)?;
+        check_and_optimize_decls(&symbols)?;
 
         let ilcgs = IntermediateLCGS {
             symbols: symbols.solidify(),
@@ -58,7 +56,7 @@ impl IntermediateLCGS {
             players,
         };
 
-        return Ok(ilcgs);
+        Ok(ilcgs)
     }
 
     /// Transforms a state index to a [State].
@@ -73,11 +71,11 @@ impl IntermediateLCGS {
             let symb = self.symbols.get(symb_id).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
                 let value = {
-                    let size = var.ir_range.len() as i32;
+                    let size = var.ir_range.end() - var.ir_range.start() + 1;
                     let quotient = carry / size;
                     let remainder = carry.rem_euclid(size);
                     carry = quotient;
-                    var.ir_range.start + remainder
+                    var.ir_range.start() + remainder
                 };
                 state.0.insert(symb_id.clone(), value);
             }
@@ -102,9 +100,9 @@ impl IntermediateLCGS {
         for symb_id in &self.vars {
             let symb = self.symbols.get(symb_id).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
-                let size = var.ir_range.len() as i32;
+                let size = var.ir_range.end() - var.ir_range.start() + 1;
                 let val = state.0.get(symb_id).unwrap();
-                res += ((val - var.ir_range.start) * combined_size) as usize;
+                res += ((val - var.ir_range.start()) * combined_size) as usize;
                 combined_size *= size;
             }
         }
@@ -124,7 +122,7 @@ impl IntermediateLCGS {
                 }
                 panic!("Transition was not a transition.")
             })
-            .map(|s| s.clone())
+            .cloned()
             .collect()
     }
 
@@ -146,13 +144,14 @@ impl IntermediateLCGS {
     }
 }
 
+/// Names of declarations. First component is players and their fields. Second component
+/// is global labels. And third component is global variables.
+type DeclNames = (Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>);
+
 /// Registers all declarations from the root in the symbol table. Constants are optimized to
 /// numbers immediately. On success, a vector of [Player]s is returned with information
 /// about players and the names of their actions.
-fn register_decls(
-    symbols: &mut SymbolTable,
-    root: Root,
-) -> Result<(Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>), ()> {
+fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()> {
     let mut player_decls = vec![];
     let mut player_names = HashSet::new();
     let mut labels = vec![];
@@ -327,7 +326,7 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
                 var.ir_initial_value = checker.check_eval(&var.initial_value)?;
                 let min = checker.check_eval(&var.range.min)?;
                 let max = checker.check_eval(&var.range.max)?;
-                var.ir_range = min..(max + 1);
+                var.ir_range = min..=max;
                 assert!(var.ir_range.contains(&var.ir_initial_value), "");
                 var.next_value =
                     SymbolChecker::new(symbols, owner.clone(), CheckMode::StateVarUpdate)
@@ -420,7 +419,6 @@ impl GameStructure for IntermediateLCGS {
 #[cfg(test)]
 mod test {
     use crate::atl::gamestructure::GameStructure;
-    use crate::lcgs::ast::UnaryOpKind;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
