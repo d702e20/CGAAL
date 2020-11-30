@@ -4,6 +4,8 @@ extern crate log4rs;
 extern crate num_cpus;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate lazy_static;
 
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;

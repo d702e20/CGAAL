@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
@@ -25,7 +25,6 @@ pub enum DeclKind {
     Const(Box<ConstDecl>),
     Label(Box<LabelDecl>),
     StateVar(Box<StateVarDecl>),
-    StateVarChange(Box<StateVarChangeDecl>),
     Player(Box<PlayerDecl>),
     Template(Box<TemplateDecl>),
     Transition(Box<TransitionDecl>),
@@ -39,7 +38,6 @@ impl DeclKind {
             DeclKind::Const(decl) => &decl.name,
             DeclKind::Label(decl) => &decl.name,
             DeclKind::StateVar(decl) => &decl.name,
-            DeclKind::StateVarChange(decl) => &decl.name,
             DeclKind::Player(decl) => &decl.name,
             DeclKind::Template(decl) => &decl.name,
             DeclKind::Transition(decl) => &decl.name,
@@ -123,19 +121,17 @@ pub struct TemplateDecl {
 }
 
 /// A variable declaration. The state of the CGS is the combination of all variables.
-/// E.g. "`health : [0 .. max_health] init max_health`"
+/// All variable declaration also define how it is updated each transition.
+/// E.g. "`health : [0 .. max_health] init max_health; health' = health - 1`"
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
+    /// The range is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_range: RangeInclusive<i32>,
     pub initial_value: Expr,
-}
-
-/// A variable-change declaration. In this declaration the user defines how a variable
-/// changes based on the previous state and the actions taken.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct StateVarChangeDecl {
-    pub name: Identifier,
+    /// The initial value is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_initial_value: i32,
     pub next_value: Expr,
 }
 
@@ -170,6 +166,8 @@ pub enum ExprKind {
     UnaryOp(UnaryOpKind, Box<Expr>),
     BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
     TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
+    Min(Vec<Expr>),
+    Max(Vec<Expr>),
 }
 
 /// Unary operators
@@ -180,7 +178,7 @@ pub enum UnaryOpKind {
 }
 
 impl UnaryOpKind {
-    pub fn as_fun(&self) -> fn(i32) -> i32 {
+    pub fn as_fn(&self) -> fn(i32) -> i32 {
         match self {
             UnaryOpKind::Not => |e| (e == 0) as i32,
             UnaryOpKind::Negation => |e| -e,
