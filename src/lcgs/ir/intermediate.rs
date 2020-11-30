@@ -129,7 +129,7 @@ impl IntermediateLCGS {
                 }
                 panic!("Transition was not a transition.")
             })
-            .map(|s| s.clone())
+            .cloned()
             .collect()
     }
 
@@ -152,13 +152,14 @@ impl IntermediateLCGS {
     }
 }
 
+/// Names of declarations. First component is players and their fields. Second component
+/// is global labels. And third component is global variables.
+type DeclNames = (Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>);
+
 /// Registers all declarations from the root in the symbol table. Constants are optimized to
 /// numbers immediately. On success, a vector of [Player]s is returned with information
 /// about players and the names of their actions.
-fn register_decls(
-    symbols: &mut SymbolTable,
-    root: Root,
-) -> Result<(Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>), ()> {
+fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()> {
     let mut player_decls = vec![];
     let mut player_names = HashSet::new();
     let mut labels = vec![];
