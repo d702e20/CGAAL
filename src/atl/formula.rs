@@ -37,12 +37,24 @@ pub(crate) enum Phi {
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
-    /// It must be that `players` can enforce that `pre` is satisfied until `until` is satisfied
+    /// It must be the case that `players` can enforce that `pre` is satisfied until `until` is satisfied
     #[serde(rename = "enforce until")]
     EnforceUntil {
         players: Vec<Player>,
         pre: Arc<Phi>,
         until: Arc<Phi>,
+    },
+    /// It must be the case that `formula` is satisfied in some coming step despite what actions `players` choose.
+    #[serde(rename = "despite until")]
+    DespiteEventually {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
+    },
+    /// It must be the case that `players` can enforce that `formula` is satisfied in some coming step.
+    #[serde(rename = "despite until")]
+    EnforcedEventually {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
     },
 }
 
@@ -86,6 +98,18 @@ impl Display for Phi {
                 players.iter().join_with(",").to_string(),
                 pre,
                 until
+            ),
+            Phi::DespiteEventually { players, formula } => write!(
+                f,
+                "⟦{}⟧◇{}",
+                players.iter().join_with(",").to_string(),
+                formula
+            ),
+            Phi::EnforcedEventually { players, formula } => write!(
+                f,
+                "⟪{}⟫◇{}",
+                players.iter().join_with(",").to_string(),
+                formula
             ),
         }
     }
