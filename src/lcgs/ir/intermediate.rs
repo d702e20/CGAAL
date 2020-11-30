@@ -362,8 +362,8 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
 pub struct State(pub HashMap<SymbolIdentifier, i32>);
 
 impl GameStructure for IntermediateLCGS {
-    fn max_player(&self) -> u32 {
-        self.players.len() as u32
+    fn max_player(&self) -> usize {
+        self.players.len()
     }
 
     /// Returns the set of labels/propositions available in the given state.
@@ -416,12 +416,12 @@ impl GameStructure for IntermediateLCGS {
     }
 
     /// Returns the number of moves available to each player in the given state.
-    fn move_count(&self, state: usize) -> Vec<u32> {
+    fn move_count(&self, state: usize) -> Vec<usize> {
         let state = self.state_from_index(state);
         self.players
             .iter()
             .enumerate()
-            .map(|(i, _player)| self.available_moves(&state, i).len() as u32)
+            .map(|(i, _player)| self.available_moves(&state, i).len())
             .collect()
     }
 }

@@ -123,7 +123,7 @@ impl VarsIterator {
     fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
         let mut position = Vec::with_capacity(moves.len());
         for (i, mov) in moves.iter().enumerate() {
-            position.push(if players.contains(&(i as usize)) {
+            position.push(if players.contains(&i) {
                 PartialMoveChoice::RANGE(*mov)
             } else {
                 PartialMoveChoice::SPECIFIC(0)
@@ -276,12 +276,11 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
     fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
-        let max_players = self.game_structure.max_player() as usize;
+        let max_players = self.game_structure.max_player();
         let mut inv_players =
-            HashSet::with_capacity((self.game_structure.max_player() as usize) - players.len());
+            HashSet::with_capacity((self.game_structure.max_player()) - players.len());
         // Iterate over all players and only add the ones not in players
         for player in 0usize..max_players {
-            let player = player as usize;
             if players.contains(&player) {
                 inv_players.insert(player);
             }
@@ -367,12 +366,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
-                    let moves: Vec<usize> = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
-                        .collect();
+                    let moves: Vec<usize> = self.game_structure.move_count(*state);
                     let targets: Vec<ATLVertex> =
                         VarsIterator::new(moves, inv_players.iter().copied().collect())
                             .map(|pmove| ATLVertex::PARTIAL {
@@ -389,12 +383,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     edges
                 }
                 Phi::EnforceNext { players, formula } => {
-                    let moves: Vec<usize> = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
-                        .collect();
+                    let moves: Vec<usize> = self.game_structure.move_count(*state);
                     VarsIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
                             let targets: Vec<ATLVertex> =
@@ -425,12 +414,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         formula: pre.clone(),
                     };
 
-                    let moves = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
-                        .collect();
+                    let moves = self.game_structure.move_count(*state);
                     let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
                         .map(|pmove| ATLVertex::PARTIAL {
                             state: *state,
@@ -468,31 +452,24 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         formula: pre.clone(),
                     };
 
-                    let moves = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
-                        .collect();
-                    let mut edges: HashSet<Edges<ATLVertex>> = VarsIterator::new(
-                        moves,
-                        players.iter().map(|player| *player as usize).collect(),
-                    )
-                    .map(|pmove| {
-                        let mut targets: Vec<ATLVertex> =
-                            DeltaIterator::new(&self.game_structure, *state, pmove)
-                                .map(|state| ATLVertex::FULL {
-                                    state,
-                                    formula: formula.clone(),
+                    let moves = self.game_structure.move_count(*state);
+                    let mut edges: HashSet<Edges<ATLVertex>> =
+                        VarsIterator::new(moves, players.iter().copied().collect())
+                            .map(|pmove| {
+                                let mut targets: Vec<ATLVertex> =
+                                    DeltaIterator::new(&self.game_structure, *state, pmove)
+                                        .map(|state| ATLVertex::FULL {
+                                            state,
+                                            formula: formula.clone(),
+                                        })
+                                        .collect();
+                                targets.push(pre.clone());
+                                Edges::HYPER(HyperEdge {
+                                    source: vert.clone(),
+                                    targets,
                                 })
-                                .collect();
-                        targets.push(pre.clone());
-                        Edges::HYPER(HyperEdge {
-                            source: vert.clone(),
-                            targets,
-                        })
-                    })
-                    .collect();
+                            })
+                            .collect();
 
                     // Until without pre occurring
                     let targets = vec![ATLVertex::FULL {
@@ -514,22 +491,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let mut edges = HashSet::new();
 
                     // Is the formula eventually satisfied in the next state?
-                    let moves = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
+                    let moves = self.game_structure.move_count(*state);
+                    let targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
+                        .map(|pmove| ATLVertex::PARTIAL {
+                            state: *state,
+                            partial_move: pmove.clone(),
+                            formula: formula.clone(),
+                        })
                         .collect();
-                    let targets: Vec<ATLVertex> = VarsIterator::new(
-                        moves,
-                        inv_players.iter().map(|player| *player as usize).collect(),
-                    )
-                    .map(|pmove| ATLVertex::PARTIAL {
-                        state: *state,
-                        partial_move: pmove.clone(),
-                        formula: formula.clone(),
-                    })
-                    .collect();
                     edges.insert(Edges::HYPER(HyperEdge {
                         source: vert.clone(),
                         targets,
@@ -551,30 +520,23 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     formula: subformula,
                 } => {
                     // Is the formula eventually satisfied in the next state?
-                    let moves = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
-                        .collect();
-                    let mut edges: HashSet<Edges<ATLVertex>> = VarsIterator::new(
-                        moves,
-                        players.iter().map(|player| *player as usize).collect(),
-                    )
-                    .map(|pmove| {
-                        let targets: Vec<ATLVertex> =
-                            DeltaIterator::new(&self.game_structure, *state, pmove)
-                                .map(|state| ATLVertex::FULL {
-                                    state,
-                                    formula: formula.clone(),
+                    let moves = self.game_structure.move_count(*state);
+                    let mut edges: HashSet<Edges<ATLVertex>> =
+                        VarsIterator::new(moves, players.iter().copied().collect())
+                            .map(|pmove| {
+                                let targets: Vec<ATLVertex> =
+                                    DeltaIterator::new(&self.game_structure, *state, pmove)
+                                        .map(|state| ATLVertex::FULL {
+                                            state,
+                                            formula: formula.clone(),
+                                        })
+                                        .collect();
+                                Edges::HYPER(HyperEdge {
+                                    source: vert.clone(),
+                                    targets,
                                 })
-                                .collect();
-                        Edges::HYPER(HyperEdge {
-                            source: vert.clone(),
-                            targets,
-                        })
-                    })
-                    .collect();
+                            })
+                            .collect();
 
                     // Is formula satisfied in current state?
                     edges.insert(Edges::HYPER(HyperEdge {
@@ -595,22 +557,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let mut edges = HashSet::new();
 
                     // Is the formula eventually satisfied in the next state?
-                    let moves = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
+                    let moves = self.game_structure.move_count(*state);
+                    let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
+                        .map(|pmove| ATLVertex::PARTIAL {
+                            state: *state,
+                            partial_move: pmove.clone(),
+                            formula: formula.clone(),
+                        })
                         .collect();
-                    let mut targets: Vec<ATLVertex> = VarsIterator::new(
-                        moves,
-                        inv_players.iter().map(|player| *player as usize).collect(),
-                    )
-                    .map(|pmove| ATLVertex::PARTIAL {
-                        state: *state,
-                        partial_move: pmove.clone(),
-                        formula: formula.clone(),
-                    })
-                    .collect();
 
                     // Is the sub formula satisfied in the current state?
                     targets.push(ATLVertex::FULL {
@@ -637,31 +591,24 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     };
 
                     // Is the formula eventually satisfied in the next state?
-                    let moves = self
-                        .game_structure
-                        .move_count(*state)
-                        .iter()
-                        .map(|&count| count as usize)
-                        .collect();
-                    let edges: HashSet<Edges<ATLVertex>> = VarsIterator::new(
-                        moves,
-                        players.iter().map(|player| *player as usize).collect(),
-                    )
-                    .map(|pmove| {
-                        let mut targets: Vec<ATLVertex> =
-                            DeltaIterator::new(&self.game_structure, *state, pmove)
-                                .map(|state| ATLVertex::FULL {
-                                    state,
-                                    formula: formula.clone(),
+                    let moves = self.game_structure.move_count(*state);
+                    let edges: HashSet<Edges<ATLVertex>> =
+                        VarsIterator::new(moves, players.iter().copied().collect())
+                            .map(|pmove| {
+                                let mut targets: Vec<ATLVertex> =
+                                    DeltaIterator::new(&self.game_structure, *state, pmove)
+                                        .map(|state| ATLVertex::FULL {
+                                            state,
+                                            formula: formula.clone(),
+                                        })
+                                        .collect();
+                                targets.push(sub.clone());
+                                Edges::HYPER(HyperEdge {
+                                    source: vert.clone(),
+                                    targets,
                                 })
-                                .collect();
-                        targets.push(sub.clone());
-                        Edges::HYPER(HyperEdge {
-                            source: vert.clone(),
-                            targets,
-                        })
-                    })
-                    .collect();
+                            })
+                            .collect();
 
                     edges
                 }
