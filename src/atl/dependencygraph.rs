@@ -517,7 +517,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::EnforcedEventually {
+                Phi::EnforceEventually {
                     players,
                     formula: subformula,
                 } => {
@@ -585,7 +585,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
-                Phi::EnforcedAlways {
+                Phi::EnforceAlways {
                     players,
                     formula: subformula,
                 } => {

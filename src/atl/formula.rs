@@ -51,8 +51,8 @@ pub(crate) enum Phi {
         formula: Arc<Phi>,
     },
     /// It must be the case that `players` can enforce that `formula` is satisfied in some coming step.
-    #[serde(rename = "enforced eventually")]
-    EnforcedEventually {
+    #[serde(rename = "enforce eventually")]
+    EnforceEventually {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
@@ -63,8 +63,8 @@ pub(crate) enum Phi {
         formula: Arc<Phi>,
     },
     /// It must be the case that `players` can enforce that `formula` always is satisfied.
-    #[serde(rename = "enforced always")]
-    EnforcedAlways {
+    #[serde(rename = "enforce always")]
+    EnforceAlways {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
@@ -117,7 +117,7 @@ impl Display for Phi {
                 players.iter().join_with(",").to_string(),
                 formula
             ),
-            Phi::EnforcedEventually { players, formula } => write!(
+            Phi::EnforceEventually { players, formula } => write!(
                 f,
                 "⟪{}⟫◇{}",
                 players.iter().join_with(",").to_string(),
@@ -129,7 +129,7 @@ impl Display for Phi {
                 players.iter().join_with(",").to_string(),
                 formula
             ),
-            Phi::EnforcedAlways { players, formula } => write!(
+            Phi::EnforceAlways { players, formula } => write!(
                 f,
                 "⟪{}⟫□{}",
                 players.iter().join_with(",").to_string(),
