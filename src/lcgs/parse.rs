@@ -232,12 +232,12 @@ fn primary_expr<'a>() -> Parser<'a, u8, Expr> {
     neg | not | num | min | max | ident | par
 }
 
-fn type_min() -> Parser<'static, u8, Expr> {
+fn type_min<'a>() -> Parser<'a, u8, Expr> {
     let inner = list(call(expr), ws() * sym(b',') - ws());
     let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
     methoded.map(|min| Expr { kind: Min(min) })
 }
-fn type_max() -> Parser<'static, u8, Expr> {
+fn type_max<'a>() -> Parser<'a, u8, Expr> {
     let inner = list(call(expr), ws() - sym(b',') - ws());
     let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
     methoded.map(|max| Expr { kind: Max(max) })
