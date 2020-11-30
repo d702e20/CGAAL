@@ -164,7 +164,7 @@ impl<'a> Relabeler<'a> {
     /// so the resulting identifier still makes sense.
     fn relabel_ident_part(&self, name: &str) -> Result<String, ()> {
         for relabel_case in &self.relabeling.relabellings {
-            if &relabel_case.prev == name {
+            if relabel_case.prev == name {
                 // We found a case that applies. Since we are relabeling a part of an identifier
                 // we only allow the new name to be a valid part of an identifier, i.e. an
                 // identifier with no owner
