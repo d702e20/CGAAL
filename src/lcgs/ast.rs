@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
@@ -127,7 +127,11 @@ pub struct TemplateDecl {
 pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
+    /// The range is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_range: RangeInclusive<i32>,
     pub initial_value: Expr,
+    /// The initial value is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_initial_value: i32,
     pub next_value: Expr,
 }
 
@@ -174,7 +178,7 @@ pub enum UnaryOpKind {
 }
 
 impl UnaryOpKind {
-    pub fn as_fun(&self) -> fn(i32) -> i32 {
+    pub fn as_fn(&self) -> fn(i32) -> i32 {
         match self {
             UnaryOpKind::Not => |e| (e == 0) as i32,
             UnaryOpKind::Negation => |e| -e,

@@ -47,6 +47,17 @@ impl<'a> SymbolChecker<'a> {
         }
     }
 
+    /// Checks and evaluates an expressions. This is typically only used in [CheckMode::Const]
+    /// where we assume the expression can be reduced to a value already during symbol checking.
+    pub fn check_eval(&self, expr: &Expr) -> Result<i32, ()> {
+        let checked = self.check(expr)?;
+        if let ExprKind::Number(n) = checked.kind {
+            Ok(n)
+        } else {
+            Err(())
+        }
+    }
+
     /// Checks the given expressions
     pub fn check(&self, expr: &Expr) -> Result<Expr, ()> {
         match &expr.kind {
@@ -84,28 +95,26 @@ impl<'a> SymbolChecker<'a> {
                             // TODO Use custom error
                             .expect("Expected constant expression. Found unknown constant.")
                     }
-                } else {
-                    if let Some(player_name) = owner {
-                        // We first ensure that the player exists in order to give a
-                        // more accurate error message, if necessary
-                        self.symbols
-                            .get(&Owner::Global, player_name)
-                            .expect("Unknown player"); // TODO Use custom error
+                } else if let Some(player_name) = owner {
+                    // We first ensure that the player exists in order to give a
+                    // more accurate error message, if necessary
+                    self.symbols
+                        .get(&Owner::Global, player_name)
+                        .expect("Unknown player"); // TODO Use custom error
 
-                        // The player exists, so now we fetch the symbol
-                        let owner = Owner::Player(player_name.to_string());
-                        self.symbols
+                    // The player exists, so now we fetch the symbol
+                    let owner = Owner::Player(player_name.to_string());
+                    self.symbols
                             .get(&owner, &name)
                             // TODO Use custom error
                             .expect("Unknown identifier. The player does not own a declaration of that name")
-                    } else {
-                        // Player is omitted. Assume it is scope owner. If not, then try global.
-                        self.symbols
-                            .get(&self.scope_owner, &name)
-                            .or_else(|| self.symbols.get(&Owner::Global, &name))
-                            // TODO Use custom error
-                            .expect("Unknown identifier, neither declared locally or globally")
-                    }
+                } else {
+                    // Player is omitted. Assume it is scope owner. If not, then try global.
+                    self.symbols
+                        .get(&self.scope_owner, &name)
+                        .or_else(|| self.symbols.get(&Owner::Global, &name))
+                        // TODO Use custom error
+                        .expect("Unknown identifier, neither declared locally or globally")
                 }
             }
             // Already resolved once ... which should never happen.
@@ -125,12 +134,12 @@ impl<'a> SymbolChecker<'a> {
 
             // Identifier is okay. Return a resolved identifier where owner is specified.
             let SymbolIdentifier { owner, name } = &symb.identifier;
-            return Ok(Expr {
+            Ok(Expr {
                 kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
                     owner: owner.clone(),
                     name: name.clone(),
                 })),
-            });
+            })
         } else {
             // The try_borrow must have failed, which means that the
             // RefCell is currently being mutated by someone. We are only reducing
@@ -138,26 +147,25 @@ impl<'a> SymbolChecker<'a> {
             // referring to the declaration itself. This is only okay, if we are
             // in CheckMode::StateVarUpdate. In such case we can return immediately.
             if self.mode == CheckMode::StateVarUpdate {
-                return Ok(Expr {
+                Ok(Expr {
                     kind: ExprKind::OwnedIdent(Box::new(Identifier::Resolved {
                         owner: symb.identifier.owner.clone(),
                         name: symb.identifier.name.clone(),
                     })),
-                });
+                })
             } else {
                 panic!("Declaration refers to itself.") // TODO Use custom error
             }
-        };
+        }
     }
 
     /// Optimizes the given unary operator and checks the operand
     fn check_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, ()> {
-        let mut res = self.check(expr)?;
-        if let ExprKind::Number(n) = &mut res.kind {
-            match op {
-                UnaryOpKind::Not => *n = -*n,
-                UnaryOpKind::Negation => *n = (*n == 0) as i32,
-            }
+        let res = self.check(expr)?;
+        if let ExprKind::Number(n) = &res.kind {
+            return Ok(Expr {
+                kind: ExprKind::Number(op.as_fn()(*n)),
+            });
         }
         Ok(Expr {
             kind: ExprKind::UnaryOp(op.clone(), Box::new(res)),
