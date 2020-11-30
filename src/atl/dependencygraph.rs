@@ -496,7 +496,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
                         .map(|pmove| ATLVertex::PARTIAL {
                             state: *state,
-                            partial_move: pmove.clone(),
+                            partial_move: pmove,
                             formula: formula.clone(),
                         })
                         .collect();
@@ -566,7 +566,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
                         .map(|pmove| ATLVertex::PARTIAL {
                             state: *state,
-                            partial_move: pmove.clone(),
+                            partial_move: pmove,
                             formula: formula.clone(),
                         })
                         .collect();
