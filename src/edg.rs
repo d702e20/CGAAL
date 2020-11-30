@@ -257,6 +257,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                                     self.counter = 0;
                                     self.process_negation_edge(edge.clone(), weight)
                                 } else {
+                                    self.broker.queue_negation(self.id, edge.clone(), weight);
                                     self.counter = self.counter + 1;
                                 }
                             }
@@ -273,6 +274,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
+    /// Releasing the edges from the unsafe queue to the safe negation channel
     fn release_negations(&mut self, dist: usize) {
         while self.unsafe_edges.len() >= dist && self.unsafe_edges.len() > 0 {
             if let Some(edges) = self.unsafe_edges.last() {
@@ -644,6 +646,7 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
+    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -789,12 +792,12 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
             VertexAssignment::TRUE,
             "Vertex B"
         );
