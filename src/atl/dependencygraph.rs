@@ -343,6 +343,26 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     edges
                 }
+                Phi::And(left, right) => {
+                    let mut edges = HashSet::new();
+                    let mut targets = vec![];
+
+                    targets.push(ATLVertex::FULL {
+                        state: *state,
+                        formula: left.clone(),
+                    });
+                    targets.push(ATLVertex::FULL {
+                        state: *state,
+                        formula: right.clone(),
+                    });
+
+                    edges.insert(Edges::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        targets,
+                    }));
+
+                    edges
+                }
                 Phi::DespiteNext { players, formula } => {
                     let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();

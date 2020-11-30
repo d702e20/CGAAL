@@ -15,6 +15,9 @@ pub(crate) enum Phi {
     /// It must be the case that either formula is satisfied
     #[serde(rename = "or")]
     Or(Arc<Phi>, Arc<Phi>),
+    /// It must be the case that either formula is satisfied
+    #[serde(rename = "and")]
+    And(Arc<Phi>, Arc<Phi>),
     /// It must be the case that `formula` is satisfied in the next step despite what actions `players` choose.
     #[serde(rename = "despite next")]
     DespiteNext {
@@ -49,6 +52,7 @@ impl Display for Phi {
             Phi::Proposition(id) => write!(f, "'{}'", id),
             Phi::Not(formula) => write!(f, "¬({})", formula),
             Phi::Or(left, right) => write!(f, "({} ∨ {})", left, right),
+            Phi::And(left, right) => write!(f, "({} ∧ {})", left, right),
             Phi::DespiteNext { players, formula } => write!(
                 f,
                 "⟦{}⟧◯{}",
