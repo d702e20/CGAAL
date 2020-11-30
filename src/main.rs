@@ -51,11 +51,9 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
 
 #[tracing::instrument]
 fn main() -> Result<(), Box<dyn Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-
     let args = parse_arguments();
+
+    setup_tracing(&args);
     trace!(?args, "commandline arguments");
 
     match args.subcommand() {
@@ -216,21 +214,26 @@ fn parse_arguments() -> ArgMatches<'static> {
         .version(VERSION)
         .author(AUTHORS)
         .arg(
-            Arg::with_name("log-level")
+            Arg::with_name("log_filter")
                 .short("l")
-                .long("log-level")
-                .env("LOG_LEVEL")
+                .long("log-filter")
+                .env("RUST_LOG")
                 .default_value("warn")
-                .help("{error, warn, info, debug, trace, off}"),
-        )
-        .arg(
-            Arg::with_name("log_path")
-                .short("p")
-                .long("log-path")
-                .env("LOG_PATH")
-                .help("Write log to file if log-file path is specified"),
+                .help("Comma separated list of filter directives"),
         )
         .subcommand(build_common_arguments(SubCommand::with_name("solver")))
         .subcommand(build_common_arguments(SubCommand::with_name("graph")))
         .get_matches()
+}
+
+fn setup_tracing(args: &ArgMatches) {
+    if let Some(filter) = args.value_of("log_filter") {
+        let filter = tracing_subscriber::EnvFilter::try_new(filter).unwrap_or_else(|err| {
+            eprintln!("Invalid log filter\n{}", err);
+            exit(1);
+        });
+        tracing_subscriber::fmt().with_env_filter(filter).init()
+    } else {
+        tracing_subscriber::fmt().init()
+    }
 }
