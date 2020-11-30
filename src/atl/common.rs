@@ -23,7 +23,6 @@ pub(crate) fn transition_lookup(choices: &[usize], transitions: &DynVec) -> Stat
                 panic!("Fewer choices given than number of players in transitions");
             }
 
-            println!("choice: {:?}", choices[0]);
             let choice = choices[0];
             let h: &DynVec = v.get(choice).expect("Out of bounds choice");
 
