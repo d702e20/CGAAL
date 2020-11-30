@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, Div, Mul, Range, Sub};
+use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
@@ -140,7 +140,7 @@ pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
     /// The range is evaluated during symbol checking. Its value has no meaning before that.
-    pub ir_range: Range<i32>,
+    pub ir_range: RangeInclusive<i32>,
     pub initial_value: Expr,
     /// The initial value is evaluated during symbol checking. Its value has no meaning before that.
     pub ir_initial_value: i32,
@@ -178,6 +178,8 @@ pub enum ExprKind {
     UnaryOp(UnaryOpKind, Box<Expr>),
     BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
     TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
+    Min(Vec<Expr>),
+    Max(Vec<Expr>),
 }
 
 /// Unary operators

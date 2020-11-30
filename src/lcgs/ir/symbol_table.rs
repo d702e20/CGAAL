@@ -15,7 +15,7 @@ impl From<&str> for SymbolIdentifier {
     /// Converts a string into a symbol identifier. The string must be on the form "owner.name".
     /// If the owner is ":global", then the owner will be the global scope.
     fn from(string: &str) -> SymbolIdentifier {
-        let split: Vec<&str> = string.split(".").collect();
+        let split: Vec<&str> = string.split('.').collect();
         debug_assert!(
             split.len() == 2,
             "Invalid symbol identifier. Must consist of an owner and a name."

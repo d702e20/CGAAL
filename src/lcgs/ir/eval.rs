@@ -18,6 +18,8 @@ impl<'a> Evaluator<'a> {
             ExprKind::UnaryOp(op, e) => self.eval_unop(op, e),
             ExprKind::BinaryOp(op, e1, e2) => self.eval_binop(op, e1, e2),
             ExprKind::TernaryIf(c, e1, e2) => self.eval_if(c, e1, e2),
+            ExprKind::Max(exprs) => self.eval_min(exprs),
+            ExprKind::Min(exprs) => self.eval_max(exprs),
         }
     }
 
@@ -56,5 +58,11 @@ impl<'a> Evaluator<'a> {
         } else {
             self.eval(e2)
         }
+    }
+    fn eval_min(&self, ls: &[Expr]) -> Result<i32, ()> {
+        ls.iter().map(|p| self.eval(p)).min().unwrap()
+    }
+    fn eval_max(&self, ls: &[Expr]) -> Result<i32, ()> {
+        ls.iter().map(|p| self.eval(p)).max().unwrap()
     }
 }
