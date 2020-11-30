@@ -14,9 +14,15 @@ pub(crate) enum Phi {
     /// It must be the case that either formula is satisfied
     #[serde(rename = "or")]
     Or(Arc<Phi>, Arc<Phi>),
+    /// It must be the case that `formula` is satisfied in the next step despite what actions `players` choose.
+    #[serde(rename = "despite next")]
+    DespiteNext {
+        players: Vec<Player>,
+        formula: Arc<Phi>,
+    },
     /// It must be the case that players can enforce that `formula` is satisfied in the next step
-    #[serde(rename = "next")]
-    Next {
+    #[serde(rename = "enforce next")]
+    EnforceNext {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
@@ -52,7 +58,21 @@ impl Display for Phi {
                 right.fmt(f)?;
                 f.write_str(")")
             }
-            Phi::Next { players, formula } => {
+            Phi::DespiteNext { players, formula } => {
+                f.write_str("⟦")?;
+                f.write_str(
+                    players
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str(),
+                )?;
+                f.write_str("⟧◯[")?;
+                formula.fmt(f)?;
+                f.write_str("]")
+            }
+            Phi::EnforceNext { players, formula } => {
                 f.write_str("⟪")?;
                 f.write_str(
                     players
