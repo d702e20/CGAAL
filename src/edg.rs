@@ -552,6 +552,7 @@ mod test {
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
 
+    #[ignore]
     #[test]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
@@ -1114,6 +1115,7 @@ mod test {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
