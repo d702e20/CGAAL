@@ -457,6 +457,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
+    /// Queueing unsafe negation, which will be queued to negation channel whenever
+    /// release negation is called
     fn queue_negation(&mut self, edge: NegationEdge<V>, weight: Weight) {
         let mut len = self.unsafe_edges.len();
         let mut dist = 0;
