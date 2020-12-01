@@ -1,4 +1,4 @@
 mod ast;
-mod ir;
-mod parse;
+pub(crate) mod ir;
+pub(crate) mod parse;
 mod precedence;

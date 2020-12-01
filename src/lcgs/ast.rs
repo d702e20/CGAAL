@@ -1,6 +1,6 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 use crate::lcgs::ast::BinaryOpKind::*;
 use crate::lcgs::ir::symbol_table::Owner;
@@ -25,7 +25,6 @@ pub enum DeclKind {
     Const(Box<ConstDecl>),
     Label(Box<LabelDecl>),
     StateVar(Box<StateVarDecl>),
-    StateVarChange(Box<StateVarChangeDecl>),
     Player(Box<PlayerDecl>),
     Template(Box<TemplateDecl>),
     Transition(Box<TransitionDecl>),
@@ -39,7 +38,6 @@ impl DeclKind {
             DeclKind::Const(decl) => &decl.name,
             DeclKind::Label(decl) => &decl.name,
             DeclKind::StateVar(decl) => &decl.name,
-            DeclKind::StateVarChange(decl) => &decl.name,
             DeclKind::Player(decl) => &decl.name,
             DeclKind::Template(decl) => &decl.name,
             DeclKind::Transition(decl) => &decl.name,
@@ -105,12 +103,24 @@ pub struct Relabeling {
     pub relabellings: Vec<RelabelCase>,
 }
 
-/// A relabeling case. Whenever the `prev_name` is found in the given template, it is
-/// replaced with `new_name`.
+/// A relabeling case. Whenever `prev` is found in the given template, it is
+/// replaced with `new`. The `prev` name is always a single word, however, the `new` word
+/// can be both a name or an expression. The semantics is slightly different when `new` is
+/// a single word (Identifier without owner). If `new` is an expression, the given expression
+/// will simply be inserted, whenever `prev` appears. If is a word, then it will also be
+/// inserted whenever `prev` appears, but if an identifier is found, where `prev` matches
+/// either the owner or the field, then it will change that identifier instead. Examples:
+/// 1) `foo + 5 [foo=10 + 2] ==> 10 + 2 + 5`
+/// 2) `bar.baz [baz=yum] ==> bar.yum`
+/// 3) `daf.hi > 2 [daf=dum] ==> dum.hi > 2`
+///
+/// And the following is of course illegal:
+/// 1) `foo.bar [foo=5]`
+/// 1) `baz.yum [yum=baz.hello]`
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RelabelCase {
-    pub prev_name: Identifier,
-    pub new_name: Identifier,
+    pub prev: String,
+    pub new: Expr,
 }
 
 /// A template declaration. Essentially a player type.
@@ -123,19 +133,17 @@ pub struct TemplateDecl {
 }
 
 /// A variable declaration. The state of the CGS is the combination of all variables.
-/// E.g. "`health : [0 .. max_health] init max_health`"
+/// All variable declaration also define how it is updated each transition.
+/// E.g. "`health : [0 .. max_health] init max_health; health' = health - 1`"
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
     pub name: Identifier,
     pub range: TypeRange,
+    /// The range is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_range: RangeInclusive<i32>,
     pub initial_value: Expr,
-}
-
-/// A variable-change declaration. In this declaration the user defines how a variable
-/// changes based on the previous state and the actions taken.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct StateVarChangeDecl {
-    pub name: Identifier,
+    /// The initial value is evaluated during symbol checking. Its value has no meaning before that.
+    pub ir_initial_value: i32,
     pub next_value: Expr,
 }
 
@@ -170,6 +178,8 @@ pub enum ExprKind {
     UnaryOp(UnaryOpKind, Box<Expr>),
     BinaryOp(BinaryOpKind, Box<Expr>, Box<Expr>),
     TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
+    Min(Vec<Expr>),
+    Max(Vec<Expr>),
 }
 
 /// Unary operators
@@ -180,7 +190,7 @@ pub enum UnaryOpKind {
 }
 
 impl UnaryOpKind {
-    pub fn as_fun(&self) -> fn(i32) -> i32 {
+    pub fn as_fn(&self) -> fn(i32) -> i32 {
         match self {
             UnaryOpKind::Not => |e| (e == 0) as i32,
             UnaryOpKind::Negation => |e| -e,

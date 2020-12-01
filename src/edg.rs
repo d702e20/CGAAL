@@ -275,11 +275,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                             VertexAssignment::TRUE => {
                                 self.process_negation_edge(edge.clone(), weight)
                             }
+                            // In case of undecided the edge is only processed after 10 iterations
                             VertexAssignment::UNDECIDED => {
                                 if self.counter == 9 {
                                     self.counter = 0;
                                     self.process_negation_edge(edge.clone(), weight)
                                 } else {
+                                    self.broker.queue_negation(self.id, edge.clone(), weight);
                                     self.counter = self.counter + 1;
                                 }
                             }
@@ -291,11 +293,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     ),
                 }
             } else {
+                // if the negation channel is empty, unsafe negation edges are released
                 self.release_negations(max(self.unsafe_edges.len(), 0));
             }
         }
     }
 
+    /// Releasing the edges from the unsafe queue to the safe negation channel
     fn release_negations(&mut self, dist: usize) {
         trace!(distance = dist, "release negation");
         while self.unsafe_edges.len() >= dist && self.unsafe_edges.len() > 0 {
@@ -492,6 +496,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
+    /// Queueing unsafe negation, which will be queued to negation channel whenever
+    /// release negation is called
     fn queue_negation(&mut self, edge: NegationEdge<V>, weight: Weight) {
         let mut len = self.unsafe_edges.len();
         let mut dist = 0;
@@ -862,12 +868,12 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
             VertexAssignment::TRUE,
             "Vertex B"
         );

@@ -36,8 +36,8 @@ expr := identifier
     | expr binop expr
     | expr questionmark expr colon expr
     | lpar expr rpar
-    | "max" lpar expr comma expr rpar
-    | "min" lpar expr comma expr rpar
+    | "max" lpar expr (comma expr)* rpar
+    | "min" lpar expr (comma expr)* rpar
 	...
 
 comma := ","
