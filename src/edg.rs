@@ -6,10 +6,11 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, Select};
+use crossbeam_channel::{Receiver, Select, TrySendError};
 
 use crate::com::{Broker, ChannelBroker};
 use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
+use crate::distterm::{ControllerWeight, Weight};
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 
@@ -30,11 +31,12 @@ pub fn distributed_certain_zero<
     worker_count: u64,
 ) -> VertexAssignment {
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut term_rxs) = ChannelBroker::new(worker_count);
+    let (broker, mut msg_rxs, mut term_rxs, weight_rx) = ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
     // Channel used for returning the final assigment of `v0` to the calling thread
-    let (tx, rx) = crossbeam_channel::bounded(worker_count as usize);
+    let (early_tx, early_rx) = crossbeam_channel::bounded(worker_count as usize);
+    let mut controller_weight = ControllerWeight::new();
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
@@ -48,15 +50,49 @@ pub fn distributed_certain_zero<
             broker.clone(),
             edg.clone(),
         );
-        let tx = tx.clone();
+        let tx = early_tx.clone();
         thread::spawn(move || {
             let result = worker.run();
-            tx.send(result)
-                .expect("Failed to submit final assignment of v0");
+            match tx.try_send(result) {
+                Ok(_) => {}
+                Err(err) => match err {
+                    TrySendError::Full(_) => panic!(
+                        "Failed to submit final assignment of v0 because the channel is full: {}",
+                        err
+                    ),
+                    TrySendError::Disconnected(_) => {}
+                },
+            }
         });
     }
 
-    rx.recv().unwrap()
+    let mut sel = Select::new();
+    let early_index = sel.recv(&early_rx);
+    let weight_index = sel.recv(&weight_rx);
+
+    loop {
+        // Wait until a receive operation becomes ready and try executing it.
+        let oper = sel.select();
+        match oper.index() {
+            i if i == early_index => {
+                let assignment = oper
+                    .recv(&early_rx)
+                    .expect("Error receiving final assigment from early termination");
+                return assignment;
+            }
+            i if i == weight_index => {
+                let weight = oper.recv(&weight_rx).expect("Error receiving weight");
+                controller_weight.receive_weight(weight);
+                if controller_weight.is_full() {
+                    // Send term to all workers
+                    let assignment = VertexAssignment::FALSE;
+                    broker.terminate(assignment);
+                    return assignment;
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -131,7 +167,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     pub fn run(&mut self) -> VertexAssignment {
         // Alg 1, Line 2
         if self.is_owner(&self.v0.clone()) {
-            self.explore(&self.v0.clone());
+            let init_weight = Weight::new_full();
+            self.explore(&self.v0.clone(), init_weight);
         }
 
         let term_rx = self.term_rx.clone();
@@ -142,7 +179,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let oper_term = select.recv(&term_rx);
         let oper_msg = select.recv(&msg_rx);
 
-        // TODO terminate if all queues empty and all workers are idle
         loop {
             let oper = select.select();
             match oper.index() {
@@ -167,20 +203,30 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 i if i == oper_msg => {
                     match oper.recv(&msg_rx) {
                         // Alg 1, Line 5-9
-                        Ok(msg) => match msg {
-                            // Alg 1, Line 6
-                            Message::HYPER(edge) => self.process_hyper_edge(edge),
-                            // Alg 1, Line 7
-                            Message::NEGATION(edge) => self.process_negation_edge(edge),
-                            // Alg 1, Line 8
-                            Message::REQUEST { vertex, worker_id } => {
-                                self.process_request(&vertex, worker_id)
+                        Ok(msg) => {
+                            match msg {
+                                // Alg 1, Line 6
+                                Message::HYPER(edge, weight) => {
+                                    self.process_hyper_edge(edge, weight)
+                                }
+                                // Alg 1, Line 7
+                                Message::NEGATION(edge, weight) => {
+                                    self.process_negation_edge(edge, weight)
+                                }
+                                // Alg 1, Line 8
+                                Message::REQUEST {
+                                    vertex,
+                                    worker_id,
+                                    weight,
+                                } => self.process_request(&vertex, worker_id, weight),
+                                // Alg 1, Line 9
+                                Message::ANSWER {
+                                    vertex,
+                                    assignment,
+                                    weight,
+                                } => self.process_answer(&vertex, assignment, weight),
                             }
-                            // Alg 1, Line 9
-                            Message::ANSWER { vertex, assignment } => {
-                                self.process_answer(&vertex, assignment)
-                            }
-                        },
+                        }
                         Err(err) => panic!("Receiving from message channel failed with: {}", err),
                     }
                 }
@@ -200,7 +246,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
-    fn explore(&mut self, vertex: &V) {
+    fn explore(&mut self, vertex: &V, weight: Weight) {
+        let mut weight = weight;
         // Line 2
         self.assignment
             .insert(vertex.clone(), VertexAssignment::UNDECIDED);
@@ -210,17 +257,26 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             let successors = self.succ(vertex); // Line 4
             if successors.is_empty() {
                 // Line 4
-                self.final_assign(vertex, VertexAssignment::FALSE);
+                self.final_assign(vertex, VertexAssignment::FALSE, weight);
             } else {
                 // Line 5
-                for edge in successors {
+                for (i, edge) in successors.iter().enumerate() {
+                    let split_weight = if i < successors.len() - 1 {
+                        let (weight_for_task, remaining_weight) = weight
+                            .split()
+                            .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
+                        weight = remaining_weight;
+                        weight_for_task
+                    } else {
+                        weight.clone()
+                    };
                     match edge {
-                        Edges::HYPER(edge) => {
-                            self.broker.send(self.id, Message::HYPER(edge.clone()))
-                        }
-                        Edges::NEGATION(edge) => {
-                            self.broker.send(self.id, Message::NEGATION(edge.clone()))
-                        }
+                        Edges::HYPER(edge) => self
+                            .broker
+                            .send(self.id, Message::HYPER(edge.clone(), split_weight)),
+                        Edges::NEGATION(edge) => self
+                            .broker
+                            .send(self.id, Message::NEGATION(edge.clone(), split_weight)),
                     }
                 }
             }
@@ -231,12 +287,14 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 Message::REQUEST {
                     vertex: vertex.clone(),
                     worker_id: self.id,
+                    weight,
                 },
             )
         }
     }
 
-    fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
+    fn process_hyper_edge(&mut self, edge: HyperEdge<V>, weight: Weight) {
+        let mut weight = weight;
         // Line 3, condition (in case of targets is empty, the default value is true)
         let all_final = edge.targets.iter().all(|target| {
             self.assignment
@@ -246,7 +304,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 3
         if all_final {
-            self.final_assign(&edge.source, VertexAssignment::TRUE);
+            self.final_assign(&edge.source, VertexAssignment::TRUE, weight);
             return;
         }
 
@@ -259,7 +317,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 4
         if any_target {
-            self.delete_edge(Edges::HYPER(edge));
+            self.delete_edge(Edges::HYPER(edge), weight);
             return;
         }
 
@@ -274,14 +332,20 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
                 None => {
                     // UNEXPLORED
+                    let (weight_for_task, remaining_weight) = weight
+                        .split()
+                        .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
+                    weight = remaining_weight;
                     // Line 7
                     self.add_depend(target, Edges::HYPER(edge.clone()));
                     // Line 8
-                    self.explore(target);
+                    self.explore(target, weight_for_task);
                 }
                 _ => {}
             }
         }
+        // We don't know how many instances of `None` exists without iterating through the loop, so there will always be some left over weight
+        self.broker.return_weight(weight);
     }
 
     // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
@@ -302,28 +366,34 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
-    fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
+    fn process_negation_edge(&mut self, edge: NegationEdge<V>, weight: Weight) {
         match self.assignment.get(&edge.target) {
             // UNEXPLORED
             None => {
                 // UNEXPLORED
                 // Line 6
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                self.broker.send(self.id, Message::NEGATION(edge.clone()));
-                self.explore(&edge.target);
+                let (weight1, weight2) = weight
+                    .split()
+                    .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
+                self.broker
+                    .send(self.id, Message::NEGATION(edge.clone(), weight1));
+                self.explore(&edge.target, weight2);
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                    self.final_assign(&edge.source, VertexAssignment::TRUE, weight)
                 }
-                VertexAssignment::FALSE => self.final_assign(&edge.source, VertexAssignment::TRUE),
-                VertexAssignment::TRUE => self.delete_edge(Edges::NEGATION(edge)),
+                VertexAssignment::FALSE => {
+                    self.final_assign(&edge.source, VertexAssignment::TRUE, weight)
+                }
+                VertexAssignment::TRUE => self.delete_edge(Edges::NEGATION(edge), weight),
             },
         }
     }
 
     // Another worker has requested the final assignment of a `vertex`
-    fn process_request(&mut self, vertex: &V, requester: WorkerId) {
+    fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight) {
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             match assigned {
@@ -333,6 +403,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         Message::ANSWER {
                             vertex: vertex.clone(),
                             assignment: VertexAssignment::FALSE,
+                            weight,
                         },
                     );
                 }
@@ -342,6 +413,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         Message::ANSWER {
                             vertex: vertex.clone(),
                             assignment: VertexAssignment::TRUE,
+                            weight,
                         },
                     );
                 }
@@ -352,15 +424,18 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.mark_interest(vertex, requester);
         if self.assignment.get(&vertex).is_none() {
             // UNEXPLORED
-            self.explore(&vertex);
+            self.explore(&vertex, weight);
+        } else {
+            self.broker.return_weight(weight);
         }
     }
 
-    fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
-        self.final_assign(vertex, assigned)
+    fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment, weight: Weight) {
+        self.final_assign(vertex, assigned, weight);
     }
 
-    fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
+    fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment, weight: Weight) {
+        let mut weight = weight;
         // Line 2
         if *vertex == self.v0 {
             self.broker.terminate(assignment);
@@ -370,30 +445,45 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.assignment.insert(vertex.clone(), assignment);
         // Line 4
         if let Some(interested) = self.interests.get(&vertex) {
-            interested.iter().for_each(|worker_id| {
+            for worker_id in interested {
+                let (new_weight, split_weight) = weight
+                    .split()
+                    .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
+                weight = new_weight;
                 self.broker.send(
                     *worker_id,
                     Message::ANSWER {
                         vertex: vertex.clone(),
                         assignment,
+                        weight: split_weight,
                     },
                 )
-            })
+            }
         }
 
         // Line 5
         if let Some(depends) = self.depends.get(&vertex) {
-            depends.iter().for_each(|edge| match edge {
-                Edges::HYPER(edge) => self.broker.send(self.id, Message::<V>::HYPER(edge.clone())),
-                Edges::NEGATION(edge) => self
-                    .broker
-                    .send(self.id, Message::<V>::NEGATION(edge.clone())),
-            });
+            for edge in depends {
+                let (new_weight, split_weight) = weight
+                    .split()
+                    .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
+                weight = new_weight;
+                match edge {
+                    Edges::HYPER(edge) => self
+                        .broker
+                        .send(self.id, Message::<V>::HYPER(edge.clone(), split_weight)),
+                    Edges::NEGATION(edge) => self
+                        .broker
+                        .send(self.id, Message::<V>::NEGATION(edge.clone(), split_weight)),
+                }
+            }
         }
+
+        self.broker.return_weight(weight);
     }
 
     /// Helper function for deleting edges from a vertex.
-    fn delete_edge(&mut self, edge: Edges<V>) {
+    fn delete_edge(&mut self, edge: Edges<V>, weight: Weight) {
         // Get v
         let source = match edge {
             Edges::HYPER(ref edge) => edge.source.clone(),
@@ -414,7 +504,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             Some(successors) => {
                 // Line 3
                 if successors.is_empty() {
-                    self.final_assign(&source, VertexAssignment::FALSE);
+                    self.final_assign(&source, VertexAssignment::FALSE, weight);
                 }
             }
         }
@@ -453,6 +543,8 @@ mod test {
     use std::collections::hash_map::RandomState;
     use std::collections::HashSet;
     use std::fmt::Display;
+    use test_env_log::test;
+    use tracing::Level;
 
     use serde::export::Formatter;
 
@@ -484,11 +576,13 @@ mod test {
             T,
             G,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -509,6 +603,7 @@ mod test {
                 // T -> G
                 // G
 
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -612,6 +707,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
@@ -660,8 +756,9 @@ mod test {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_small_dg_all_true_except_for_c() {
+        warn!("foo bar");
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
@@ -669,11 +766,13 @@ mod test {
             C,
             D,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -686,6 +785,8 @@ mod test {
                 // B -> D
                 // C
                 // D -> Ø
+
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -713,9 +814,8 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::C => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                     ExampleEDGVertices::D => {
                         let mut successors = HashSet::new();
@@ -730,6 +830,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::TRUE,
@@ -753,7 +854,7 @@ mod test {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_small_dg_all_false_except_for_d() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -762,11 +863,13 @@ mod test {
             C,
             D,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -779,6 +882,7 @@ mod test {
                 // C -> B
                 // D -> Ø
 
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -802,6 +906,7 @@ mod test {
                     }
                     ExampleEDGVertices::C => {
                         let mut successors = HashSet::new();
+
                         successors.insert(Edges::HYPER(HyperEdge {
                             source: ExampleEDGVertices::C,
                             targets: vec![ExampleEDGVertices::B],
@@ -821,6 +926,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
@@ -842,18 +948,21 @@ mod test {
             "Vertex D"
         );
     }
+
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_a_node_with_no_succsessors() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -861,23 +970,25 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
             "Vertex A"
         );
     }
+
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_termination_condtion() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -885,11 +996,13 @@ mod test {
             B,
             C,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -897,9 +1010,11 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
+
                         successors.insert(Edges::HYPER(HyperEdge {
                             source: ExampleEDGVertices::A,
                             targets: vec![ExampleEDGVertices::B, ExampleEDGVertices::C],
@@ -908,19 +1023,16 @@ mod test {
                         successors
                     }
                     ExampleEDGVertices::B => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                     ExampleEDGVertices::C => {
-                        let successors = HashSet::new();
-
-                        successors
+                        // No successors
+                        HashSet::new()
                     }
                 }
             }
         }
-        eprintln!("Hello");
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
@@ -931,7 +1043,7 @@ mod test {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_loop_di_loops() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -940,11 +1052,13 @@ mod test {
             C,
             D,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -957,6 +1071,7 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -999,6 +1114,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
@@ -1022,18 +1138,20 @@ mod test {
     }
 
     #[test]
-    #[ignore]
+    //#[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
             B,
         }
+
         impl Display for ExampleEDGVertices {
             fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
                 unimplemented!()
             }
         }
+
         impl Vertex for ExampleEDGVertices {}
 
         impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
@@ -1044,6 +1162,7 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -1068,6 +1187,7 @@ mod test {
                 }
             }
         }
+
         assert_eq!(
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
             VertexAssignment::FALSE,
