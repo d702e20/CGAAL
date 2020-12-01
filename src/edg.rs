@@ -543,6 +543,8 @@ mod test {
     use std::collections::hash_map::RandomState;
     use std::collections::HashSet;
     use std::fmt::Display;
+    use test_env_log::test;
+    use tracing::Level;
 
     use serde::export::Formatter;
 
@@ -552,8 +554,8 @@ mod test {
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
 
-    #[ignore]
     #[test]
+    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -594,6 +596,7 @@ mod test {
                 // T -> G
                 // G
 
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -746,7 +749,9 @@ mod test {
     }
 
     #[test]
+    //#[ignore]
     fn test_small_dg_all_true_except_for_c() {
+        warn!("foo bar");
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
@@ -773,6 +778,8 @@ mod test {
                 // B -> D
                 // C
                 // D -> Ø
+
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -840,6 +847,7 @@ mod test {
     }
 
     #[test]
+    //#[ignore]
     fn test_small_dg_all_false_except_for_d() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -867,6 +875,7 @@ mod test {
                 // C -> B
                 // D -> Ø
 
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -934,6 +943,7 @@ mod test {
     }
 
     #[test]
+    //#[ignore]
     fn test_a_node_with_no_succsessors() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -953,6 +963,7 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         // No successors
@@ -970,6 +981,7 @@ mod test {
     }
 
     #[test]
+    //#[ignore]
     fn test_termination_condtion() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -991,6 +1003,7 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -1023,6 +1036,7 @@ mod test {
     }
 
     #[test]
+    //#[ignore]
     fn test_loop_di_loops() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1050,6 +1064,7 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
@@ -1115,8 +1130,8 @@ mod test {
         );
     }
 
-    #[ignore]
     #[test]
+    //#[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1140,6 +1155,7 @@ mod test {
                 &self,
                 vertex: &ExampleEDGVertices,
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
                 match vertex {
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();

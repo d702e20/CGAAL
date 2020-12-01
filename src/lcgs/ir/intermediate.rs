@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use crate::atl::gamestructure::GameStructure;
 use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::eval::Evaluator;
+use crate::lcgs::ir::relabeling::Relabeler;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
@@ -232,6 +233,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
     for decl in player_decls {
         if let DeclKind::Player(player_decl) = &decl.kind {
             let mut player = Player::new(&player_decl.name.name());
+            let relabeler = Relabeler::new(&player_decl.relabeling);
 
             let template_decl = symbols
                 .get(&Owner::Global, &player_decl.template.name())
@@ -241,16 +243,20 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
                 .clone();
 
             if let DeclKind::Template(template) = template_decl.kind {
-                // Go through each declaration in the template and register a clone of it
-                // that is owned by the given player
+                // Go through each declaration in the template and register a relabeled
+                // clone of it that is owned by the given player
                 let scope_owner = player.to_owner();
                 for decl in template.decls {
                     match &decl.kind {
                         DeclKind::Label(_) => {
+                            let relabeled_decl = relabeler.relabel_decl(&decl)?;
                             // Insert into symbol table and add to labels list
-                            let name = decl.kind.ident().name().to_string();
-                            if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
-                                panic!("Symbol '{}.{}' is already declared.", &scope_owner, &name);
+                            let name = relabeled_decl.kind.ident().name().to_string();
+                            if symbols
+                                .insert(&scope_owner, &name, relabeled_decl)
+                                .is_some()
+                            {
+                                panic!("Label '{}.{}' is already declared.", &scope_owner, &name);
                             };
                             labels.push(SymbolIdentifier {
                                 owner: scope_owner.clone(),
@@ -258,22 +264,33 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
                             });
                         }
                         DeclKind::StateVar(_) => {
+                            let relabeled_decl = relabeler.relabel_decl(&decl)?;
                             // Insert into symbol table and add to vars list
-                            let name = decl.kind.ident().name().to_string();
-                            if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
-                                panic!("Symbol '{}.{}' is already declared.", &scope_owner, &name);
+                            let name = relabeled_decl.kind.ident().name().to_string();
+                            if symbols
+                                .insert(&scope_owner, &name, relabeled_decl)
+                                .is_some()
+                            {
+                                panic!(
+                                    "Variable '{}.{}' is already declared.",
+                                    &scope_owner, &name
+                                );
                             };
                             vars.push(SymbolIdentifier {
                                 owner: scope_owner.clone(),
                                 name,
                             });
                         }
-                        DeclKind::Transition(tran) => {
+                        DeclKind::Transition(_) => {
                             // Transitions are inserted in the symbol table, but their name
                             // is also stored in the player.actions so they can easily be found
                             // later when run.
-                            let name = tran.name.name().to_string();
-                            if symbols.insert(&scope_owner, &name, decl.clone()).is_some() {
+                            let relabeled_decl = relabeler.relabel_decl(&decl)?;
+                            let name = relabeled_decl.kind.ident().name().to_string();
+                            if symbols
+                                .insert(&scope_owner, &name, relabeled_decl)
+                                .is_some()
+                            {
                                 panic!("Action '{}.{}' is already declared.", &scope_owner, &name);
                             };
                             player.actions.push(scope_owner.symbol_id(&name));
@@ -475,6 +492,95 @@ mod test {
         let lcgs2 =
             std::panic::catch_unwind(|| IntermediateLCGS::create(parse_lcgs(input2).unwrap()));
         assert!(lcgs2.is_err());
+    }
+
+    #[test]
+    fn test_relabeling_01() {
+        // Check standard use of relabeling
+        let input = "
+        const max_health = 100;
+        player anna = gamer [enemy=bob];
+        player bob = gamer [enemy=anna];
+
+        template gamer
+            health : [0 .. max_health] init max_health;
+            health' = enemy.shoot ? health - 1 : health;
+
+            label alive = health > 0;
+
+            [wait] 1;
+            [shoot] health > 0 && enemy.health > 0;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(lcgs.symbols.len(), 12);
+        assert!(lcgs.symbols.get(&":global.max_health".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.gamer".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.shoot".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.health".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.alive".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.shoot".into()).is_some());
+    }
+
+    #[test]
+    fn test_relabeling_02() {
+        // Check standard use of relabeling that affects declaration names
+        let input = "
+        player anna = human [var=apples, act=dance, prop=happy];
+        player bob = human [var=bananas, act=run, prop=sad];
+
+        template human
+            var : [0 .. 10] init 5;
+            var' = var;
+            [act] 1;
+            label prop = 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(lcgs.symbols.len(), 9);
+        assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.human".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.apples".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.dance".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.happy".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.bananas".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.run".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.sad".into()).is_some());
+    }
+
+    #[test]
+    fn test_relabeling_03() {
+        // Check use of relabeling to expressions
+        let input = "
+        player anna = human [act=work, income=1000 + work * 200, expenses=1000];
+        player bob = human [income=1000, expenses=money * 2 / 10];
+
+        template human
+            money : [0 .. 10000] init 2000;
+            money' = money + income - expenses;
+            [wait] 1;
+            [act] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(lcgs.symbols.len(), 9);
+        assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
+        assert!(lcgs.symbols.get(&":global.human".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.money".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.money".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"anna.work".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.money".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.wait".into()).is_some());
+        assert!(lcgs.symbols.get(&"bob.act".into()).is_some());
     }
 
     #[test]
