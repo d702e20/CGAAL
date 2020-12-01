@@ -103,12 +103,24 @@ pub struct Relabeling {
     pub relabellings: Vec<RelabelCase>,
 }
 
-/// A relabeling case. Whenever the `prev_name` is found in the given template, it is
-/// replaced with `new_name`.
+/// A relabeling case. Whenever `prev` is found in the given template, it is
+/// replaced with `new`. The `prev` name is always a single word, however, the `new` word
+/// can be both a name or an expression. The semantics is slightly different when `new` is
+/// a single word (Identifier without owner). If `new` is an expression, the given expression
+/// will simply be inserted, whenever `prev` appears. If is a word, then it will also be
+/// inserted whenever `prev` appears, but if an identifier is found, where `prev` matches
+/// either the owner or the field, then it will change that identifier instead. Examples:
+/// 1) `foo + 5 [foo=10 + 2] ==> 10 + 2 + 5`
+/// 2) `bar.baz [baz=yum] ==> bar.yum`
+/// 3) `daf.hi > 2 [daf=dum] ==> dum.hi > 2`
+///
+/// And the following is of course illegal:
+/// 1) `foo.bar [foo=5]`
+/// 1) `baz.yum [yum=baz.hello]`
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RelabelCase {
-    pub prev_name: Identifier,
-    pub new_name: Identifier,
+    pub prev: String,
+    pub new: Expr,
 }
 
 /// A template declaration. Essentially a player type.
