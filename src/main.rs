@@ -93,9 +93,23 @@ fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let result = match args.value_of("model_type") {
         Some("lcgs") => model_check_lazy_cgs(args),
         Some("json") => model_check_json_cgs(args),
+        None => {
+            // Infer model type from file extension
+            let model_path = args.value_of("input_model").unwrap();
+            if model_path.ends_with(".lcgs") {
+                model_check_lazy_cgs(args)
+            } else if model_path.ends_with(".json") {
+                model_check_json_cgs(args)
+            } else {
+                error!(
+                    "Cannot infer model type! You can specify it with '--model_type=MODEL_TYPE'."
+                );
+                exit(1)
+            }
+        }
         _ => {
             error!(
-                "Model type '{:?}' not supported!",
+                "Model type '{:?}' is not supported!",
                 args.value_of("model_type")
             );
             exit(1)
@@ -190,7 +204,6 @@ fn parse_arguments() -> ArgMatches<'static> {
                     .short("t")
                     .long("model-type")
                     .env("MODEL_TYPE")
-                    .required(true)
                     .help("The type of input file given {{lcgs, json}}"),
             )
             .arg(
