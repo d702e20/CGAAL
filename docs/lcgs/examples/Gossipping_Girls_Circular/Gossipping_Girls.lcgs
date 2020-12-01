@@ -13,54 +13,51 @@ player p4 = girl [friend1 = p3, friend2 = p1,
 	secret1 = 0, secret2 = 0, secret3 = 0, secret4 = 1];
 
 template girl
+    secret1 : [0..1] init starts_with_secret1;
 	secret1' = 
 		// Max between currently known, and max recieved
 		max(
-			// Max received secret
-			max(
-				// Call left
-				((call_friend1 * friend1.call_friend2) * friend1.secret1), 
-				// Call right
-				((call_friend2 * friend2.call_friend1) * friend2.secret1)), 
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret1), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret1)), 
 			// Own secret1
-			secret1)
+			secret1);
 
+    secret2 : [0..1] init starts_with_secret2;
 	secret2' = 
 		// Max between currently known, and max recieved
 		max(
-			// Max received secret
-			max(
-				// Call left
-				((call_friend1 * friend1.call_friend2) * friend1.secret2), 
-				// Call right
-				((call_friend2 * friend2.call_friend1) * friend2.secret2)), 
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret2), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret2)), 
 			// Own secret2
-			secret2)
+			secret2);
 
+    secret3 : [0..1] init starts_with_secret3;
 	secret3' = 
 		// Max between currently known, and max recieved
 		max(
-			// Max received secret
-			max(
-				// Call left
-				((call_friend1 * friend1.call_friend2) * friend1.secret3), 
-				// Call right
-				((call_friend2 * friend2.call_friend1) * friend2.secret3)), 
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret3), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret3)), 
 			// Own secret3
-			secret3)
+			secret3);
 
+    secret4 : [0..1] init starts_with_secret4;
 	secret4' = 
 		// Max between currently known, and max recieved
 		max(
-			// Max received secret
-			max(
-				// Call left
-				((call_friend1 * friend1.call_friend2) * friend1.secret4), 
-				// Call right
-				((call_friend2 * friend2.call_friend1) * friend2.secret4)), 
-			// Own secret4
-			secret4)
-	[call_friend1]
-	[call_friend2]
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret4), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret4), 
+    		// Own secret4
+	    	secret4);
+
+	[call_friend1] 1;
+	[call_friend2] 1;
 
 endtemplate
