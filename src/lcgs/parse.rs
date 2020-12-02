@@ -1303,9 +1303,9 @@ mod tests {
 
     #[test]
     fn test_reserved_keyword_03() {
-        for RESERVED_KEYWORD in RESERVED_KEYWORDS.iter() {
+        for reserved_keyword in RESERVED_KEYWORDS.iter() {
             let parser = identifier();
-            assert!(parser.parse(RESERVED_KEYWORD.as_bytes()).is_err());
+            assert!(parser.parse(reserved_keyword.as_bytes()).is_err());
         }
     }
 

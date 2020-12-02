@@ -342,6 +342,7 @@ mod test {
         /// A weight of zero is illegal so check that it yields a panic
         #[test]
         #[should_panic]
+        #[allow(unused_must_use)]
         fn split_zero_weight() {
             let weight = Weight { weight: 0, slot: 0 };
 
@@ -351,6 +352,7 @@ mod test {
         /// Panic if joined weight overflows the maximal weight that can be represented
         #[test]
         #[should_panic]
+        #[allow(unused_must_use)]
         fn underflow_slot() {
             let lhs = Weight {
                 weight: Num::MAX,
