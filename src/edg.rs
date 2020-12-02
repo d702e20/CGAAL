@@ -764,6 +764,8 @@ mod test {
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 
+    const WORKER_COUNT: u64 = 1;
+
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
 
@@ -804,7 +806,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
@@ -838,7 +840,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
@@ -929,7 +931,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
@@ -1082,47 +1084,47 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex E"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex F"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex T"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex G"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex N"
         );
@@ -1205,22 +1207,22 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
@@ -1301,22 +1303,22 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
@@ -1354,7 +1356,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
@@ -1407,12 +1409,12 @@ mod test {
             }
         }
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
-        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::FALSE, "Vertex B");
-        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::FALSE, "Vertex C");
+        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT), VertexAssignment::FALSE, "Vertex B");
+        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT), VertexAssignment::FALSE, "Vertex C");
     }
 
     #[test]
@@ -1489,22 +1491,22 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
@@ -1562,12 +1564,12 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
         );
