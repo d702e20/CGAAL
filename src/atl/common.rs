@@ -1,15 +1,21 @@
 use std::sync::Arc;
 
+use serde::Deserialize;
+
 pub(crate) type Proposition = usize;
 pub(crate) type Player = usize;
 pub(crate) type State = usize;
 
-#[derive(Clone, Debug)]
+/// Implements Vec of Vecs in arbitrary runtime determined depth.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
 pub enum DynVec {
     NEST(Vec<Arc<DynVec>>),
     BASE(State),
 }
 
+/// Indexes into a DynVec.
+/// The length of `choices` must match the depth of `transitions`.
 pub(crate) fn transition_lookup(choices: &[usize], transitions: &DynVec) -> State {
     match transitions {
         DynVec::NEST(v) => {
@@ -17,7 +23,6 @@ pub(crate) fn transition_lookup(choices: &[usize], transitions: &DynVec) -> Stat
                 panic!("Fewer choices given than number of players in transitions");
             }
 
-            println!("choice: {:?}", choices[0]);
             let choice = choices[0];
             let h: &DynVec = v.get(choice).expect("Out of bounds choice");
 

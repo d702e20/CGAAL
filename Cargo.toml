@@ -1,11 +1,30 @@
 [package]
 name = "atl-checker"
 version = "0.1.0"
-authors = ["jacob"]
+authors = ["d702e20 <d702e20@cs.aau.dk>",
+    "Asger Weirsøe <aweirs15@student.aau.dk>",
+    "Falke Carlsen <falke.cs@gmail.com>",
+    "Jacob Jenner Rasmussen <jacob@jener.dk>",
+    "Lars Bo Frydenskov <lfryde17@student.aau.dk>",
+    "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
+    "Nicolaj Østerby Jensen <naje17@student.aau.dk>",
+]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
+graph-printer = []
+
+[dev-dependencies]
+test-env-log = { git = "https://github.com/d-e-s-o/test-env-log", branch = "topic/global-tracing", features = ["trace"], default-features = false }
 
 [dependencies]
 crossbeam-channel = "0.5.0"
 num_cpus = "1.13.0"
+pom = "3.2.0"
+clap = "2.33.3"
+serde = { version = "1.0.117", features = ["derive", "rc"] }
+serde_json = "1.0.59"
+tracing = "0.1"
+tracing-subscriber = "0.2"
+lazy_static = "1.4.0"

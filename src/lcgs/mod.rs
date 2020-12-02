@@ -1,4 +1,4 @@
 mod ast;
-mod program;
-mod symbol_table;
-mod visitor;
+pub(crate) mod ir;
+pub(crate) mod parse;
+mod precedence;

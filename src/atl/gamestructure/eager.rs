@@ -1,9 +1,10 @@
-use crate::atl::common::{transition_lookup, DynVec, Proposition, State, Player};
-use crate::atl::gamestructure::GameStructure;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-#[derive(Clone, Debug)]
+use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
+use crate::atl::gamestructure::GameStructure;
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {
     /// K, number of players
     pub player_count: u32,
@@ -13,6 +14,23 @@ pub struct EagerGameStructure {
     pub transitions: Vec<DynVec>,
     /// available moves for a player in a given state
     pub moves: Vec<Vec<u32>>,
+}
+
+impl EagerGameStructure {
+    /// Returns the number of moves `player` can take when the game is in `state`.
+    pub fn available_moves(&self, state: State, player: Player) -> u32 {
+        *self
+            .moves
+            .get(state)
+            .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
+            .get(player)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Request move for non-existent player {} from state {}",
+                    player, state
+                )
+            })
+    }
 }
 
 impl GameStructure for EagerGameStructure {
@@ -35,15 +53,6 @@ impl GameStructure for EagerGameStructure {
                 .get(state)
                 .unwrap_or_else(|| panic!("Undefined state {}, no transitions", state)),
         )
-    }
-
-    fn available_moves(&self, state: State, player: Player) -> u32 {
-        *self
-            .moves
-            .get(state)
-            .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
-            .get(player)
-            .unwrap_or_else(|| panic!("Request move for non-existent player {} from state {}", player, state))
     }
 
     fn move_count(&self, state: State) -> Vec<u32> {
