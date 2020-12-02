@@ -9,8 +9,11 @@ player p3 = girl3
 player p4 = girl4
 
 
-template girl1
+template girl
+	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+
 	secret1 : init 1;
+	secret1' = 1;
 
 	secret2 : [0 .. 1] init 0;
 	secret2' = 
@@ -54,14 +57,16 @@ template girl1
 			// Own secret4
 			secret4);
 
-	[call_girl2] true;
-	[call_girl3] true;
-	[call_girl4] true;
+	[call_girl2] 1;
+	[call_girl3] 1;
+	[call_girl4] 1;
 endtemplate
 
 
 
 template girl2
+	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+
 	secret1 : [0 .. 1] init 0;
 	secret1' = 
 		// Max between currently known, and max recieved
@@ -77,6 +82,7 @@ template girl2
 			secret1);
 
 	secret2 : init 1;
+	secret2' = 1;
 
 	secret3 : [0 .. 1] init 0;
 	secret3' = 
@@ -106,12 +112,14 @@ template girl2
 			// Own secret4
 			secret4);
 
-	[call_girl1] true;
-	[call_girl3] true;
-	[call_girl4] true;
+	[call_girl1] 1;
+	[call_girl3] 1;
+	[call_girl4] 1;
 endtemplate
 
 template girl3
+	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+	
 	secret1 : [0 .. 1] init 0;
 	secret1' = 
 		// Max between currently known, and max recieved
@@ -141,6 +149,7 @@ template girl3
 			secret2);
 
 	secret3 : init 1;
+	secret3' = 1;
 	
 		
 	secret4 : [0 .. 1] init 0;
@@ -157,12 +166,14 @@ template girl3
 			// Own secret4
 			secret4);
 
-	[call_girl1] true;
-	[call_girl2] true;
-	[call_girl4] true;
+	[call_girl1] 1;
+	[call_girl2] 1;
+	[call_girl4] 1;
 endtemplate
 
 template girl4
+	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+	
 	secret1 : [0 .. 1] init 0;
 	secret1' = 
 		// Max between currently known, and max recieved
@@ -207,8 +218,9 @@ template girl4
 	
 		
 	secret4 : init 1;
+	secret4' = 1;
 
-	[call_girl1] true;
-	[call_girl2] true;
-	[call_girl3] true;
+	[call_girl1] 1;
+	[call_girl2] 1;
+	[call_girl3] 1;
 endtemplate
