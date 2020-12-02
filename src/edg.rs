@@ -328,7 +328,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Releasing the edges from the unsafe queue to the safe negation channel
     fn release_negations(&mut self, dist: usize) {
         trace!(distance = dist, "release negation");
-        while self.unsafe_edges.len() >= dist && self.unsafe_edges.len() > 0 {
+        while self.unsafe_edges.len() >= dist && !self.unsafe_edges.is_empty() {
             if let Some(edges) = self.unsafe_edges.last() {
                 let edges = self.unsafe_edges.last_mut().unwrap();
                 while !edges.is_empty() {
@@ -392,7 +392,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
-                    distance: self.distances.get(vertex).unwrap_or(&0).clone(),
+                    distance: self.distances.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
                     weight,
                 },
@@ -460,24 +460,24 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         // Update the distance
         let default = 0;
-        let tdist = self.distances.get(vertex).unwrap_or(&default).clone();
+        let tdist = self.distances.get(vertex).unwrap_or(&default);
         match dependency.clone() {
             Edges::NEGATION(edge) => {
-                let sdist = self.distances.get(&edge.source).unwrap_or(&default).clone() + 1;
+                let sdist = self.distances.get(&edge.source).unwrap_or(&default) + 1;
                 self.distances.insert(vertex.clone(), max(sdist, tdist));
             }
             Edges::HYPER(edge) => {
-                let sdist = self.distances.get(&edge.source).unwrap_or(&default).clone();
+                let sdist = self.distances.get(&edge.source).unwrap_or(&default);
                 self.distances.insert(vertex.clone(), max(sdist, tdist));
             }
         }
 
         // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
         if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.insert(dependency.clone());
+            dependencies.insert(dependency);
         } else {
             let mut dependencies = HashSet::new();
-            dependencies.insert(dependency.clone());
+            dependencies.insert(dependency);
             self.depends.insert(vertex.clone(), dependencies);
         }
     }
@@ -502,8 +502,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     "processing negation edge"
                 );
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                self.queue_negation(edge.clone(), weight.clone());
-                self.explore(&edge.target, weight.clone());
+                let (weight1, weight2) = weight
+                    .split()
+                    .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
+                self.queue_negation(edge.clone(), weight1);
+                self.explore(&edge.target, weight2);
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
@@ -528,11 +531,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let mut len = self.unsafe_edges.len();
         let mut dist = 0;
         if let Some(n) = self.distances.get(&edge.source) {
-            dist = n.clone();
+            dist = *n;
         }
         while len <= dist as usize {
             self.unsafe_edges.push(Vec::new());
-            len = len + 1
+            len += 1;
         }
         self.unsafe_edges
             .get_mut(dist as usize)
@@ -542,6 +545,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     // Another worker has requested the final assignment of a `vertex`
     fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight, distance: u32) {
+        let mut weight = weight;
         trace!(
             ?vertex,
             ?requester,
@@ -576,14 +580,21 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     // update distance
                     let dist = self.distances.get(vertex).unwrap_or(&0);
                     self.distances
-                        .insert(vertex.clone(), max(dist.clone(), distance));
+                        .insert(vertex.clone(), max(dist, distance));
 
                     self.mark_interest(vertex, requester);
 
-                    if let Some(dependencies) = self.depends.get(vertex) {
+                    if self.depends.contains_key(vertex) {
                         if let Some(assignment) = self.assignment.get(vertex) {
                             match assignment {
-                                VertexAssignment::UNDECIDED => self.explore(vertex, weight.clone()),
+                                VertexAssignment::UNDECIDED => {
+                                    let (weight_for_task, remaining_weight) =
+                                        weight.split().unwrap_or_else(|_| {
+                                            panic!("Worker {} ran out of weight", self.id)
+                                        });
+                                    weight = remaining_weight;
+                                    self.explore(vertex, weight_for_task)
+                                }
                                 _ => {}
                             }
                         }
@@ -611,11 +622,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         // Line 2
         if *vertex == self.v0 {
             self.broker.terminate(assignment);
+            // Don't bother returning the weight, this is early termination
             return;
         }
         // Line 3
         let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
-        let changed_assignment = (prev_assignment != Some(assignment));
+        let changed_assignment = prev_assignment != Some(assignment);
         debug!(
             ?prev_assignment,
             new_assignment = ?assignment,
@@ -758,6 +770,8 @@ mod test {
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 
+    const WORKER_COUNT: u64 = 1;
+
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
 
@@ -798,7 +812,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
@@ -832,7 +846,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
@@ -923,7 +937,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
@@ -1073,47 +1087,47 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::E, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex E"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::F, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex F"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::T, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex T"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::G, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex G"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex N"
         );
@@ -1196,22 +1210,22 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
@@ -1292,22 +1306,22 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
@@ -1345,7 +1359,7 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
@@ -1398,12 +1412,12 @@ mod test {
             }
         }
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
-        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1), VertexAssignment::FALSE, "Vertex B");
-        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1), VertexAssignment::FALSE, "Vertex C");
+        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT), VertexAssignment::FALSE, "Vertex B");
+        //assert_eq!(distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT), VertexAssignment::FALSE, "Vertex C");
     }
 
     #[test]
@@ -1480,29 +1494,29 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex B"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::C, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex C"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::D, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex D"
         );
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1553,12 +1567,12 @@ mod test {
         }
 
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::A, WORKER_COUNT),
             VertexAssignment::FALSE,
             "Vertex A"
         );
         assert_eq!(
-            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, 1),
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
         );
