@@ -497,8 +497,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     "processing negation edge"
                 );
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                self.queue_negation(edge.clone(), weight.clone());
-                self.explore(&edge.target, weight.clone());
+                let (weight1, weight2) = weight
+                    .split()
+                    .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
+                self.queue_negation(edge.clone(), weight1);
+                self.explore(&edge.target, weight2);
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
@@ -537,6 +540,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     // Another worker has requested the final assignment of a `vertex`
     fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight, distance: u32) {
+        let mut weight = weight;
         trace!(
             ?vertex,
             ?requester,
@@ -578,7 +582,14 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     if let Some(dependencies) = self.depends.get(vertex) {
                         if let Some(assignment) = self.assignment.get(vertex) {
                             match assignment {
-                                VertexAssignment::UNDECIDED => self.explore(vertex, weight.clone()),
+                                VertexAssignment::UNDECIDED => {
+                                    let (weight_for_task, remaining_weight) =
+                                        weight.split().unwrap_or_else(|_| {
+                                            panic!("Worker {} ran out of weight", self.id)
+                                        });
+                                    weight = remaining_weight;
+                                    self.explore(vertex, weight_for_task)
+                                }
                                 _ => {}
                             }
                         }
@@ -606,6 +617,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         // Line 2
         if *vertex == self.v0 {
             self.broker.terminate(assignment);
+            // Don't bother returning the weight, this is early termination
             return;
         }
         // Line 3
