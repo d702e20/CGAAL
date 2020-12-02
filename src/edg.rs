@@ -12,7 +12,6 @@ use crate::com::{Broker, ChannelBroker};
 use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
 use crate::distterm::{ControllerWeight, Weight};
 use std::cmp::max;
-use tracing::field::debug;
 use tracing::{span, trace, Level};
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
@@ -226,6 +225,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 match term_rx.recv() {
                     Ok(assignment) => {
                         // Alg 1, Line 11-12
+                        trace!(?assignment, "worker received termination");
                         return match assignment {
                             VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
                             VertexAssignment::FALSE => VertexAssignment::FALSE,
@@ -235,6 +235,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Err(err) => panic!("Receiving from termination channel failed with: {}", err),
                 }
             } else if !msg_rx.is_empty() {
+                let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
                 match msg_rx.recv() {
                     // Alg 1, Line 5-9
                     Ok(msg) => match msg {
@@ -257,7 +258,16 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             } else if !hyper_rx.is_empty() {
                 match hyper_rx.recv() {
                     // Alg 1, Line 6
-                    Ok((edge, weight)) => self.process_hyper_edge(edge, weight),
+                    Ok((edge, weight)) => {
+                        let _guard = span!(
+                            Level::TRACE,
+                            "worker receive hyper-edge",
+                            worker_id = self.id,
+                            ?edge,
+                            ?weight
+                        );
+                        self.process_hyper_edge(edge, weight)
+                    }
                     Err(err) => panic!(
                         "Receiving from hyper edge waiting channel failed with: {}",
                         err
@@ -265,34 +275,45 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             } else if !negation_rx.is_empty() {
                 match negation_rx.recv() {
-                    Ok((edge, weight)) => match self.assignment.get(&edge.target) {
-                        None => self.process_negation_edge(edge.clone(), weight),
-                        // Alg 1, Line 7
-                        Some(assignment) => match assignment {
-                            VertexAssignment::FALSE => {
-                                self.process_negation_edge(edge.clone(), weight)
-                            }
-                            VertexAssignment::TRUE => {
-                                self.process_negation_edge(edge.clone(), weight)
-                            }
-                            // In case of undecided the edge is only processed after 10 iterations
-                            VertexAssignment::UNDECIDED => {
-                                if self.counter == 9 {
-                                    self.counter = 0;
+                    Ok((edge, weight)) => {
+                        let _guard = span!(
+                            Level::TRACE,
+                            "worker receive negation-edge",
+                            worker_id = self.id,
+                            ?edge,
+                            ?weight
+                        );
+                        match self.assignment.get(&edge.target) {
+                            None => self.process_negation_edge(edge.clone(), weight),
+                            // Alg 1, Line 7
+                            Some(assignment) => match assignment {
+                                VertexAssignment::FALSE => {
                                     self.process_negation_edge(edge.clone(), weight)
-                                } else {
-                                    self.broker.queue_negation(self.id, edge.clone(), weight);
-                                    self.counter = self.counter + 1;
                                 }
-                            }
-                        },
-                    },
+                                VertexAssignment::TRUE => {
+                                    self.process_negation_edge(edge.clone(), weight)
+                                }
+                                // In case of undecided the edge is only processed after 10 iterations
+                                VertexAssignment::UNDECIDED => {
+                                    if self.counter == 9 {
+                                        self.counter = 0;
+                                        self.process_negation_edge(edge.clone(), weight)
+                                    } else {
+                                        trace!(?edge, ?weight, "queueing negation");
+                                        self.broker.queue_negation(self.id, edge.clone(), weight);
+                                        self.counter = self.counter + 1;
+                                    }
+                                }
+                            },
+                        }
+                    }
                     Err(err) => panic!(
                         "Receiving from negation edge waiting channel failed with: {}",
                         err
                     ),
                 }
             } else {
+                let _guard = span!(Level::TRACE, "worker release negation", worker_id = self.id);
                 // if the negation channel is empty, unsafe negation edges are released
                 self.release_negations(max(self.unsafe_edges.len(), 0));
             }
@@ -376,6 +397,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>, weight: Weight) {
+        trace!(?edge, ?weight, "processing hyper-edge");
         let mut weight = weight;
         // Line 3, condition (in case of targets is empty, the default value is true)
         let all_final = edge.targets.iter().all(|target| {
