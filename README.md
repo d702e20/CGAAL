@@ -1,10 +1,10 @@
 # atl-checker
 
-This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGS).
+This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGSs).
 It uses a on-the-fly evaluation method as opposed to calculating the fixed point like PRISM do.
 This lazy method avoids having to generate the whole graph, and is therefore faster in most cases (has yet to be proved).
 
-The atl-checker also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
+The ATL-checker also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
 it's syntax is inspired by PRISM-lang, however, the concepts of syncronization and modules are very different.  
 
 ## Example of how to use
@@ -59,4 +59,4 @@ We now call the atl-checker with the following arguments
 ./atl-checker solver -m standoff.lcgs -f billy-stays-alive.json
 ```
 
-The result turns out to be FALSE. Billy canot guarantee to stay alive.
+The result turns out to be FALSE. Billy cannot guarantee to stay alive.
