@@ -36,12 +36,6 @@ impl<'a> Evaluator<'a> {
                     owner: owner.clone(),
                     name: name.to_string(),
                 })
-                .ok_or_else(|| {
-                    panic!(format!(
-                        "Symbol '{:?}' does not exist in {:?}",
-                        id, self.state
-                    ))
-                })
                 .expect("Symbol does not exist. Compiler should have failed already."),
         };
         Ok(value)

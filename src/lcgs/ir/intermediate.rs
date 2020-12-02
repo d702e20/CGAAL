@@ -405,7 +405,7 @@ impl GameStructure for IntermediateLCGS {
             // The `choices` vector only considers available actions, so we do those first
             let moves = self.available_actions(&state, p_index);
             debug_assert!(
-                0 <= choices[p_index] && choices[p_index] < moves.len(),
+                choices[p_index] < moves.len(),
                 format!(
                     "Unknown action {} chosen for player {} in state {:?}",
                     choices[p_index], p_index, state
@@ -451,10 +451,8 @@ impl GameStructure for IntermediateLCGS {
 
 #[cfg(test)]
 mod test {
-    use crate::atl::formula::Phi;
     use crate::atl::gamestructure::GameStructure;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
-    use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
 
     #[test]
@@ -780,10 +778,6 @@ mod test {
 
     #[test]
     fn test_transition_03() {
-        use crate::atl::dependencygraph::*;
-        use crate::edg::distributed_certain_zero;
-        use std::sync::Arc;
-
         // Can we update state even though it depends on unavailable actions?
         let input = "
         player ryan = guy;
