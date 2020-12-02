@@ -18,9 +18,9 @@ We describe this scenario using LCGS as seen below
 ```
 const max_health = 2;
 
-player billy = cowboy [target1=p2, target2=p3];
-player clayton = cowboy [target1=p3, target2=p1];
-player jesse = cowboy [target1=p1, target2=p3];
+player billy = cowboy [target1=clayton, target2=jesse];
+player clayton = cowboy [target1=jesse, target2=billy];
+player jesse = cowboy [target1=billy, target2=clayton];
 
 template cowboy
 
