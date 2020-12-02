@@ -75,7 +75,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
     }
 }
 
-type WorkQueue<V> = Receiver<Message<V>>;
+type MsgQueue<V> = Receiver<Message<V>>;
 type HyperQueue<V> = Receiver<(HyperEdge<V>, Weight)>;
 type NegationQueue<V> = Receiver<(NegationEdge<V>, Weight)>;
 type TermQueue = Receiver<VertexAssignment>;
@@ -85,7 +85,7 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
         worker_count: u64,
     ) -> (
         Self,
-        Vec<WorkQueue<V>>,
+        Vec<MsgQueue<V>>,
         Vec<HyperQueue<V>>,
         Vec<NegationQueue<V>>,
         Vec<TermQueue>,
