@@ -159,6 +159,10 @@ impl ControllerWeight {
         let mut slot = weight.slot;
         let (val, mut carry) = weight.weight.overflowing_add(self.slots[weight.slot]);
         self.slots[slot] = val;
+        assert!(
+            slot == 0 && !carry || slot > 0,
+            "Overflowed slot 0. There must be a bug adding extra weight somewhere"
+        );
         while carry {
             slot -= 1;
             // Destructuring assignments is not possible at the time of writing this,
