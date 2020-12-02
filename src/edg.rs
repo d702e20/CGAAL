@@ -222,6 +222,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         loop {
             // Termination signal indicating result have been found
             if !term_rx.is_empty() {
+                self.counter = 0;
                 match term_rx.recv() {
                     Ok(assignment) => {
                         // Alg 1, Line 11-12
@@ -236,6 +237,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             } else if !msg_rx.is_empty() {
                 let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
+                self.counter = 0;
                 match msg_rx.recv() {
                     // Alg 1, Line 5-9
                     Ok(msg) => match msg {
@@ -256,6 +258,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Err(err) => panic!("Receiving from message channel failed with: {}", err),
                 }
             } else if !hyper_rx.is_empty() {
+                self.counter = 0;
                 match hyper_rx.recv() {
                     // Alg 1, Line 6
                     Ok((edge, weight)) => {
@@ -288,9 +291,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                             // Alg 1, Line 7
                             Some(assignment) => match assignment {
                                 VertexAssignment::FALSE => {
+                                    self.counter = 0;
                                     self.process_negation_edge(edge.clone(), weight)
                                 }
                                 VertexAssignment::TRUE => {
+                                    self.counter = 0;
                                     self.process_negation_edge(edge.clone(), weight)
                                 }
                                 // In case of undecided the edge is only processed after 10 iterations
@@ -315,7 +320,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             } else {
                 let _guard = span!(Level::TRACE, "worker release negation", worker_id = self.id);
                 // if the negation channel is empty, unsafe negation edges are released
-                self.release_negations(max(self.unsafe_edges.len(), 0));
+                self.release_negations(self.unsafe_edges.len());
             }
         }
     }
@@ -749,6 +754,7 @@ mod test {
 
     use core::fmt::Formatter;
 
+    use crate::common::Edges::HYPER;
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 
@@ -1061,10 +1067,7 @@ mod test {
 
                         successors
                     }
-                    ExampleEDGVertices::G => {
-                        let successors = HashSet::new();
-                        successors
-                    }
+                    ExampleEDGVertices::G => HashSet::new(),
                 }
             }
         }
