@@ -328,9 +328,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Releasing the edges from the unsafe queue to the safe negation channel
     fn release_negations(&mut self, dist: usize) {
         trace!(distance = dist, "release negation");
+
         while self.unsafe_edges.len() >= dist && !self.unsafe_edges.is_empty() {
-            if let Some(edges) = self.unsafe_edges.last() {
-                let edges = self.unsafe_edges.last_mut().unwrap();
+            if let Some(edges) = self.unsafe_edges.last_mut() {
+                // Queue all edges in the negation channel that have the given distance
                 while !edges.is_empty() {
                     let (edge, weight) = edges.pop().unwrap();
                     trace!(?edge, ?weight, "release negation edge");
@@ -533,10 +534,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         if let Some(n) = self.distances.get(&edge.source) {
             dist = *n;
         }
-        while len <= dist as usize {
+
+        for i in len..dist as usize {
             self.unsafe_edges.push(Vec::new());
-            len += 1;
         }
+
         self.unsafe_edges
             .get_mut(dist as usize)
             .unwrap()
