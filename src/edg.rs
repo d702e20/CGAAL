@@ -1513,7 +1513,7 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
