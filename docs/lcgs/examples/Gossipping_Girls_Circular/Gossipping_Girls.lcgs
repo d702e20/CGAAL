@@ -1,16 +1,17 @@
 // Gossiping girls
 
-player p1 = girl [friend1 = p4, friend2 = p2,
-	secret1 = 1, secret2 = 0, secret3 = 0, secret4 = 0];
+player p1 = girl [friend1 = p4, friend2 = p2, starts_with_secret1 = 1, starts_with_secret2 = 0,
+    starts_with_secret3 = 0, starts_with_secret4 = 0];
 
-player p2 = girl [friend1 = p1, friend2 = p3,
-	secret1 = 0, secret2 = 1, secret3 = 0, secret4 = 0];
+player p2 = girl [friend1 = p1, friend2 = p3, starts_with_secret2 = 1, starts_with_secret1 = 0,
+    starts_with_secret3 = 0, starts_with_secret4 = 0];
 
-player p3 = girl [friend1 = p2, friend2 = p4,
-	secret1 = 0, secret2 = 0, secret3 = 1, secret4 = 0];
+player p3 = girl [friend1 = p2, friend2 = p4, starts_with_secret3 = 1, starts_with_secret1 = 0,
+    starts_with_secret2 = 0, starts_with_secret4 = 0];
 
-player p4 = girl [friend1 = p3, friend2 = p1,
-	secret1 = 0, secret2 = 0, secret3 = 0, secret4 = 1];
+player p4 = girl [friend1 = p3, friend2 = p1, starts_with_secret4 = 1, starts_with_secret1 = 0,
+    starts_with_secret2 = 0, starts_with_secret3 = 0];
+
 
 template girl
     secret1 : [0..1] init starts_with_secret1;
@@ -20,7 +21,7 @@ template girl
 			// Call left
 			((call_friend1 * friend1.call_friend2) * friend1.secret1), 
 			// Call right
-			((call_friend2 * friend2.call_friend1) * friend2.secret1)), 
+			((call_friend2 * friend2.call_friend1) * friend2.secret1), 
 			// Own secret1
 			secret1);
 
@@ -31,7 +32,7 @@ template girl
 			// Call left
 			((call_friend1 * friend1.call_friend2) * friend1.secret2), 
 			// Call right
-			((call_friend2 * friend2.call_friend1) * friend2.secret2)), 
+			((call_friend2 * friend2.call_friend1) * friend2.secret2), 
 			// Own secret2
 			secret2);
 
@@ -42,7 +43,7 @@ template girl
 			// Call left
 			((call_friend1 * friend1.call_friend2) * friend1.secret3), 
 			// Call right
-			((call_friend2 * friend2.call_friend1) * friend2.secret3)), 
+			((call_friend2 * friend2.call_friend1) * friend2.secret3), 
 			// Own secret3
 			secret3);
 
