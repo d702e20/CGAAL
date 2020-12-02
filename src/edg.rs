@@ -375,10 +375,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     };
                     match edge {
                         Edges::HYPER(edge) => {
-                            self.broker
-                                .queue_hyper(self.id, edge.clone(), weight.clone())
+                            self.broker.queue_hyper(self.id, edge.clone(), split_weight)
                         }
-                        Edges::NEGATION(edge) => self.queue_negation(edge.clone(), weight.clone()),
+                        Edges::NEGATION(edge) => self.queue_negation(edge.clone(), split_weight),
                     }
                 }
             }
@@ -697,6 +696,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         "no more successors, final assignment is FALSE"
                     );
                     self.final_assign(&source, VertexAssignment::FALSE, weight);
+                } else {
+                    self.broker.return_weight(weight);
                 }
             }
         }
