@@ -291,6 +291,21 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
     fn succ(&self, vert: &ATLVertex) -> HashSet<Edges<ATLVertex>, RandomState> {
         match vert {
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
+                Phi::True => {
+                    let mut edges = HashSet::new();
+
+                    // Empty hyper edge
+                    edges.insert(Edges::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        targets: vec![],
+                    }));
+
+                    edges
+                }
+                Phi::False => {
+                    // No edges
+                    HashSet::new()
+                }
                 Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(prop) {

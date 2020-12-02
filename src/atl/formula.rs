@@ -4,8 +4,14 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 /// Alternating-time Temporal Logic formula
-#[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub(crate) enum Phi {
+    /// Always satisfied
+    #[serde(rename = "true")]
+    True,
+    /// Never satisfied
+    #[serde(rename = "false")]
+    False,
     /// The current state must have the label/proposition
     #[serde(rename = "proposition")]
     Proposition(Proposition),
@@ -73,6 +79,8 @@ pub(crate) enum Phi {
 impl Display for Phi {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Phi::True => write!(f, "true"),
+            Phi::False => write!(f, "false"),
             Phi::Proposition(id) => write!(f, "'{}'", id),
             Phi::Not(formula) => write!(f, "¬({})", formula),
             Phi::Or(left, right) => write!(f, "({} ∨ {})", left, right),
@@ -150,10 +158,10 @@ mod test {
             players: vec![0, 1],
             pre: Arc::new(Or {
                 0: Arc::new(Proposition(1)),
-                1: Arc::new(Proposition(2)),
+                1: Arc::new(Not(Arc::new(Proposition(2)))),
             }),
-            until: Arc::new(Proposition(0)),
+            until: Arc::new(False),
         };
-        assert_eq!("⟪0,1⟫(('1' ∨ '2') 𝑼 '0')", format!("{}", formula));
+        assert_eq!("⟪0,1⟫(('1' ∨ ¬('2')) 𝑼 false)", format!("{}", formula));
     }
 }
