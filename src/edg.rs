@@ -392,7 +392,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
-                    distance: self.distances.get(vertex).unwrap_or(&0),
+                    distance: *self.distances.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
                     weight,
                 },
@@ -464,11 +464,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         match dependency.clone() {
             Edges::NEGATION(edge) => {
                 let sdist = self.distances.get(&edge.source).unwrap_or(&default) + 1;
-                self.distances.insert(vertex.clone(), max(sdist, tdist));
+                self.distances.insert(vertex.clone(), max(sdist, *tdist));
             }
             Edges::HYPER(edge) => {
                 let sdist = self.distances.get(&edge.source).unwrap_or(&default);
-                self.distances.insert(vertex.clone(), max(sdist, tdist));
+                self.distances.insert(vertex.clone(), max(*sdist, *tdist));
             }
         }
 
@@ -579,8 +579,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 _ => {
                     // update distance
                     let dist = self.distances.get(vertex).unwrap_or(&0);
-                    self.distances
-                        .insert(vertex.clone(), max(dist, distance));
+                    self.distances.insert(vertex.clone(), max(*dist, distance));
 
                     self.mark_interest(vertex, requester);
 
