@@ -14,6 +14,8 @@ player p4 = girl [friend1 = p3, friend2 = p1, starts_with_secret4 = 1, starts_wi
 
 
 template girl
+    label omniscient = secret1 * secret2 * secret3 * secret4;
+
     secret1 : [0..1] init starts_with_secret1;
 	secret1' = 
 		// Max between currently known, and max recieved
