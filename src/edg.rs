@@ -535,8 +535,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             dist = *n;
         }
 
-        for i in len..dist as usize {
+        while len <= dist as usize {
             self.unsafe_edges.push(Vec::new());
+            len += 1;
         }
 
         self.unsafe_edges
