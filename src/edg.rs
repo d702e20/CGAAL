@@ -588,42 +588,55 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             return;
         }
         // Line 3
-        self.assignment.insert(vertex.clone(), assignment);
-        // Line 4
-        if let Some(interested) = self.interests.get(&vertex) {
-            for worker_id in interested {
-                let (new_weight, split_weight) = weight
-                    .split()
-                    .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
-                weight = new_weight;
-                self.broker.send(
-                    *worker_id,
-                    Message::ANSWER {
-                        vertex: vertex.clone(),
-                        assignment,
-                        weight: split_weight,
-                    },
-                )
-            }
-        }
+        let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
+        let changed_assignment = (prev_assignment != Some(assignment));
+        debug!(
+            ?prev_assignment,
+            new_assignment = ?assignment,
+            ?vertex,
+            final_again =
+                !(prev_assignment == Some(VertexAssignment::UNDECIDED) || prev_assignment == None),
+            changed_assignment,
+            "final assigned"
+        );
 
-        // Line 5
-        if let Some(depends) = self.depends.get(&vertex) {
-            for edge in depends.clone() {
-                let (new_weight, split_weight) = weight
-                    .split()
-                    .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
-                weight = new_weight;
-                trace!(
-                    ?edge,
-                    ?weight,
-                    "requeueing edg because edge have received final assignment"
-                );
-                match edge {
-                    Edges::HYPER(edge) => {
-                        self.broker.queue_hyper(self.id, edge.clone(), split_weight)
+        if changed_assignment {
+            // Line 4
+            if let Some(interested) = self.interests.get(&vertex) {
+                for worker_id in interested {
+                    let (new_weight, split_weight) = weight
+                        .split()
+                        .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
+                    weight = new_weight;
+                    self.broker.send(
+                        *worker_id,
+                        Message::ANSWER {
+                            vertex: vertex.clone(),
+                            assignment,
+                            weight: split_weight,
+                        },
+                    )
+                }
+            }
+
+            // Line 5
+            if let Some(depends) = self.depends.get(&vertex) {
+                for edge in depends.clone() {
+                    let (new_weight, split_weight) = weight
+                        .split()
+                        .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
+                    weight = new_weight;
+                    trace!(
+                        ?edge,
+                        ?weight,
+                        "requeueing edg because edge have received final assignment"
+                    );
+                    match edge {
+                        Edges::HYPER(edge) => {
+                            self.broker.queue_hyper(self.id, edge.clone(), split_weight)
+                        }
+                        Edges::NEGATION(edge) => self.queue_negation(edge.clone(), split_weight),
                     }
-                    Edges::NEGATION(edge) => self.queue_negation(edge.clone(), split_weight),
                 }
             }
         }
@@ -721,7 +734,6 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
-    #[ignore]
     fn test_with_edg() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
