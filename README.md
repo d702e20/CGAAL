@@ -56,7 +56,7 @@ Here `"players": [0]` refers to Billy, and `"proposition": 0` refers to Billy's 
 We now call the atl-checker with the following arguments
 
 ```
-atl-checker solver -m standoff.lcgs -f billy-stays-alive.json
+./atl-checker solver -m standoff.lcgs -f billy-stays-alive.json
 ```
 
 The result turns out to be FALSE. Billy canot guarantee to stay alive.
