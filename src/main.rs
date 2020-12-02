@@ -9,6 +9,7 @@ extern crate tracing;
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::error::Error;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::{stdout, BufWriter, Read, Write};
 use std::process::exit;
@@ -18,9 +19,9 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
-use crate::atl::gamestructure::EagerGameStructure;
+use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::{Edges, VertexAssignment};
-use crate::edg::Vertex;
+use crate::edg::{distributed_certain_zero, Vertex};
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::parse::parse_lcgs;
 use crate::printer::print_graph;
@@ -57,120 +58,149 @@ fn main() -> Result<(), Box<dyn Error>> {
     trace!(?args, "commandline arguments");
 
     match args.subcommand() {
-        ("solver", Some(solver_args)) => {
-            model_check(solver_args)?;
+        ("solver", Some(args)) => {
+            fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
+            where
+                G: GameStructure + Send + Sync + Clone + Debug + 'static,
+            {
+                let result = distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                println!("{:?}", result);
+            }
+
+            load(
+                args.value_of("model_type").unwrap(),
+                args.value_of("input_model").unwrap(),
+                args.value_of("formula").unwrap(),
+                |graph, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: formula.clone(),
+                    };
+                    check_model(graph, v0);
+                },
+                |graph, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: graph.game_structure.initial_state_index(),
+                        formula: formula.clone(),
+                    };
+                    check_model(graph, v0);
+                },
+            )
         }
-        ("graph", Some(graph_args)) => {
-            let graph = ATLDependencyGraph {
-                game_structure: load_json_cgs(graph_args.value_of("model_type").unwrap()),
-            };
+        ("graph", Some(args)) => {
+            fn print_model<G: GameStructure>(
+                graph: ATLDependencyGraph<G>,
+                v0: ATLVertex,
+                output: Option<&str>,
+            ) {
+                let output: Box<dyn Write> = match output {
+                    Some(path) => {
+                        let file = File::create(path).unwrap_or_else(|err| {
+                            eprintln!("Couldn't create output file\n\nError:\n{}", err);
+                            exit(1);
+                        });
+                        Box::new(file)
+                    }
+                    _ => Box::new(stdout()),
+                };
 
-            let mut file = File::open(graph_args.value_of("formula").unwrap())?;
-            let mut formula = String::new();
-            file.read_to_string(&mut formula)?;
-            let v0 = ATLVertex::FULL {
-                state: 0,
-                formula: serde_json::from_str(formula.as_str())?,
-            };
+                print_graph(graph, v0, output).unwrap();
+            }
 
-            let output: Box<dyn Write> = match graph_args.value_of("output") {
-                Some(path) => Box::new(File::create(path)?),
-                _ => Box::new(stdout()),
-            };
-
-            print_graph(graph, v0, output)?;
+            load(
+                args.value_of("model_type").unwrap(),
+                args.value_of("input_model").unwrap(),
+                args.value_of("formula").unwrap(),
+                |graph, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: formula.clone(),
+                    };
+                    print_model(graph, v0, args.value_of("output"));
+                },
+                |graph, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: graph.game_structure.initial_state_index(),
+                        formula: formula.clone(),
+                    };
+                    print_model(graph, v0, args.value_of("output"));
+                },
+            )
         }
         _ => (),
     };
     Ok(())
 }
 
-/// Tries to perform a model check from the given arguments.
-fn model_check(args: &ArgMatches) -> Result<(), Box<dyn Error>> {
-    info!(formula = ?args.value_of("formula"), "Model checking on formula");
+fn load_formula(path: &str) -> Arc<Phi> {
+    let mut file = File::open(path).unwrap_or_else(|err| {
+        eprintln!("Couldn't open formula file\n\nError:\n{}", err);
+        exit(1);
+    });
+    let mut formula = String::new();
+    file.read_to_string(&mut formula).unwrap_or_else(|err| {
+        eprintln!("Couldn't read formula file\n\nError:\n{}", err);
+        exit(1);
+    });
+    serde_json::from_str(formula.as_str()).unwrap_or_else(|err| {
+        eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
+        exit(1);
+    })
+}
 
-    // Perform model check using the specified model type
-    let result = match args.value_of("model_type") {
-        Some("lcgs") => model_check_lazy_cgs(args),
-        Some("json") => model_check_json_cgs(args),
-        _ => {
-            error!(
-                "Model type '{:?}' not supported!",
-                args.value_of("model_type")
-            );
+fn load<R, J, L>(
+    model_type: &str,
+    game_structure_path: &str,
+    formula_path: &str,
+    handle_json: J,
+    handle_lcgs: L,
+) -> R
+where
+    J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>) -> R,
+    L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>) -> R,
+{
+    let mut file = File::open(game_structure_path).unwrap_or_else(|err| {
+        eprintln!("Couldn't open input model\n\nError:\n{}", err);
+        exit(1);
+    });
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap_or_else(|err| {
+        eprintln!("Couldn't read input model\n\nError:\n{}", err);
+        exit(1);
+    });
+
+    match model_type {
+        "json" => {
+            let game_structure = serde_json::from_str(content.as_str()).unwrap_or_else(|err| {
+                eprintln!("Failed to deserialize input model\n\nError:\n{}", err);
+                exit(1);
+            });
+            let graph = ATLDependencyGraph { game_structure };
+
+            let formula = load_formula(formula_path);
+
+            handle_json(graph, formula)
+        }
+        "lcgs" => {
+            let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
+                eprintln!("Couldn't open input model\n\nError:\n{}", err);
+                exit(1);
+            });
+            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
+                eprintln!("Couldn't open input model");
+                exit(1);
+            });
+            let graph = ATLDependencyGraph { game_structure };
+
+            let formula = load_formula(formula_path);
+
+            handle_lcgs(graph, formula)
+        }
+        &_ => {
+            error!("Model type '{:?}' not supported!", model_type);
             exit(1)
         }
     }
-    .unwrap();
-
-    // Output the result
-    match args.value_of("output") {
-        Some(path) => {
-            let file = File::create(path)?;
-            let mut writer = BufWriter::new(&file);
-            write!(&mut writer, "Result: {:?}", result)?;
-            Ok(())
-        }
-        _ => {
-            println!("Result: {:?}", result);
-            Ok(())
-        }
-    }
-}
-
-/// Loads the given "input_model" json file as an EagerGameStructure, then evaluates the given
-/// "formula" starting from the state with index 0.
-fn model_check_json_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn Error>> {
-    let game_structure = load_json_cgs(args.value_of("input_model").unwrap());
-
-    // Load formula from json file
-    let mut file = File::open(args.value_of("formula").unwrap())?;
-    let mut formula = String::new();
-    file.read_to_string(&mut formula)?;
-    let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
-
-    Ok(edg::distributed_certain_zero(
-        ATLDependencyGraph { game_structure },
-        ATLVertex::FULL { state: 0, formula },
-        num_cpus::get() as u64,
-    ))
-}
-
-/// Loads an EagerGameStructure from a json file
-fn load_json_cgs(path: &str) -> EagerGameStructure {
-    let mut file = File::open(path).unwrap();
-    let mut game_structure = String::new();
-    file.read_to_string(&mut game_structure).unwrap();
-    serde_json::from_str(game_structure.as_str()).unwrap()
-}
-
-/// Loads the given "input_model" as an LCGS program, then evaluates the given "formula" starting
-/// from the initial state given in the LCGS program.
-fn model_check_lazy_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn Error>> {
-    let game_structure = load_lazy_cgs(args.value_of("input_model").unwrap());
-
-    // Load formula from json
-    let mut file = File::open(args.value_of("formula").unwrap())?;
-    let mut formula = String::new();
-    file.read_to_string(&mut formula)?;
-    let formula: Arc<Phi> = serde_json::from_str(formula.as_str())?;
-
-    let v0 = game_structure.initial_state_index();
-
-    // Run algorithm to solve
-    Ok(edg::distributed_certain_zero(
-        ATLDependencyGraph { game_structure },
-        ATLVertex::FULL { state: v0, formula },
-        num_cpus::get() as u64,
-    ))
-}
-
-/// Loads an LCGS from a file
-fn load_lazy_cgs(path: &str) -> IntermediateLCGS {
-    let mut file = File::open(path).unwrap();
-    let mut content = String::new();
-    file.read_to_string(&mut content).unwrap();
-    IntermediateLCGS::create(parse_lcgs(&content).unwrap()).unwrap()
 }
 
 /// Define and parse command line arguments
