@@ -6,10 +6,10 @@ use std::sync::Arc;
 /// Alternating-time Temporal Logic formula
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub(crate) enum Phi {
-    /// Always satisfied
+    /// Trivially satisfied
     #[serde(rename = "true")]
     True,
-    /// Never satisfied
+    /// Trivially not satisfied
     #[serde(rename = "false")]
     False,
     /// The current state must have the label/proposition
@@ -62,15 +62,15 @@ pub(crate) enum Phi {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
-    /// It must be the case that `formula` always is satisfied despite what actions `players` choose.
-    #[serde(rename = "despite always")]
-    DespiteAlways {
+    /// It must be the case that `formula` is continually satisfied despite what actions `players` choose.
+    #[serde(rename = "despite invariant")]
+    DespiteInvariant {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
-    /// It must be the case that `players` can enforce that `formula` always is satisfied.
-    #[serde(rename = "enforce always")]
-    EnforceAlways {
+    /// It must be the case that `players` can enforce that `formula` is continually satisfied.
+    #[serde(rename = "enforce invariant")]
+    EnforceInvariant {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
@@ -131,13 +131,13 @@ impl Display for Phi {
                 players.iter().join_with(",").to_string(),
                 formula
             ),
-            Phi::DespiteAlways { players, formula } => write!(
+            Phi::DespiteInvariant { players, formula } => write!(
                 f,
                 "⟦{}⟧□{}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
-            Phi::EnforceAlways { players, formula } => write!(
+            Phi::EnforceInvariant { players, formula } => write!(
                 f,
                 "⟪{}⟫□{}",
                 players.iter().join_with(",").to_string(),
