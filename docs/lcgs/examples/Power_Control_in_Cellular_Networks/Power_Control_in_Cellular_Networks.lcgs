@@ -8,7 +8,7 @@ const powmax = 10;
 const energymax = 10;
 //const fail = 10;
 
-totalquality : int init 0;
+totalquality : [0..1000] init 0;
 totalquality' = p1.quality + p2.quality;
 
 template phoneuser
@@ -17,16 +17,16 @@ template phoneuser
 	//power' = power + (fail < (rand(0,100) ? increase_power : 0));
 	power' = power + increase_power;
 	energy : [0 .. energymax] init energymax;
-	energy' = max(0, energy - power);
+	energy' = max(0, (energy - power));
 	
-	quality : init 0; 	
-	quality = 
-		(0 < energy & 0 < otheruser.energy) * (1000*(1 - pow(2,-0.5*power / (otheruser.power + 1))))
-		+
-		(0 < energy & 0 = otheruser.energy) * 1000*(1 - pow(2,-0.5*power));
+	quality : [0..1000] init 0;
+	quality' =
+		(0 < energy & 0 < otheruser.energy) * (1000*(1 - ((- (power / 2) / (otheruser.power + 1) * (- (power / 2) / (otheruser.power + 1))))
+   		+
+		(0 < energy & 0 = otheruser.energy) * 1000*(1 - ((-(power / 2)) * (-(power / 2))));
 
 	
-	[empty_battery] energy = 0;
+	[empty_battery] energy == 0;
 	[no_increase] 0 < energy;
-	[increase_power] 0 < energy & power < powmax;
+	[increase_power] 0 < energy && power < powmax;
 endtemplate
