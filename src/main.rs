@@ -84,6 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match args.subcommand() {
         ("solver", Some(args)) => {
+            // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
@@ -113,6 +114,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
         }
         ("graph", Some(args)) => {
+            // Generic start function for use with `load` that starts the graph printer
             fn print_model<G: GameStructure>(
                 graph: ATLDependencyGraph<G>,
                 v0: ATLVertex,
@@ -157,6 +159,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Reads a formula in JSON format from a file.
+/// This function will exit the program if it encounters an error.
 fn load_formula(path: &str) -> Arc<Phi> {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
@@ -173,6 +177,7 @@ fn load_formula(path: &str) -> Arc<Phi> {
     })
 }
 
+/// Loads a model and a formula from files, and then call the handler function with the loaded model and formula.
 fn load<R, J, L>(
     model_type: &str,
     game_structure_path: &str,
@@ -184,16 +189,19 @@ where
     J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>) -> R,
     L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>) -> R,
 {
+    // Open the input model file
     let mut file = File::open(game_structure_path).unwrap_or_else(|err| {
         eprintln!("Failed to open input model\n\nError:\n{}", err);
         exit(1);
     });
+    // Read the input model from the file into memory
     let mut content = String::new();
     file.read_to_string(&mut content).unwrap_or_else(|err| {
         eprintln!("Failed to read input model\n\nError:\n{}", err);
         exit(1);
     });
 
+    // Depending on which model_type is specified, use the relevant parsing logic
     match model_type {
         "json" => {
             let game_structure = serde_json::from_str(content.as_str()).unwrap_or_else(|err| {
@@ -281,6 +289,7 @@ fn parse_arguments() -> ArgMatches<'static> {
 }
 
 fn setup_tracing(args: &ArgMatches) {
+    // Configure a filter for tracing data if one have been set
     if let Some(filter) = args.value_of("log_filter") {
         let filter = tracing_subscriber::EnvFilter::try_new(filter).unwrap_or_else(|err| {
             eprintln!("Invalid log filter\n{}", err);
