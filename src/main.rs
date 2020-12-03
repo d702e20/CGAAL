@@ -57,6 +57,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     setup_tracing(&args);
     trace!(?args, "commandline arguments");
 
+    let formula_path = args.value_of("formula").unwrap();
+    let input_model_path = args.value_of("input_model").unwrap();
+    let model_type = match args.value_of("model_type") {
+        Some("lcgs") => "lcgs",
+        Some("json") => "json",
+        None => {
+            // Infer model type from file extension
+            let model_path = args.value_of("input_model").unwrap();
+            if model_path.ends_with(".lcgs") {
+                "lcgs"
+            } else if model_path.ends_with(".json") {
+                "json"
+            } else {
+                eprintln!(
+                    "Cannot infer model type from file the extension. You can specify it with '--model_type=MODEL_TYPE'"
+                );
+                exit(1)
+            }
+        }
+        Some(model_type) => {
+            eprintln!("Model type '{:?}' is not supported", model_type);
+            exit(1);
+        }
+    };
+
     match args.subcommand() {
         ("solver", Some(args)) => {
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
@@ -68,9 +93,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
 
             load(
-                args.value_of("model_type").unwrap(),
-                args.value_of("input_model").unwrap(),
-                args.value_of("formula").unwrap(),
+                model_type,
+                input_model_path,
+                formula_path,
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: 0,
@@ -108,9 +133,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
 
             load(
-                args.value_of("model_type").unwrap(),
-                args.value_of("input_model").unwrap(),
-                args.value_of("formula").unwrap(),
+                model_type,
+                input_model_path,
+                formula_path,
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: 0,
@@ -197,7 +222,7 @@ where
             handle_lcgs(graph, formula)
         }
         &_ => {
-            error!("Model type '{:?}' not supported!", model_type);
+            eprintln!("Model type '{:?}' not supported", model_type);
             exit(1)
         }
     }
@@ -220,7 +245,6 @@ fn parse_arguments() -> ArgMatches<'static> {
                     .short("t")
                     .long("model-type")
                     .env("MODEL_TYPE")
-                    .required(true)
                     .help("The type of input file given {{lcgs, json}}"),
             )
             .arg(
