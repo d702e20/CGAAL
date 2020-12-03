@@ -17,6 +17,7 @@ use crate::lcgs::precedence::Associativity::RightToLeft;
 use crate::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
+use self::pom::Error;
 
 // Required for static allocation of a hashset
 lazy_static! {
@@ -363,8 +364,19 @@ fn root<'a>() -> Parser<'a, u8, Root> {
 }
 
 /// Parse a LCGS program
-pub fn parse_lcgs(input: &str) -> pom::Result<Root> {
-    root().parse(input.as_bytes())
+pub fn parse_lcgs(input: &str) -> Result<Root, String> {
+    root().parse(input.as_bytes()).map_err(|e| match e {
+        Error::Incomplete => "".to_string(),
+        Error::Mismatch { position, .. } => format!(
+            "Failed at char: {} at position: {}",
+            input.chars().nth(position).unwrap(),
+            position
+        )
+        .to_string(),
+        Error::Conversion { .. } => "".to_string(),
+        Error::Expect { .. } => "".to_string(),
+        Error::Custom { .. } => "".to_string(),
+    })
 }
 
 #[cfg(test)]
