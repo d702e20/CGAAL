@@ -1,23 +1,23 @@
 // Gossiping girls total network
 
-player p1 = girl1
+player p1 = girl1;
 
-player p2 = girl2
+player p2 = girl2;
 
-player p3 = girl3
+player p3 = girl3;
 
-player p4 = girl4
+player p4 = girl4;
 
 
-template girl
-	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+template girl1
+	label omniscient = secret1 * secret2 * secret3 * secret4;
 
-	secret1 : init 1;
+	secret1 : [0..1] init 1;
 	secret1' = 1;
 
-	secret2 : [0 .. 1] init 0;
+	secret2 : [0..1] init 0;
 	secret2' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl2
@@ -29,9 +29,9 @@ template girl
 			// Own secret2
 			secret2);
 
-	secret3 : [0 .. 1] init 0;
+	secret3 : [0..1] init 0;
 	secret3' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl2
@@ -43,9 +43,9 @@ template girl
 			// Own secret3
 			secret3);
 		
-	secret4 : [0 .. 1] init 0;
+	secret4 : [0..1] init 0;
 	secret4' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl2
@@ -65,11 +65,11 @@ endtemplate
 
 
 template girl2
-	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+	label omniscient = secret1 * secret2 * secret3 * secret4;
 
-	secret1 : [0 .. 1] init 0;
+	secret1 : [0..1] init 0;
 	secret1' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -81,12 +81,12 @@ template girl2
 			// Own secret1
 			secret1);
 
-	secret2 : init 1;
+	secret2 : [0..1] init 1;
 	secret2' = 1;
 
 	secret3 : [0 .. 1] init 0;
 	secret3' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -98,9 +98,9 @@ template girl2
 			// Own secret3
 			secret3);
 		
-	secret4 : [0 .. 1] init 0;
+	secret4 : [0..1] init 0;
 	secret4' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -118,11 +118,11 @@ template girl2
 endtemplate
 
 template girl3
-	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+	label omniscient = secret1 * secret2 * secret3 * secret4;
 	
-	secret1 : [0 .. 1] init 0;
+	secret1 : [0..1] init 0;
 	secret1' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -134,9 +134,9 @@ template girl3
 			// Own secret1
 			secret1);
 
-        secret2 : [0 .. 1] init 0;
+    secret2 : [0..1] init 0;
 	secret2' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -148,13 +148,13 @@ template girl3
 			// Own secret2
 			secret2);
 
-	secret3 : init 1;
+	secret3 : [0..1] init 1;
 	secret3' = 1;
 	
 		
-	secret4 : [0 .. 1] init 0;
+	secret4 : [0..1] init 0;
 	secret4' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -172,11 +172,11 @@ template girl3
 endtemplate
 
 template girl4
-	1abel omniscient = secret1 * secret2 * secret3 * secret4;
+	label omniscient = secret1 * secret2 * secret3 * secret4;
 	
-	secret1 : [0 .. 1] init 0;
+	secret1 : [0..1] init 0;
 	secret1' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -188,9 +188,9 @@ template girl4
 			// Own secret1
 			secret1);
 
-        secret2 : [0 .. 1] init 0;
+        secret2 : [0..1] init 0;
 	secret2' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -202,9 +202,9 @@ template girl4
 			// Own secret2
 			secret2);
 
-        secret3 : [0 .. 1] init 0;
+        secret3 : [0..1] init 0;
 	secret3' = 
-		// Max between currently known, and max recieved
+		// Max between currently known, and max received
 		max(
 			// Max received secret
 			// Call girl1
@@ -217,7 +217,7 @@ template girl4
 			secret3);
 	
 		
-	secret4 : init 1;
+	secret4 : [0..1] init 1;
 	secret4' = 1;
 
 	[call_girl1] 1;
