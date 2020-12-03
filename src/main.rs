@@ -121,7 +121,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let output: Box<dyn Write> = match output {
                     Some(path) => {
                         let file = File::create(path).unwrap_or_else(|err| {
-                            eprintln!("Couldn't create output file\n\nError:\n{}", err);
+                            eprintln!("Failed to create output file\n\nError:\n{}", err);
                             exit(1);
                         });
                         Box::new(file)
@@ -159,12 +159,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn load_formula(path: &str) -> Arc<Phi> {
     let mut file = File::open(path).unwrap_or_else(|err| {
-        eprintln!("Couldn't open formula file\n\nError:\n{}", err);
+        eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
     });
     let mut formula = String::new();
     file.read_to_string(&mut formula).unwrap_or_else(|err| {
-        eprintln!("Couldn't read formula file\n\nError:\n{}", err);
+        eprintln!("Failed to read formula file\n\nError:\n{}", err);
         exit(1);
     });
     serde_json::from_str(formula.as_str()).unwrap_or_else(|err| {
@@ -185,12 +185,12 @@ where
     L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>) -> R,
 {
     let mut file = File::open(game_structure_path).unwrap_or_else(|err| {
-        eprintln!("Couldn't open input model\n\nError:\n{}", err);
+        eprintln!("Failed to open input model\n\nError:\n{}", err);
         exit(1);
     });
     let mut content = String::new();
     file.read_to_string(&mut content).unwrap_or_else(|err| {
-        eprintln!("Couldn't read input model\n\nError:\n{}", err);
+        eprintln!("Failed to read input model\n\nError:\n{}", err);
         exit(1);
     });
 
@@ -208,11 +208,11 @@ where
         }
         "lcgs" => {
             let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
-                eprintln!("Couldn't open input model\n\nError:\n{}", err);
+                eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
                 exit(1);
             });
             let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
-                eprintln!("Couldn't open input model");
+                eprintln!("Invalid LCGS program");
                 exit(1);
             });
             let graph = ATLDependencyGraph { game_structure };
