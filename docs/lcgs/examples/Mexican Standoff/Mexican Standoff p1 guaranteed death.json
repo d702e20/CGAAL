@@ -1,0 +1,10 @@
+{
+  "enforce invariant": {
+    "players": [0],
+    "pre": {
+      "not": {
+        "proposition": 1
+      }
+    }
+  }
+}
