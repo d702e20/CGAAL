@@ -144,6 +144,25 @@ fn load_json_cgs(path: &str) -> EagerGameStructure {
     serde_json::from_str(game_structure.as_str()).unwrap()
 }
 
+fn model_check_lazy_cgs_bench(model: &str, formula: &str) {
+    let game_structure = load_json_cgs(model);
+
+    // Load formula from json
+    let mut file = File::open(formula).unwrap();
+    let mut formula = String::new();
+    file.read_to_string(&mut formula).unwrap();
+    let formula: Arc<Phi> = serde_json::from_str(formula.as_str()).unwrap();
+
+    let v0 = game_structure.initial_state_index();
+
+    // Run algorithm to solve
+    Ok(edg::distributed_certain_zero(
+        ATLDependencyGraph { game_structure },
+        ATLVertex::FULL { state: v0, formula },
+        num_cpus::get() as u64,
+    ));
+}
+
 /// Loads the given "input_model" as an LCGS program, then evaluates the given "formula" starting
 /// from the initial state given in the LCGS program.
 fn model_check_lazy_cgs(args: &ArgMatches) -> Result<VertexAssignment, Box<dyn Error>> {
