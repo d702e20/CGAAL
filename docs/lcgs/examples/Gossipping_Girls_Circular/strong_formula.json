@@ -1,7 +1,0 @@
-{
-  "enforce until": {
-    "players": "p1",
-    "pre" : "p1.secret2 = 0",
-    "until" : "10 < step"
-  }
-}
