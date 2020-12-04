@@ -21,9 +21,9 @@ template phoneuser
 	
 	quality : [0..1000] init 0;
 	quality' =
-		(0 < energy && 0 < otheruser.energy) * (1000*(1 - ((- (power / 2) / (otheruser.power + 1) * (- (power / 2) / (otheruser.power + 1))))
+		(0 < energy && 0 < otheruser.energy) * (1000 * (1 - ((( -1 * (power / 2)) / (otheruser.power + 1)) * (( -1 * (power / 2)) / (otheruser.power + 1)))))
    		+
-		(0 < energy && 0 = otheruser.energy) * 1000*(1 - ((-(power / 2)) * (-(power / 2))));
+		(0 < energy && 0 == otheruser.energy) * (1000 * (1 - (( -1 * (power / 2)) * ( -1 * (power / 2)))));
 
 	
 	[empty_battery] energy == 0;
