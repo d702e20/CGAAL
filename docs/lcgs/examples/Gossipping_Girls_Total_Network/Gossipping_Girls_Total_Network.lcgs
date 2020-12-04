@@ -21,11 +21,11 @@ template girl1
 		max(
 			// Max received secret
 			// Call girl2
-			((call_girl2 * p2.call_girl1) * girl2.secret2), 
+			((call_girl2 * p2.call_girl1) * p2.secret2), 
 			// Call girl3
-			((call_girl3 * p3.call_girl1) * girl3.secret2), 
+			((call_girl3 * p3.call_girl1) * p3.secret2), 
 			// Call girl4
-			((call_girl4 * p4.call_girl1) * girl4.secret2),
+			((call_girl4 * p4.call_girl1) * p4.secret2),
 			// Own secret2
 			secret2);
 
@@ -35,11 +35,11 @@ template girl1
 		max(
 			// Max received secret
 			// Call girl2
-			((call_girl2 * p2.call_girl1) * girl2.secret3), 
+			((call_girl2 * p2.call_girl1) * p2.secret3), 
 			// Call girl3
-			((call_girl3 * p3.call_girl1) * girl3.secret3), 
+			((call_girl3 * p3.call_girl1) * p3.secret3), 
 			// Call girl4
-			((call_girl4 * p4.call_girl1) * girl4.secret3),
+			((call_girl4 * p4.call_girl1) * p4.secret3),
 			// Own secret3
 			secret3);
 		
@@ -49,11 +49,11 @@ template girl1
 		max(
 			// Max received secret
 			// Call girl2
-			((call_girl2 * p2.call_girl1) * girl2.secret4), 
+			((call_girl2 * p2.call_girl1) * p2.secret4), 
 			// Call girl3
-			((call_girl3 * p3.call_girl1) * girl3.secret4), 
+			((call_girl3 * p3.call_girl1) * p3.secret4), 
 			// Call girl4
-			((call_girl4 * p4.call_girl1) * girl4.secret4),
+			((call_girl4 * p4.call_girl1) * p4.secret4),
 			// Own secret4
 			secret4);
 
@@ -73,11 +73,11 @@ template girl2
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl2) * girl1.secret1), 
+			((call_girl1 * p1.call_girl2) * p1.secret1), 
 			// Call girl3
-			((call_girl3 * p3.call_girl2) * girl3.secret1), 
+			((call_girl3 * p3.call_girl2) * p3.secret1), 
 			// Call girl4
-			((call_girl4 * p4.call_girl2) * girl4.secret1),
+			((call_girl4 * p4.call_girl2) * p4.secret1),
 			// Own secret1
 			secret1);
 
@@ -90,11 +90,11 @@ template girl2
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl2) * girl1.secret3), 
+			((call_girl1 * p1.call_girl2) * p1.secret3), 
 			// Call girl3
-			((call_girl3 * p3.call_girl2) * girl3.secret3), 
+			((call_girl3 * p3.call_girl2) * p3.secret3), 
 			// Call girl4
-			((call_girl4 * p4.call_girl2) * girl4.secret3),
+			((call_girl4 * p4.call_girl2) * p4.secret3),
 			// Own secret3
 			secret3);
 		
@@ -104,11 +104,11 @@ template girl2
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl2) * girl1.secret4), 
+			((call_girl1 * p1.call_girl2) * p1.secret4), 
 			// Call girl3
-			((call_girl3 * p3.call_girl2) * girl3.secret4), 
+			((call_girl3 * p3.call_girl2) * p3.secret4), 
 			// Call girl4
-			((call_girl4 * p4.call_girl2) * girl4.secret4),
+			((call_girl4 * p4.call_girl2) * p4.secret4),
 			// Own secret4
 			secret4);
 
@@ -126,11 +126,11 @@ template girl3
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl3) * girl1.secret1), 
+			((call_girl1 * p1.call_girl3) * p1.secret1), 
 			// Call girl2
-			((call_girl2 * p2.call_girl3) * girl2.secret1), 
+			((call_girl2 * p2.call_girl3) * p2.secret1), 
 			// Call girl4
-			((call_girl4 * p4.call_girl3) * girl4.secret1),
+			((call_girl4 * p4.call_girl3) * p4.secret1),
 			// Own secret1
 			secret1);
 
@@ -140,11 +140,11 @@ template girl3
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl3) * girl1.secret2), 
+			((call_girl1 * p1.call_girl3) * p1.secret2), 
 			// Call girl2
-			((call_girl2 * p2.call_girl3) * girl2.secret2), 
+			((call_girl2 * p2.call_girl3) * p2.secret2), 
 			// Call girl4
-			((call_girl4 * p4.call_girl3) * girl4.secret2),
+			((call_girl4 * p4.call_girl3) * p4.secret2),
 			// Own secret2
 			secret2);
 
@@ -158,11 +158,11 @@ template girl3
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl3) * girl1.secret4), 
+			((call_girl1 * p1.call_girl3) * p1.secret4), 
 			// Call girl2
-			((call_girl2 * p2.call_girl3) * girl2.secret4), 
+			((call_girl2 * p2.call_girl3) * p2.secret4), 
 			// Call girl4
-			((call_girl4 * p4.call_girl3) * girl4.secret4),
+			((call_girl4 * p4.call_girl3) * p4.secret4),
 			// Own secret4
 			secret4);
 
@@ -180,11 +180,11 @@ template girl4
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl3) * girl1.secret1), 
+			((call_girl1 * p1.call_girl3) * p1.secret1), 
 			// Call girl2
-			((call_girl2 * p2.call_girl3) * girl2.secret1), 
+			((call_girl2 * p2.call_girl3) * p2.secret1), 
 			// Call girl4
-			((call_girl4 * p4.call_girl3) * girl4.secret1),
+			((call_girl3 * p3.call_girl4) * p3.secret1),
 			// Own secret1
 			secret1);
 
@@ -194,11 +194,11 @@ template girl4
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl3) * girl1.secret2), 
+			((call_girl1 * p1.call_girl3) * p1.secret2), 
 			// Call girl2
-			((call_girl2 * p2.call_girl3) * girl2.secret2), 
+			((call_girl2 * p2.call_girl3) * p2.secret2), 
 			// Call girl4
-			((call_girl4 * p4.call_girl3) * girl4.secret2),
+			((call_girl3 * p3.call_girl4) * p3.secret2),
 			// Own secret2
 			secret2);
 
@@ -208,11 +208,11 @@ template girl4
 		max(
 			// Max received secret
 			// Call girl1
-			((call_girl1 * p1.call_girl4) * girl1.secret4), 
+			((call_girl1 * p1.call_girl4) * p1.secret4), 
 			// Call girl2
-			((call_girl2 * p2.call_girl4) * girl2.secret4), 
+			((call_girl2 * p2.call_girl4) * p2.secret4), 
 			// Call girl3
-			((call_girl3 * p3.call_girl4) * girl3.secret4),
+			((call_girl3 * p3.call_girl4) * p3.secret4),
 			// Own secret3
 			secret3);
 	
