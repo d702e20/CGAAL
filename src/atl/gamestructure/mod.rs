@@ -8,12 +8,12 @@ use crate::atl::common::{Proposition, State};
 mod eager;
 
 pub trait GameStructure {
-    fn max_player(&self) -> u32;
+    fn max_player(&self) -> usize;
 
     fn labels(&self, state: State) -> HashSet<Proposition>;
 
     fn transitions(&self, state: State, choices: Vec<usize>) -> State;
 
     /// Returns the number of moves each player can take when the game is in `state`.
-    fn move_count(&self, state: State) -> Vec<u32>;
+    fn move_count(&self, state: State) -> Vec<usize>;
 }
