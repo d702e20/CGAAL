@@ -159,6 +159,10 @@ impl ControllerWeight {
         let mut slot = weight.slot;
         let (val, mut carry) = weight.weight.overflowing_add(self.slots[weight.slot]);
         self.slots[slot] = val;
+        assert!(
+            slot == 0 && !carry || slot > 0,
+            "Overflowed slot 0. There must be a bug adding extra weight somewhere"
+        );
         while carry {
             slot -= 1;
             // Destructuring assignments is not possible at the time of writing this,
@@ -342,6 +346,7 @@ mod test {
         /// A weight of zero is illegal so check that it yields a panic
         #[test]
         #[should_panic]
+        #[allow(unused_must_use)]
         fn split_zero_weight() {
             let weight = Weight { weight: 0, slot: 0 };
 
@@ -351,6 +356,7 @@ mod test {
         /// Panic if joined weight overflows the maximal weight that can be represented
         #[test]
         #[should_panic]
+        #[allow(unused_must_use)]
         fn underflow_slot() {
             let lhs = Weight {
                 weight: Num::MAX,
