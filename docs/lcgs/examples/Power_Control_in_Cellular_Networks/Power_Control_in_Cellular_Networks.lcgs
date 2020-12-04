@@ -1,12 +1,10 @@
 // Power Control in Cellular Networks - http://www.prismmodelchecker.org/casestudies/power_control.php
-// Uncomment lines for probability
 
 player p1 = phoneuser [otheruser = p2];
 player p2 = phoneuser [otheruser = p1];
 
 const powmax = 10;
 const energymax = 10;
-//const fail = 10;
 
 totalquality : [0..1000] init 0;
 totalquality' = p1.quality + p2.quality;
@@ -14,7 +12,6 @@ totalquality' = p1.quality + p2.quality;
 template phoneuser
 
 	power : [1 .. powmax] init 1;
-	//power' = power + (fail < (rand(0,100) ? increase_power : 0));
 	power' = power + increase_power;
 	energy : [0 .. energymax] init energymax;
 	energy' = max(0, (energy - power));
