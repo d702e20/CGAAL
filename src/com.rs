@@ -75,20 +75,20 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
     }
 }
 
-type MsgQueue<V> = Receiver<Message<V>>;
-type HyperQueue<V> = Receiver<(HyperEdge<V>, Weight)>;
-type NegationQueue<V> = Receiver<(NegationEdge<V>, Weight)>;
-type TermQueue = Receiver<VertexAssignment>;
+type MsgQueueList<V> = Vec<Receiver<Message<V>>>;
+type HyperQueueList<V> = Vec<Receiver<(HyperEdge<V>, Weight)>>;
+type NegationQueueList<V> = Vec<Receiver<(NegationEdge<V>, Weight)>>;
+type TermQueueList = Vec<Receiver<VertexAssignment>>;
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
     pub fn new(
         worker_count: u64,
     ) -> (
         Self,
-        Vec<MsgQueue<V>>,
-        Vec<HyperQueue<V>>,
-        Vec<NegationQueue<V>>,
-        Vec<TermQueue>,
+        MsgQueueList<V>,
+        HyperQueueList<V>,
+        NegationQueueList<V>,
+        TermQueueList,
         Receiver<Weight>,
     ) {
         // Create a message channel foreach worker

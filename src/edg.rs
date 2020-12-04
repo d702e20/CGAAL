@@ -150,6 +150,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Determines if `self` is responsible for computing the value of `vertex`
     #[inline]
+    #[allow(too_many_arguments)]
     fn is_owner(&self, vertex: &V) -> bool {
         self.vertex_owner(vertex) == self.id
     }
@@ -306,7 +307,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                                     } else {
                                         trace!(?edge, ?weight, "queueing negation");
                                         self.broker.queue_negation(self.id, edge.clone(), weight);
-                                        self.counter = self.counter + 1;
+                                        self.counter += 1;
                                     }
                                 }
                             },
@@ -461,15 +462,15 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         // Update the distance
         let default = 0;
-        let tdist = self.distances.get(vertex).unwrap_or(&default);
+        let tdist = *self.distances.get(vertex).unwrap_or(&default);
         match dependency.clone() {
             Edges::NEGATION(edge) => {
                 let sdist = self.distances.get(&edge.source).unwrap_or(&default) + 1;
-                self.distances.insert(vertex.clone(), max(sdist, *tdist));
+                self.distances.insert(vertex.clone(), max(sdist, tdist));
             }
             Edges::HYPER(edge) => {
                 let sdist = self.distances.get(&edge.source).unwrap_or(&default);
-                self.distances.insert(vertex.clone(), max(*sdist, *tdist));
+                self.distances.insert(vertex.clone(), max(*sdist, tdist));
             }
         }
 
@@ -582,23 +583,20 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
                 _ => {
                     // update distance
-                    let dist = self.distances.get(vertex).unwrap_or(&0);
-                    self.distances.insert(vertex.clone(), max(*dist, distance));
+                    let dist = *self.distances.get(vertex).unwrap_or(&0);
+                    self.distances.insert(vertex.clone(), max(dist, distance));
 
                     self.mark_interest(vertex, requester);
 
                     if self.depends.contains_key(vertex) {
                         if let Some(assignment) = self.assignment.get(vertex) {
-                            match assignment {
-                                VertexAssignment::UNDECIDED => {
-                                    let (weight_for_task, remaining_weight) =
-                                        weight.split().unwrap_or_else(|_| {
-                                            panic!("Worker {} ran out of weight", self.id)
-                                        });
-                                    weight = remaining_weight;
-                                    self.explore(vertex, weight_for_task)
-                                }
-                                _ => {}
+                            if let VertexAssignment::UNDECIDED = assignment {
+                                let (weight_for_task, remaining_weight) =
+                                    weight.split().unwrap_or_else(|_| {
+                                        panic!("Worker {} ran out of weight", self.id)
+                                    });
+                                weight = remaining_weight;
+                                self.explore(vertex, weight_for_task)
                             }
                         }
                     }
@@ -769,7 +767,6 @@ mod test {
 
     use core::fmt::Formatter;
 
-    use crate::common::Edges::HYPER;
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 
