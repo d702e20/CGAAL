@@ -537,7 +537,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
 
         if len <= dist {
-            for i in len..(dist + 1) {
+            for _ in len..(dist + 1) {
                 self.unsafe_edges.push(Vec::new());
             }
         }
