@@ -150,11 +150,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Determines if `self` is responsible for computing the value of `vertex`
     #[inline]
-    #[allow(clippy::too_many_arguments)]
     fn is_owner(&self, vertex: &V) -> bool {
         self.vertex_owner(vertex) == self.id
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: WorkerId,
         worker_count: u64,
