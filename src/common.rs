@@ -1,7 +1,7 @@
 use crate::distterm::Weight;
-use std::hash::Hash;
 use serde::export::fmt::Display;
 use serde::export::Formatter;
+use std::hash::Hash;
 
 pub type WorkerId = u64;
 

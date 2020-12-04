@@ -20,7 +20,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::{Edges};
+use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::parse::parse_lcgs;
@@ -98,10 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 input_model_path,
                 formula_path,
                 |graph, formula| {
-                    let v0 = ATLVertex::FULL {
-                        state: 0,
-                        formula,
-                    };
+                    let v0 = ATLVertex::FULL { state: 0, formula };
                     check_model(graph, v0);
                 },
                 |graph, formula| {
@@ -139,10 +136,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 input_model_path,
                 formula_path,
                 |graph, formula| {
-                    let v0 = ATLVertex::FULL {
-                        state: 0,
-                        formula,
-                    };
+                    let v0 = ATLVertex::FULL { state: 0, formula };
                     print_model(graph, v0, args.value_of("output"));
                 },
                 |graph, formula| {
