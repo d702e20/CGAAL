@@ -150,7 +150,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Determines if `self` is responsible for computing the value of `vertex`
     #[inline]
-    #[allow(too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     fn is_owner(&self, vertex: &V) -> bool {
         self.vertex_owner(vertex) == self.id
     }
@@ -469,8 +469,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 self.distances.insert(vertex.clone(), max(sdist, tdist));
             }
             Edges::HYPER(edge) => {
-                let sdist = self.distances.get(&edge.source).unwrap_or(&default);
-                self.distances.insert(vertex.clone(), max(*sdist, tdist));
+                let sdist = *self.distances.get(&edge.source).unwrap_or(&default);
+                self.distances.insert(vertex.clone(), max(sdist, tdist));
             }
         }
 
