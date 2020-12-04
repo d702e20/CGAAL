@@ -111,7 +111,7 @@ impl IntermediateLCGS {
     }
 
     /// Returns a list of the moves available to the given player in the given state.
-    fn available_moves(&self, state: &State, player: usize) -> Vec<SymbolIdentifier> {
+    fn available_actions(&self, state: &State, player: usize) -> Vec<SymbolIdentifier> {
         self.players[player]
             .actions
             .iter()
@@ -368,11 +368,12 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
 }
 
 /// A game structure state of an LCGS. Holds a mapping of symbol names to their current value
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct State(pub HashMap<SymbolIdentifier, i32>);
 
 impl GameStructure for IntermediateLCGS {
-    fn max_player(&self) -> u32 {
-        self.players.len() as u32
+    fn max_player(&self) -> usize {
+        self.players.len()
     }
 
     /// Returns the set of labels/propositions available in the given state.
@@ -400,11 +401,26 @@ impl GameStructure for IntermediateLCGS {
         let mut state = self.state_from_index(state);
         // To evaluate the next state we assign the actions to either 1 or 0 depending
         // on whether or not the action was taken
-        for (p_index, _player) in self.players.iter().enumerate() {
-            let moves = self.available_moves(&state, p_index);
+        for (p_index, player) in self.players.iter().enumerate() {
+            // The `choices` vector only considers available actions, so we do those first
+            let moves = self.available_actions(&state, p_index);
+            debug_assert!(
+                choices[p_index] < moves.len(),
+                format!(
+                    "Unknown action {} chosen for player {} in state {:?}",
+                    choices[p_index], p_index, state
+                )
+            );
             for (a_index, a_symb_id) in moves.iter().enumerate() {
                 let val = if choices[p_index] == a_index { 1 } else { 0 };
                 state.0.insert(a_symb_id.clone(), val);
+            }
+
+            // Some actions might not be available. These should also be set to 0.
+            for action in &player.actions {
+                if !state.0.contains_key(action) {
+                    state.0.insert(action.clone(), 0);
+                }
             }
         }
 
@@ -423,12 +439,12 @@ impl GameStructure for IntermediateLCGS {
     }
 
     /// Returns the number of moves available to each player in the given state.
-    fn move_count(&self, state: usize) -> Vec<u32> {
+    fn move_count(&self, state: usize) -> Vec<usize> {
         let state = self.state_from_index(state);
         self.players
             .iter()
             .enumerate()
-            .map(|(i, _player)| self.available_moves(&state, i).len() as u32)
+            .map(|(i, _player)| self.available_actions(&state, i).len())
             .collect()
     }
 }
@@ -437,7 +453,6 @@ impl GameStructure for IntermediateLCGS {
 mod test {
     use crate::atl::gamestructure::GameStructure;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
-    use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
 
     #[test]
@@ -759,6 +774,26 @@ mod test {
         assert_eq!(1, lcgs.transitions(0, vec![1]));
         assert_eq!(0, lcgs.transitions(1, vec![0]));
         assert_eq!(1, lcgs.transitions(1, vec![1]));
+    }
+
+    #[test]
+    fn test_transition_03() {
+        // Can we update state even though it depends on unavailable actions?
+        let input = "
+        player ryan = guy;
+        
+        some_var : [0 .. 10] init 0;
+        some_var' = some_var + ryan.unavailable_action;
+
+        template guy
+            [unavailable_action] 0;
+            [available_action] 1; 
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let init_state = lcgs.initial_state_index();
+        assert_eq!(0, init_state);
+        assert_eq!(0, lcgs.transitions(init_state, vec![0]));
     }
 
     #[test]
