@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{stdout, BufWriter, Read, Write};
+use std::io::{stdout, Read, Write};
 use std::process::exit;
 use std::sync::Arc;
 
@@ -20,7 +20,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::{Edges, VertexAssignment};
+use crate::common::{Edges};
 use crate::edg::{distributed_certain_zero, Vertex};
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::parse::parse_lcgs;
@@ -83,14 +83,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     match args.subcommand() {
-        ("solver", Some(args)) => {
+        ("solver", Some(_args)) => {
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
                 let result = distributed_certain_zero(graph, v0, num_cpus::get() as u64);
-                println!("{:?}", result);
+                println!("Result: {}", result);
             }
 
             load(
@@ -100,14 +100,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: 0,
-                        formula: formula.clone(),
+                        formula,
                     };
                     check_model(graph, v0);
                 },
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
-                        formula: formula.clone(),
+                        formula,
                     };
                     check_model(graph, v0);
                 },
@@ -141,14 +141,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: 0,
-                        formula: formula.clone(),
+                        formula,
                     };
                     print_model(graph, v0, args.value_of("output"));
                 },
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
-                        formula: formula.clone(),
+                        formula,
                     };
                     print_model(graph, v0, args.value_of("output"));
                 },
@@ -219,7 +219,7 @@ where
                 eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
                 exit(1);
             });
-            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
+            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|_err| {
                 eprintln!("Invalid LCGS program");
                 exit(1);
             });

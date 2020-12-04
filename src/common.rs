@@ -1,5 +1,7 @@
 use crate::distterm::Weight;
 use std::hash::Hash;
+use serde::export::fmt::Display;
+use serde::export::Formatter;
 
 pub type WorkerId = u64;
 
@@ -9,6 +11,16 @@ pub enum VertexAssignment {
     UNDECIDED,
     FALSE,
     TRUE,
+}
+
+impl Display for VertexAssignment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VertexAssignment::UNDECIDED => write!(f, "undecided"),
+            VertexAssignment::FALSE => write!(f, "false"),
+            VertexAssignment::TRUE => write!(f, "true"),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
