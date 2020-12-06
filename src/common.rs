@@ -1,4 +1,6 @@
 use crate::distterm::Weight;
+use serde::export::fmt::Display;
+use serde::export::Formatter;
 use std::hash::Hash;
 
 pub type WorkerId = u64;
@@ -9,6 +11,16 @@ pub enum VertexAssignment {
     UNDECIDED,
     FALSE,
     TRUE,
+}
+
+impl Display for VertexAssignment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VertexAssignment::UNDECIDED => write!(f, "undecided"),
+            VertexAssignment::FALSE => write!(f, "false"),
+            VertexAssignment::TRUE => write!(f, "true"),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -32,13 +44,10 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
 /// Inter-Worker communication
 #[derive(Clone, Debug)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
-    /// Send when a hyper-edge is discovered
-    HYPER(HyperEdge<V>, Weight),
-    /// Send when a negation-edge is discovered
-    NEGATION(NegationEdge<V>, Weight),
     /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
     REQUEST {
         vertex: V,
+        distance: u32,
         worker_id: WorkerId,
         weight: Weight,
     },
