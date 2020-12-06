@@ -10,12 +10,12 @@ use crate::atl::gamestructure::GameStructure;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug)]
-pub(crate) struct ATLDependencyGraph<G: GameStructure> {
+pub struct ATLDependencyGraph<G: GameStructure> {
     pub game_structure: G,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
-pub(crate) enum ATLVertex {
+pub enum ATLVertex {
     FULL {
         state: State,
         formula: Arc<Phi>,

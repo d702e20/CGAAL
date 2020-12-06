@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 /// Alternating-time Temporal Logic formula
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
-pub(crate) enum Phi {
+pub enum Phi {
     /// Trivially satisfied
     #[serde(rename = "true")]
     True,

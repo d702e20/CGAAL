@@ -1,3 +1,7 @@
+use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
+use atl_checker::atl::formula::Phi;
+use atl_checker::atl::gamestructure::EagerGameStructure;
+use atl_checker::edg::distributed_certain_zero;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::fs::File;
 use std::io::Read;
@@ -11,9 +15,16 @@ fn fibonacci(n: u64) -> u64 {
     }
 }
 
-//fixme: "not found in this scope" something with criterion requires referenced functions to be public
 fn bench_json_cgs(model: &str, formula: &str) {
-    model_check_lazy_cgs_bench(model, formula);
+    let game_structure: EagerGameStructure =
+        serde_json::from_str(include_str!("../test.json")).unwrap();
+    let graph = ATLDependencyGraph { game_structure };
+
+    let formula: Arc<Phi> = serde_json::from_str(include_str!("../test-formula.json")).unwrap();
+
+    let v0 = ATLVertex::FULL { state: 0, formula };
+
+    distributed_certain_zero(graph, v0, 1);
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
