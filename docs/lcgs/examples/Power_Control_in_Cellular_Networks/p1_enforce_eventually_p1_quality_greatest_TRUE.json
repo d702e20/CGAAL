@@ -1,0 +1,6 @@
+{
+  "enforce eventually": {
+    "players": [1],
+    "proposition": 0
+  }
+}
