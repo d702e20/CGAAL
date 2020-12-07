@@ -20,7 +20,7 @@ test-env-log = { git = "https://github.com/d-e-s-o/test-env-log", branch = "topi
 criterion = "0.3"
 
 [[bench]]
-name = "my_benchmark"
+name = "benchmark_solver"
 harness = false
 
 [dependencies]
