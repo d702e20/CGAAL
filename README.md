@@ -36,13 +36,13 @@ template cowboy
 endtemplate
 ```
 
-We can now use ATL logic and query whether Billy has a strategy to guarantees that he survives.
-The ATL formula is givin in json:
+We can now use ATL logic and query whether there exists a strategy for Billy that guarantees that he survives.
+The ATL formula is given in json:
 
 
 ```json
 {
-  "enforce always": {
+  "enforce invariant": {
     "players": [0],
     "formula": {
       "proposition": 0
