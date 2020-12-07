@@ -57,14 +57,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     setup_tracing(&args);
     trace!(?args, "commandline arguments");
 
-    let formula_path = args.value_of("formula").unwrap();
-    let input_model_path = args.value_of("input_model").unwrap();
-    let model_type = match args.value_of("model_type") {
+    let subargs = args.subcommand().1.unwrap();
+
+    let formula_path = subargs.value_of("formula").unwrap();
+    let input_model_path = subargs.value_of("input_model").unwrap();
+    let model_type = match subargs.value_of("model_type") {
         Some("lcgs") => "lcgs",
         Some("json") => "json",
         None => {
             // Infer model type from file extension
-            let model_path = args.value_of("input_model").unwrap();
+            let model_path = subargs.value_of("input_model").unwrap();
             if model_path.ends_with(".lcgs") {
                 "lcgs"
             } else if model_path.ends_with(".json") {
@@ -137,14 +139,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 formula_path,
                 |graph, formula| {
                     let v0 = ATLVertex::FULL { state: 0, formula };
-                    print_model(graph, v0, args.value_of("output"));
+                    print_model(graph, v0, subargs.value_of("output"));
                 },
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
                         formula,
                     };
-                    print_model(graph, v0, args.value_of("output"));
+                    print_model(graph, v0, subargs.value_of("output"));
                 },
             )
         }
