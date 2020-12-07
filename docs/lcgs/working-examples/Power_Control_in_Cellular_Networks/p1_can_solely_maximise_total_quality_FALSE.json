@@ -1,6 +1,8 @@
 {
   "enforce invariant" : {
     "players" : [1],
-    "formula" : 2
+    "formula" : {
+      "proposition": 2
+    }
   }
 }

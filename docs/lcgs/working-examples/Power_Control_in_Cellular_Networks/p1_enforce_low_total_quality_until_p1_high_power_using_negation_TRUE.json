@@ -3,9 +3,11 @@
 		"players": [1],
 		"pre" : {
 			"not": {
-    			"proposition": 2
-  			}
+				"proposition": 2
+			}
 		},
-		"until" : 3
+		"until" : {
+			"proposition" :  3
+		}
 	}
 }
