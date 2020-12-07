@@ -7,18 +7,18 @@ use crate::atl::gamestructure::GameStructure;
 #[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {
     /// K, number of players
-    pub player_count: u32,
+    pub player_count: usize,
     /// Maps states to Vec of atomic proposition, aka the labeling function
     pub labeling: Vec<HashSet<Proposition>>,
     /// Maps states, then players recursively
     pub transitions: Vec<DynVec>,
     /// available moves for a player in a given state
-    pub moves: Vec<Vec<u32>>,
+    pub moves: Vec<Vec<usize>>,
 }
 
 impl EagerGameStructure {
     /// Returns the number of moves `player` can take when the game is in `state`.
-    pub fn available_moves(&self, state: State, player: Player) -> u32 {
+    pub fn available_moves(&self, state: State, player: Player) -> usize {
         *self
             .moves
             .get(state)
@@ -34,7 +34,7 @@ impl EagerGameStructure {
 }
 
 impl GameStructure for EagerGameStructure {
-    fn max_player(&self) -> u32 {
+    fn max_player(&self) -> usize {
         self.player_count
     }
 
@@ -55,7 +55,7 @@ impl GameStructure for EagerGameStructure {
         )
     }
 
-    fn move_count(&self, state: State) -> Vec<u32> {
+    fn move_count(&self, state: State) -> Vec<usize> {
         self.moves
             .get(state)
             .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
