@@ -1,6 +1,5 @@
 // Power Control in Cellular Networks - http://www.prismmodelchecker.org/casestudies/power_control.php
-// Seems to be a bug in compiler - range for variable cannot be large (i.e over than 100), when fixed,
-// increase range for quality variable to 2000 and 4000
+
 
 player p1 = phoneuser [otheruser = p2];
 player p2 = phoneuser [otheruser = p1];
@@ -8,7 +7,7 @@ player p2 = phoneuser [otheruser = p1];
 const powmax = 10;
 const energymax = 10;
 
-totalquality : [0..20] init 0;
+totalquality : [0..6000] init 0;
 totalquality' = p1.quality + p2.quality;
 
 template phoneuser
@@ -17,15 +16,11 @@ template phoneuser
 	energy : [0 .. energymax] init energymax;
 	energy' = max(0, (energy - power));
 
-	quality : [0..10] init 0;
+	quality : [0..3000] init 0;
 	quality' =
-        (0 < energy && 0 < otheruser.energy) * ((1 - ((( -1 * (power / 2)) / (otheruser.power + 1)) * (( -1 * (power / 2)) / (otheruser.power + 1)))))
-        +
-        (0 < energy && 0 == otheruser.energy) * ((1 - (( -1 * (power / 2)) * ( -1 * (power / 2)))));
-	    //quality' =
-	    //	(0 < energy && 0 < otheruser.energy) * (1000 * (1 - ((( -1 * (power / 2)) / (otheruser.power + 1)) * (( -1 * (power / 2)) / (otheruser.power + 1)))))
-   	    //	+
-	    //	(0 < energy && 0 == otheruser.energy) * (1000 * (1 - (( -1 * (power / 2)) * ( -1 * (power / 2)))));
+	    	(0 < energy && 0 < otheruser.energy) * (1000 * (1 - ((( -1 * (power / 2)) / (otheruser.power + 1)) * (( -1 * (power / 2)) / (otheruser.power + 1)))))
+   	    	+
+	    	(0 < energy && 0 == otheruser.energy) * (1000 * (1 - (( -1 * (power / 2)) * ( -1 * (power / 2)))));
 
 	
 	[empty_battery] energy == 0;
