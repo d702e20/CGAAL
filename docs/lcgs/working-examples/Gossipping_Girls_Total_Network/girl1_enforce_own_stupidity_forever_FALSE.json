@@ -1,6 +1,6 @@
 {
   "enforce invariant" : {
-    "players" : [1],
+    "players" : [0],
     "formula" : {
         "not" : {
           "proposition" : 0
