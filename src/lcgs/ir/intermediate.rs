@@ -101,9 +101,9 @@ impl IntermediateLCGS {
         for symb_id in &self.vars {
             let symb = self.symbols.get(symb_id).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
-                let size = var.ir_range.end() - var.ir_range.start() + 1;
+                let size = (var.ir_range.end() - var.ir_range.start() + 1) as usize;
                 let val = state.0.get(symb_id).unwrap();
-                res += ((val - var.ir_range.start()) * combined_size) as usize;
+                res += ((val - var.ir_range.start()) as usize * combined_size);
                 combined_size *= size;
             }
         }
