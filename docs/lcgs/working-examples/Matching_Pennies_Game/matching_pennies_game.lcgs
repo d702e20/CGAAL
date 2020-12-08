@@ -1,0 +1,27 @@
+// Matching Pennies game PRISM-inspired
+// players are either even or odd, they both have a penny, if the sum of the number of heads is even, even wins, otherwise odd wins
+
+const winning_sum = 100;
+
+player odd = penny_player[other=even, is_odd=1];
+player even = penny_player[other=odd, is_odd=0];
+
+label game_over = odd.sum >= winning_sum || even.sum >= winning_sum;
+
+template penny_player
+    sum : [0..winning_sum] init 50;
+    sum' = is_odd ?
+                  sum + ((other.head * tail) + (other.tail * head)) + (-1 * ((other.head * head) + (other.tail * tail)))
+                : sum + ((other.head * head) + (other.tail * tail)) + (-1 * ((other.head * tail) + (other.tail * head)));
+
+    // label for our convenience to see whether a given player has won this current round (note that we have to assign to label, as we cannot reference actions in labels)
+    won : [0..1] init 0;
+    won' = is_odd ? ((other.head * tail) + (other.tail * head)) : ((other.head * head) + (other.tail * tail));
+    label did_win = won;
+
+
+    // calculate player's new sum (sum + ((1 * win?) + -1 * lose?))
+    // players can continue to take head or tail transitions as long as neither has reached winning_sum
+    [head] sum < winning_sum && other.sum < winning_sum;
+    [tail] sum < winning_sum && other.sum < winning_sum;
+endtemplate

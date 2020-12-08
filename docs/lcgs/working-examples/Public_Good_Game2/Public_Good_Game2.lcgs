@@ -1,0 +1,84 @@
+
+player Donald_Trump = capitalist [other: Elon_Musk]
+player Elon_Musk = capitalist [other: Donald_Trump]
+
+
+const NUMBER_OF_ROUNDS = 10;
+const CAP_OF_CAPITAL = 1000;
+const INITIAL_ENDOWMENT = 10;
+const MULTIPLIER = 10;
+// as there are no decimals in LCGS
+// This makes it so that we can simulate decimals for the multiplier.
+const SIMULATE_COMMA = 1;
+
+rounds : [0 .. NUMBER_OF_ROUNDS+1] init 0;
+rounds' = min(rounds + 1, NUMBER_OF_ROUNDS);
+
+template capitalist
+    total_profit : [0 .. CAP_OF_CAPITAL] init INITIAL_ENDOWMENT;
+
+    total_profit' = min(((
+        // Firstly calculate how much we loose in capital that we put into the shared account
+        capital -
+            (
+                (25 * (capital / 100) * i_25) +
+                (50 * (capital / 100) * i_50) +
+                (75 * (capital / 100) * i_75) +
+                (100 * (capital / 100) * i_100)
+            )
+    ) + (
+        // Then calculate how much we obtain from putting money into the shared account
+        (MULTIPLIER *
+            (
+                (25 * (capital / 100) * i_25) +
+                (50 * (capital / 100) * i_50) +
+                (75 * (capital / 100) * i_75) +
+                (100 * (capital / 100) * i_100)
+            ) + (
+                (25 * (other.capital / 100) * other.i_25) +
+                (50 * (other.capital / 100) * other.i_50) +
+                (75 * (other.capital / 100) * other.i_75) +
+                (100 * (other.capital / 100) * other.i_100)
+            )
+        ) / SIMULATE_COMMA
+    // Half for each player, and subtract initial endowment.
+    ) / 2) - INITIAL_ENDOWMENT, CAP_OF_CAPITAL);
+
+    // Esentially same calculation as above, just without subtracting the initial endowment.
+    capital : [0 .. CAP_OF_CAPITAL] init INITIAL_ENDOWMENT;
+    capital' = min((
+        capital -
+            (
+                (25 * (capital / 100) * i_25) +
+                (50 * (capital / 100) * i_50) +
+                (75 * (capital / 100) * i_75) +
+                (100 * (capital / 100) * i_100)
+            )
+    ) + (
+        (MULTIPLIER *
+            (
+                (25 * (capital / 100) * i_25) +
+                (50 * (capital / 100) * i_50) +
+                (75 * (capital / 100) * i_75) +
+                (100 * (capital / 100) * i_100)
+            ) + (
+                (25 * (other.capital / 100) * other.i_25) +
+                (50 * (other.capital / 100) * other.i_50) +
+                (75 * (other.capital / 100) * other.i_75) +
+                (100 * (other.capital / 100) * other.i_100)
+            )
+        ) / SIMULATE_COMMA
+    ) / 2, CAP_OF_CAPITAL);
+
+    label worth_most = capital > other.capital;
+    label capped_for_capital = capital == CAP_OF_CAPITAL;
+
+	[i_0]   rounds' <  NUMBER_OF_ROUNDS;
+	[i_25]  rounds' <  NUMBER_OF_ROUNDS;
+	[i_50]  rounds' <  NUMBER_OF_ROUNDS;
+	[i_75]  rounds' <  NUMBER_OF_ROUNDS;
+	[i_100] rounds' <  NUMBER_OF_ROUNDS;
+	[done]  rounds' >= NUMBER_OF_ROUNDS;
+
+
+endtemplate
