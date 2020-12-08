@@ -94,12 +94,26 @@ bench_lcgs!(
     "Gossipping_Girls_Circular/eventually_10_steps_are_passed_TRUE.json"
 );
 
+bench_lcgs!(
+    gossiping_girls_total_enforce_stupidity,
+    "Gossipping_Girls_Total_Network/Gossipping_Girls_Total_Network.lcgs",
+    "Gossipping_Girls_Total_Network/girl1_enforce_own_stupidity_forever_FALSE.json"
+);
+
+bench_lcgs!(
+    power_control_collab,
+    "Power_Control_in_Cellular_Networks/Power_Control_in_Cellular_Networks.lcgs",
+    "Power_Control_in_Cellular_Networks/collab_to_make_p1_quality_higher_than_p2_with_negation_TRUE.json"
+);
+
 criterion_group!(
     benches,
     //mexican_standoff_json,
     //mexican_standoff_lcgs_wack,
-    mexican_standoff_lcgs_alive_till_not,
+    //mexican_standoff_lcgs_alive_till_not,
     //gossiping_girls_circular_omniscient,
-    //gossiping_girls_circular_10_steps
+    //gossiping_girls_circular_10_steps,
+    //gossiping_girls_total_enforce_stupidity,
+    power_control_collab
 );
 criterion_main!(benches);
