@@ -1,0 +1,70 @@
+// Gossiping girls
+
+player p1 = girl [friend1 = p4, friend2 = p2, starts_with_secret1 = 1, starts_with_secret2 = 0,
+    starts_with_secret3 = 0, starts_with_secret4 = 0];
+
+player p2 = girl [friend1 = p1, friend2 = p3, starts_with_secret2 = 1, starts_with_secret1 = 0,
+    starts_with_secret3 = 0, starts_with_secret4 = 0];
+
+player p3 = girl [friend1 = p2, friend2 = p4, starts_with_secret3 = 1, starts_with_secret1 = 0,
+    starts_with_secret2 = 0, starts_with_secret4 = 0];
+
+player p4 = girl [friend1 = p3, friend2 = p1, starts_with_secret4 = 1, starts_with_secret1 = 0,
+    starts_with_secret2 = 0, starts_with_secret3 = 0];
+
+label less_than_10_steps = step < 10;
+step : [0..20] init 0;
+step' = min(step + 1,20);
+
+
+template girl
+    label omniscient = secret1 * secret2 * secret3 * secret4;
+
+    secret1 : [0..1] init starts_with_secret1;
+	secret1' = 
+		// Max between currently known, and max recieved
+		max(
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret1), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret1), 
+			// Own secret1
+			secret1);
+
+    secret2 : [0..1] init starts_with_secret2;
+	secret2' = 
+		// Max between currently known, and max recieved
+		max(
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret2), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret2), 
+			// Own secret2
+			secret2);
+
+    secret3 : [0..1] init starts_with_secret3;
+	secret3' = 
+		// Max between currently known, and max recieved
+		max(
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret3), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret3), 
+			// Own secret3
+			secret3);
+
+    secret4 : [0..1] init starts_with_secret4;
+	secret4' = 
+		// Max between currently known, and max recieved
+		max(
+			// Call left
+			((call_friend1 * friend1.call_friend2) * friend1.secret4), 
+			// Call right
+			((call_friend2 * friend2.call_friend1) * friend2.secret4), 
+    		// Own secret4
+	    	secret4);
+
+	[call_friend1] 1;
+	[call_friend2] 1;
+
+endtemplate

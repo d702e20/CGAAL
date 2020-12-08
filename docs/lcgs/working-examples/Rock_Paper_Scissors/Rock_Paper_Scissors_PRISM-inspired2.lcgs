@@ -1,0 +1,16 @@
+// Rock-Paper-Scissors PRISM-inspired
+
+
+player p1 = rsplayer[other=p2];
+player p2 = rsplayer[other=p1];
+
+template rsplayer
+    won : [0..1] init 0;
+    won' = (other.paper & scissors) || (other.scissors & rock) || (other.rock & paper);
+
+    label i_won = won == 1;
+
+    [rock] won == 0 & other.won == 0; // Rock
+    [paper] won == 0 & other.won == 0; // Paper
+    [scissors] won == 0 & other.won == 0; // Scissors
+endtemplate

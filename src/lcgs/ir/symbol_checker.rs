@@ -107,7 +107,7 @@ impl<'a> SymbolChecker<'a> {
                     self.symbols
                             .get(&owner, &name)
                             // TODO Use custom error
-                            .expect("Unknown identifier. The player does not own a declaration of that name")
+                            .expect(&*format!("Unknown identifier. The player does not own a declaration of that name: {}, owner: {}", name, owner))
                 } else {
                     // Player is omitted. Assume it is scope owner. If not, then try global.
                     self.symbols
