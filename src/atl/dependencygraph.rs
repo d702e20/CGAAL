@@ -109,24 +109,24 @@ impl VarsIterator {
     /// ```
     /// use std::result::Result::{Some, None};
     ///
-    /// let moves = vec![2, 3, 2]
+    /// let moves = vec![2, 3, 2];
     /// let mut players = HashSet::new();
     /// players.insert(0);
     /// players.insert(2);
-    /// let iter = VarsIterator::new(moves, players);
+    /// let mut iter = VarsIterator::new(moves, players);
     ///
-    /// assert_eq!(iter.next(), Some(vec![PartialMoveChoice::SPECIFIC(0), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(0)]))
-    /// assert_eq!(iter.next(), Some(vec![PartialMoveChoice::SPECIFIC(1), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(0)]))
-    /// assert_eq!(iter.next(), Some(vec![PartialMoveChoice::SPECIFIC(0), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(1)]))
-    /// assert_eq!(iter.next(), Some(vec![PartialMoveChoice::SPECIFIC(1), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(1)]))
+    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(0), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(0)]));
+    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(1), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(0)]));
+    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(0), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(1)]));
+    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(1), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(1)]));
     /// ```
     fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
         let mut position = Vec::with_capacity(moves.len());
         for (i, mov) in moves.iter().enumerate() {
             position.push(if players.contains(&i) {
-                PartialMoveChoice::RANGE(*mov)
-            } else {
                 PartialMoveChoice::SPECIFIC(0)
+            } else {
+                PartialMoveChoice::RANGE(*mov)
             })
         }
 
@@ -662,47 +662,74 @@ mod test {
     use std::sync::Arc;
 
     #[test]
-    fn vars_iterator() {
+    fn vars_iterator_01() {
+        let moves = vec![2, 3, 2];
+        let mut players = HashSet::new();
+        players.insert(0);
+        players.insert(2);
+        let mut iter = VarsIterator::new(moves, players);
+
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(0),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(0)
+            ])
+        );
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(1),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(0)
+            ])
+        );
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(0),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(1)
+            ])
+        );
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(1),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(1)
+            ])
+        );
+    }
+
+    #[test]
+    fn vars_iterator_02() {
         let mut players = HashSet::new();
         players.insert(2);
-        let mut iter = VarsIterator::new(vec![2, 3, 2], players);
+        let mut iter = VarsIterator::new(vec![2, 3, 3], players);
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[2], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
+        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(0));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[2], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
+        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(1));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[2], PartialMoveChoice::RANGE(2));
-
-        let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[2], PartialMoveChoice::RANGE(2));
-
-        let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
-        assert_eq!(value[2], PartialMoveChoice::RANGE(2));
-
-        let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
-        assert_eq!(value[2], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
+        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(2));
 
         let value = iter.next();
         assert_eq!(value, None);
     }
 
     #[test]
-    fn delta_iterator() {
+    fn delta_iterator_01() {
         // player 0
         let transitions = DynVec::NEST(vec![
             // player 1
