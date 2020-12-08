@@ -90,6 +90,81 @@ impl Display for PartialMoveChoice {
 
 pub type PartialMove = Vec<PartialMoveChoice>;
 
+struct PartialMoveIterator<'a> {
+    partial_move: &'a PartialMove,
+    initialized: bool,
+    current: Vec<usize>,
+}
+
+impl<'a> PartialMoveIterator<'a> {
+    fn new(partial_move: &'a PartialMove) -> PartialMoveIterator {
+        PartialMoveIterator {
+            partial_move,
+            initialized: false,
+            current: vec![],
+        }
+    }
+
+    fn make_first(&mut self) {
+        self.initialized = true;
+        self.current = self
+            .partial_move
+            .iter()
+            .map(|case| match case {
+                PartialMoveChoice::RANGE(_) => 0,
+                PartialMoveChoice::SPECIFIC(n) => *n,
+            })
+            .collect();
+    }
+
+    fn make_next(&mut self, player: Player) -> bool {
+        if player >= self.partial_move.len() {
+            false
+        } else if !self.make_next(player + 1) {
+            // The next player's move has rolled over or doesn't exist.
+            // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
+            match self.partial_move[player] {
+                PartialMoveChoice::SPECIFIC(_) => false,
+                PartialMoveChoice::RANGE(n) => {
+                    let current = &mut self.current;
+                    current[player] += 1;
+                    if current[player] < n {
+                        true
+                    } else {
+                        // We have rolled over (self.next[player] >= n)
+                        current[player] = 0;
+                        false
+                    }
+                }
+            }
+        } else {
+            true
+        }
+    }
+}
+
+impl<'a> Iterator for PartialMoveIterator<'a> {
+    type Item = Vec<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.initialized {
+            self.make_first();
+            // self.current.as_deref()
+            // Some(self.current.as_ref().unwrap())
+            // Some(&self.current.unwrap())
+            Some(self.current.clone())
+        } else {
+            if self.make_next(0) {
+                //self.current.as_deref()
+                //Some(self.current.as_ref().unwrap())
+                Some(self.current.clone())
+            } else {
+                None
+            }
+        }
+    }
+}
+
 struct VarsIterator {
     moves: Vec<usize>,
     position: PartialMove,
@@ -183,63 +258,21 @@ impl Iterator for VarsIterator {
 struct DeltaIterator<'a, G: GameStructure> {
     game_structure: &'a G,
     state: State,
-    moves: PartialMove,
+    moves: PartialMoveIterator<'a>,
     known: HashSet<State>,
-    completed: bool,
-    current_move: Vec<State>,
 }
 
 impl<'a, G: GameStructure> DeltaIterator<'a, G> {
-    fn new(game_structure: &'a G, state: State, moves: PartialMove) -> Self {
+    fn new(game_structure: &'a G, state: State, moves: &'a PartialMove) -> Self {
         let known = HashSet::new();
-        let mut current_move = Vec::with_capacity(moves.len());
-        for mov in &moves {
-            current_move.push(match mov {
-                PartialMoveChoice::RANGE(_) => 0,
-                PartialMoveChoice::SPECIFIC(i) => *i,
-            });
-        }
+        let moves = PartialMoveIterator::new(&moves);
 
         Self {
             game_structure,
             state,
             moves,
             known,
-            completed: false,
-            current_move,
         }
-    }
-
-    /// Updates self.current_move to next position, or return false if the max position is reached.
-    /// Returns false if the invocation produced the last move.
-    fn next_move(&mut self) -> bool {
-        let mut roll_over_pos = 0;
-        loop {
-            // If all digits have rolled over we reached the end
-            if roll_over_pos >= self.moves.len() {
-                self.completed = true;
-                return false;
-            }
-
-            match self.moves[roll_over_pos] {
-                PartialMoveChoice::SPECIFIC(_) => {
-                    roll_over_pos += 1;
-                }
-                PartialMoveChoice::RANGE(cardinality) => {
-                    let new_value = self.current_move[roll_over_pos] + 1;
-
-                    if new_value >= cardinality {
-                        // Rolled over
-                        self.current_move[roll_over_pos] = 0;
-                        roll_over_pos += 1;
-                    } else {
-                        self.current_move[roll_over_pos] = new_value;
-                        break;
-                    }
-                }
-            }
-        }
-        true
     }
 }
 
@@ -247,27 +280,18 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     type Item = State;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.completed {
-            return None;
-        }
-
-        loop {
-            let target = self
-                .game_structure
-                .transitions(self.state, self.current_move.clone());
-
-            let has_more_moves = self.next_move();
-            let is_known = self.known.contains(&target);
-
-            if is_known && has_more_moves {
-                continue;
-            } else if is_known && !has_more_moves {
-                assert!(self.completed); // Should be set by self.next_move()
-                return None;
+        let mov = self.moves.next();
+        if let Some(mov) = mov {
+            let dest = self.game_structure.transitions(self.state, mov);
+            if self.known.contains(&dest) {
+                // Try again
+                self.next()
             } else {
-                self.known.insert(target);
-                return Some(target);
+                self.known.insert(dest);
+                Some(dest)
             }
+        } else {
+            None
         }
     }
 }
@@ -398,7 +422,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     VarsIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
                             let targets: Vec<ATLVertex> =
-                                DeltaIterator::new(&self.game_structure, *state, pmove)
+                                DeltaIterator::new(&self.game_structure, *state, &pmove)
                                     .map(|state| ATLVertex::FULL {
                                         state,
                                         formula: formula.clone(),
@@ -470,7 +494,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         VarsIterator::new(moves, players.iter().copied().collect())
                             .map(|pmove| {
                                 let mut targets: Vec<ATLVertex> =
-                                    DeltaIterator::new(&self.game_structure, *state, pmove)
+                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
                                         .map(|state| ATLVertex::FULL {
                                             state,
                                             formula: formula.clone(),
@@ -541,7 +565,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         VarsIterator::new(moves, players.iter().copied().collect())
                             .map(|pmove| {
                                 let targets: Vec<ATLVertex> =
-                                    DeltaIterator::new(&self.game_structure, *state, pmove)
+                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
                                         .map(|state| ATLVertex::FULL {
                                             state,
                                             formula: formula.clone(),
@@ -609,7 +633,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                 // Successor states with same formula
                                 // "Is the formula also satisfied in next state?"
                                 let mut targets: Vec<ATLVertex> =
-                                    DeltaIterator::new(&self.game_structure, *state, pmove)
+                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
                                         .map(|state| ATLVertex::FULL {
                                             state,
                                             formula: formula.clone(),
@@ -637,7 +661,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 state,
                 partial_move,
                 formula,
-            } => DeltaIterator::new(&self.game_structure, *state, partial_move.clone())
+            } => DeltaIterator::new(&self.game_structure, *state, partial_move)
                 .map(|state| {
                     let targets = vec![ATLVertex::FULL {
                         state,
@@ -656,10 +680,28 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 #[cfg(test)]
 mod test {
     use crate::atl::common::DynVec;
-    use crate::atl::dependencygraph::{DeltaIterator, PartialMoveChoice, VarsIterator};
+    use crate::atl::dependencygraph::{
+        DeltaIterator, PartialMoveChoice, PartialMoveIterator, VarsIterator,
+    };
     use crate::atl::gamestructure::EagerGameStructure;
     use std::collections::HashSet;
     use std::sync::Arc;
+
+    #[test]
+    fn partial_move_iterator_01() {
+        let partial_move = vec![
+            PartialMoveChoice::RANGE(2),
+            PartialMoveChoice::SPECIFIC(1),
+            PartialMoveChoice::RANGE(2),
+        ];
+
+        let mut iter = PartialMoveIterator::new(&partial_move);
+        assert_eq!(iter.next(), Some(vec![0, 1, 0]));
+        assert_eq!(iter.next(), Some(vec![0, 1, 1]));
+        assert_eq!(iter.next(), Some(vec![1, 1, 0]));
+        assert_eq!(iter.next(), Some(vec![1, 1, 1]));
+        assert_eq!(iter.next(), None);
+    }
 
     #[test]
     fn vars_iterator_01() {
@@ -741,9 +783,9 @@ mod test {
                         // Player 4
                         Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(1))])),
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(3))])),
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(2))])),
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(5))])),
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(3))])),
                     ])),
                 ])),
                 // Player 2
@@ -751,9 +793,9 @@ mod test {
                     // player 3
                     Arc::new(DynVec::NEST(vec![
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(2))])),
-                        // Player 4
                         Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(4))])),
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(5))])),
                         // Player 4
                         Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(1))])),
                     ])),
@@ -774,7 +816,7 @@ mod test {
             PartialMoveChoice::RANGE(3),    // player 3
             PartialMoveChoice::SPECIFIC(0), // player 4
         ];
-        let mut iter = DeltaIterator::new(&game_structure, state, partial_move);
+        let mut iter = DeltaIterator::new(&game_structure, state, &partial_move);
 
         let value = iter.next().unwrap();
         assert_eq!(value, 1);
