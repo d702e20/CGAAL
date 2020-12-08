@@ -33,10 +33,10 @@ macro_rules! bench_json {
 /// Reads a formula in JSON format from a file.
 /// This function will exit the program if it encounters an error.
 fn load_formula(path: &str) -> Arc<Phi> {
-    let mut file = File::open(path).unwrap();
+    let mut file = File::open(path).expect(&format!("path: {}", path));
     let mut formula = String::new();
-    file.read_to_string(&mut formula).unwrap();
-    serde_json::from_str(formula.as_str()).unwrap()
+    file.read_to_string(&mut formula).expect("hit2");
+    serde_json::from_str(formula.as_str()).expect("hit3")
 }
 
 macro_rules! bench_lcgs {
@@ -44,11 +44,13 @@ macro_rules! bench_lcgs {
         fn $name(c: &mut Criterion) {
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
-                    let lcgs = parse_lcgs(include_str!(concat!("lcgs/", $model))).unwrap();
-                    let game_structure = IntermediateLCGS::create(lcgs).unwrap();
+                    let lcgs = parse_lcgs(include_str!(concat!("lcgs/", $model)))
+                        .expect(&format!("Could not read model {}", $model));
+                    let game_structure =
+                        IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                     let graph = ATLDependencyGraph { game_structure };
 
-                    let formula = load_formula(concat!("lcgs/", $formula));
+                    let formula = load_formula(concat!("benches/lcgs/", $formula));
 
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
@@ -69,10 +71,35 @@ bench_json!(
 );
 
 bench_lcgs!(
-    mexican_standoff_lcgs,
-    "Mexican_Standoff/Mexican_Standoff_Prism-inspired-2.lcgs",
+    mexican_standoff_lcgs_alive_till_not,
+    "Mexican_Standoff/Mexican_Standoff.lcgs",
     "Mexican_Standoff/Mexican_Standoff_p1_is_alive_till_he_aint.json"
 );
 
-criterion_group!(benches, mexican_standoff_json, mexican_standoff_lcgs);
+bench_lcgs!(
+    mexican_standoff_lcgs_wack,
+    "Mexican_Standoff/Mexican_Standoff.lcgs",
+    "Mexican_Standoff/wack.json"
+);
+
+bench_lcgs!(
+    gossiping_girls_circular_omniscient,
+    "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
+    "Gossipping_Girls_Circular/girl1_not_omniscient_until_atleast_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gossiping_girls_circular_10_steps,
+    "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
+    "Gossipping_Girls_Circular/eventually_10_steps_are_passed_TRUE.json"
+);
+
+criterion_group!(
+    benches,
+    //mexican_standoff_json,
+    //mexican_standoff_lcgs_wack,
+    mexican_standoff_lcgs_alive_till_not,
+    //gossiping_girls_circular_omniscient,
+    //gossiping_girls_circular_10_steps
+);
 criterion_main!(benches);
