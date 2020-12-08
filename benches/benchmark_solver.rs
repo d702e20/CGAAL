@@ -83,13 +83,19 @@ bench_lcgs!(
 );
 
 bench_lcgs!(
-    gossiping_girls_circular_omniscient,
+    gossiping_girls_circular_10_steps_eventually,
+    "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
+    "Gossipping_Girls_Circular/eventually_10_steps_are_passed_TRUE.json"
+);
+
+bench_lcgs!(
+    gossiping_girls_circular_10_steps_omniscient_atleast,
     "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
     "Gossipping_Girls_Circular/girl1_not_omniscient_until_atleast_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gossiping_girls_circular_10_steps,
+    gossiping_girls_circular_10_steps_omniscient_before,
     "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
     "Gossipping_Girls_Circular/eventually_10_steps_are_passed_TRUE.json"
 );
@@ -111,9 +117,10 @@ criterion_group!(
     //mexican_standoff_json,
     //mexican_standoff_lcgs_wack,
     //mexican_standoff_lcgs_alive_till_not,
-    //gossiping_girls_circular_omniscient,
+    //gossiping_girls_circular_10_steps_omniscient_atleast,
+    gossiping_girls_circular_10_steps_omniscient_before,
     //gossiping_girls_circular_10_steps,
     //gossiping_girls_total_enforce_stupidity,
-    power_control_collab
+    //power_control_collab
 );
 criterion_main!(benches);
