@@ -18,8 +18,8 @@ impl<'a> Evaluator<'a> {
             ExprKind::UnaryOp(op, e) => self.eval_unop(op, e),
             ExprKind::BinaryOp(op, e1, e2) => self.eval_binop(op, e1, e2),
             ExprKind::TernaryIf(c, e1, e2) => self.eval_if(c, e1, e2),
-            ExprKind::Max(exprs) => self.eval_min(exprs),
-            ExprKind::Min(exprs) => self.eval_max(exprs),
+            ExprKind::Max(exprs) => self.eval_max(exprs),
+            ExprKind::Min(exprs) => self.eval_min(exprs),
         }
     }
 
@@ -64,5 +64,59 @@ impl<'a> Evaluator<'a> {
     }
     fn eval_max(&self, ls: &[Expr]) -> Result<i32, ()> {
         ls.iter().map(|p| self.eval(p)).max().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lcgs::ast::{Expr, ExprKind};
+    use crate::lcgs::ir::eval::Evaluator;
+    use crate::lcgs::ir::intermediate::State;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_max() {
+        let expr = Expr {
+            kind: ExprKind::Max(vec![
+                Expr {
+                    kind: ExprKind::Number(1),
+                },
+                Expr {
+                    kind: ExprKind::Number(3),
+                },
+                Expr {
+                    kind: ExprKind::Number(2),
+                },
+            ]),
+        };
+        let state = State(HashMap::new());
+        let evaluator = Evaluator::new(&state);
+        assert_eq!(evaluator.eval(&expr).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_min() {
+        let expr = Expr {
+            kind: ExprKind::Min(vec![
+                Expr {
+                    kind: ExprKind::Number(1),
+                },
+                Expr {
+                    kind: ExprKind::Number(3),
+                },
+                Expr {
+                    kind: ExprKind::Number(2),
+                },
+            ]),
+        };
+        let state = State(HashMap::new());
+        let evaluator = Evaluator::new(&state);
+        assert_eq!(evaluator.eval(&expr).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_rust_max() {
+        let mut v: Vec<Result<i32, ()>> = vec![Ok(1), Ok(3), Ok(2)];
+        assert_eq!(v.iter().cloned().max().unwrap(), Ok(3));
     }
 }
