@@ -1,3 +1,5 @@
+// When run with the despite_eventually_happy.json formula the answer should be false,
+// because there is a strategy for 1 to eventually be happy
 
 q0 : [0..1] init 1;
 q0' = 0;
