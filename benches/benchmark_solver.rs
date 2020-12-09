@@ -57,7 +57,8 @@ macro_rules! bench_lcgs {
                         formula,
                     };
 
-                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    let result = distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    //println!("Result: {}", result);
                 })
             });
         }
@@ -95,6 +96,12 @@ bench_lcgs!(
 );
 
 bench_lcgs!(
+    gossiping_girls_circular_10_steps_omniscient_before_2,
+    "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
+    "Gossipping_Girls_Circular/p1_omniscient_before_10_steps.json"
+);
+
+bench_lcgs!(
     gossiping_girls_circular_10_steps_omniscient_before,
     "Gossipping_Girls_Circular/Gossipping_Girls_Circular.lcgs",
     "Gossipping_Girls_Circular/eventually_10_steps_are_passed_TRUE.json"
@@ -112,15 +119,23 @@ bench_lcgs!(
     "Power_Control_in_Cellular_Networks/collab_to_make_p1_quality_higher_than_p2_with_negation_TRUE.json"
 );
 
+bench_lcgs!(
+    public_good_game2_p1_always_worth_more,
+    "Public_Good_Game2/Public_Good_Game2.lcgs",
+    "Public_Good_Game2/Public_Good_Game_p1_always_worth_more.json"
+);
+
 criterion_group!(
     benches,
     //mexican_standoff_json,
     //mexican_standoff_lcgs_wack,
     //mexican_standoff_lcgs_alive_till_not,
     //gossiping_girls_circular_10_steps_omniscient_atleast,
-    gossiping_girls_circular_10_steps_omniscient_before,
+    //gossiping_girls_circular_10_steps_omniscient_before,
     //gossiping_girls_circular_10_steps,
+    //gossiping_girls_circular_10_steps_omniscient_before_2,
     //gossiping_girls_total_enforce_stupidity,
-    //power_control_collab
+    //power_control_collab,
+    public_good_game2_p1_always_worth_more
 );
 criterion_main!(benches);
