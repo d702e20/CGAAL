@@ -90,6 +90,8 @@ impl Display for PartialMoveChoice {
 
 pub type PartialMove = Vec<PartialMoveChoice>;
 
+/// An iterator that produces all move vectors in a partial move.
+/// Example: The partial move {1, 2},{1},{1, 2} results in 111, 112, 211, and 212.
 struct PartialMoveIterator<'a> {
     partial_move: &'a PartialMove,
     initialized: bool,
@@ -97,6 +99,7 @@ struct PartialMoveIterator<'a> {
 }
 
 impl<'a> PartialMoveIterator<'a> {
+    /// Create a new PartialMoveIterator
     fn new(partial_move: &'a PartialMove) -> PartialMoveIterator {
         PartialMoveIterator {
             partial_move,
@@ -105,8 +108,12 @@ impl<'a> PartialMoveIterator<'a> {
         }
     }
 
+    /// Initializes the partial move iterator. This should be called exactly once
+    /// before any call to make_next. This function creates the first move vector in a partial
+    /// move. All partial move always contain at least one move vector.
     fn make_first(&mut self) {
         self.initialized = true;
+        // Create the first move vector from matching on the partial move
         self.current = self
             .partial_move
             .iter()
@@ -117,9 +124,13 @@ impl<'a> PartialMoveIterator<'a> {
             .collect();
     }
 
+    /// Updates self.current to the next move vector. This function returns false if a new
+    /// move vector could not be created (due to exceeding the ranges in the partial move).
     fn make_next(&mut self, player: Player) -> bool {
         if player >= self.partial_move.len() {
             false
+
+            // Call this function recursively, where we check the next player
         } else if !self.make_next(player + 1) {
             // The next player's move has rolled over or doesn't exist.
             // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
@@ -127,11 +138,14 @@ impl<'a> PartialMoveIterator<'a> {
                 PartialMoveChoice::SPECIFIC(_) => false,
                 PartialMoveChoice::RANGE(n) => {
                     let current = &mut self.current;
+                    // Increase move index and return true if it's valid
                     current[player] += 1;
                     if current[player] < n {
                         true
                     } else {
-                        // We have rolled over (self.next[player] >= n)
+                        // We have rolled over (self.next[player] >= n).
+                        // Reset this player's move index and return false to indicate it
+                        // was not possible to create a valid next move at this depth
                         current[player] = 0;
                         false
                     }
@@ -143,20 +157,16 @@ impl<'a> PartialMoveIterator<'a> {
     }
 }
 
+/// Allows the PartialMoveIterator to be iterated over.
 impl<'a> Iterator for PartialMoveIterator<'a> {
     type Item = Vec<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.initialized {
             self.make_first();
-            // self.current.as_deref()
-            // Some(self.current.as_ref().unwrap())
-            // Some(&self.current.unwrap())
             Some(self.current.clone())
         } else {
             if self.make_next(0) {
-                //self.current.as_deref()
-                //Some(self.current.as_ref().unwrap())
                 Some(self.current.clone())
             } else {
                 None
@@ -172,12 +182,13 @@ struct VarsIterator {
 }
 
 impl VarsIterator {
-    /// Iterates over all players choices for a set of players
+    /// Iterates over all partial moves variants that results from a number of players
+    /// making a combination of specific choices.
     ///
     /// # Arguments
     ///
-    /// * `moves` number of moves for each
-    /// * `players` whoese move will be iterated over
+    /// * `moves` number of moves for each player.
+    /// * `players` set of players who has to make a specific move.
     ///
     /// # Example
     ///
@@ -255,14 +266,19 @@ impl Iterator for VarsIterator {
     }
 }
 
+/// An iterator that produces all resulting states from taking a partial move at a state.
+/// The iterator will make sure the same state is not produced multiple times.
 struct DeltaIterator<'a, G: GameStructure> {
     game_structure: &'a G,
     state: State,
     moves: PartialMoveIterator<'a>,
+    /// Contains the states, that have already been produced once, so we can avoid producing
+    /// them again
     known: HashSet<State>,
 }
 
 impl<'a, G: GameStructure> DeltaIterator<'a, G> {
+    /// Create a new DeltaIterator
     fn new(game_structure: &'a G, state: State, moves: &'a PartialMove) -> Self {
         let known = HashSet::new();
         let moves = PartialMoveIterator::new(&moves);
@@ -280,15 +296,17 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     type Item = State;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Get the next move vector from the partial move
         let mov = self.moves.next();
         if let Some(mov) = mov {
-            let dest = self.game_structure.transitions(self.state, mov);
-            if self.known.contains(&dest) {
-                // Try again
+            let res = self.game_structure.transitions(self.state, mov);
+            // Have we already produced this resulting state before?
+            if self.known.contains(&res) {
+                // Not new. We simply call this function recursively to find a new next
                 self.next()
             } else {
-                self.known.insert(dest);
-                Some(dest)
+                self.known.insert(res);
+                Some(res)
             }
         } else {
             None
