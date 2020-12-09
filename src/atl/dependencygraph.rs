@@ -315,6 +315,7 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
 }
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
+    #[allow(dead_code)]
     fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
         let max_players = self.game_structure.max_player();
         let mut inv_players =
@@ -416,12 +417,11 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     edges
                 }
                 Phi::DespiteNext { players, formula } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     let moves = self.game_structure.move_count(*state);
                     let targets: Vec<ATLVertex> =
-                        VarsIterator::new(moves, inv_players.iter().copied().collect())
+                        VarsIterator::new(moves, players.iter().copied().collect())
                             .map(|pmove| ATLVertex::PARTIAL {
                                 state: *state,
                                 partial_move: pmove,
@@ -458,7 +458,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     pre,
                     until,
                 } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // `pre`-target
@@ -469,13 +468,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     };
 
                     let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
-                        .map(|pmove| ATLVertex::PARTIAL {
-                            state: *state,
-                            partial_move: pmove,
-                            formula: vert.formula(),
-                        })
-                        .collect();
+                    let mut targets: Vec<ATLVertex> =
+                        VarsIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: vert.formula(),
+                            })
+                            .collect();
                     targets.push(pre);
 
                     edges.insert(Edges::HYPER(HyperEdge {
@@ -542,19 +542,19 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // Partial targets with same formula
                     // "Is the formula also satisfied in the next state?"
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
-                        .map(|pmove| ATLVertex::PARTIAL {
-                            state: *state,
-                            partial_move: pmove,
-                            formula: formula.clone(),
-                        })
-                        .collect();
+                    let targets: Vec<ATLVertex> =
+                        VarsIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: formula.clone(),
+                            })
+                            .collect();
                     edges.insert(Edges::HYPER(HyperEdge {
                         source: vert.clone(),
                         targets,
@@ -612,19 +612,19 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // Partial targets with same formula
                     // "Is the formula also satisfied in the next state?"
                     let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
-                        .map(|pmove| ATLVertex::PARTIAL {
-                            state: *state,
-                            partial_move: pmove,
-                            formula: formula.clone(),
-                        })
-                        .collect();
+                    let mut targets: Vec<ATLVertex> =
+                        VarsIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: formula.clone(),
+                            })
+                            .collect();
 
                     // sub-formula target
                     // "Is the sub formula satisfied in current state?"

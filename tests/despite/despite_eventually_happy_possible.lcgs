@@ -1,0 +1,18 @@
+
+q0 : [0..1] init 1;
+q0' = 0;
+
+label happy = !q0 && (p1.choice == p2.choice);
+
+player p1 = chooser;
+player p2 = chooser;
+
+template chooser
+    [wait] !q0;
+    [one] q0;
+    [two] q0;
+
+    choice : [0..2] init 0;
+    choice' = wait ? choice : (one ? 1 : 2);
+
+endtemplate

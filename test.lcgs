@@ -1,9 +1,0 @@
-foo : [0 .. 4] init 0;
-foo' = foo == 0 ? 4 : foo - 1;
-
-label is_foo = foo;
-
-player p = waiter;
-template waiter
-    [wait] 1;
-endtemplate
