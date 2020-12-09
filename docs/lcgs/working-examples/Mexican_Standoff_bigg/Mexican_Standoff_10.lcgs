@@ -1,0 +1,123 @@
+// Mexican Standoff PRISM-inspired 2
+
+const max_health = 1;
+
+player p0 = shooter [index=0, other1=p1, other2=p2, other3=p3, other4=p4, other5=p5, other6=p6, other7=p7, other8=p8, other9=p9];
+player p1 = shooter [index=1, other1=p0, other2=p2, other3=p3, other4=p4, other5=p5, other6=p6, other7=p7, other8=p8, other9=p9];
+player p2 = shooter [index=2, other1=p0, other2=p1, other3=p3, other4=p4, other5=p5, other6=p6, other7=p7, other8=p8, other9=p9];
+player p3 = shooter [index=3, other1=p0, other2=p1, other3=p2, other4=p4, other5=p5, other6=p6, other7=p7, other8=p8, other9=p9];
+player p4 = shooter [index=4, other1=p0, other2=p1, other3=p2, other4=p3, other5=p5, other6=p6, other7=p7, other8=p8, other9=p9];
+player p5 = shooter [index=5, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p6, other7=p7, other8=p8, other9=p9];
+player p6 = shooter [index=6, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5, other7=p7, other8=p8, other9=p9];
+player p7 = shooter [index=7, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5, other7=p6, other8=p8, other9=p9];
+player p8 = shooter [index=8, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5, other7=p6, other8=p7, other9=p9];
+player p9 = shooter [index=9, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5, other7=p6, other8=p7, other9=p8];
+
+
+template shooter
+    label alive = health > 0;
+    health : [0..max_health] init max_health;
+    health' = max(health - (
+        index == 0 * other1.shoot_other1 +
+        index == 0 * other2.shoot_other1 +
+        index == 0 * other3.shoot_other1 +
+        index == 0 * other4.shoot_other1 +
+        index == 0 * other5.shoot_other1 +
+        index == 0 * other6.shoot_other1 +
+        index == 0 * other7.shoot_other1 +
+        index == 0 * other8.shoot_other1 +
+        index == 0 * other9.shoot_other1 +
+        index == 1 * other1.shoot_other1 +
+        index == 1 * other2.shoot_other2 +
+        index == 1 * other3.shoot_other2 +
+        index == 1 * other4.shoot_other2 +
+        index == 1 * other5.shoot_other2 +
+        index == 1 * other6.shoot_other2 +
+        index == 1 * other7.shoot_other2 +
+        index == 1 * other8.shoot_other2 +
+        index == 1 * other9.shoot_other2 +
+        index == 2 * other1.shoot_other2 +
+        index == 2 * other2.shoot_other2 +
+        index == 2 * other3.shoot_other3 +
+        index == 2 * other4.shoot_other3 +
+        index == 2 * other5.shoot_other3 +
+        index == 2 * other6.shoot_other3 +
+        index == 2 * other7.shoot_other3 +
+        index == 2 * other8.shoot_other3 +
+        index == 2 * other9.shoot_other3 +
+        index == 3 * other1.shoot_other3 +
+        index == 3 * other2.shoot_other3 +
+        index == 3 * other3.shoot_other3 +
+        index == 3 * other4.shoot_other4 +
+        index == 3 * other5.shoot_other4 +
+        index == 3 * other6.shoot_other4 +
+        index == 3 * other7.shoot_other4 +
+        index == 3 * other8.shoot_other4 +
+        index == 3 * other9.shoot_other4 +
+        index == 4 * other1.shoot_other4 +
+        index == 4 * other2.shoot_other4 +
+        index == 4 * other3.shoot_other4 +
+        index == 4 * other4.shoot_other4 +
+        index == 4 * other5.shoot_other5 +
+        index == 4 * other6.shoot_other5 +
+        index == 4 * other7.shoot_other5 +
+        index == 4 * other8.shoot_other5 +
+        index == 4 * other9.shoot_other5 +
+        index == 5 * other1.shoot_other5 +
+        index == 5 * other2.shoot_other5 +
+        index == 5 * other3.shoot_other5 +
+        index == 5 * other4.shoot_other5 +
+        index == 5 * other5.shoot_other5 +
+        index == 5 * other6.shoot_other6 +
+        index == 5 * other7.shoot_other6 +
+        index == 5 * other8.shoot_other6 +
+        index == 5 * other9.shoot_other6 +
+        index == 6 * other1.shoot_other6 +
+        index == 6 * other2.shoot_other6 +
+        index == 6 * other3.shoot_other6 +
+        index == 6 * other4.shoot_other6 +
+        index == 6 * other5.shoot_other6 +
+        index == 6 * other6.shoot_other6 +
+        index == 6 * other7.shoot_other7 +
+        index == 6 * other8.shoot_other7 +
+        index == 6 * other9.shoot_other7 +
+        index == 7 * other1.shoot_other7 +
+        index == 7 * other2.shoot_other7 +
+        index == 7 * other3.shoot_other7 +
+        index == 7 * other4.shoot_other7 +
+        index == 7 * other5.shoot_other7 +
+        index == 7 * other6.shoot_other7 +
+        index == 7 * other7.shoot_other7 +
+        index == 7 * other8.shoot_other8 +
+        index == 7 * other9.shoot_other8 +
+        index == 8 * other1.shoot_other8 +
+        index == 8 * other2.shoot_other8 +
+        index == 8 * other3.shoot_other8 +
+        index == 8 * other4.shoot_other8 +
+        index == 8 * other5.shoot_other8 +
+        index == 8 * other6.shoot_other8 +
+        index == 8 * other7.shoot_other8 +
+        index == 8 * other8.shoot_other8 +
+        index == 8 * other9.shoot_other9 +
+        index == 9 * other1.shoot_other9 +
+        index == 9 * other2.shoot_other9 +
+        index == 9 * other3.shoot_other9 +
+        index == 9 * other4.shoot_other9 +
+        index == 9 * other5.shoot_other9 +
+        index == 9 * other6.shoot_other9 +
+        index == 9 * other7.shoot_other9 +
+        index == 9 * other8.shoot_other9 +
+        index == 9 * other9.shoot_other9
+        ), 0);
+
+    [wait] 1;
+    [shoot_other1] health > 0 && other1.health > 0;
+    [shoot_other2] health > 0 && other2.health > 0;
+    [shoot_other3] health > 0 && other3.health > 0;
+    [shoot_other4] health > 0 && other4.health > 0;
+    [shoot_other5] health > 0 && other5.health > 0;
+    [shoot_other6] health > 0 && other6.health > 0;
+    [shoot_other7] health > 0 && other7.health > 0;
+    [shoot_other8] health > 0 && other8.health > 0;
+    [shoot_other9] health > 0 && other9.health > 0;
+endtemplate
