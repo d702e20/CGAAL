@@ -1,0 +1,13 @@
+{
+  "enforce until": {
+    "players": [0],
+    "pre": {
+      "proposition": 0
+    },
+    "until": {
+      "not": {
+        "proposition": 0
+      }
+    }
+  }
+}
