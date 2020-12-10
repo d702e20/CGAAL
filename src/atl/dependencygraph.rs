@@ -296,20 +296,21 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     type Item = State;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Get the next move vector from the partial move
-        let mov = self.moves.next();
-        if let Some(mov) = mov {
-            let res = self.game_structure.transitions(self.state, mov);
-            // Have we already produced this resulting state before?
-            if self.known.contains(&res) {
-                // Not new. We simply call this function recursively to find a new next
-                self.next()
+        loop {
+            // Get the next move vector from the partial move
+            let mov = self.moves.next();
+            if let Some(mov) = mov {
+                let res = self.game_structure.transitions(self.state, mov);
+                // Have we already produced this resulting state before?
+                if self.known.contains(&res) {
+                    continue;
+                } else {
+                    self.known.insert(res);
+                    return Some(res);
+                }
             } else {
-                self.known.insert(res);
-                Some(res)
+                return None;
             }
-        } else {
-            None
         }
     }
 }
@@ -786,6 +787,53 @@ mod test {
 
         let value = iter.next();
         assert_eq!(value, None);
+    }
+
+    #[test]
+    fn vars_iterator_03() {
+        // Both players choose. So we should end up with every move vector
+        let mut players = HashSet::new();
+        players.insert(0);
+        players.insert(1);
+        let mut iter = VarsIterator::new(vec![3, 3], players);
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
