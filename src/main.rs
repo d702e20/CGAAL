@@ -85,15 +85,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     match args.subcommand() {
-        ("solver", Some(_args)) => {
+        ("solver", Some(solver_args)) => {
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
-            fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
+            fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                let result = distributed_certain_zero(graph, v0, threads);
                 println!("Result: {}", result);
             }
+
+            let threads = match solver_args.value_of("threads") {
+                None => num_cpus::get() as u64,
+                Some(t_arg) => t_arg.parse().unwrap(),
+            };
 
             load(
                 model_type,
@@ -101,18 +106,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 formula_path,
                 |graph, formula| {
                     let v0 = ATLVertex::FULL { state: 0, formula };
-                    check_model(graph, v0);
+                    check_model(graph, v0, threads);
                 },
                 |graph, formula| {
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
                         formula,
                     };
-                    check_model(graph, v0);
+                    check_model(graph, v0, threads);
                 },
             )
         }
-        ("graph", Some(args)) => {
+        ("graph", Some(_args)) => {
             // Generic start function for use with `load` that starts the graph printer
             fn print_model<G: GameStructure>(
                 graph: ATLDependencyGraph<G>,
@@ -279,7 +284,15 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .default_value("warn")
                 .help("Comma separated list of filter directives"),
         )
-        .subcommand(build_common_arguments(SubCommand::with_name("solver")))
+        .subcommand(build_common_arguments(
+            SubCommand::with_name("solver").arg(
+                Arg::with_name("threads")
+                    .short("r")
+                    .long("threads")
+                    .env("THREADS")
+                    .help("Number of threads to run solver on"),
+            ),
+        ))
         .subcommand(build_common_arguments(SubCommand::with_name("graph")))
         .get_matches()
 }
