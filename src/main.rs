@@ -24,6 +24,7 @@ use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::parse::parse_lcgs;
+#[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
 use tracing::trace;
 
@@ -33,6 +34,7 @@ mod common;
 mod distterm;
 mod edg;
 mod lcgs;
+#[cfg(feature = "graph-printer")]
 mod printer;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -118,42 +120,45 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
         }
         ("graph", Some(_args)) => {
-            // Generic start function for use with `load` that starts the graph printer
-            fn print_model<G: GameStructure>(
-                graph: ATLDependencyGraph<G>,
-                v0: ATLVertex,
-                output: Option<&str>,
-            ) {
-                let output: Box<dyn Write> = match output {
-                    Some(path) => {
-                        let file = File::create(path).unwrap_or_else(|err| {
-                            eprintln!("Failed to create output file\n\nError:\n{}", err);
-                            exit(1);
-                        });
-                        Box::new(file)
-                    }
-                    _ => Box::new(stdout()),
-                };
-
-                print_graph(graph, v0, output).unwrap();
-            }
-
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                |graph, formula| {
-                    let v0 = ATLVertex::FULL { state: 0, formula };
-                    print_model(graph, v0, subargs.value_of("output"));
-                },
-                |graph, formula| {
-                    let v0 = ATLVertex::FULL {
-                        state: graph.game_structure.initial_state_index(),
-                        formula,
+            #[cfg(feature = "graph-printer")]
+            {
+                // Generic start function for use with `load` that starts the graph printer
+                fn print_model<G: GameStructure>(
+                    graph: ATLDependencyGraph<G>,
+                    v0: ATLVertex,
+                    output: Option<&str>,
+                ) {
+                    let output: Box<dyn Write> = match output {
+                        Some(path) => {
+                            let file = File::create(path).unwrap_or_else(|err| {
+                                eprintln!("Failed to create output file\n\nError:\n{}", err);
+                                exit(1);
+                            });
+                            Box::new(file)
+                        }
+                        _ => Box::new(stdout()),
                     };
-                    print_model(graph, v0, subargs.value_of("output"));
-                },
-            )
+
+                    print_graph(graph, v0, output).unwrap();
+                }
+
+                load(
+                    model_type,
+                    input_model_path,
+                    formula_path,
+                    |graph, formula| {
+                        let v0 = ATLVertex::FULL { state: 0, formula };
+                        print_model(graph, v0, subargs.value_of("output"));
+                    },
+                    |graph, formula| {
+                        let v0 = ATLVertex::FULL {
+                            state: graph.game_structure.initial_state_index(),
+                            formula,
+                        };
+                        print_model(graph, v0, subargs.value_of("output"));
+                    },
+                )
+            }
         }
         _ => (),
     };
@@ -273,7 +278,7 @@ fn parse_arguments() -> ArgMatches<'static> {
             )
     }
 
-    App::new(PKG_NAME)
+    let app = App::new(PKG_NAME)
         .version(VERSION)
         .author(AUTHORS)
         .arg(
@@ -292,9 +297,14 @@ fn parse_arguments() -> ArgMatches<'static> {
                     .env("THREADS")
                     .help("Number of threads to run solver on"),
             ),
-        ))
-        .subcommand(build_common_arguments(SubCommand::with_name("graph")))
-        .get_matches()
+        ));
+
+    if cfg!(feature = "graph-printer") {
+        app.subcommand(build_common_arguments(SubCommand::with_name("graph")))
+            .get_matches()
+    } else {
+        app.get_matches()
+    }
 }
 
 fn setup_tracing(args: &ArgMatches) {
