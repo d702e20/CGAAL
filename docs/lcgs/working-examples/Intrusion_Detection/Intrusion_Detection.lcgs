@@ -1,8 +1,8 @@
 // intrusion detection CSG model taken from
 
 
-player defender = attacker_defender [attacker, 0]
-player attacker = attacker_defender [defender, 1]
+player defender = attacker_defender [opposition=attacker, is_attacker=0]
+player attacker = attacker_defender [opposition=defender, is_attacker=1]
 
 const MAX_ROUNDS = 100;
 const MAX_SYSTEM_HEALTH = 10;
@@ -13,7 +13,7 @@ rounds' = max(rounds + 1, MAX_ROUNDS);
 
 template attacker_defender
     system_state : [0..1] //0 healthy, 1 compromised
-    system_state' = is_attacker ? 
+    system_state' = is_attacker ?
                        (opposition.defend1 * attack2) + (defender.defend2 * attack1)
                      : (opposition.attack2 * defend1) + (opposition.attack1 * defend2);
 
