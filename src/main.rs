@@ -6,8 +6,9 @@ extern crate lazy_static;
 #[macro_use]
 extern crate tracing;
 
+use itertools::Itertools;
 use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::Debug;
 use std::fs::File;
@@ -22,7 +23,9 @@ use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
-use crate::lcgs::ir::intermediate::IntermediateLCGS;
+use crate::lcgs::ir::intermediate;
+use crate::lcgs::ir::intermediate::{IntermediateLCGS, Player};
+use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
@@ -61,7 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let subargs = args.subcommand().1.unwrap();
 
-    let formula_path = subargs.value_of("formula").unwrap();
+    let formula_path = subargs.value_of("formula").unwrap_or("");
     let input_model_path = subargs.value_of("input_model").unwrap();
     let model_type = match subargs.value_of("model_type") {
         Some("lcgs") => "lcgs",
@@ -87,6 +90,60 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     match args.subcommand() {
+        ("numbers", Some(number_args)) => {
+            // Get the numbers for the players
+
+            // Open the input model file
+            let mut file = File::open(input_model_path).unwrap_or_else(|err| {
+                eprintln!("Failed to open input model\n\nError:\n{}", err);
+                exit(1);
+            });
+
+            // Read the input model from the file into memory
+            let mut content = String::new();
+            file.read_to_string(&mut content).unwrap_or_else(|err| {
+                eprintln!("Failed to read input model\n\nError:\n{}", err);
+                exit(1);
+            });
+
+            let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
+                eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
+                exit(1);
+            });
+            let ir = IntermediateLCGS::create(lcgs).unwrap_or_else(|_err| {
+                eprintln!("Invalid LCGS program");
+                exit(1);
+            });
+
+            let player_id = ir
+                .get_player()
+                .iter()
+                .enumerate()
+                .map(|(i, player)| (player.get_name(), i))
+                .collect::<HashMap<String, usize>>();
+
+            let labels = ir.get_labels();
+            let mut labels = labels
+                .iter()
+                .enumerate()
+                .collect::<Vec<(usize, &SymbolIdentifier)>>();
+            labels.sort_by_key(|(i, label)| &label.owner);
+
+            for (owner, group) in &labels.into_iter().group_by(|(i, symbol)| &symbol.owner) {
+                let label_group = group.collect::<Vec<(usize, &SymbolIdentifier)>>();
+
+                match owner {
+                    Owner::Player(player) => {
+                        println!("name: {:?}, id: {}", owner, player_id[player])
+                    }
+                    Owner::Global => println!("name: {:?}", owner),
+                }
+
+                for (i, symbol) in label_group {
+                    println!("\tlabel: {}, id: {}", symbol.name, i);
+                }
+            }
+        }
         ("solver", Some(solver_args)) => {
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
@@ -297,7 +354,17 @@ fn parse_arguments() -> ArgMatches<'static> {
                     .env("THREADS")
                     .help("Number of threads to run solver on"),
             ),
-        ));
+        ))
+        .subcommand(
+            SubCommand::with_name("numbers").arg(
+                Arg::with_name("input_model")
+                    .short("m")
+                    .long("model")
+                    .env("INPUT_MODEL")
+                    .required(true)
+                    .help("The input file to generate model from"),
+            ),
+        );
 
     if cfg!(feature = "graph-printer") {
         app.subcommand(build_common_arguments(SubCommand::with_name("graph")))

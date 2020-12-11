@@ -116,7 +116,7 @@ impl<'a> IntoIterator for &'a SymbolTable {
 
 /// OwnedIdentifiers always belongs to a player or the global scope. This enum allows
 /// us to abstract over both possibilities.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum Owner {
     Player(String),
     Global,
