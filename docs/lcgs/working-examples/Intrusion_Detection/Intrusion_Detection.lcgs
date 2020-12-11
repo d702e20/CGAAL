@@ -4,12 +4,12 @@
 player defender = attacker_defender [opposition=attacker, is_attacker=0];
 player attacker = attacker_defender [opposition=defender, is_attacker=1];
 
-const MAX_ROUNDS = 100;
-const MAX_SYSTEM_HEALTH = 10;
-const INIT_HEALTH = 5;
+const MAX_ROUNDS = 5;
+const MAX_SYSTEM_HEALTH = 100000;
+const INIT_HEALTH = 100000;
 
 rounds : [0..MAX_ROUNDS] init 0;
-rounds' = max(rounds + 1, MAX_ROUNDS);
+rounds' = min(rounds + 1, MAX_ROUNDS);
 
 template attacker_defender
 
@@ -20,7 +20,7 @@ template attacker_defender
 
 
     system_health : [0..MAX_SYSTEM_HEALTH] init INIT_HEALTH;
-    system_health' =
+    system_health' = system_health -
         (is_attacker == 1) * (system_state + (opposition.defend1 * attack2) + (defender.defend2 * attack1)) +
         (is_attacker == 0) * (system_state + (opposition.attack2 * defend1) + (opposition.attack1 * defend2));
 
