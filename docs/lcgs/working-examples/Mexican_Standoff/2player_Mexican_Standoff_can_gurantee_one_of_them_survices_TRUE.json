@@ -1,10 +1,17 @@
 {
   "enforce invariant": {
-    "players": [0,1],
+    "players": [
+      0,
+      1
+    ],
     "formula": {
       "or": [
-        {"proposition": 0},
-        {"proposition": 1}
+        {
+          "proposition": 0
+        },
+        {
+          "proposition": 1
+        }
       ]
     }
   }

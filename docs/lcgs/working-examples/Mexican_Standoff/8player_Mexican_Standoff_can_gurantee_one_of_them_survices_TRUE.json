@@ -1,13 +1,41 @@
 {
   "enforce invariant": {
-    "players": [0,1,2,3,4],
+    "players": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
     "formula": {
       "or": [
-        {"proposition": 0},
-        {"proposition": 1},
-        {"proposition": 2},
-        {"proposition": 3},
-        {"proposition": 4}
+        {
+          "or": [
+            {
+              "or": [
+                {
+                  "proposition": 0
+                },
+                {
+                  "proposition": 1
+                }
+              ]
+            },
+            {
+              "or": [
+                {
+                  "proposition": 2
+                },
+                {
+                  "proposition": 3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "proposition": 4
+        }
       ]
     }
   }
