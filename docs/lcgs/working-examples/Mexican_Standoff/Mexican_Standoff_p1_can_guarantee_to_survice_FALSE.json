@@ -1,0 +1,8 @@
+{
+  "enforce always": {
+    "players": [0],
+    "pre": {
+      "proposition": 0
+    }
+  }
+}

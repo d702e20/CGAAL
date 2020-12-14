@@ -1,0 +1,16 @@
+{
+  "enforce always": {
+    "players": [0,1,2,3,4,5,6],
+    "pre": {
+      "or": [
+        {"proposition": 0},
+        {"proposition": 1},
+        {"proposition": 2},
+        {"proposition": 3},
+        {"proposition": 4},
+        {"proposition": 5},
+        {"proposition": 6}
+      ]
+    }
+  }
+}
