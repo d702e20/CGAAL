@@ -1,7 +1,7 @@
 {
   "enforce until": {
     "players": [0],
-    "formula": {
+    "pre": {
       "proposition": 0
     },
     "until": {
