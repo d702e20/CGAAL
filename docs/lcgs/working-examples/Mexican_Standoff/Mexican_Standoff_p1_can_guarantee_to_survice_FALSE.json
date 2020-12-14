@@ -1,5 +1,5 @@
 {
-  "enforce always": {
+  "enforce invariant": {
     "players": [0],
     "pre": {
       "proposition": 0

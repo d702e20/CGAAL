@@ -1,5 +1,5 @@
 {
-  "enforce always": {
+  "enforce invariant": {
     "players": [0,1,2],
     "pre": {
       "or": [
