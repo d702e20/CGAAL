@@ -6,10 +6,12 @@ player p2 = phoneuser [otheruser = p1];
 const powmax = 10;
 const energymax = 10;
 
-label p1_quality_greatest = p1.quality > p2.quality ? 1 : 0;
-label p2_quality_greatest = p2.quality > p1.quality ? 1 : 0;
+label p1_quality_greatest = p1.quality > p2.quality;
+label p2_quality_greatest = p2.quality > p1.quality;
+label p2_quality_geq = p2.quality > p1.quality || p2.quality == p1.quality;
 label total_quality_high = 15 < totalquality;
 label p1_high_power = 1 < p1.power;
+label equal_quality = p1.quality == p2.quality;
 
 totalquality : [0..30] init 0;
 totalquality' = p1.quality + p2.quality;
