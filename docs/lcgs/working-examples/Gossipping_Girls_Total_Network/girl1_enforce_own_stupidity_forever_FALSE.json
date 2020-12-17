@@ -3,7 +3,7 @@
     "players" : [0],
     "formula" : {
         "not" : {
-          "proposition" : 0
+          "proposition" : 1
         }
     }
   }
