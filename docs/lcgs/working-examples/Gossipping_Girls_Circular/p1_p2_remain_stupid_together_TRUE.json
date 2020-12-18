@@ -1,0 +1,17 @@
+{
+  "enforce invariant" : {
+    "players" : [0,1],
+    "formula" : {
+      "and": [
+        { "not" : {
+            "proposition" : 1
+          }},
+        { "not" : {
+            "proposition" : 2
+        }}
+      ]
+    }
+  }
+}
+
+

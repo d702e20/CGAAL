@@ -1,0 +1,31 @@
+{
+  "enforce eventually": {
+    "players": [1,2,3],
+    "pre": {
+      "and": [
+        {
+          "and": [
+            {
+              "propersition": 2
+            },
+            {
+              "propersition": 3
+            }
+          ]
+        },
+        {
+          "and": [
+            {
+              "propersition": 4
+            },
+            {
+              "not": {
+                "propersition": 3
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
