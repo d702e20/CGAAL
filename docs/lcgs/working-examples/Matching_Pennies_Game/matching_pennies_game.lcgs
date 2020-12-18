@@ -7,6 +7,7 @@ player odd = penny_player[other=even, is_odd=1];
 player even = penny_player[other=odd, is_odd=0];
 
 label game_over = odd.sum >= winning_sum || even.sum >= winning_sum;
+label odd_has_largest_sum = odd.sum >= even.sum;
 
 template penny_player
     sum : [0..winning_sum] init 50;
