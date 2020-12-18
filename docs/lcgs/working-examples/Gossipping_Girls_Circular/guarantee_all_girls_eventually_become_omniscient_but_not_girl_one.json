@@ -1,31 +1,22 @@
 {
-  "enforce eventually": {
+  "enforce until": {
     "players": [1,2,3],
     "pre": {
+      "proposition": 0
+    },
+    "until": {
       "and": [
-        {
-          "and": [
-            {
-              "propersition": 2
-            },
-            {
-              "propersition": 3
-            }
-          ]
-        },
-        {
-          "and": [
-            {
-              "propersition": 4
-            },
-            {
-              "not": {
-                "propersition": 3
-              }
-            }
-          ]
-        }
+        {"and": [
+          { "not": {"proposition": 1}},
+          { "proposition": 2}
+        ]},
+        {"and": [
+          {"proposition": 3},
+          { "proposition": 4}
+        ]}
       ]
     }
   }
 }
+
+

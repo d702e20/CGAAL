@@ -1,6 +1,6 @@
 {
   "enforce until": {
-    "players": [0,1,2,3],
+    "players": [1,2,3],
     "pre": {
       "proposition": 0
     },
@@ -11,8 +11,8 @@
           { "not": {"proposition": 2}}
         ]},
         {"and": [
-          {"not": {"proposition": 1}},
-          { "not": {"proposition": 2}}
+          {"not": {"proposition": 3}},
+          { "not": {"proposition": 4}}
         ]}
       ]
     }
