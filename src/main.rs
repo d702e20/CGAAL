@@ -6,7 +6,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate tracing;
 
-use itertools::Itertools;
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -129,19 +128,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .collect::<Vec<(usize, &SymbolIdentifier)>>();
             labels.sort_by_key(|(i, label)| &label.owner);
 
-            for (owner, group) in &labels.into_iter().group_by(|(i, symbol)| &symbol.owner) {
-                let label_group = group.collect::<Vec<(usize, &SymbolIdentifier)>>();
-
-                match owner {
-                    Owner::Player(player) => {
-                        println!("name: {:?}, id: {}", owner, player_id[player])
+            let mut current_owner = None;
+            for (i, symbol) in labels {
+                if Some(&symbol.owner) != current_owner {
+                    match &symbol.owner {
+                        Owner::Player(player) => {
+                            println!("name: {:?}, id: {}", symbol.owner, player_id[player])
+                        }
+                        Owner::Global => println!("name: {:?}", symbol.owner),
                     }
-                    Owner::Global => println!("name: {:?}", owner),
+                    current_owner = Some(&symbol.owner);
                 }
 
-                for (i, symbol) in label_group {
-                    println!("\tlabel: {}, id: {}", symbol.name, i);
-                }
+                println!("\tlabel: {}, id: {}", symbol.name, i);
             }
         }
         ("solver", Some(solver_args)) => {
