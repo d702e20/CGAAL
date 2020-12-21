@@ -5,9 +5,7 @@
       "proposition": 0
     },
     "until": {
-      "not": {
-        "proposition": 0
-      }
+      "proposition": 1
     }
   }
 }

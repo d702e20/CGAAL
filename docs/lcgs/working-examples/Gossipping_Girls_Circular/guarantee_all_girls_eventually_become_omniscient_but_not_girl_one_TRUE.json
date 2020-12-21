@@ -1,0 +1,19 @@
+{
+  "enforce eventually": {
+    "players": [1,2,3],
+    "formula": {
+      "and": [
+        {"and": [
+          { "not": {"proposition": 1}},
+          { "proposition": 2}
+        ]},
+        {"and": [
+          {"proposition": 3},
+          { "proposition": 4}
+        ]}
+      ]
+    }
+  }
+}
+
+
