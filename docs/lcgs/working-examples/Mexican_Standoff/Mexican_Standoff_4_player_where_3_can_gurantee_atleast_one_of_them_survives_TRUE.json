@@ -3,28 +3,20 @@
     "players": [
       0,
       1,
-      2,
-      3
+      2
     ],
     "formula": {
       "or": [
         {
-          "or": [
-            {
-              "proposition": 0
-            },
-            {
-              "proposition": 1
-            }
-          ]
+          "proposition": 0
         },
         {
           "or": [
             {
-              "proposition": 2
+              "proposition": 1
             },
             {
-              "proposition": 3
+              "proposition": 2
             }
           ]
         }

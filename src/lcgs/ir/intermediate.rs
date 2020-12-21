@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, LabelDecl, Root};
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::relabeling::Relabeler;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
@@ -10,7 +10,7 @@ use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Player {
     name: String,
     actions: Vec<SymbolIdentifier>,
@@ -27,6 +27,10 @@ impl Player {
     /// Helper function to quickly turn a player into an [Owner]
     pub fn to_owner(&self) -> Owner {
         Owner::Player(self.name.clone())
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
     }
 }
 
@@ -137,6 +141,16 @@ impl IntermediateLCGS {
             }
         }
         res
+    }
+
+    /// Returns a vector of players
+    pub fn get_player(&self) -> Vec<Player> {
+        self.players.clone()
+    }
+
+    /// Returns vector of labels
+    pub fn get_labels(&self) -> Vec<SymbolIdentifier> {
+        self.labels.clone()
     }
 
     /// Returns the initial state index of the LCGS game
