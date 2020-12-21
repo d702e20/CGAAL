@@ -63,7 +63,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let subargs = args.subcommand().1.unwrap();
 
-    let formula_path = subargs.value_of("formula").unwrap_or("");
     let input_model_path = subargs.value_of("input_model").unwrap();
     let model_type = match subargs.value_of("model_type") {
         Some("lcgs") => "lcgs",
@@ -144,6 +143,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         ("solver", Some(solver_args)) => {
+            let formula_path = subargs.value_of("formula").unwrap();
+
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
             where
@@ -178,6 +179,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         ("graph", Some(_args)) => {
             #[cfg(feature = "graph-printer")]
             {
+                let formula_path = subargs.value_of("formula").unwrap();
+
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
                     graph: ATLDependencyGraph<G>,
