@@ -1,0 +1,20 @@
+{
+  "enforce until": {
+    "players": [0,1,2,3],
+    "pre": {
+      "proposition": 0
+    },
+    "until": {
+      "and": [
+        {"and": [
+          {"proposition": 1},
+          {"proposition": 2}
+        ]},
+        {"and": [
+          {"proposition": 3},
+          {"proposition": 4}
+        ]}
+      ]
+    }
+  }
+}
