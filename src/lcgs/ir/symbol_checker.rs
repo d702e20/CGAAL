@@ -1,6 +1,11 @@
 use crate::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
+#[derive(Debug)]
+pub struct SymbolError {
+    pub msg: String,
+}
+
 /// [CheckMode]s control which declaration identifiers are allow to refer to in the [SymbolChecker].
 #[derive(Eq, PartialEq)]
 pub enum CheckMode {
@@ -47,19 +52,19 @@ impl<'a> SymbolChecker<'a> {
         }
     }
 
-    /// Checks and evaluates an expressions. This is typically only used in [CheckMode::Const]
+    /// Checks and evaluates an expressions. This is only used in [CheckMode::Const]
     /// where we assume the expression can be reduced to a value already during symbol checking.
-    pub fn check_eval(&self, expr: &Expr) -> Result<i32, ()> {
+    pub fn check_eval(&self, expr: &Expr) -> Result<i32, SymbolError> {
         let checked = self.check(expr)?;
         if let ExprKind::Number(n) = checked.kind {
             Ok(n)
         } else {
-            Err(())
+            panic!("Constant expression was not reduced to a single number.")
         }
     }
 
     /// Checks the given expressions
-    pub fn check(&self, expr: &Expr) -> Result<Expr, ()> {
+    pub fn check(&self, expr: &Expr) -> Result<Expr, SymbolError> {
         match &expr.kind {
             ExprKind::Number(_) => Ok(expr.clone()),
             ExprKind::OwnedIdent(id) => self.check_ident(id),
@@ -72,7 +77,7 @@ impl<'a> SymbolChecker<'a> {
     }
 
     /// Checks the given owned identifier.
-    fn check_ident(&self, id: &Identifier) -> Result<Expr, ()> {
+    fn check_ident(&self, id: &Identifier) -> Result<Expr, SymbolError> {
         // Owner may be omitted. If omitted, we assume it is the scope owner, unless such thing
         // does not exist, then we assume it's global. If we still can't find it, we have an error.
         let symb = match id {
@@ -85,36 +90,49 @@ impl<'a> SymbolChecker<'a> {
                 // Constants are evaluated early, so we differentiate here to
                 // give better error messages.
                 if self.mode == CheckMode::Const {
-                    if let Some(_player_name) = owner {
+                    if let Some(player_name) = owner {
                         // Constants are never owned by players
-                        // TODO Use custom error
-                        panic!("Expected constant expression. Found reference to player.")
+                        return Err(SymbolError {
+                            msg: format!(
+                                "Expected constant expression. Found '{}.{}', which is not constant, since it is owned by a player.",
+                                player_name, name,
+                            ),
+                        });
                     } else {
-                        self.symbols
-                            .get(&Owner::Global, &name)
-                            // TODO Use custom error
-                            .expect("Expected constant expression. Found unknown constant.")
+                        self.symbols.get(&Owner::Global, &name).ok_or(SymbolError {
+                            msg: format!(
+                                "Expected constant expression. Found unknown constant '{}'.",
+                                name
+                            ),
+                        })?
                     }
                 } else if let Some(player_name) = owner {
                     // We first ensure that the player exists in order to give a
                     // more accurate error message, if necessary
                     self.symbols
                         .get(&Owner::Global, player_name)
-                        .expect("Unknown player"); // TODO Use custom error
+                        .ok_or(SymbolError {
+                            msg: format!("Unknown player '{}'.", player_name),
+                        })?;
 
                     // The player exists, so now we fetch the symbol
                     let owner = Owner::Player(player_name.to_string());
                     self.symbols
                             .get(&owner, &name)
-                            // TODO Use custom error
-                            .expect(&*format!("Unknown identifier. The player does not own a declaration of that name: {}, owner: {}", name, owner))
+                            .ok_or(SymbolError {
+                                msg: format!("Unknown identifier '{}.{}'. The player does not own a declaration of that name.", owner, name)
+                            })?
                 } else {
                     // Player is omitted. Assume it is scope owner. If not, then try global.
                     self.symbols
                         .get(&self.scope_owner, &name)
                         .or_else(|| self.symbols.get(&Owner::Global, &name))
-                        // TODO Use custom error
-                        .expect("Unknown identifier, neither declared locally or globally")
+                        .ok_or(SymbolError {
+                            msg: format!(
+                                "Unknown identifier '{}', neither declared in player's scope or globally",
+                                name
+                            ),
+                        })?
                 }
             }
             // Already resolved once ... which should never happen.
@@ -122,9 +140,19 @@ impl<'a> SymbolChecker<'a> {
         };
 
         if let Ok(declaration) = &symb.declaration.try_borrow() {
-            // Check if symbol is allow to be reference in this mode
+            // Check if symbol is allowed to be referenced in this mode
             if !self.mode.allows(&declaration.kind) {
-                return Err(());
+                let context = match self.mode {
+                    CheckMode::Const => "a constant expression".to_string(),
+                    CheckMode::LabelOrTransition => "a label or transition condition".to_string(),
+                    CheckMode::StateVarUpdate => "a state-variable's update expression".to_string(),
+                };
+                return Err(SymbolError {
+                    msg: format!(
+                        "The declaration '{}' cannot be referenced in {}.",
+                        symb.identifier, context
+                    ),
+                });
             }
 
             if let DeclKind::Const(con) = &declaration.kind {
@@ -154,13 +182,15 @@ impl<'a> SymbolChecker<'a> {
                     })),
                 })
             } else {
-                panic!("Declaration refers to itself.") // TODO Use custom error
+                return Err(SymbolError {
+                    msg: format!("The definition of '{}' refers to itself.", symb.identifier),
+                });
             }
         }
     }
 
     /// Optimizes the given unary operator and checks the operand
-    fn check_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, ()> {
+    fn check_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, SymbolError> {
         let res = self.check(expr)?;
         if let ExprKind::Number(n) = &res.kind {
             return Ok(Expr {
@@ -173,7 +203,7 @@ impl<'a> SymbolChecker<'a> {
     }
 
     /// Optimizes the given binary operator and checks the operands
-    fn check_binop(&self, op: &BinaryOpKind, e1: &Expr, e2: &Expr) -> Result<Expr, ()> {
+    fn check_binop(&self, op: &BinaryOpKind, e1: &Expr, e2: &Expr) -> Result<Expr, SymbolError> {
         // Optimize if both operands are numbers
         // TODO Some operators allow optimizations even when only one operand is a number
         let res1 = self.check(e1)?;
@@ -191,7 +221,7 @@ impl<'a> SymbolChecker<'a> {
     }
 
     /// Optimizes the given ternary if and checks the operands
-    fn check_if(&self, cond: &Expr, e1: &Expr, e2: &Expr) -> Result<Expr, ()> {
+    fn check_if(&self, cond: &Expr, e1: &Expr, e2: &Expr) -> Result<Expr, SymbolError> {
         let cond_res = self.check(cond)?;
         if let ExprKind::Number(n) = &cond_res.kind {
             return if *n == 0 {
@@ -210,7 +240,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the min of that
     /// Then returns a new checked Vec of Expr to find Min of.
-    fn check_min(&self, ls: &[Expr]) -> Result<Expr, ()> {
+    fn check_min(&self, ls: &[Expr]) -> Result<Expr, SymbolError> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
             .iter()
@@ -244,7 +274,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the max of that
     /// Then returns a new checked Vec of Expr to find Max of.
-    fn check_max(&self, ls: &[Expr]) -> Result<Expr, ()> {
+    fn check_max(&self, ls: &[Expr]) -> Result<Expr, SymbolError> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
             .iter()
