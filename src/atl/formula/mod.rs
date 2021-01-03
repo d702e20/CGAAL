@@ -1,3 +1,5 @@
+mod parser;
+
 use crate::atl::common::{Player, Proposition};
 use joinery::prelude::*;
 use std::fmt::{Display, Formatter};
