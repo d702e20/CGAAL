@@ -182,9 +182,9 @@ impl<'a> SymbolChecker<'a> {
                     })),
                 })
             } else {
-                return Err(SymbolError {
+                Err(SymbolError {
                     msg: format!("The definition of '{}' refers to itself.", symb.identifier),
-                });
+                })
             }
         }
     }
