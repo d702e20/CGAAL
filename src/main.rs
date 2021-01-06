@@ -1,8 +1,8 @@
+#[macro_use]
+extern crate lazy_static;
 extern crate num_cpus;
 #[macro_use]
 extern crate serde;
-#[macro_use]
-extern crate lazy_static;
 #[macro_use]
 extern crate tracing;
 
@@ -15,6 +15,7 @@ use std::process::exit;
 use std::sync::Arc;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
+use tracing::trace;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::Phi;
@@ -26,7 +27,6 @@ use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
-use tracing::trace;
 
 mod atl;
 mod com;
