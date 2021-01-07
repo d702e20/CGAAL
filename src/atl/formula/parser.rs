@@ -192,7 +192,7 @@ fn players<E: Debug, C: Fn(String) -> Result<usize, E>>(
 }
 
 fn identifier() -> Parser<u8, String> {
-    let parser = alpha() + (alpha() | num()).repeat(0..);
+    let parser = (alpha() | num()).repeat(1..);
     parser.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
@@ -238,11 +238,6 @@ mod test {
     #[test]
     fn identifier_3() {
         assert_eq!(identifier().parse(b"a123a"), Ok("a123a".to_string()))
-    }
-
-    #[test]
-    fn identifier_4() {
-        assert!(identifier().parse(b"2").is_err())
     }
 
     #[test]
