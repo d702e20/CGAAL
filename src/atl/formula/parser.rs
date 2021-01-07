@@ -1,13 +1,15 @@
-use super::Phi;
-use pom::parser::{end, list, one_of, seq, sym};
-use pom::Parser;
 use std::fmt::Debug;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 
+use pom::parser::{call, end, list, one_of, seq, sym};
+use pom::Parser;
+
+use super::Phi;
+
 pub(crate) trait StrToId<E: Debug>: Fn(String) -> Result<usize, E> {}
 
-fn space() -> Parser<u8, ()> {
+fn ws() -> Parser<u8, ()> {
     one_of(b" \t\r\n").repeat(0..).discard()
 }
 
@@ -15,11 +17,11 @@ pub(crate) fn phi<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
     paren(convert)
+        | boolean()
         | proposition(convert)
         | not(convert)
         | or(convert)
         | and(convert)
-        | boolean()
         | enforce_next(convert)
         | enforce_until(convert)
         | enforce_eventually(convert)
@@ -30,44 +32,54 @@ pub(crate) fn phi<E: Debug, C: Fn(String) -> Result<usize, E>>(
         | despite_invariant(convert)
 }
 
+/// A lazy phi parser used for recursive definitions.
+/// Normally we make recursive parsers with the `call(phi)` that wraps a parser with lazy
+/// invocation. But the `call` method does not allow us to pass our convert function. So we
+/// make our own lazy phi parser.
+fn lazy_phi<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
+    Parser::new(move |input: &'_ [u8], start: usize| (phi(convert).method)(input, start))
+}
+
 fn paren<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    sym(b'(') * phi(convert) - sym(b')')
+    sym(b'(') * ws() * lazy_phi(convert) - ws() - sym(b')')
 }
 
 fn enforce_players<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Vec<usize>> {
-    seq(b"<<").discard() * players(convert) - seq(b">>")
+    seq(b"<<") * ws() * players(convert) - ws() - seq(b">>")
 }
 
 fn despite_players<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Vec<usize>> {
-    seq(b"[[").discard() * players(convert) - seq(b"]]")
+    seq(b"[[") * ws() * players(convert) - ws() - seq(b"]]")
 }
 
 fn next<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    sym(b'X') * space() * phi(convert)
+    sym(b'X') * ws() * lazy_phi(convert)
 }
 
 fn until<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, (Phi, Phi)> {
-    sym(b'(') * space() * phi(convert) - space() - sym(b'U') + phi(convert) - space() - sym(b')')
+    sym(b'(') * ws() * lazy_phi(convert) - ws() - sym(b'U') - ws() + lazy_phi(convert)
+        - ws()
+        - sym(b')')
 }
 
 fn eventually<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    sym(b'F') * space() * phi(convert)
+    sym(b'F') * ws() * lazy_phi(convert)
 }
 
 fn invariant<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    sym(b'G') * space() * phi(convert)
+    sym(b'G') * ws() * lazy_phi(convert)
 }
 
 fn enforce_next<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (enforce_players(convert) + next(convert)).map(|(players, phi)| Phi::EnforceNext {
+    (enforce_players(convert) - ws() + next(convert)).map(|(players, phi)| Phi::EnforceNext {
         players,
         formula: Arc::new(phi),
     })
@@ -76,7 +88,7 @@ fn enforce_next<E: Debug, C: Fn(String) -> Result<usize, E>>(
 fn enforce_until<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (enforce_players(convert) + until(convert)).map(|(players, (l, r))| Phi::EnforceUntil {
+    (enforce_players(convert) - ws() + until(convert)).map(|(players, (l, r))| Phi::EnforceUntil {
         players,
         pre: Arc::new(l),
         until: Arc::new(r),
@@ -86,25 +98,29 @@ fn enforce_until<E: Debug, C: Fn(String) -> Result<usize, E>>(
 fn enforce_eventually<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (enforce_players(convert) + eventually(convert)).map(|(players, phi)| Phi::EnforceEventually {
-        players,
-        formula: Arc::new(phi),
+    (enforce_players(convert) - ws() + eventually(convert)).map(|(players, phi)| {
+        Phi::EnforceEventually {
+            players,
+            formula: Arc::new(phi),
+        }
     })
 }
 
 fn enforce_invariant<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (enforce_players(convert) + invariant(convert)).map(|(players, phi)| Phi::EnforceInvariant {
-        players,
-        formula: Arc::new(phi),
+    (enforce_players(convert) - ws() + invariant(convert)).map(|(players, phi)| {
+        Phi::EnforceInvariant {
+            players,
+            formula: Arc::new(phi),
+        }
     })
 }
 
 fn despite_next<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (despite_players(convert) + next(convert)).map(|(players, phi)| Phi::DespiteNext {
+    (despite_players(convert) - ws() + next(convert)).map(|(players, phi)| Phi::DespiteNext {
         players,
         formula: Arc::new(phi),
     })
@@ -113,7 +129,7 @@ fn despite_next<E: Debug, C: Fn(String) -> Result<usize, E>>(
 fn despite_until<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (despite_players(convert) + until(convert)).map(|(players, (l, r))| Phi::DespiteUntil {
+    (despite_players(convert) - ws() + until(convert)).map(|(players, (l, r))| Phi::DespiteUntil {
         players,
         pre: Arc::new(l),
         until: Arc::new(r),
@@ -123,18 +139,22 @@ fn despite_until<E: Debug, C: Fn(String) -> Result<usize, E>>(
 fn despite_eventually<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (despite_players(convert) + eventually(convert)).map(|(players, phi)| Phi::DespiteEventually {
-        players,
-        formula: Arc::new(phi),
+    (despite_players(convert) - ws() + eventually(convert)).map(|(players, phi)| {
+        Phi::DespiteEventually {
+            players,
+            formula: Arc::new(phi),
+        }
     })
 }
 
 fn despite_invariant<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Phi> {
-    (despite_players(convert) + invariant(convert)).map(|(players, phi)| Phi::DespiteInvariant {
-        players,
-        formula: Arc::new(phi),
+    (despite_players(convert) - ws() + invariant(convert)).map(|(players, phi)| {
+        Phi::DespiteInvariant {
+            players,
+            formula: Arc::new(phi),
+        }
     })
 }
 
@@ -145,16 +165,16 @@ fn proposition<E: Debug, C: Fn(String) -> Result<usize, E>>(
 }
 
 fn not<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    (sym(b'!').discard() * space() * phi(convert)).map(|phi| Phi::Not(Arc::new(phi)))
+    (sym(b'!') * ws() * lazy_phi(convert)).map(|phi| Phi::Not(Arc::new(phi)))
 }
 
 fn or<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    (phi(convert) - space() - sym(b'|') - space() + phi(convert))
-        .map(|(l, r)| Phi::And(Arc::new(l), Arc::new(r)))
+    (lazy_phi(convert) - ws() - sym(b'|') - ws() + lazy_phi(convert))
+        .map(|(l, r)| Phi::Or(Arc::new(l), Arc::new(r)))
 }
 
 fn and<E: Debug, C: Fn(String) -> Result<usize, E>>(convert: &'static C) -> Parser<u8, Phi> {
-    let parser = phi(convert) - space() - sym(b'&') - space() + phi(convert);
+    let parser = lazy_phi(convert) - ws() - sym(b'&') - ws() + lazy_phi(convert);
     parser.map(|(l, r)| Phi::And(Arc::new(l), Arc::new(r)))
 }
 
@@ -168,14 +188,12 @@ fn boolean() -> Parser<u8, Phi> {
 fn players<E: Debug, C: Fn(String) -> Result<usize, E>>(
     convert: &'static C,
 ) -> Parser<u8, Vec<usize>> {
-    list(identifier().convert(convert), space() * sym(b',') * space())
+    list(identifier().convert(convert), ws() * sym(b',') * ws())
 }
 
 fn identifier() -> Parser<u8, String> {
     let parser = alpha() + (alpha() | num()).repeat(0..);
-    parser.convert(|(s1, s2)| -> Result<String, FromUtf8Error> {
-        Ok(vec![String::from_utf8(vec![s1])?, String::from_utf8(s2)?].concat())
-    })
+    parser.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
 fn alpha() -> Parser<u8, u8> {
@@ -188,11 +206,24 @@ fn num() -> Parser<u8, u8> {
 
 #[cfg(test)]
 mod test {
-    use crate::atl::formula::parser::{boolean, identifier, not, StrToId};
-    use crate::atl::formula::Phi;
     use std::convert::identity;
     use std::fmt::{Debug, Formatter};
     use std::sync::Arc;
+
+    use crate::atl::formula::parser::{and, boolean, identifier, not, or, StrToId};
+    use crate::atl::formula::Phi;
+
+    fn convert(id: String) -> Result<usize, Error> {
+        Ok(0)
+    }
+
+    struct Error {}
+
+    impl Debug for Error {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            unimplemented!()
+        }
+    }
 
     #[test]
     fn identifier_1() {
@@ -239,16 +270,20 @@ mod test {
         assert_eq!(boolean().parse(b"false"), Ok(Phi::False))
     }
 
-    fn convert(id: String) -> Result<usize, Error> {
-        Ok(0)
+    #[test]
+    fn or_01() {
+        assert_eq!(
+            or(&convert).parse(b"true | false"),
+            Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
     }
 
-    struct Error {}
-
-    impl Debug for Error {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            unimplemented!()
-        }
+    #[test]
+    fn and_01() {
+        assert_eq!(
+            and(&convert).parse(b"true & false"),
+            Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
     }
 
     #[test]
@@ -257,10 +292,5 @@ mod test {
             not(&convert).parse(b"!true"),
             Ok(Phi::Not(Arc::new(Phi::True)))
         )
-    }
-
-    #[test]
-    fn not_2() {
-        assert!(not(&convert).parse(b"! true").is_err())
     }
 }
