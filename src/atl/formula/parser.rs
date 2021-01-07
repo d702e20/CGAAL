@@ -7,8 +7,6 @@ use pom::Parser;
 
 use super::Phi;
 
-pub(crate) trait StrToId<E: Debug>: Fn(String) -> Result<usize, E> {}
-
 fn ws() -> Parser<u8, ()> {
     one_of(b" \t\r\n").repeat(0..).discard()
 }
