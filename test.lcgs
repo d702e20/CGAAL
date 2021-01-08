@@ -1,0 +1,11 @@
+
+state : [0..10] init 0;
+state' = !state;
+
+label test = !state;
+
+player bob = t;
+template t
+
+    [derp] ;
+endtemplate
