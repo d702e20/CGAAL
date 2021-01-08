@@ -208,7 +208,12 @@ mod test {
     use std::fmt::{Debug, Formatter};
     use std::sync::Arc;
 
-    use crate::atl::formula::parser::{and, boolean, identifier, not, or, StrToId};
+    use crate::atl::formula::parser::{
+        and, boolean, despite_eventually, despite_invariant, despite_next, despite_players,
+        despite_until, enforce_eventually, enforce_invariant, enforce_next, enforce_players,
+        enforce_until, eventually, identifier, invariant, next, not, or, paren, phi, proposition,
+        until,
+    };
     use crate::atl::formula::Phi;
 
     fn convert(id: String) -> Result<usize, Error> {
@@ -224,23 +229,386 @@ mod test {
     }
 
     #[test]
-    fn identifier_1() {
-        assert_eq!(identifier().parse(b"a"), Ok("a".to_string()))
+    fn paren_1() {
+        assert_eq!(paren(&convert).parse(b"(true)"), Ok(Phi::True))
+    }
+
+    fn convert_int(test: String) -> Result<usize, std::num::ParseIntError> {
+        test.parse()
+    }
+
+    /// Test for a single player
+    #[test]
+    fn enforce_players_1() {
+        assert_eq!(
+            enforce_players(&convert_int).parse(b"<<1>>"),
+            Ok(vec![1usize])
+        )
+    }
+
+    /// Test for two players
+    #[test]
+    fn enforce_players_2() {
+        assert_eq!(
+            enforce_players(&convert_int).parse(b"<<4,9>>"),
+            Ok(vec![4usize, 9usize])
+        )
+    }
+
+    /// Test for three players
+    #[test]
+    fn enforce_players_3() {
+        assert_eq!(
+            enforce_players(&convert_int).parse(b"<<203,23,4>>"),
+            Ok(vec![203usize, 23usize, 4usize])
+        )
+    }
+
+    /// The list of players is allowed to have whitespace after the seperator
+    #[test]
+    fn enforce_players_4() {
+        assert_eq!(
+            enforce_players(&convert_int).parse(b"<<203,  23>>"),
+            Ok(vec![203usize, 23usize])
+        )
+    }
+
+    /// Test for no players, should be valid
+    #[test]
+    fn enforce_players_5() {
+        assert_eq!(enforce_players(&convert_int).parse(b"<<>>"), Ok(vec![]))
+    }
+
+    /// Test for a single player
+    #[test]
+    fn despite_players_1() {
+        assert_eq!(
+            despite_players(&convert_int).parse(b"[[1]]"),
+            Ok(vec![1usize])
+        )
+    }
+
+    /// Test for two players
+    #[test]
+    fn despite_players_2() {
+        assert_eq!(
+            despite_players(&convert_int).parse(b"[[4,9]]"),
+            Ok(vec![4usize, 9usize])
+        )
+    }
+
+    /// Test for three players
+    #[test]
+    fn despite_players_3() {
+        assert_eq!(
+            despite_players(&convert_int).parse(b"[[203,23,4]]"),
+            Ok(vec![203usize, 23usize, 4usize])
+        )
+    }
+
+    /// The list of players is allowed to have whitespace after the seperator
+    #[test]
+    fn despite_players_4() {
+        assert_eq!(
+            despite_players(&convert_int).parse(b"[[203,  23]]"),
+            Ok(vec![203usize, 23usize])
+        )
+    }
+
+    /// Test for no players, should be valid
+    #[test]
+    fn despite_players_5() {
+        assert_eq!(despite_players(&convert_int).parse(b"[[]]"), Ok(vec![]))
     }
 
     #[test]
-    fn identifier_2() {
-        assert_eq!(identifier().parse(b"aaaa"), Ok("aaaa".to_string()))
+    fn next_1() {
+        assert_eq!(next(&convert).parse(b"X true"), Ok(Phi::True))
     }
 
     #[test]
-    fn identifier_3() {
-        assert_eq!(identifier().parse(b"a123a"), Ok("a123a".to_string()))
+    fn next_2() {
+        assert_eq!(next(&convert).parse(b"Xtrue"), Ok(Phi::True))
     }
 
     #[test]
-    fn identifier_5() {
-        assert!(identifier().parse(b"").is_err())
+    fn until_1() {
+        assert_eq!(
+            until(&convert).parse(b"( true U true )"),
+            Ok((Phi::True, Phi::True))
+        )
+    }
+
+    #[test]
+    fn until_2() {
+        assert_eq!(
+            until(&convert).parse(b"(trueUtrue)"),
+            Ok((Phi::True, Phi::True))
+        )
+    }
+
+    #[test]
+    fn eventually_1() {
+        assert_eq!(eventually(&convert).parse(b"F true"), Ok(Phi::True))
+    }
+
+    #[test]
+    fn eventually_2() {
+        assert_eq!(eventually(&convert).parse(b"Ftrue"), Ok(Phi::True))
+    }
+
+    #[test]
+    fn invariant_1() {
+        assert_eq!(invariant(&convert).parse(b"G true"), Ok(Phi::True))
+    }
+
+    #[test]
+    fn invariant_2() {
+        assert_eq!(invariant(&convert).parse(b"Gtrue"), Ok(Phi::True))
+    }
+
+    #[test]
+    fn enforce_next_1() {
+        assert_eq!(
+            enforce_next(&convert_int).parse(b"<<1 , 2>> X true"),
+            Ok(Phi::EnforceNext {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_next_2() {
+        assert_eq!(
+            enforce_next(&convert_int).parse(b"<<1,2>>Xtrue"),
+            Ok(Phi::EnforceNext {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_until_1() {
+        assert_eq!(
+            enforce_until(&convert_int).parse(b"<<1 , 2>> ( true U true )"),
+            Ok(Phi::EnforceUntil {
+                players: vec![1, 2],
+                pre: Arc::new(Phi::True),
+                until: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_until_2() {
+        assert_eq!(
+            enforce_until(&convert_int).parse(b"<<1,2>>(trueUtrue)"),
+            Ok(Phi::EnforceUntil {
+                players: vec![1, 2],
+                pre: Arc::new(Phi::True),
+                until: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_eventually_1() {
+        assert_eq!(
+            enforce_eventually(&convert_int).parse(b"<<1 , 2>> F true"),
+            Ok(Phi::EnforceEventually {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_eventually_2() {
+        assert_eq!(
+            enforce_eventually(&convert_int).parse(b"<<1,2>>Ftrue"),
+            Ok(Phi::EnforceEventually {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_invariant_1() {
+        assert_eq!(
+            enforce_invariant(&convert_int).parse(b"<<1 , 2>> G true"),
+            Ok(Phi::EnforceInvariant {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn enforce_invariant_2() {
+        assert_eq!(
+            enforce_invariant(&convert_int).parse(b"<<1,2>>Gtrue"),
+            Ok(Phi::EnforceInvariant {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_next_1() {
+        assert_eq!(
+            despite_next(&convert_int).parse(b"[[1 , 2]] X true"),
+            Ok(Phi::DespiteNext {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_next_2() {
+        assert_eq!(
+            despite_next(&convert_int).parse(b"[[1,2]]Xtrue"),
+            Ok(Phi::DespiteNext {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_until_1() {
+        assert_eq!(
+            despite_until(&convert_int).parse(b"[[1 , 2]] ( true U true )"),
+            Ok(Phi::DespiteUntil {
+                players: vec![1, 2],
+                pre: Arc::new(Phi::True),
+                until: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_until_2() {
+        assert_eq!(
+            despite_until(&convert_int).parse(b"[[1,2]](trueUtrue)"),
+            Ok(Phi::DespiteUntil {
+                players: vec![1, 2],
+                pre: Arc::new(Phi::True),
+                until: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_eventually_1() {
+        assert_eq!(
+            despite_eventually(&convert_int).parse(b"[[1 , 2]] F true"),
+            Ok(Phi::DespiteEventually {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_eventually_2() {
+        assert_eq!(
+            despite_eventually(&convert_int).parse(b"[[1,2]]Ftrue"),
+            Ok(Phi::DespiteEventually {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_invariant_1() {
+        assert_eq!(
+            despite_invariant(&convert_int).parse(b"[[1 , 2]] G true"),
+            Ok(Phi::DespiteInvariant {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn despite_invariant_2() {
+        assert_eq!(
+            despite_invariant(&convert_int).parse(b"[[1,2]]Gtrue"),
+            Ok(Phi::DespiteInvariant {
+                players: vec![1, 2],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn proposition_1() {
+        assert_eq!(
+            proposition(&convert_int).parse(b"\"1\""),
+            Ok(Phi::Proposition(1usize))
+        )
+    }
+
+    #[test]
+    fn proposition_2() {
+        assert_eq!(
+            proposition(&convert_int).parse(b"\"1432\""),
+            Ok(Phi::Proposition(1432usize))
+        )
+    }
+
+    #[test]
+    fn not_1() {
+        assert_eq!(
+            not(&convert).parse(b"! true"),
+            Ok(Phi::Not(Arc::new(Phi::True)))
+        )
+    }
+
+    #[test]
+    fn not_2() {
+        assert_eq!(
+            not(&convert).parse(b"!true"),
+            Ok(Phi::Not(Arc::new(Phi::True)))
+        )
+    }
+
+    #[test]
+    fn and_1() {
+        assert_eq!(
+            and(&convert).parse(b"true & false"),
+            Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
+    }
+
+    #[test]
+    fn and_2() {
+        assert_eq!(
+            and(&convert).parse(b"true&false"),
+            Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
+    }
+
+    #[test]
+    fn or_1() {
+        assert_eq!(
+            or(&convert).parse(b"true | false"),
+            Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
+    }
+
+    #[test]
+    fn or_2() {
+        assert_eq!(
+            or(&convert).parse(b"true|false"),
+            Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
     }
 
     #[test]
@@ -264,26 +632,22 @@ mod test {
     }
 
     #[test]
-    fn or_01() {
-        assert_eq!(
-            or(&convert).parse(b"true | false"),
-            Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
-        )
+    fn identifier_1() {
+        assert_eq!(identifier().parse(b"a"), Ok("a".to_string()))
     }
 
     #[test]
-    fn and_01() {
-        assert_eq!(
-            and(&convert).parse(b"true & false"),
-            Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
-        )
+    fn identifier_2() {
+        assert_eq!(identifier().parse(b"aaaa"), Ok("aaaa".to_string()))
     }
 
     #[test]
-    fn not_1() {
-        assert_eq!(
-            not(&convert).parse(b"!true"),
-            Ok(Phi::Not(Arc::new(Phi::True)))
-        )
+    fn identifier_3() {
+        assert_eq!(identifier().parse(b"a123a"), Ok("a123a".to_string()))
+    }
+
+    #[test]
+    fn identifier_5() {
+        assert!(identifier().parse(b"").is_err())
     }
 }
