@@ -161,12 +161,10 @@ impl<'a> Iterator for PartialMoveIterator<'a> {
         if !self.initialized {
             self.make_first();
             Some(self.current.clone())
+        } else if self.make_next(0) {
+            Some(self.current.clone())
         } else {
-            if self.make_next(0) {
-                Some(self.current.clone())
-            } else {
-                None
-            }
+            None
         }
     }
 }
