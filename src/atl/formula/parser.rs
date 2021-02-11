@@ -1,23 +1,24 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use pom::parser::Parser;
 use pom::parser::{list, one_of, seq, sym};
-use pom::Parser;
 
 use super::Phi;
 
-fn ws() -> Parser<u8, ()> {
+fn ws<'a>() -> Parser<'a, u8, ()> {
     one_of(b" \t\r\n").repeat(0..).discard()
 }
 
 pub(crate) fn phi<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     paren(convert_player, convert_proposition)
         | boolean()
         | proposition(convert_proposition)
@@ -38,73 +39,89 @@ pub(crate) fn phi<
 /// Normally we make recursive parsers with the `call(phi)` that wraps a parser with lazy
 /// invocation. But the `call` method does not allow us to pass our convert function. So we
 /// make our own lazy phi parser.
-fn lazy_phi<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-    convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
-    Parser::new(move |input: &'_ [u8], start: usize| {
-        (phi(convert_player, convert_proposition).method)(input, start)
-    })
-}
-
-fn paren<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-    convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
-    sym(b'(') * ws() * lazy_phi(convert_player, convert_proposition) - ws() - sym(b')')
-}
-
-fn enforce_players<E: Debug, CPL: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-) -> Parser<u8, Vec<usize>> {
-    seq(b"<<") * ws() * players(convert_player) - ws() - seq(b">>")
-}
-
-fn despite_players<E: Debug, CPL: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-) -> Parser<u8, Vec<usize>> {
-    seq(b"[[") * ws() * players(convert_player) - ws() - seq(b"]]")
-}
-
-fn next<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-    convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
-    sym(b'X') * ws() * lazy_phi(convert_player, convert_proposition)
-}
-
-fn until<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-    convert_proposition: &'static CP,
-) -> Parser<u8, (Phi, Phi)> {
-    sym(b'(') * ws() * lazy_phi(convert_player, convert_proposition) - ws() - sym(b'U') - ws()
-        + lazy_phi(convert_player, convert_proposition)
-        - ws()
-        - sym(b')')
-}
-
-fn eventually<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-    convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
-    sym(b'F') * ws() * lazy_phi(convert_player, convert_proposition)
-}
-
-fn invariant<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
-    convert_player: &'static CPL,
-    convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
-    sym(b'G') * ws() * lazy_phi(convert_player, convert_proposition)
-}
-
-fn enforce_next<
+fn lazy_phi<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
+    Parser::new(move |input: &'_ [u8], start: usize| {
+        (phi(convert_player, convert_proposition).method)(input, start)
+    })
+}
+
+fn paren<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
+    convert_player: &'static CPL,
+    convert_proposition: &'static CP,
+) -> Parser<'a, u8, Phi> {
+    sym(b'(') * ws() * lazy_phi(convert_player, convert_proposition) - ws() - sym(b')')
+}
+
+fn enforce_players<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>>(
+    convert_player: &'static CPL,
+) -> Parser<'a, u8, Vec<usize>> {
+    seq(b"<<") * ws() * players(convert_player) - ws() - seq(b">>")
+}
+
+fn despite_players<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>>(
+    convert_player: &'static CPL,
+) -> Parser<'a, u8, Vec<usize>> {
+    seq(b"[[") * ws() * players(convert_player) - ws() - seq(b"]]")
+}
+
+fn next<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
+    convert_player: &'static CPL,
+    convert_proposition: &'static CP,
+) -> Parser<'a, u8, Phi> {
+    sym(b'X') * ws() * lazy_phi(convert_player, convert_proposition)
+}
+
+fn until<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
+    convert_player: &'static CPL,
+    convert_proposition: &'static CP,
+) -> Parser<'a, u8, (Phi, Phi)> {
+    sym(b'(') * ws() * lazy_phi(convert_player, convert_proposition) - ws() - sym(b'U') - ws()
+        + lazy_phi(convert_player, convert_proposition)
+        - ws()
+        - sym(b')')
+}
+
+fn eventually<
+    'a,
+    E: Debug,
+    CPL: Fn(String) -> Result<usize, E>,
+    CP: Fn(String) -> Result<usize, E>,
+>(
+    convert_player: &'static CPL,
+    convert_proposition: &'static CP,
+) -> Parser<'a, u8, Phi> {
+    sym(b'F') * ws() * lazy_phi(convert_player, convert_proposition)
+}
+
+fn invariant<
+    'a,
+    E: Debug,
+    CPL: Fn(String) -> Result<usize, E>,
+    CP: Fn(String) -> Result<usize, E>,
+>(
+    convert_player: &'static CPL,
+    convert_proposition: &'static CP,
+) -> Parser<'a, u8, Phi> {
+    sym(b'G') * ws() * lazy_phi(convert_player, convert_proposition)
+}
+
+fn enforce_next<
+    'a,
+    E: Debug,
+    CPL: Fn(String) -> Result<usize, E>,
+    CP: Fn(String) -> Result<usize, E>,
+>(
+    convert_player: &'static CPL,
+    convert_proposition: &'static CP,
+) -> Parser<'a, u8, Phi> {
     (enforce_players(convert_player) - ws() + next(convert_player, convert_proposition)).map(
         |(players, phi)| Phi::EnforceNext {
             players,
@@ -114,13 +131,14 @@ fn enforce_next<
 }
 
 fn enforce_until<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (enforce_players(convert_player) - ws() + until(convert_player, convert_proposition)).map(
         |(players, (l, r))| Phi::EnforceUntil {
             players,
@@ -131,13 +149,14 @@ fn enforce_until<
 }
 
 fn enforce_eventually<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (enforce_players(convert_player) - ws() + eventually(convert_player, convert_proposition)).map(
         |(players, phi)| Phi::EnforceEventually {
             players,
@@ -147,13 +166,14 @@ fn enforce_eventually<
 }
 
 fn enforce_invariant<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (enforce_players(convert_player) - ws() + invariant(convert_player, convert_proposition)).map(
         |(players, phi)| Phi::EnforceInvariant {
             players,
@@ -163,13 +183,14 @@ fn enforce_invariant<
 }
 
 fn despite_next<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (despite_players(convert_player) - ws() + next(convert_player, convert_proposition)).map(
         |(players, phi)| Phi::DespiteNext {
             players,
@@ -179,13 +200,14 @@ fn despite_next<
 }
 
 fn despite_until<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (despite_players(convert_player) - ws() + until(convert_player, convert_proposition)).map(
         |(players, (l, r))| Phi::DespiteUntil {
             players,
@@ -196,13 +218,14 @@ fn despite_until<
 }
 
 fn despite_eventually<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (despite_players(convert_player) - ws() + eventually(convert_player, convert_proposition)).map(
         |(players, phi)| Phi::DespiteEventually {
             players,
@@ -212,13 +235,14 @@ fn despite_eventually<
 }
 
 fn despite_invariant<
+    'a,
     E: Debug,
     CPL: Fn(String) -> Result<usize, E>,
     CP: Fn(String) -> Result<usize, E>,
 >(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (despite_players(convert_player) - ws() + invariant(convert_player, convert_proposition)).map(
         |(players, phi)| Phi::DespiteInvariant {
             players,
@@ -227,65 +251,65 @@ fn despite_invariant<
     )
 }
 
-fn proposition<E: Debug, CP: Fn(String) -> Result<usize, E>>(
+fn proposition<'a, E: Debug, CP: Fn(String) -> Result<usize, E>>(
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (sym(b'"') * identifier().convert(convert_proposition) - sym(b'"'))
         .map(|id| Phi::Proposition(id))
 }
 
-fn not<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
+fn not<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (sym(b'!') * ws() * lazy_phi(convert_player, convert_proposition))
         .map(|phi| Phi::Not(Arc::new(phi)))
 }
 
-fn or<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
+fn or<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     (lazy_phi(convert_player, convert_proposition) - ws() - sym(b'|') - ws()
         + lazy_phi(convert_player, convert_proposition))
     .map(|(l, r)| Phi::Or(Arc::new(l), Arc::new(r)))
 }
 
-fn and<E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
+fn and<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>, CP: Fn(String) -> Result<usize, E>>(
     convert_player: &'static CPL,
     convert_proposition: &'static CP,
-) -> Parser<u8, Phi> {
+) -> Parser<'a, u8, Phi> {
     let parser = lazy_phi(convert_player, convert_proposition) - ws() - sym(b'&') - ws()
         + lazy_phi(convert_player, convert_proposition);
     parser.map(|(l, r)| Phi::And(Arc::new(l), Arc::new(r)))
 }
 
-fn boolean() -> Parser<u8, Phi> {
+fn boolean<'a>() -> Parser<'a, u8, Phi> {
     seq(b"true").map(|_| Phi::True)
         | seq(b"TRUE").map(|_| Phi::True)
         | seq(b"false").map(|_| Phi::False)
         | seq(b"FALSE").map(|_| Phi::False)
 }
 
-fn players<E: Debug, CPL: Fn(String) -> Result<usize, E>>(
+fn players<'a, E: Debug, CPL: Fn(String) -> Result<usize, E>>(
     convert_player: &'static CPL,
-) -> Parser<u8, Vec<usize>> {
+) -> Parser<'a, u8, Vec<usize>> {
     list(
         identifier().convert(convert_player),
         ws() * sym(b',') * ws(),
     )
 }
 
-fn identifier() -> Parser<u8, String> {
+fn identifier<'a>() -> Parser<'a, u8, String> {
     let parser = (alpha() | num()).repeat(1..);
     parser.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
-fn alpha() -> Parser<u8, u8> {
+fn alpha<'a>() -> Parser<'a, u8, u8> {
     one_of(b"abcdefghijklmnopqrstuvwxyz") | one_of(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 }
 
-fn num() -> Parser<u8, u8> {
+fn num<'a>() -> Parser<'a, u8, u8> {
     one_of(b"0123456789")
 }
 
