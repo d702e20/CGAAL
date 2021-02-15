@@ -1,10 +1,21 @@
 use std::sync::Arc;
 
-use pom::parser::Parser;
+use pom::parser::{end, Parser};
 use pom::parser::{list, one_of, seq, sym};
 
 use super::Phi;
 use std::str::{self, FromStr};
+
+/// Parse an ATL formula
+pub(crate) fn parse_phi<'a, A: ATLExpressionParser<'a>>(
+    expr_parser: &'a A,
+    input: &'a str,
+) -> Result<Phi, String> {
+    let formula = ws() * phi(expr_parser) - end();
+    formula
+        .parse(input.as_bytes())
+        .map_err(|err| err.to_string())
+}
 
 /// Allows a CGS model to define custom player and proposition expressions. For instance,
 /// in LCGS we want to be able to write "p2" as a player and "p2.alive" as a proposition, while
@@ -186,25 +197,25 @@ fn alpha<'a>() -> Parser<'a, u8, u8> {
     one_of(b"abcdefghijklmnopqrstuvwxyz") | one_of(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 }
 
-fn word<'a>() -> Parser<'a, u8, String> {
+pub fn word<'a>() -> Parser<'a, u8, String> {
     let chars = alpha() - (alpha() | digit() | sym(b'_')).repeat(0..);
     chars.collect().convert(|s| String::from_utf8(s.to_vec()))
 }
 
 /// Parser that parses a single digit 0-9
 #[inline]
-fn digit<'a>() -> Parser<'a, u8, u8> {
+pub fn digit<'a>() -> Parser<'a, u8, u8> {
     one_of(b"0123456789")
 }
 
 /// Parser that parses a single digit 1-9 (not 0)
 #[inline]
-fn non_0_digit<'a>() -> Parser<'a, u8, u8> {
+pub fn non_0_digit<'a>() -> Parser<'a, u8, u8> {
     one_of(b"123456789")
 }
 
 /// Parser that parses a typical positive integer number
-fn number<'a>() -> Parser<'a, u8, usize> {
+pub fn number<'a>() -> Parser<'a, u8, usize> {
     let integer = (non_0_digit() - digit().repeat(0..)) | sym(b'0');
     integer
         .collect()

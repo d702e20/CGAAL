@@ -2,7 +2,10 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
 use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
+use crate::atl::formula::{number, ATLExpressionParser};
 use crate::atl::gamestructure::GameStructure;
+use pom::parser::{one_of, sym, Parser};
+use std::str::{self, FromStr};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {
@@ -60,5 +63,15 @@ impl GameStructure for EagerGameStructure {
             .get(state)
             .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
             .clone()
+    }
+}
+
+impl<'a> ATLExpressionParser<'a> for EagerGameStructure {
+    fn player_parser(&self) -> Parser<'a, u8, usize> {
+        number()
+    }
+
+    fn proposition_parser(&self) -> Parser<'a, u8, usize> {
+        number()
     }
 }
