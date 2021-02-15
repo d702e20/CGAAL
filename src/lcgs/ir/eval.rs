@@ -116,7 +116,7 @@ mod test {
 
     #[test]
     fn test_rust_max() {
-        let mut v: Vec<Result<i32, ()>> = vec![Ok(1), Ok(3), Ok(2)];
+        let v: Vec<Result<i32, ()>> = vec![Ok(1), Ok(3), Ok(2)];
         assert_eq!(v.iter().cloned().max().unwrap(), Ok(3));
     }
 }

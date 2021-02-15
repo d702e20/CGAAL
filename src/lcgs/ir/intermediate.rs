@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, LabelDecl, Root};
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::relabeling::Relabeler;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
@@ -107,7 +107,7 @@ impl IntermediateLCGS {
             if let DeclKind::StateVar(var) = &symb.kind {
                 let size = (var.ir_range.end() - var.ir_range.start() + 1) as usize;
                 let val = state.0.get(symb_id).unwrap();
-                res += ((val - var.ir_range.start()) as usize * combined_size);
+                res += (val - var.ir_range.start()) as usize * combined_size;
                 combined_size *= size;
             }
         }

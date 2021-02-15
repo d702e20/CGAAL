@@ -10,7 +10,6 @@ use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{stdout, Read, Write};
 use std::process::exit;
@@ -23,8 +22,7 @@ use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
-use crate::lcgs::ir::intermediate;
-use crate::lcgs::ir::intermediate::{IntermediateLCGS, Player};
+use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
@@ -104,7 +102,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     match args.subcommand() {
-        ("numbers", Some(number_args)) => {
+        ("numbers", Some(_number_args)) => {
             // Get the numbers for the players
 
             // Open the input model file
@@ -141,7 +139,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .iter()
                 .enumerate()
                 .collect::<Vec<(usize, &SymbolIdentifier)>>();
-            labels.sort_by_key(|(i, label)| &label.owner);
+            labels.sort_by_key(|(_i, label)| &label.owner);
 
             let mut current_owner = None;
             for (i, symbol) in labels {
@@ -262,32 +260,15 @@ fn load_formula(path: &str, format: FormulaFormat) -> Arc<Phi> {
             exit(1);
         }),
         FormulaFormat::TEXT => {
-            // BEGIN convert stub
-            struct Error {}
-
-            impl Debug for Error {
-                fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-                    unimplemented!()
-                }
-            }
-
-            fn convert_player(id: String) -> Result<usize, Error> {
-                todo!("Lookup player name and get matching numerical id")
-            }
-
-            fn convert_proposition(id: String) -> Result<usize, Error> {
-                todo!("Lookup proposition name and get matching numerical id")
-            }
-            // END convert stub
-
-            Arc::new(
-                atl::formula::parse_phi(&convert_player, &convert_player)
-                    .parse(formula.as_bytes())
-                    .unwrap_or_else(|err| {
-                        eprintln!("Invalid ATL formula provided:\n\n{}", err);
-                        exit(1)
-                    }),
-            )
+            unimplemented!("ATL formula parsing")
+            // Arc::new(
+            //     atl::formula::parse_phi(&convert_player, &convert_player)
+            //         .parse(formula.as_bytes())
+            //         .unwrap_or_else(|err| {
+            //             eprintln!("Invalid ATL formula provided:\n\n{}", err);
+            //             exit(1)
+            //         }),
+            // )
         }
     }
 }
