@@ -1,4 +1,9 @@
 // Power Control in Cellular Networks - http://www.prismmodelchecker.org/casestudies/power_control.php
+// This version is heavily modified compared to the PRISM case study. Most notably the reward structures are gone. 
+// Labels have been added to check ATL formulae. 
+// Probability to fail is removed
+// As comment in template says, we do not have exponent function, so this has been rewritten. 
+// Tracks quality in templates, and global sum of the qualities. 
 
 player p1 = phoneuser [otheruser = p2];
 player p2 = phoneuser [otheruser = p1];
