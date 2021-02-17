@@ -33,7 +33,6 @@ use tracing::trace;
 mod atl;
 mod com;
 mod common;
-mod distterm;
 mod edg;
 mod lcgs;
 #[cfg(feature = "graph-printer")]

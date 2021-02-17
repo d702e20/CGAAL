@@ -1,4 +1,3 @@
-use crate::distterm::Weight;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -48,12 +47,10 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
         vertex: V,
         distance: u32,
         worker_id: WorkerId,
-        weight: Weight,
     },
     /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
     ANSWER {
         vertex: V,
         assignment: VertexAssignment,
-        weight: Weight,
     },
 }
