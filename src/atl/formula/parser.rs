@@ -229,7 +229,9 @@ mod test {
         enforce_until, eventually, invariant, next, not, number, or, paren, phi, proposition,
         until, ATLExpressionParser,
     };
-    use crate::atl::formula::Phi;
+    use crate::atl::formula::{parse_phi, Phi};
+    use crate::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::lcgs::parse::parse_lcgs;
     use pom::parser::Parser;
 
     struct TestModel;
@@ -646,5 +648,103 @@ mod test {
     #[test]
     fn bool_false_lower() {
         assert_eq!(boolean().parse(b"false"), Ok(Phi::False))
+    }
+
+    #[test]
+    fn test_phi_01() {
+        assert_eq!(
+            phi(&TestModel).parse(b"<<0>> F true"),
+            Ok(Phi::EnforceEventually {
+                players: vec![0usize],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn test_atl_lcgs_01() {
+        // Can we parse ATL coalitions that mentions players in an LCGS program
+        let lcgs_program = "
+        player p1 = something;
+
+        template something
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+
+        let atl_formula = "<<p1>>";
+        let phi = enforce_players(&lcgs).parse(&atl_formula.as_bytes());
+        assert_eq!(phi, Ok(vec![0]));
+    }
+
+    #[test]
+    fn test_atl_lcgs_02() {
+        // Can we parse ATL formulas that mentions players in an LCGS program
+        let lcgs_program = "
+        player p1 = something;
+
+        template something
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+
+        let atl_formula = "<<p1>> F true";
+        let phi = parse_phi(&lcgs, &atl_formula);
+        assert_eq!(
+            phi,
+            Ok(Phi::EnforceEventually {
+                players: vec![0],
+                formula: Arc::new(Phi::True)
+            })
+        )
+    }
+
+    #[test]
+    fn test_atl_lcgs_03() {
+        // Can we parse ATL formulas that mentions labels in an LCGS program
+        let lcgs_program = "
+        player p1 = something;
+        label test = 1;
+        template something
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+
+        let atl_formula = "<<>> F test";
+        let phi = parse_phi(&lcgs, &atl_formula);
+        assert_eq!(
+            phi,
+            Ok(Phi::EnforceEventually {
+                players: vec![],
+                formula: Arc::new(Phi::Proposition(0))
+            })
+        )
+    }
+
+    #[test]
+    fn test_atl_lcgs_04() {
+        // Can we parse ATL formulas that mentions players and labels in an LCGS program
+        let lcgs_program = "
+        player p1 = something;
+
+        template something
+            label test = 1;
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+
+        let atl_formula = "<<p1>> F p1.test";
+        let phi = parse_phi(&lcgs, &atl_formula);
+        assert_eq!(
+            phi,
+            Ok(Phi::EnforceEventually {
+                players: vec![0],
+                formula: Arc::new(Phi::Proposition(0))
+            })
+        )
     }
 }
