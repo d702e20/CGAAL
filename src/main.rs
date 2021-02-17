@@ -18,7 +18,7 @@ use std::sync::Arc;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use crate::atl::formula::Phi;
+use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Some("json") => FormulaFormat::JSON,
         Some("text") => FormulaFormat::TEXT,
         // Default value in case user did not give one
-        None => FormulaFormat::JSON,
+        None => FormulaFormat::TEXT,
         _ => {
             eprintln!("Invalid formula format specified");
             exit(1)
@@ -231,7 +231,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 /// Reads a formula in JSON format from a file.
 /// This function will exit the program if it encounters an error.
-fn load_formula(path: &str, format: FormulaFormat) -> Arc<Phi> {
+fn load_formula<A: ATLExpressionParser>(
+    path: &str,
+    format: FormulaFormat,
+    expr_parser: &A,
+) -> Arc<Phi> {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -249,15 +253,11 @@ fn load_formula(path: &str, format: FormulaFormat) -> Arc<Phi> {
             exit(1);
         }),
         FormulaFormat::TEXT => {
-            unimplemented!("ATL formula parsing")
-            // Arc::new(
-            //     atl::formula::parse_phi(&convert_player, &convert_player)
-            //         .parse(formula.as_bytes())
-            //         .unwrap_or_else(|err| {
-            //             eprintln!("Invalid ATL formula provided:\n\n{}", err);
-            //             exit(1)
-            //         }),
-            // )
+            let result = atl::formula::parse_phi(expr_parser, &formula);
+            Arc::new(result.unwrap_or_else(|err| {
+                eprintln!("Invalid ATL formula provided:\n\n{}", err);
+                exit(1)
+            }))
         }
     }
 }
@@ -294,9 +294,10 @@ where
                 eprintln!("Failed to deserialize input model\n\nError:\n{}", err);
                 exit(1);
             });
-            let graph = ATLDependencyGraph { game_structure };
 
-            let formula = load_formula(formula_path, formula_format);
+            let formula = load_formula(formula_path, formula_format, &game_structure);
+
+            let graph = ATLDependencyGraph { game_structure };
 
             handle_json(graph, formula)
         }
@@ -309,9 +310,10 @@ where
                 eprintln!("Invalid LCGS program");
                 exit(1);
             });
-            let graph = ATLDependencyGraph { game_structure };
 
-            let formula = load_formula(formula_path, formula_format);
+            let formula = load_formula(formula_path, formula_format, &game_structure);
+
+            let graph = ATLDependencyGraph { game_structure };
 
             handle_lcgs(graph, formula)
         }

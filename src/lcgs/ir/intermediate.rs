@@ -484,8 +484,8 @@ impl GameStructure for IntermediateLCGS {
     }
 }
 
-impl<'a, 'b: 'a> ATLExpressionParser<'a, 'b> for IntermediateLCGS {
-    fn player_parser(&'b self) -> Parser<'a, u8, usize> {
+impl ATLExpressionParser for IntermediateLCGS {
+    fn player_parser(&self) -> Parser<u8, usize> {
         identifier().convert(move |name| {
             let symbol = Owner::Global.symbol_id(&name);
             if let Some(decl) = self.symbols.get(&symbol) {
@@ -503,7 +503,7 @@ impl<'a, 'b: 'a> ATLExpressionParser<'a, 'b> for IntermediateLCGS {
         })
     }
 
-    fn proposition_parser(&'b self) -> Parser<'a, u8, usize> {
+    fn proposition_parser(&self) -> Parser<u8, usize> {
         let parser = identifier() + (sym(b'.') * identifier()).opt();
         parser.convert(move |(name_or_owner, name)| {
             let (symbol, full_name) = if let Some(name) = name {

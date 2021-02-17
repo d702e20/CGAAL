@@ -66,12 +66,12 @@ impl GameStructure for EagerGameStructure {
     }
 }
 
-impl<'a, 'b: 'a> ATLExpressionParser<'a, 'b> for EagerGameStructure {
-    fn player_parser(&'b self) -> Parser<'a, u8, usize> {
+impl ATLExpressionParser for EagerGameStructure {
+    fn player_parser(&self) -> Parser<u8, usize> {
         number()
     }
 
-    fn proposition_parser(&'b self) -> Parser<'a, u8, usize> {
+    fn proposition_parser(&self) -> Parser<u8, usize> {
         number()
     }
 }
