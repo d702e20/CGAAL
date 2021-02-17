@@ -28,6 +28,10 @@ impl Player {
         }
     }
 
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
     /// Helper function to quickly turn a player into an [Owner]
     pub fn to_owner(&self) -> Owner {
         Owner::Player(self.name.clone())
@@ -66,6 +70,10 @@ impl IntermediateLCGS {
         };
 
         Ok(ilcgs)
+    }
+
+    pub fn get_decl(&self, symbol: &SymbolIdentifier) -> Option<&Decl> {
+        self.symbols.get(symbol)
     }
 
     /// Transforms a state index to a [State].
@@ -794,6 +802,7 @@ mod test {
         let input = "
         foo : [0 .. 9] init 0;
         foo' = foo;
+        label no = foo == 0;
         player p1 = something;
         player p2 = something;
         template something
@@ -803,10 +812,12 @@ mod test {
         ";
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(5);
-        assert!(labels.contains(&0usize));
-        assert_eq!(get_label_index(&lcgs, "p1.yes"), 0usize);
+        assert!(!labels.contains(&0usize));
+        assert_eq!(get_label_index(&lcgs, ":global.no"), 0usize);
         assert!(labels.contains(&1usize));
-        assert_eq!(get_label_index(&lcgs, "p2.yes"), 1usize);
+        assert_eq!(get_label_index(&lcgs, "p1.yes"), 1usize);
+        assert!(labels.contains(&2usize));
+        assert_eq!(get_label_index(&lcgs, "p2.yes"), 2usize);
     }
 
     #[test]

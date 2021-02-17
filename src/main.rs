@@ -22,6 +22,7 @@ use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
+use crate::lcgs::ast::DeclKind;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
 use crate::lcgs::parse::parse_lcgs;
@@ -102,8 +103,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     match args.subcommand() {
-        ("numbers", Some(_number_args)) => {
-            // Get the numbers for the players
+        ("index", Some(_number_args)) => {
+            // Get the indexes for the players and labels
 
             // Open the input model file
             let mut file = File::open(input_model_path).unwrap_or_else(|err| {
@@ -127,33 +128,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                 exit(1);
             });
 
-            let player_id = ir
-                .get_player()
-                .iter()
-                .enumerate()
-                .map(|(i, player)| (player.get_name(), i))
-                .collect::<HashMap<String, usize>>();
+            println!("Players:");
+            for player in &ir.get_player() {
+                println!("{} : {}", player.get_name(), player.index())
+            }
 
-            let labels = ir.get_labels();
-            let mut labels = labels
-                .iter()
-                .enumerate()
-                .collect::<Vec<(usize, &SymbolIdentifier)>>();
-            labels.sort_by_key(|(_i, label)| &label.owner);
-
-            let mut current_owner = None;
-            for (i, symbol) in labels {
-                if Some(&symbol.owner) != current_owner {
-                    match &symbol.owner {
-                        Owner::Player(player) => {
-                            println!("name: {:?}, id: {}", symbol.owner, player_id[player])
-                        }
-                        Owner::Global => println!("name: {:?}", symbol.owner),
+            println!("\nLabels:");
+            for label_symbol in &ir.get_labels() {
+                let label_decl = ir.get_decl(&label_symbol).unwrap();
+                if let DeclKind::Label(label) = &label_decl.kind {
+                    if Owner::Global == label_symbol.owner {
+                        println!("{} : {}", &label_symbol.name, label.index)
+                    } else {
+                        println!("{} : {}", &label_symbol, label.index)
                     }
-                    current_owner = Some(&symbol.owner);
                 }
-
-                println!("\tlabel: {}, id: {}", symbol.name, i);
             }
         }
         ("solver", Some(solver_args)) => {
@@ -397,7 +386,7 @@ fn parse_arguments() -> ArgMatches<'static> {
             ),
         ))
         .subcommand(
-            SubCommand::with_name("numbers").arg(
+            SubCommand::with_name("index").arg(
                 Arg::with_name("input_model")
                     .short("m")
                     .long("model")
