@@ -9,7 +9,7 @@ use std::thread;
 use crossbeam_channel::{Receiver, TrySendError};
 
 use crate::com::{Broker, ChannelBroker};
-use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
+use crate::common::{Edges, HyperEdge, Message, NegationEdge, Token, VertexAssignment, WorkerId};
 use std::cmp::max;
 use tracing::{span, trace, Level};
 
@@ -105,6 +105,8 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
     counter: u32,
+    /// True if the worker have done work since last time it saw a Message::Token
+    dirty: bool,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -139,15 +141,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         broker: Arc<B>,
         edg: G,
     ) -> Self {
-        // Initialize fields
-        let assignment = HashMap::new();
-        let interests = HashMap::<V, HashSet<WorkerId>>::new();
-        let depends = HashMap::<V, HashSet<Edges<V>>>::new();
-        let successors = HashMap::<V, HashSet<Edges<V>>>::new();
-        let distances = HashMap::<V, u32>::new();
-        let unsafe_edges = Vec::<Vec<NegationEdge<V>>>::new();
-        let counter = 0;
-
         trace!(
             worker_id = id,
             worker_count,
@@ -159,19 +152,20 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             id,
             worker_count,
             v0,
-            assignment,
-            depends,
-            interests,
+            assignment: HashMap::new(),
+            depends: HashMap::<V, HashSet<Edges<V>>>::new(),
+            interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_rx,
             hyper_rx,
             negation_rx,
-            unsafe_edges,
-            distances,
+            unsafe_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            distances: HashMap::<V, u32>::new(),
             term_rx,
             broker,
-            successors,
+            successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
-            counter,
+            counter: 0,
+            dirty: false,
         }
     }
 
@@ -224,11 +218,58 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         Message::ANSWER { vertex, assignment } => {
                             self.process_answer(&vertex, assignment)
                         }
+                        Message::TOKEN(token) => {
+                            // TODO check that the token ring logic works correctly with only a single worker
+                            match token {
+                                Token::Clean => {
+                                    if self.id == 0 {
+                                        // Late termination
+                                        self.broker.terminate(VertexAssignment::FALSE)
+                                    } else {
+                                        if self.dirty {
+                                            todo!("check if the token should be changed to Dirty or HaveNegations")
+                                        } else {
+                                            // Forward the Token::Clean
+                                            self.broker.send(
+                                                (self.id + 1) % self.worker_count,
+                                                Message::TOKEN(token),
+                                            )
+                                        }
+                                    }
+                                }
+                                Token::HaveNegations => {
+                                    if self.id == 0 {
+                                        for worker_id in 0..self.worker_count {
+                                            self.broker.send(worker_id, Message::RELEASE)
+                                        }
+                                    } else {
+                                        self.broker.send(
+                                            (self.id + 1) % self.worker_count,
+                                            Message::TOKEN(token),
+                                        )
+                                    }
+                                }
+                                Token::Dirty => {
+                                    if self.id == 0 {
+                                        // no-op, other workers are busy
+                                    } else {
+                                        todo!("check if Token::Dirty need to be upgraded to Token::HaveNegations");
+                                        self.broker.send(
+                                            (self.id + 1) % self.worker_count,
+                                            Message::TOKEN(token),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Message::RELEASE => {
+                            todo!("release negation")
+                        }
                     },
                     Err(err) => panic!("Receiving from message channel failed with: {}", err),
                 }
             } else if !hyper_rx.is_empty() {
-                self.counter = 0;
+                self.dirty = true;
                 match hyper_rx.recv() {
                     // Alg 1, Line 6
                     Ok(edge) => {
@@ -246,6 +287,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     ),
                 }
             } else if !negation_rx.is_empty() {
+                self.dirty = true;
                 match negation_rx.recv() {
                     Ok(edge) => {
                         let _guard = span!(

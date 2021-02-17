@@ -53,4 +53,17 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
         vertex: V,
         assignment: VertexAssignment,
     },
+    TOKEN(Token),
+    /// Release negation edge
+    RELEASE,
+}
+
+#[derive(Clone, Debug)]
+pub enum Token {
+    /// Indicate that no previous holder of the token have any pending hyper- or negations-edges
+    Clean,
+    /// Indicate that no previous holder of the token have pending hyper-edges, but at least one do have pending negation-edges
+    HaveNegations,
+    /// Indicate that a previous holder of the token have pending hyper-edges
+    Dirty,
 }
