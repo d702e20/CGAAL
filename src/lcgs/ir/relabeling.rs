@@ -43,6 +43,7 @@ impl<'a> Relabeler<'a> {
     fn relabel_label(&self, label: &LabelDecl) -> Result<Decl, ()> {
         Ok(Decl {
             kind: DeclKind::Label(Box::new(LabelDecl {
+                index: label.index,
                 name: self.relabel_simple_ident(&label.name)?,
                 condition: self.relabel_expr(&label.condition)?,
             })),
@@ -341,6 +342,7 @@ mod test {
             new_decl,
             Decl {
                 kind: DeclKind::Label(Box::new(LabelDecl {
+                    index: 0usize,
                     condition: Expr {
                         kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
                             owner: Some("bar".to_string()),

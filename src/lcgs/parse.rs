@@ -281,7 +281,11 @@ fn var_decl<'a>() -> Parser<'a, u8, StateVarDecl> {
 /// "`label alive = health > 0`"
 pub(crate) fn label_decl<'a>() -> Parser<'a, u8, LabelDecl> {
     let label = seq(b"label") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
-    label.map(|(name, condition)| LabelDecl { condition, name })
+    label.map(|(name, condition)| LabelDecl {
+        index: 0usize,
+        condition,
+        name,
+    })
 }
 
 /// Parser that parses a const declaration, e.g.
@@ -310,6 +314,7 @@ fn player_decl<'a>() -> Parser<'a, u8, PlayerDecl> {
     let lhs = identifier() - ws() + relabeling().opt();
     let whole = rhs - ws() - sym(b'=') - ws() + lhs;
     whole.map(|(name, (template, relabel))| PlayerDecl {
+        index: 0usize,
         name,
         template,
         relabeling: relabel.unwrap_or_else(|| Relabeling {
@@ -1101,6 +1106,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(LabelDecl {
+                index: 0usize,
                 condition: Expr {
                     kind: OwnedIdent(Box::new(Identifier::OptionalOwner {
                         owner: None,
@@ -1197,6 +1203,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
+                index: 0usize,
                 name: Identifier::Simple {
                     name: "p1".to_string()
                 },
@@ -1218,6 +1225,7 @@ mod tests {
         assert_eq!(
             parser.parse(input),
             Ok(PlayerDecl {
+                index: 0usize,
                 name: Identifier::Simple {
                     name: "p1".to_string()
                 },

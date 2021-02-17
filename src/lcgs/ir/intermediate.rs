@@ -1,24 +1,28 @@
 use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
+use crate::atl::formula::{identifier, ATLExpressionParser};
 use crate::atl::gamestructure::GameStructure;
 use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::relabeling::Relabeler;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use pom::parser::{sym, Parser};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Player {
+    index: usize,
     name: String,
     actions: Vec<SymbolIdentifier>,
 }
 
 impl Player {
-    pub fn new(name: &str) -> Player {
+    pub fn new(index: usize, name: &str) -> Player {
         Player {
+            index,
             name: name.to_string(),
             actions: vec![],
         }
@@ -172,12 +176,14 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
     let mut labels = vec![];
     let mut vars = vec![];
 
+    let mut next_label_index = 0;
+
     // Register global declarations.
     // Constants are evaluated immediately.
     // Players are put in a separate vector and handled afterwards.
     // Symbol table is given ownership of the declarations.
-    for decl in root.decls {
-        match &decl.kind {
+    for mut decl in root.decls {
+        match decl.kind.borrow_mut() {
             DeclKind::Const(cons) => {
                 // We can evaluate constants immediately as constants can only
                 // refer to other constants that are above them in the program.
@@ -201,7 +207,9 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
                     panic!("Constant '{}' is already declared.", &name); // TODO Use custom error
                 }
             }
-            DeclKind::Label(_) => {
+            DeclKind::Label(label) => {
+                label.index = next_label_index;
+                next_label_index += 1;
                 // Insert in symbol table and add to labels list
                 let name = decl.kind.ident().name().to_string();
                 if symbols.insert(&Owner::Global, &name, decl).is_some() {
@@ -244,9 +252,11 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
     // Register player declarations. Here we clone the declarations since multiple
     // players can use the same template
     let mut players = vec![];
-    for decl in player_decls {
-        if let DeclKind::Player(player_decl) = &decl.kind {
-            let mut player = Player::new(&player_decl.name.name());
+    for (index, mut decl) in player_decls.drain(..).enumerate() {
+        if let DeclKind::Player(player_decl) = decl.kind.borrow_mut() {
+            player_decl.index = index;
+
+            let mut player = Player::new(index, &player_decl.name.name());
             let relabeler = Relabeler::new(&player_decl.relabeling);
 
             let template_decl = symbols
@@ -260,9 +270,11 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
                 // Go through each declaration in the template and register a relabeled
                 // clone of it that is owned by the given player
                 let scope_owner = player.to_owner();
-                for decl in template.decls {
-                    match &decl.kind {
-                        DeclKind::Label(_) => {
+                for mut decl in template.decls {
+                    match decl.kind.borrow_mut() {
+                        DeclKind::Label(label) => {
+                            label.index = next_label_index;
+                            next_label_index += 1;
                             let relabeled_decl = relabeler.relabel_decl(&decl)?;
                             // Insert into symbol table and add to labels list
                             let name = relabeled_decl.kind.ident().name().to_string();
@@ -315,7 +327,8 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
                     }
                 }
             } else {
-                panic!("'{}' is not a template.", decl.kind.ident().name()); // TODO Use custom error
+                panic!("'{}' is not a template.", template_decl.kind.ident().name());
+                // TODO Use custom error
             }
 
             // The player is done. We can now register the player declaration.
@@ -463,10 +476,60 @@ impl GameStructure for IntermediateLCGS {
     }
 }
 
+impl<'a, 'b: 'a> ATLExpressionParser<'a, 'b> for IntermediateLCGS {
+    fn player_parser(&'b self) -> Parser<'a, u8, usize> {
+        identifier().convert(move |name| {
+            let symbol = Owner::Global.symbol_id(&name);
+            if let Some(decl) = self.symbols.get(&symbol) {
+                if let DeclKind::Player(player) = &decl.kind {
+                    Ok(player.index)
+                } else {
+                    Err(format!("The declaration '{}' is not a player.", name))
+                }
+            } else {
+                Err(format!(
+                    "The LCGS program does not contain any player named '{}'.",
+                    name
+                ))
+            }
+        })
+    }
+
+    fn proposition_parser(&'b self) -> Parser<'a, u8, usize> {
+        let parser = identifier() + (sym(b'.') * identifier()).opt();
+        parser.convert(move |(name_or_owner, name)| {
+            let (symbol, full_name) = if let Some(name) = name {
+                let owner = name_or_owner;
+                (
+                    Owner::Player(owner.clone()).symbol_id(&name),
+                    format!("{}.{}", owner, name),
+                )
+            } else {
+                let name = name_or_owner;
+                (Owner::Global.symbol_id(&name), name)
+            };
+            if let Some(decl) = self.symbols.get(&symbol) {
+                if let DeclKind::Label(label) = &decl.kind {
+                    Ok(label.index)
+                } else {
+                    Err(format!("The declaration '{}' is not a label.", full_name))
+                }
+            } else {
+                Err(format!(
+                    "The LCGS program does not contain any label with the name '{}'",
+                    full_name
+                ))
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::atl::gamestructure::GameStructure;
+    use crate::lcgs::ast::DeclKind;
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::lcgs::ir::symbol_table::Owner;
     use crate::lcgs::parse::parse_lcgs;
 
     #[test]
@@ -676,6 +739,16 @@ mod test {
         assert!(lcgs.symbols.get(&":global.t".into()).is_some());
     }
 
+    /// Helper function to get the index of a label with the given symbol name
+    fn get_label_index(lcgs: &IntermediateLCGS, symbol_name: &str) -> usize {
+        let symbol = lcgs.symbols.get(&symbol_name.into()).unwrap();
+        if let DeclKind::Label(label) = &symbol.kind {
+            label.index
+        } else {
+            panic!("Symbol '{}' is not a label", symbol_name)
+        }
+    }
+
     #[test]
     fn test_labels_01() {
         // Are the expected labels present
@@ -689,6 +762,7 @@ mod test {
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(23);
         assert!(labels.contains(&0usize));
+        assert_eq!(get_label_index(&lcgs, ":global.cool"), 0usize);
     }
 
     #[test]
@@ -706,8 +780,11 @@ mod test {
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(46);
         assert!(labels.contains(&0usize));
+        assert_eq!(get_label_index(&lcgs, ":global.cool"), 0usize);
         assert!(!labels.contains(&1usize));
+        assert_eq!(get_label_index(&lcgs, ":global.great"), 1usize);
         assert!(labels.contains(&2usize));
+        assert_eq!(get_label_index(&lcgs, ":global.awesome"), 2usize);
     }
 
     #[test]
@@ -727,7 +804,9 @@ mod test {
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(5);
         assert!(labels.contains(&0usize));
+        assert_eq!(get_label_index(&lcgs, "p1.yes"), 0usize);
         assert!(labels.contains(&1usize));
+        assert_eq!(get_label_index(&lcgs, "p2.yes"), 1usize);
     }
 
     #[test]
@@ -835,5 +914,35 @@ mod test {
         ";
         let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(1, lcgs.initial_state_index());
+    }
+
+    /// Helper function to get the index of a player with the given name
+    fn get_player_index(lcgs: &IntermediateLCGS, player_name: &str) -> usize {
+        let symbol = lcgs
+            .symbols
+            .get(&Owner::Global.symbol_id(player_name))
+            .unwrap();
+        if let DeclKind::Player(player) = &symbol.kind {
+            player.index
+        } else {
+            panic!("Symbol ':global.{}' is not a player", player_name)
+        }
+    }
+
+    #[test]
+    fn test_players_01() {
+        // Are the players assigned the expected indexes
+        let input = "
+        player p1 = something;
+        player p2 = something;
+        player p3 = something;
+        template something
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        assert_eq!(get_player_index(&lcgs, "p1"), 0usize);
+        assert_eq!(get_player_index(&lcgs, "p2"), 1usize);
+        assert_eq!(get_player_index(&lcgs, "p3"), 2usize);
     }
 }
