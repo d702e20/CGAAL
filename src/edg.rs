@@ -1,12 +1,12 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, TrySendError};
+use crossbeam_channel::{Receiver, TryRecvError, TrySendError};
 
 use crate::com::{Broker, ChannelBroker};
 use crate::common::{Edges, HyperEdge, Message, NegationEdge, Token, VertexAssignment, WorkerId};
@@ -35,8 +35,7 @@ pub fn distributed_certain_zero<
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
     // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs) =
-        ChannelBroker::new(worker_count);
+    let (broker, mut msg_rxs) = ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
     // Channel used for returning the final assigment of `v0` to the calling thread
@@ -44,17 +43,11 @@ pub fn distributed_certain_zero<
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
-        let hyper_rx = hyper_rxs.pop().unwrap();
-        let negation_rx = negation_rxs.pop().unwrap();
-        let term_rx = term_rxs.pop().unwrap();
         let mut worker = Worker::new(
             i,
             worker_count,
             v0.clone(),
             msg_rx,
-            hyper_rx,
-            negation_rx,
-            term_rx,
             broker.clone(),
             edg.clone(),
         );
@@ -94,10 +87,10 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     interests: HashMap<V, HashSet<WorkerId>>,
     distances: HashMap<V, u32>,
     msg_rx: Receiver<Message<V>>,
-    hyper_rx: Receiver<HyperEdge<V>>,
-    negation_rx: Receiver<NegationEdge<V>>,
+    msg_queue: VecDeque<Message<V>>,
+    hyper_queue: VecDeque<HyperEdge<V>>,
+    negation_queue: VecDeque<NegationEdge<V>>,
     unsafe_edges: Vec<Vec<NegationEdge<V>>>,
-    term_rx: Receiver<VertexAssignment>,
     broker: Arc<B>,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
     /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
@@ -135,9 +128,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         worker_count: u64,
         v0: V,
         msg_rx: Receiver<Message<V>>,
-        hyper_rx: Receiver<HyperEdge<V>>,
-        negation_rx: Receiver<NegationEdge<V>>,
-        term_rx: Receiver<VertexAssignment>,
         broker: Arc<B>,
         edg: G,
     ) -> Self {
@@ -156,11 +146,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             depends: HashMap::<V, HashSet<Edges<V>>>::new(),
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_rx,
-            hyper_rx,
-            negation_rx,
+            msg_queue: VecDeque::new(),
+            hyper_queue: VecDeque::new(),
+            negation_queue: VecDeque::new(),
             unsafe_edges: Vec::<Vec<NegationEdge<V>>>::new(),
             distances: HashMap::<V, u32>::new(),
-            term_rx,
             broker,
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
@@ -181,79 +171,64 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             self.explore(&self.v0.clone());
         }
 
-        let term_rx = self.term_rx.clone();
-        let hyper_rx = self.hyper_rx.clone();
-        let negation_rx = self.negation_rx.clone();
         let msg_rx = self.msg_rx.clone();
 
         loop {
-            // Termination signal indicating result have been found
-            if !term_rx.is_empty() {
-                self.counter = 0;
-                match term_rx.recv() {
-                    Ok(assignment) => {
-                        // Alg 1, Line 11-12
-                        trace!(?assignment, "worker received termination");
-                        return match assignment {
-                            VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                            VertexAssignment::FALSE => VertexAssignment::FALSE,
-                            VertexAssignment::TRUE => VertexAssignment::TRUE,
-                        };
-                    }
-                    Err(err) => panic!("Receiving from termination channel failed with: {}", err),
+            // Pump all messages from broker to queues
+            loop {
+                match msg_rx.try_recv() {
+                    Ok(msg) => match msg {
+                        Message::REQUEST { .. } => self.msg_queue.push_back(msg),
+                        Message::ANSWER { .. } => self.msg_queue.push_back(msg),
+                        Message::TOKEN(_) => self.msg_queue.push_back(msg),
+                        Message::RELEASE => self.msg_queue.push_back(msg),
+                        Message::NEGATION(edge) => self.negation_queue.push_back(edge),
+                        Message::HYPER(edge) => self.hyper_queue.push_back(edge),
+                        Message::TERMINATE(assignment) => {
+                            // Alg 1, Line 11-12
+                            trace!(?assignment, "worker received termination");
+                            return match assignment {
+                                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
+                                VertexAssignment::FALSE => VertexAssignment::FALSE,
+                                VertexAssignment::TRUE => VertexAssignment::TRUE,
+                            };
+                        }
+                    },
+                    Err(err) => match err {
+                        TryRecvError::Empty => break,
+                        TryRecvError::Disconnected => {
+                            panic!("worker receive channel disconnected unexpectedly: {}", err)
+                        }
+                    },
                 }
-            } else if !msg_rx.is_empty() {
+            }
+
+            if let Some(msg) = self.msg_queue.pop_back() {
                 let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
                 self.counter = 0;
-                match msg_rx.recv() {
-                    // Alg 1, Line 5-9
-                    Ok(msg) => match msg {
-                        // Alg 1, Line 8
-                        Message::REQUEST {
-                            vertex,
-                            distance,
-                            worker_id,
-                        } => self.process_request(&vertex, worker_id, distance),
-                        // Alg 1, Line 9
-                        Message::ANSWER { vertex, assignment } => {
-                            self.process_answer(&vertex, assignment)
-                        }
-                        Message::TOKEN(token) => {
-                            // TODO check that the token ring logic works correctly with only a single worker
-                            match token {
-                                Token::Clean => {
-                                    if self.id == 0 {
-                                        // Late termination
-                                        self.broker.terminate(VertexAssignment::FALSE)
+                match msg {
+                    // Alg 1, Line 8
+                    Message::REQUEST {
+                        vertex,
+                        distance,
+                        worker_id,
+                    } => self.process_request(&vertex, worker_id, distance),
+                    // Alg 1, Line 9
+                    Message::ANSWER { vertex, assignment } => {
+                        self.process_answer(&vertex, assignment)
+                    }
+                    Message::TOKEN(token) => {
+                        // TODO check that the token ring logic works correctly with only a single worker
+                        match token {
+                            Token::Clean => {
+                                if self.id == 0 {
+                                    // Late termination
+                                    self.broker.terminate(VertexAssignment::FALSE)
+                                } else {
+                                    if self.dirty {
+                                        todo!("check if the token should be changed to Dirty or HaveNegations")
                                     } else {
-                                        if self.dirty {
-                                            todo!("check if the token should be changed to Dirty or HaveNegations")
-                                        } else {
-                                            // Forward the Token::Clean
-                                            self.broker.send(
-                                                (self.id + 1) % self.worker_count,
-                                                Message::TOKEN(token),
-                                            )
-                                        }
-                                    }
-                                }
-                                Token::HaveNegations => {
-                                    if self.id == 0 {
-                                        for worker_id in 0..self.worker_count {
-                                            self.broker.send(worker_id, Message::RELEASE)
-                                        }
-                                    } else {
-                                        self.broker.send(
-                                            (self.id + 1) % self.worker_count,
-                                            Message::TOKEN(token),
-                                        )
-                                    }
-                                }
-                                Token::Dirty => {
-                                    if self.id == 0 {
-                                        // no-op, other workers are busy
-                                    } else {
-                                        todo!("check if Token::Dirty need to be upgraded to Token::HaveNegations");
+                                        // Forward the Token::Clean
                                         self.broker.send(
                                             (self.id + 1) % self.worker_count,
                                             Message::TOKEN(token),
@@ -261,71 +236,81 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                                     }
                                 }
                             }
+                            Token::HaveNegations => {
+                                if self.id == 0 {
+                                    for worker_id in 0..self.worker_count {
+                                        self.broker.send(worker_id, Message::RELEASE)
+                                    }
+                                } else {
+                                    self.broker.send(
+                                        (self.id + 1) % self.worker_count,
+                                        Message::TOKEN(token),
+                                    )
+                                }
+                            }
+                            Token::Dirty => {
+                                if self.id == 0 {
+                                    // no-op, other workers are busy
+                                } else {
+                                    todo!("check if Token::Dirty need to be upgraded to Token::HaveNegations");
+                                    self.broker.send(
+                                        (self.id + 1) % self.worker_count,
+                                        Message::TOKEN(token),
+                                    )
+                                }
+                            }
                         }
-                        Message::RELEASE => {
-                            todo!("release negation")
+                    }
+                    Message::RELEASE => {
+                        todo!("release negation")
+                    }
+                    Message::NEGATION(_) => unreachable!(),
+                    Message::HYPER(_) => unreachable!(),
+                    Message::TERMINATE(_) => unreachable!(),
+                }
+            } else if let Some(edge) = self.hyper_queue.pop_front() {
+                self.dirty = true;
+
+                let _guard = span!(
+                    Level::TRACE,
+                    "worker receive hyper-edge",
+                    worker_id = self.id,
+                    ?edge,
+                );
+                self.process_hyper_edge(edge)
+            } else if let Some(edge) = self.negation_queue.pop_front() {
+                self.dirty = true;
+
+                let _guard = span!(
+                    Level::TRACE,
+                    "worker receive negation-edge",
+                    worker_id = self.id,
+                    ?edge,
+                );
+                match self.assignment.get(&edge.target) {
+                    None => self.process_negation_edge(edge.clone()),
+                    // Alg 1, Line 7
+                    Some(assignment) => match assignment {
+                        VertexAssignment::FALSE => {
+                            self.counter = 0;
+                            self.process_negation_edge(edge.clone())
+                        }
+                        VertexAssignment::TRUE => {
+                            self.counter = 0;
+                            self.process_negation_edge(edge.clone())
+                        }
+                        // In case of undecided the edge is only processed after 10 iterations
+                        VertexAssignment::UNDECIDED => {
+                            if self.counter == 9 {
+                                self.counter = 0;
+                                self.process_negation_edge(edge.clone())
+                            } else {
+                                trace!(?edge, "queueing negation");
+                                self.broker.queue_negation(self.id, edge.clone());
+                                self.counter += 1;
+                            }
                         }
                     },
-                    Err(err) => panic!("Receiving from message channel failed with: {}", err),
-                }
-            } else if !hyper_rx.is_empty() {
-                self.dirty = true;
-                match hyper_rx.recv() {
-                    // Alg 1, Line 6
-                    Ok(edge) => {
-                        let _guard = span!(
-                            Level::TRACE,
-                            "worker receive hyper-edge",
-                            worker_id = self.id,
-                            ?edge,
-                        );
-                        self.process_hyper_edge(edge)
-                    }
-                    Err(err) => panic!(
-                        "Receiving from hyper edge waiting channel failed with: {}",
-                        err
-                    ),
-                }
-            } else if !negation_rx.is_empty() {
-                self.dirty = true;
-                match negation_rx.recv() {
-                    Ok(edge) => {
-                        let _guard = span!(
-                            Level::TRACE,
-                            "worker receive negation-edge",
-                            worker_id = self.id,
-                            ?edge,
-                        );
-                        match self.assignment.get(&edge.target) {
-                            None => self.process_negation_edge(edge.clone()),
-                            // Alg 1, Line 7
-                            Some(assignment) => match assignment {
-                                VertexAssignment::FALSE => {
-                                    self.counter = 0;
-                                    self.process_negation_edge(edge.clone())
-                                }
-                                VertexAssignment::TRUE => {
-                                    self.counter = 0;
-                                    self.process_negation_edge(edge.clone())
-                                }
-                                // In case of undecided the edge is only processed after 10 iterations
-                                VertexAssignment::UNDECIDED => {
-                                    if self.counter == 9 {
-                                        self.counter = 0;
-                                        self.process_negation_edge(edge.clone())
-                                    } else {
-                                        trace!(?edge, "queueing negation");
-                                        self.broker.queue_negation(self.id, edge.clone());
-                                        self.counter += 1;
-                                    }
-                                }
-                            },
-                        }
-                    }
-                    Err(err) => panic!(
-                        "Receiving from negation edge waiting channel failed with: {}",
-                        err
-                    ),
                 }
             } else {
                 let _guard = span!(Level::TRACE, "worker release negation", worker_id = self.id);

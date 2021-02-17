@@ -21,9 +21,6 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
 #[derive(Debug)]
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
-    hyper_chans: Vec<Sender<HyperEdge<V>>>,
-    negation_chans: Vec<Sender<NegationEdge<V>>>,
-    term_chans: Vec<Sender<VertexAssignment>>,
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
@@ -36,50 +33,24 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
     }
 
     fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>) {
-        self.hyper_chans
-            .get(to as usize)
-            .expect("receiver id out of bounds")
-            .send(edge)
-            .expect(&*format!("Send to worker {} failed", to));
+        self.send(to, Message::HYPER(edge));
     }
 
     fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>) {
-        self.negation_chans
-            .get(to as usize)
-            .expect("receiver id out of bounds")
-            .send(edge)
-            .expect(&*format!("Send to worker {} failed", to));
+        self.send(to, Message::NEGATION(edge));
     }
 
     fn terminate(&self, assignment: VertexAssignment) {
-        for i in 0..self.workers.len() {
-            self.term_chans
-                .get(i as usize)
-                .expect("receiver id out of bounds")
-                .send(assignment)
-                .expect(&*format!(
-                    "Failed to send termination signal to worker {}",
-                    i
-                ));
+        for i in 0u64..self.workers.len() as u64 {
+            self.send(i, Message::TERMINATE(assignment))
         }
     }
 }
 
 type MsgQueueList<V> = Vec<Receiver<Message<V>>>;
-type HyperQueueList<V> = Vec<Receiver<HyperEdge<V>>>;
-type NegationQueueList<V> = Vec<Receiver<NegationEdge<V>>>;
-type TermQueueList = Vec<Receiver<VertexAssignment>>;
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
-    pub fn new(
-        worker_count: u64,
-    ) -> (
-        Self,
-        MsgQueueList<V>,
-        HyperQueueList<V>,
-        NegationQueueList<V>,
-        TermQueueList,
-    ) {
+    pub fn new(worker_count: u64) -> (Self, MsgQueueList<V>) {
         // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);
@@ -90,48 +61,11 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
             msg_receivers.push(receiver);
         }
 
-        // Create a hyper edges waiting channel foreach worker
-        let mut hyper_senders = Vec::with_capacity(worker_count as usize);
-        let mut hyper_receivers = Vec::with_capacity(worker_count as usize);
-
-        for _ in 0..worker_count {
-            let (sender, receiver) = unbounded();
-            hyper_senders.push(sender);
-            hyper_receivers.push(receiver);
-        }
-
-        // Create negation channel foreach worker
-        let mut negation_senders = Vec::with_capacity(worker_count as usize);
-        let mut negation_receivers = Vec::with_capacity(worker_count as usize);
-
-        for _ in 0..worker_count {
-            let (sender, receiver) = unbounded();
-            negation_senders.push(sender);
-            negation_receivers.push(receiver);
-        }
-
-        // Create a termination channel foreach worker
-        // These are used to signal early termination because the final assignment of `v0` has been discovered
-        let mut term_senders = Vec::with_capacity(worker_count as usize);
-        let mut term_receivers = Vec::with_capacity(worker_count as usize);
-
-        for _ in 0..worker_count {
-            let (sender, receiver) = unbounded();
-            term_senders.push(sender);
-            term_receivers.push(receiver);
-        }
-
         (
             Self {
                 workers: msg_senders,
-                hyper_chans: hyper_senders,
-                negation_chans: negation_senders,
-                term_chans: term_senders,
             },
             msg_receivers,
-            hyper_receivers,
-            negation_receivers,
-            term_receivers,
         )
     }
 }

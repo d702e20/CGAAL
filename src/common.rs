@@ -56,6 +56,9 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     TOKEN(Token),
     /// Release negation edge
     RELEASE,
+    NEGATION(NegationEdge<V>),
+    HYPER(HyperEdge<V>),
+    TERMINATE(VertexAssignment),
 }
 
 #[derive(Clone, Debug)]
