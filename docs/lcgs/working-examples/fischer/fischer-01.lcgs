@@ -1,21 +1,19 @@
 const k = 2;
 
 player p1 = process [id=1];
-player p2 = process [id=2];
-player p3 = process [id=3];
 
 label wack = 1;
 label p1_in_cs = p1.state == 3;
 label p1_in_wait = p1.state == 2;
 label p1_in_req = p1.state == 1;
 
-in_cs : [0 .. 3] init 0;
-in_cs' = (p1.start || p2.start || p3.start) ? 0 : (p1.wait ? 1 : (p2.wait ? 2 : (p3.wait ? 3 : in_cs)));
+in_cs : [0 .. 1] init 0;
+in_cs' = p1.start ? 0 : (p1.wait ? 1 : in_cs);
 
 template process
 
 	time_waited : [0 .. k+1] init 0;
-	time_waited' = min((time_waited + 1) * !wait * !req,k+1);
+	time_waited' = min((time_waited + 1 * !wait * !req),k+1);
 
 	// Represents the four states it can be in, 0=start, 1=req, 2=wait, 3=cs
 	state : [0 .. 3] init 0;
