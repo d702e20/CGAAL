@@ -15,6 +15,7 @@ label wack = 1;
 label p1_in_cs = p1.state == 3;
 label p1_in_wait = p1.state == 2;
 label p1_in_req = p1.state == 1;
+label ensure_mutex = ((p1.state == 3) + (p2.state == 3) + (p3.state == 3) + (p4.state == 3) + (p5.state == 3) + (p6.state == 3) + (p7.state == 3) + (p8.state == 3) + (p9.state == 3) + (p10.state == 3)) <= 1;
 
 in_cs : [0 .. 10] init 0;
 in_cs' = (p1.start || p2.start || p3.start || p4.start || p5.start || p6.start || p7.start || p8.start || p9.start || p10.start) ? 0 : (p1.wait ? 1 : (p2.wait ? 2 : (p3.wait ? 3 : (p4.wait ? 4 : (p5.wait ? 5 : (p6.wait ? 6 : (p7.wait ? 7 : (p8.wait ? 8 : (p9.wait ? 9 : (p10.wait ? 10 : in_cs))))))))));
