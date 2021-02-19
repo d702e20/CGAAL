@@ -4,7 +4,7 @@ player p1 = process [id=1];
 player p2 = process [id=2];
 player p3 = process [id=3];
 
-label wack = 0==0;
+label wack = 1;
 label p1_in_cs = p1.state == 3;
 label p1_in_wait = p1.state == 2;
 label p1_in_req = p1.state == 1;
@@ -26,6 +26,6 @@ template process
 	[wait] (time_waited <= k) && (state == 1);
 	[cs] (time_waited > k) && (in_cs == id) && (state == 2);
 	[start] (in_cs == id) && (state == 3);
-	[do_nothing] 0==0;
+	[do_nothing] 1;
 
 endtemplate
