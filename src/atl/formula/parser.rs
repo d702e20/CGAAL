@@ -1,10 +1,14 @@
+use std::iter::Peekable;
+use std::str::{self, FromStr};
 use std::sync::Arc;
+use std::vec::Drain;
 
 use pom::parser::{end, Parser};
 use pom::parser::{list, one_of, seq, sym};
 
+use crate::lcgs::ast::BinaryOpKind::LessOrEqual;
+
 use super::Phi;
-use std::str::{self, FromStr};
 
 /// Parse an ATL formula
 pub(crate) fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
@@ -29,13 +33,34 @@ fn ws<'a>() -> Parser<'a, u8, ()> {
     one_of(b" \t\r\n").repeat(0..).discard()
 }
 
+/// A lazy parser used for recursive definitions.
+/// Normally we make recursive parsers with the `call(phi)` that wraps a parser with lazy
+/// invocation. But the `call` method does not allow us to pass our converter. So we
+/// make our own lazy parser.
+fn lazy<'a, A: ATLExpressionParser, P: Fn(&'a A) -> Parser<u8, Phi>>(
+    parser: &'a P,
+    expr_parser: &'a A,
+) -> Parser<'a, u8, Phi> {
+    Parser::new(move |input: &'_ [u8], start: usize| (parser(expr_parser).method)(input, start))
+}
+
 pub(crate) fn phi<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+    let and = (term(expr_parser) - ws() - sym(b'&') - ws() + lazy(&phi, expr_parser))
+        .map(|(lhs, rhs)| Phi::And(Arc::new(lhs), Arc::new(rhs)));
+    and | term(expr_parser)
+}
+
+fn term<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+    let or = (primary(expr_parser) - ws() - sym(b'|') - ws() + lazy(&term, expr_parser))
+        .map(|(lhs, rhs)| Phi::Or(Arc::new(lhs), Arc::new(rhs)));
+    or | primary(expr_parser)
+}
+
+fn primary<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     paren(expr_parser)
         | boolean()
         | proposition(expr_parser)
         | not(expr_parser)
-        | or(expr_parser)
-        | and(expr_parser)
         | enforce_next(expr_parser)
         | enforce_until(expr_parser)
         | enforce_eventually(expr_parser)
@@ -46,16 +71,8 @@ pub(crate) fn phi<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
         | despite_invariant(expr_parser)
 }
 
-/// A lazy phi parser used for recursive definitions.
-/// Normally we make recursive parsers with the `call(phi)` that wraps a parser with lazy
-/// invocation. But the `call` method does not allow us to pass our convert function. So we
-/// make our own lazy phi parser.
-fn lazy_phi<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    Parser::new(move |input: &'_ [u8], start: usize| (phi(expr_parser).method)(input, start))
-}
-
 fn paren<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    sym(b'(') * ws() * lazy_phi(expr_parser) - ws() - sym(b')')
+    sym(b'(') * ws() * lazy(&phi, expr_parser) - ws() - sym(b')')
 }
 
 fn enforce_players<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
@@ -67,21 +84,21 @@ fn despite_players<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<us
 }
 
 fn next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    sym(b'X') * ws() * lazy_phi(expr_parser)
+    sym(b'X') * ws() * lazy(&phi, expr_parser)
 }
 
 fn until<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, (Phi, Phi)> {
-    sym(b'(') * ws() * lazy_phi(expr_parser) - ws() - sym(b'U') - ws() + lazy_phi(expr_parser)
+    sym(b'(') * ws() * lazy(&phi, expr_parser) - ws() - sym(b'U') - ws() + lazy(&phi, expr_parser)
         - ws()
         - sym(b')')
 }
 
 fn eventually<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    sym(b'F') * ws() * lazy_phi(expr_parser)
+    sym(b'F') * ws() * lazy(&phi, expr_parser)
 }
 
 fn invariant<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    sym(b'G') * ws() * lazy_phi(expr_parser)
+    sym(b'G') * ws() * lazy(&phi, expr_parser)
 }
 
 fn enforce_next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
@@ -165,17 +182,7 @@ fn proposition<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 fn not<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    (sym(b'!') * ws() * lazy_phi(expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
-}
-
-fn or<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    (lazy_phi(expr_parser) - ws() - sym(b'|') - ws() + lazy_phi(expr_parser))
-        .map(|(l, r)| Phi::Or(Arc::new(l), Arc::new(r)))
-}
-
-fn and<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    let parser = lazy_phi(expr_parser) - ws() - sym(b'&') - ws() + lazy_phi(expr_parser);
-    parser.map(|(l, r)| Phi::And(Arc::new(l), Arc::new(r)))
+    (sym(b'!') * ws() * lazy(&phi, expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
 }
 
 fn boolean<'a>() -> Parser<'a, u8, Phi> {
@@ -223,16 +230,17 @@ pub fn number<'a>() -> Parser<'a, u8, usize> {
 mod test {
     use std::sync::Arc;
 
+    use pom::parser::Parser;
+
     use crate::atl::formula::parser::{
-        and, boolean, despite_eventually, despite_invariant, despite_next, despite_players,
+        boolean, despite_eventually, despite_invariant, despite_next, despite_players,
         despite_until, enforce_eventually, enforce_invariant, enforce_next, enforce_players,
-        enforce_until, eventually, invariant, next, not, number, or, paren, phi, proposition,
-        until, ATLExpressionParser,
+        enforce_until, eventually, invariant, next, not, number, paren, phi, primary, proposition,
+        term, until, ATLExpressionParser,
     };
     use crate::atl::formula::{parse_phi, Phi};
     use crate::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::lcgs::parse::parse_lcgs;
-    use pom::parser::Parser;
 
     struct TestModel;
 
@@ -601,7 +609,7 @@ mod test {
     #[test]
     fn and_1() {
         assert_eq!(
-            and(&TestModel).parse(b"true & false"),
+            phi(&TestModel).parse(b"true & false"),
             Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
         )
     }
@@ -609,15 +617,27 @@ mod test {
     #[test]
     fn and_2() {
         assert_eq!(
-            and(&TestModel).parse(b"true&false"),
+            phi(&TestModel).parse(b"true&false"),
             Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
+    }
+
+    #[test]
+    fn and_3() {
+        // Right recursive?
+        assert_eq!(
+            phi(&TestModel).parse(b"true&false&true"),
+            Ok(Phi::And(
+                Arc::new(Phi::True),
+                Arc::new(Phi::And(Arc::new(Phi::False), Arc::new(Phi::True)))
+            ))
         )
     }
 
     #[test]
     fn or_1() {
         assert_eq!(
-            or(&TestModel).parse(b"true | false"),
+            term(&TestModel).parse(b"true | false"),
             Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
         )
     }
@@ -625,8 +645,37 @@ mod test {
     #[test]
     fn or_2() {
         assert_eq!(
-            or(&TestModel).parse(b"true|false"),
+            term(&TestModel).parse(b"true|false"),
             Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
+        )
+    }
+
+    #[test]
+    fn or_3() {
+        // Right recursive?
+        assert_eq!(
+            term(&TestModel).parse(b"true|false |true"),
+            Ok(Phi::Or(
+                Arc::new(Phi::True),
+                Arc::new(Phi::Or(Arc::new(Phi::False), Arc::new(Phi::True)))
+            ))
+        )
+    }
+
+    #[test]
+    fn test_and_or_precedence_01() {
+        assert_eq!(
+            phi(&TestModel).parse(b"true & false | true | false & true"),
+            Ok(Phi::And(
+                Arc::new(Phi::True),
+                Arc::new(Phi::And(
+                    Arc::new(Phi::Or(
+                        Arc::new(Phi::False),
+                        Arc::new(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
+                    )),
+                    Arc::new(Phi::True)
+                ))
+            ))
         )
     }
 
