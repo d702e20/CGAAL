@@ -1,4 +1,4 @@
-const k = 2;
+const k = 1;
 
 player p1 = process [id=1];
 player p2 = process [id=2];
@@ -15,11 +15,10 @@ in_cs' = (p1.start || p2.start || p3.start) ? 0 : (p1.wait ? 1 : (p2.wait ? 2 : 
 template process
 
 	time_waited : [0 .. k+1] init 0;
-	time_waited' = max((time_waited + 1) * !wait * !req,k);
+	time_waited' = min((time_waited + 1) * !wait * !req,k);
 
 	// Represents the four states it can be in, 0=start, 1=req, 2=wait, 3=cs
-	state : [0 .. 3] init 0;
-	state' = start ? 0 : (req ? 1 : (wait ? 2 : (cs ? 3 : state)));
+	
 	
 	
 	[req] (in_cs == 0) && (state == 0 || state==2);
@@ -27,5 +26,8 @@ template process
 	[cs] (time_waited > k) && (in_cs == id) && (state == 2);
 	[start] (in_cs == id) && (state == 3);
 	[do_nothing] 1;
+
+	state : [0 .. 3] init 0;
+	state' = start ? 0 : (req ? 1 : (wait ? 2 : (cs ? 3 : state)));
 
 endtemplate
