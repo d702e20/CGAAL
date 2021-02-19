@@ -1,9 +1,9 @@
 {
 	"enforce eventually": {
-		"players": [0,1,2,3,4],
+		"players": [0,1,2],
 		"formula": { 
 			"enforce until": {
-    			"players": [0,1,2,3,4],
+    			"players": [0,1],
     			"pre": {
       				"proposition": 2
     			},

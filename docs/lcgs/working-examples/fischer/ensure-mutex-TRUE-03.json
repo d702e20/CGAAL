@@ -1,6 +1,6 @@
 {
 	"despite invariant": {
-		"players": [0],
+		"players": [0,1,2],
 		"formula": { 
 			"proposition": 4
 		}
