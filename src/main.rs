@@ -5,6 +5,8 @@ extern crate serde;
 extern crate lazy_static;
 #[macro_use]
 extern crate tracing;
+#[no_link]
+extern crate git_version;
 
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
@@ -28,6 +30,7 @@ use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
+use git_version::git_version;
 use tracing::trace;
 
 mod atl;
@@ -42,6 +45,7 @@ mod printer;
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const GIT_VERSION: &str = git_version!(fallback = "unknown");
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
@@ -337,8 +341,9 @@ fn parse_arguments() -> ArgMatches<'static> {
             )
     }
 
+    let version_text = format!("{} ({})", VERSION, GIT_VERSION);
     let app = App::new(PKG_NAME)
-        .version(VERSION)
+        .version(version_text.as_str())
         .author(AUTHORS)
         .arg(
             Arg::with_name("log_filter")
