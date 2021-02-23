@@ -56,7 +56,7 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
 
 enum FormulaFormat {
     JSON,
-    TEXT,
+    ATL,
 }
 
 #[tracing::instrument]
@@ -93,9 +93,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let formula_format = match subargs.value_of("formula_format") {
         Some("json") => FormulaFormat::JSON,
-        Some("text") => FormulaFormat::TEXT,
+        Some("atl") => FormulaFormat::ATL,
         // Default value in case user did not give one
-        None => FormulaFormat::TEXT,
+        None => FormulaFormat::ATL,
         _ => {
             eprintln!("Invalid formula format specified");
             exit(1)
@@ -167,15 +167,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula| {
+                |graph, formula, raw_phi| {
                     let v0 = ATLVertex::FULL { state: 0, formula };
+                    println!("Solving: {}", raw_phi);
                     check_model(graph, v0, threads);
                 },
-                |graph, formula| {
+                |graph, formula, raw_phi| {
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
                         formula,
                     };
+                    println!("Solving: {}", raw_phi);
                     check_model(graph, v0, threads);
                 },
             )
@@ -210,15 +212,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                     input_model_path,
                     formula_path,
                     formula_format,
-                    |graph, formula| {
+                    |graph, formula, raw_phi| {
                         let v0 = ATLVertex::FULL { state: 0, formula };
+                        println!("Printing graph for: {}", raw_phi);
                         print_model(graph, v0, subargs.value_of("output"));
                     },
-                    |graph, formula| {
+                    |graph, formula, raw_phi| {
                         let v0 = ATLVertex::FULL {
                             state: graph.game_structure.initial_state_index(),
                             formula,
                         };
+                        println!("Printing graph for: {}", raw_phi);
                         print_model(graph, v0, subargs.value_of("output"));
                     },
                 )
@@ -229,37 +233,42 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Reads a formula in JSON format from a file.
+/// Reads a formula in JSON format from a file and returns the formula as a string
+/// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
 fn load_formula<A: ATLExpressionParser>(
     path: &str,
     format: FormulaFormat,
     expr_parser: &A,
-) -> Arc<Phi> {
+) -> (String, Arc<Phi>) {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
     });
 
-    let mut formula = String::new();
-    file.read_to_string(&mut formula).unwrap_or_else(|err| {
+    let mut raw_phi = String::new();
+    file.read_to_string(&mut raw_phi).unwrap_or_else(|err| {
         eprintln!("Failed to read formula file\n\nError:\n{}", err);
         exit(1);
     });
 
-    match format {
-        FormulaFormat::JSON => serde_json::from_str(formula.as_str()).unwrap_or_else(|err| {
+    let phi = match format {
+        FormulaFormat::JSON => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
-        FormulaFormat::TEXT => {
-            let result = atl::formula::parse_phi(expr_parser, &formula);
+        FormulaFormat::ATL => {
+            let result = atl::formula::parse_phi(expr_parser, &raw_phi);
             Arc::new(result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
             }))
         }
-    }
+    };
+
+    raw_phi = raw_phi.trim().to_string();
+
+    return (raw_phi, phi);
 }
 
 /// Loads a model and a formula from files, and then call the handler function with the loaded model and formula.
@@ -272,8 +281,8 @@ fn load<R, J, L>(
     handle_lcgs: L,
 ) -> R
 where
-    J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>) -> R,
-    L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>) -> R,
+    J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>, String) -> R,
+    L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>, String) -> R,
 {
     // Open the input model file
     let mut file = File::open(game_structure_path).unwrap_or_else(|err| {
@@ -295,11 +304,10 @@ where
                 exit(1);
             });
 
-            let formula = load_formula(formula_path, formula_format, &game_structure);
-
+            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
             let graph = ATLDependencyGraph { game_structure };
 
-            handle_json(graph, formula)
+            handle_json(graph, phi, raw_phi)
         }
         "lcgs" => {
             let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
@@ -311,11 +319,10 @@ where
                 exit(1);
             });
 
-            let formula = load_formula(formula_path, formula_format, &game_structure);
-
+            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
             let graph = ATLDependencyGraph { game_structure };
 
-            handle_lcgs(graph, formula)
+            handle_lcgs(graph, phi, raw_phi)
         }
         &_ => {
             eprintln!("Model type '{:?}' not supported", model_type);

@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
 use crate::atl::formula::{number, ATLExpressionParser};
 use crate::atl::gamestructure::GameStructure;
-use pom::parser::{one_of, sym, Parser};
-use std::str::{self, FromStr};
+use pom::parser::Parser;
+use std::str::{self};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {
@@ -68,10 +68,19 @@ impl GameStructure for EagerGameStructure {
 
 impl ATLExpressionParser for EagerGameStructure {
     fn player_parser(&self) -> Parser<u8, usize> {
-        number()
+        // In ATL, players are just their index
+        number().convert(move |i| {
+            if i <= self.max_player() {
+                Ok(i)
+            } else {
+                Err(format!("Player index '{}' out of bounds.", i))
+            }
+        })
     }
 
     fn proposition_parser(&self) -> Parser<u8, usize> {
+        // In ATL, proposition are just their index. All numbers are valid propositions,
+        // but they might not be true anywhere.
         number()
     }
 }

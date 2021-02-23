@@ -486,7 +486,10 @@ impl GameStructure for IntermediateLCGS {
 
 impl ATLExpressionParser for IntermediateLCGS {
     fn player_parser(&self) -> Parser<u8, usize> {
+        // In ATL, players are referred to using their name, i.e. an identifier
         identifier().convert(move |name| {
+            // We check if a declaration with the given name exists,
+            // and that it is a player declaration
             let symbol = Owner::Global.symbol_id(&name);
             if let Some(decl) = self.symbols.get(&symbol) {
                 if let DeclKind::Player(player) = &decl.kind {
@@ -504,8 +507,13 @@ impl ATLExpressionParser for IntermediateLCGS {
     }
 
     fn proposition_parser(&self) -> Parser<u8, usize> {
+        // In ATL, propositions are either "something" where "something" must be a label declared
+        // in the global scope, or "someone.something" where "something" is a label owned by
+        // a player of name "someone".
         let parser = identifier() + (sym(b'.') * identifier()).opt();
         parser.convert(move |(name_or_owner, name)| {
+            // We infer whether the label should be found in local (player) or global scope.
+            // full_name is used for error descriptions.
             let (symbol, full_name) = if let Some(name) = name {
                 let owner = name_or_owner;
                 (
@@ -516,6 +524,8 @@ impl ATLExpressionParser for IntermediateLCGS {
                 let name = name_or_owner;
                 (Owner::Global.symbol_id(&name), name)
             };
+
+            // We check if such a symbol exists, and is it a player declaration
             if let Some(decl) = self.symbols.get(&symbol) {
                 if let DeclKind::Label(label) = &decl.kind {
                     Ok(label.index)
