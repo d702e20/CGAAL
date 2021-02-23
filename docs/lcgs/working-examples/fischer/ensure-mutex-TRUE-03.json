@@ -2,7 +2,7 @@
 	"despite invariant": {
 		"players": [0,1,2],
 		"formula": { 
-			"proposition": 4
+			"proposition": 0
 		}
 	}
 }
