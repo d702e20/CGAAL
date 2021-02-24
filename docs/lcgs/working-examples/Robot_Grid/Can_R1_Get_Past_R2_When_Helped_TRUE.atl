@@ -1,0 +1,1 @@
+<<r1,r3,r4>> F (r1.at_home & !r1.crashed)

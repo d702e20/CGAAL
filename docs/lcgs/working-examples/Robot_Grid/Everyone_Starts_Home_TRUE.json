@@ -6,17 +6,17 @@
           "proposition": 1
         },
         {
-          "proposition": 3
+          "proposition": 4
         }
       ]
     },
     {
       "and": [
         {
-          "proposition": 5
+          "proposition": 7
         },
         {
-          "proposition": 7
+          "proposition": 10
         }
       ]
     }
