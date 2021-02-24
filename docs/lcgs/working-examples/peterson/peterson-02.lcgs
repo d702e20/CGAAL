@@ -1,0 +1,21 @@
+// Peterson
+
+label wack = 1;
+
+player p0 = process [other=p1, otherturn=1];
+player p1 = process [other=p0, otherturn=0];
+
+turn : [-1 .. 1] init -1;
+turn' = p0.allow_other ? 1 : (p1.allow_other ? 0 : turn);
+
+template process
+
+	want_to_enter : [0 .. 1] init 0;
+	want_to_enter' = indicate_enter ? 1 : (indicate_leaving ? 0 : want_to_enter);
+
+    [indicate_enter] want_to_enter == 0;
+    [allow_other] turn != otherturn;
+    [enter_cs] !((other.want_to_enter) && (turn == otherturn));
+    [indicate_leaving] !((other.want_to_enter) && (turn == otherturn));
+    
+endtemplate
