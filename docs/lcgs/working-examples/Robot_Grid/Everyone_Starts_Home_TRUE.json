@@ -1,0 +1,24 @@
+{
+  "and": [
+    {
+      "and": [
+        {
+          "proposition": 1
+        },
+        {
+          "proposition": 3
+        }
+      ]
+    },
+    {
+      "and": [
+        {
+          "proposition": 5
+        },
+        {
+          "proposition": 7
+        }
+      ]
+    }
+  ]
+}
