@@ -1,0 +1,33 @@
+// Peterson with 3 processes using filter algorithm.
+
+label wack = 1;
+const n = 3;
+
+player p0 = process [id=0, other = p1, other1 = p2];
+player p1 = process [id=1, other = p0, other1 = p2];
+player p2 = process [id=2, other = p0, other1 = p1];
+
+last_to_enter_0 : [-1 .. n-1] init -1;
+last_to_enter_0' = p0.proceed_to_level_0 ? 0 : (p1.proceed_to_level_0 ? 1 : (p2.proceed_to_level_0 ? 2 : last_to_enter_0));
+
+last_to_enter_1 : [-1 .. n-1] init -1;
+last_to_enter_1' = p0.proceed_to_level_1 ? 0 : (p1.proceed_to_level_1 ? 1 : (p2.proceed_to_level_1 ? 2 : last_to_enter_1));
+
+last_to_enter_2 : [-1 .. n-1] init -1;
+last_to_enter_2' = p0.proceed_to_level_2 ? 0 : (p1.proceed_to_level_2 ? 1 : (p2.proceed_to_level_2 ? 2 : last_to_enter_2));
+
+template process
+
+    level : [-1.. n-1] init -1;
+    level' = proceed_to_level_0 ? 0 : (proceed_to_level_1 ? 1 : (proceed_to_level_2 ? 2 : (exit_cs ? -1 : level)));
+
+    [proceed_to_level_0] level == -1;
+    [exit_cs] level == (n-1);
+    // TODO
+    [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && ((other.level >= level) || other1.level >= level));
+    [proceed_to_level_2] (level == 1) && !((last_to_enter_1 == id) && ((other.level >= level) || other1.level >= level));
+    [busy_loop] 1;
+
+
+    
+endtemplate
