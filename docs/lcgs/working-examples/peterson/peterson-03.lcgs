@@ -24,12 +24,13 @@ template process
     level : [-1.. n-1] init -1;
     level' = proceed_to_level_0 ? 0 : (proceed_to_level_1 ? 1 : (proceed_to_level_2 ? 2 : (exit_cs ? -1 : level)));
 
+    other_level : [0 .. 1] init 0;
+    other_level' = ((other.level >= level) || (other1.level >= level));
+
     [proceed_to_level_0] level == -1;
-    [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && ((other.level >= level) || other1.level >= level));
-    [proceed_to_level_2] (level == 1) && !((last_to_enter_1 == id) && ((other.level >= level) || other1.level >= level));
-    [busy_loop] (last_to_enter_0 == id) && ((other.level >= level) || other1.level >= level) ||
-                (last_to_enter_1 == id) && ((other.level >= level) || other1.level >= level) ||
-                level == (n-1);
+    [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && other_level);
+    [proceed_to_level_2] (level == 1) && !((last_to_enter_1 == id) && other_level);
+    [busy_loop] ((last_to_enter_0 == id) || (last_to_enter_1 == id)) && other_level;
     [exit_cs] level == (n-1);
 
 endtemplate
