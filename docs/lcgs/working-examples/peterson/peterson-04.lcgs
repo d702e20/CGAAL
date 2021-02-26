@@ -3,8 +3,15 @@ const n = 4;
 
 label wack = 1;
 label p0_in_cs = p0.level == (n-1);
-label mutual_exclusion = (p0.level == (n-1)) + (p1.level == (n-1)) + (p2.level == (n-1)) + (p3.level == (n-1)) <= 1;
-label multiple_in_cs = (p0.level == (n-1)) + (p1.level == (n-1)) + (p2.level == (n-1)) + (p3.level == (n-1)) > 1;
+label mutual_exclusion = (p0.level == (n-1)) +
+                            (p1.level == (n-1)) +
+                            (p2.level == (n-1)) +
+                            (p3.level == (n-1)) <= 1;
+
+label multiple_in_cs = (p0.level == (n-1)) +
+                        (p1.level == (n-1)) +
+                        (p2.level == (n-1)) +
+                        (p3.level == (n-1)) > 1;
 
 player p0 = process [id=0, other = p1, other1 = p2, other2 = p3];
 player p1 = process [id=1, other = p0, other1 = p2, other2 = p3];
@@ -21,22 +28,19 @@ last_to_enter_1 : [-1 .. n-1] init -1;
 last_to_enter_1' = p0.proceed_to_level_1 ? 0 :
                     (p1.proceed_to_level_1 ? 1 :
                     (p2.proceed_to_level_1 ? 2 :
-                    (p3.proceed_to_level_1 ? 3 :
-                    last_to_enter_1)));
+                    (p3.proceed_to_level_1 ? 3 : last_to_enter_1)));
 
 last_to_enter_2 : [-1 .. n-1] init -1;
 last_to_enter_2' = p0.proceed_to_level_2 ? 0 :
                     (p1.proceed_to_level_2 ? 1 :
                     (p2.proceed_to_level_2 ? 2 :
-                    (p3.proceed_to_level_2 ? 3 :
-                    last_to_enter_2)));
+                    (p3.proceed_to_level_2 ? 3 : last_to_enter_2)));
 
 last_to_enter_3 : [-1 .. n-1] init -1;
 last_to_enter_3' = p0.proceed_to_level_3 ? 0 :
                     (p1.proceed_to_level_3 ? 1 :
                     (p2.proceed_to_level_3 ? 2 :
-                    (p3.proceed_to_level_3 ? 3 :
-                    last_to_enter_3)));
+                    (p3.proceed_to_level_3 ? 3 : last_to_enter_3)));
 
 template process
 
