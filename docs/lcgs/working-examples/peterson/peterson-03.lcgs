@@ -1,10 +1,10 @@
 // Peterson with 3 processes using filter algorithm.
+const n = 3;
 
 label wack = 1;
-label p0_in_level2 = p0.level == 2;
-label mutual_exclusion = (p0.level == 2) + (p1.level == 2) + (p2.level == 2) <= 1;
-label multiple_in_cs = (p0.level == 2) + (p1.level == 2) + (p2.level == 2) > 1;
-const n = 3;
+label p0_in_cs = p0.level == (n-1);
+label mutual_exclusion = (p0.level == (n-1)) + (p1.level == (n-1)) + (p2.level == (n-1)) <= 1;
+label multiple_in_cs = (p0.level == (n-1)) + (p1.level == (n-1)) + (p2.level == (n-1)) > 1;
 
 player p0 = process [id=0, other = p1, other1 = p2];
 player p1 = process [id=1, other = p0, other1 = p2];
@@ -25,11 +25,11 @@ template process
     level' = proceed_to_level_0 ? 0 : (proceed_to_level_1 ? 1 : (proceed_to_level_2 ? 2 : (exit_cs ? -1 : level)));
 
     [proceed_to_level_0] level == -1;
-    [exit_cs] level == (n-1);
     [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && ((other.level >= level) || other1.level >= level));
     [proceed_to_level_2] (level == 1) && !((last_to_enter_1 == id) && ((other.level >= level) || other1.level >= level));
     [busy_loop] (last_to_enter_0 == id) && ((other.level >= level) || other1.level >= level) ||
                 (last_to_enter_1 == id) && ((other.level >= level) || other1.level >= level) ||
                 level == (n-1);
+    [exit_cs] level == (n-1);
 
 endtemplate
