@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     setup_tracing(&args);
     trace!(?args, "commandline arguments");
 
-    let subargs = args.subcommand().1.unwrap();
+    let subargs = args.subcommand().1.unwrap_or(exit(1));
 
     let input_model_path = subargs.value_of("input_model").unwrap();
     let model_type = match subargs.value_of("model_type") {
