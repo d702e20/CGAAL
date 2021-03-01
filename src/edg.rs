@@ -1159,7 +1159,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_small_dg_all_true_except_for_c() {
         warn!("foo bar");
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
@@ -1257,7 +1256,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_small_dg_all_false_except_for_d() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1353,7 +1351,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_a_node_with_no_succsessors() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1391,7 +1388,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_termination_condtion() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1446,7 +1442,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_loop_di_loops() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1541,7 +1536,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
