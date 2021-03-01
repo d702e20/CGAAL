@@ -1,8 +1,8 @@
 {
   "enforce eventually": {
     "players": [1],
-    "pre": {
-      "proposition": 1
+    "formula": {
+      "proposition": 0
     }
   }
 }
