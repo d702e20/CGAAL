@@ -7,9 +7,7 @@ player p4 = process [id=4];
 
 label wack = 1;
 label p1_in_cs = p1.state == 3;
-label p1_in_wait = p1.state == 2;
-label p1_in_req = p1.state == 1;
-label ensure_mutex = ((p1.state == 3) + (p2.state == 3) + (p3.state == 3) + (p4.state == 3)) <= 1;
+label multiple_in_cs = ((p1.state == 3) + (p2.state == 3) + (p3.state == 3) + (p4.state == 3)) > 1;
 
 in_cs : [0 .. 4] init 0;
 in_cs' = (p1.start || p2.start || p3.start || p4.start) ? 0 : (p1.wait ? 1 : (p2.wait ? 2 : (p3.wait ? 3 : (p4.wait ? 4 : in_cs))));
