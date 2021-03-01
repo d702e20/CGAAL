@@ -30,22 +30,20 @@ pub(crate) enum ATLVertex {
 impl Display for ATLVertex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ATLVertex::FULL { state, formula } => {
-                f.write_fmt(format_args!("state={} formula={}", state, formula))
-            }
+            ATLVertex::FULL { state, formula } => write!(f, "state={} formula={}", state, formula),
             ATLVertex::PARTIAL {
                 state,
                 partial_move,
                 formula,
             } => {
-                f.write_fmt(format_args!("state={} partial_move=[", state))?;
+                write!(f, "state={} pmove=[", state)?;
                 for (i, choice) in partial_move.iter().enumerate() {
                     choice.fmt(f)?;
                     if i < partial_move.len() - 1 {
                         f.write_str(", ")?;
                     }
                 }
-                f.write_fmt(format_args!("] formula={}", formula))
+                write!(f, "] formula={}", formula)
             }
         }
     }
@@ -80,10 +78,8 @@ pub enum PartialMoveChoice {
 impl Display for PartialMoveChoice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PartialMoveChoice::RANGE(max) => f.write_fmt(format_args!("RANGE(0..{})", max - 1)),
-            PartialMoveChoice::SPECIFIC(choice) => {
-                f.write_fmt(format_args!("SPECIFIC({})", choice))
-            }
+            PartialMoveChoice::RANGE(max) => write!(f, "(0..{})", max - 1),
+            PartialMoveChoice::SPECIFIC(choice) => write!(f, "{}", choice),
         }
     }
 }
@@ -165,12 +161,10 @@ impl<'a> Iterator for PartialMoveIterator<'a> {
         if !self.initialized {
             self.make_first();
             Some(self.current.clone())
+        } else if self.make_next(0) {
+            Some(self.current.clone())
         } else {
-            if self.make_next(0) {
-                Some(self.current.clone())
-            } else {
-                None
-            }
+            None
         }
     }
 }
@@ -614,65 +608,35 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     formula: subformula,
                 } => {
                     let mut edges = HashSet::new();
-
-                    // Partial targets with same formula
-                    // "Is the formula also satisfied in the next state?"
-                    let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> =
-                        VarsIterator::new(moves, players.iter().cloned().collect())
-                            .map(|pmove| ATLVertex::PARTIAL {
-                                state: *state,
-                                partial_move: pmove,
-                                formula: formula.clone(),
-                            })
-                            .collect();
-
-                    // sub-formula target
-                    // "Is the sub formula satisfied in current state?"
-                    targets.push(ATLVertex::FULL {
-                        state: *state,
-                        formula: subformula.clone(),
-                    });
-
-                    edges.insert(Edges::HYPER(HyperEdge {
+                    edges.insert(Edges::NEGATION(NegationEdge {
                         source: vert.clone(),
-                        targets,
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            formula: Arc::new(Phi::EnforceUntil {
+                                players: players.clone(),
+                                pre: Arc::new(Phi::True),
+                                until: Arc::new(Phi::Not(subformula.clone())),
+                            }),
+                        },
                     }));
-
                     edges
                 }
                 Phi::EnforceInvariant {
                     players,
                     formula: subformula,
                 } => {
-                    let moves = self.game_structure.move_count(*state);
-                    let edges: HashSet<Edges<ATLVertex>> =
-                        VarsIterator::new(moves, players.iter().copied().collect())
-                            .map(|pmove| {
-                                // Successor states with same formula
-                                // "Is the formula also satisfied in next state?"
-                                let mut targets: Vec<ATLVertex> =
-                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                        .map(|state| ATLVertex::FULL {
-                                            state,
-                                            formula: formula.clone(),
-                                        })
-                                        .collect();
-
-                                // sub-formula target
-                                // "Is the sub formula satisfied in current state?"
-                                targets.push(ATLVertex::FULL {
-                                    state: *state,
-                                    formula: subformula.clone(),
-                                });
-
-                                Edges::HYPER(HyperEdge {
-                                    source: vert.clone(),
-                                    targets,
-                                })
-                            })
-                            .collect();
-
+                    let mut edges = HashSet::new();
+                    edges.insert(Edges::NEGATION(NegationEdge {
+                        source: vert.clone(),
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            formula: Arc::new(Phi::DespiteUntil {
+                                players: players.clone(),
+                                pre: Arc::new(Phi::True),
+                                until: Arc::new(Phi::Not(subformula.clone())),
+                            }),
+                        },
+                    }));
                     edges
                 }
             },
