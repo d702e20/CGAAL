@@ -181,6 +181,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             ?v0,
             "new distributed_certain_zero worker"
         );
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker create");
 
         Self {
             id,
@@ -207,6 +209,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
         let _enter = span.enter();
         trace!("worker start");
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker start");
 
         // Alg 1, Line 2
         if self.is_owner(&self.v0.clone()) {
@@ -228,6 +232,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Ok(assignment) => {
                         // Alg 1, Line 11-12
                         trace!(?assignment, "worker received termination");
+                        #[cfg(feature = "use-counts")]
+                        eprintln!("worker received_termination");
                         return match assignment {
                             VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
                             VertexAssignment::FALSE => VertexAssignment::FALSE,
@@ -237,7 +243,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Err(err) => panic!("Receiving from termination channel failed with: {}", err),
                 }
             } else if !msg_rx.is_empty() {
-                let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
+                let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id); //fixme; this guard is never entered?
+                #[cfg(feature = "use-counts")]
+                eprintln!("worker receive_message");
                 self.counter = 0;
                 match msg_rx.recv() {
                     // Alg 1, Line 5-9
@@ -270,6 +278,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                             ?edge,
                             ?weight
                         );
+                        #[cfg(feature = "use-counts")]
+                        eprintln!("worker receive_hyper-edge");
                         self.process_hyper_edge(edge, weight)
                     }
                     Err(err) => panic!(
@@ -287,6 +297,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                             ?edge,
                             ?weight
                         );
+                        #[cfg(feature = "use-counts")]
+                        eprintln!("worker receive_negation_edge");
                         match self.assignment.get(&edge.target) {
                             None => self.process_negation_edge(edge.clone(), weight),
                             // Alg 1, Line 7
@@ -344,6 +356,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
     /// Adds worker to C^i(vertex)
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker mark_interest");
         if let Some(set) = self.interests.get_mut(vertex) {
             trace!(is_initialized = true, ?vertex, "mark vertex interest");
             set.insert(worker);
@@ -357,6 +371,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     fn explore(&mut self, vertex: &V, weight: Weight) {
         trace!(?vertex, ?weight, "exploring vertex");
+        eprintln!("worker explore");
         let mut weight = weight;
         // Line 2
         self.assignment
@@ -404,6 +419,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>, weight: Weight) {
         trace!(?edge, ?weight, "processing hyper-edge");
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker processing_hyper-edge");
         let mut weight = weight;
         // Line 3, condition (in case of targets is empty, the default value is true)
         let all_final = edge.targets.iter().all(|target| {
@@ -503,6 +520,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     assignment = "UNEXPLORED",
                     "processing negation edge"
                 );
+                #[cfg(feature = "use-counts")]
+                eprintln!("worker processing negation edge");
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
                 let (weight1, weight2) = weight
                     .split()
@@ -558,6 +577,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             distance,
             "got request for vertex assignment"
         );
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker process_request");
         if let Some(assigned) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             match assigned {
@@ -638,6 +659,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             changed_assignment,
             "final assigned"
         );
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker final_assign");
 
         if changed_assignment {
             // Line 4
@@ -739,6 +762,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
     /// See documentation for the `successors` field.
     fn succ(&mut self, vertex: &V) -> HashSet<Edges<V>> {
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker succ");
         if let Some(successors) = self.successors.get(vertex) {
             debug!(?vertex, ?successors, known_vertex = true, "edg::succ");
             // List of successors is already allocated for the vertex
