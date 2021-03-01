@@ -11,7 +11,7 @@
 // ever share the same position or move through each other, they crash into each other
 // and can no longer move.
 
-const N = 3; // Must be odd
+const N = 3;
 
 player r1 = robot [START_X=1, START_Y=1, TARGET_X=N, TARGET_Y=N, OTHER_1=r2, OTHER_2=r3, OTHER_3=r4];
 player r2 = robot [START_X=N, START_Y=N, TARGET_X=1, TARGET_Y=1, OTHER_1=r1, OTHER_2=r3, OTHER_3=r4];
