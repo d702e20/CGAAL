@@ -1,3 +1,5 @@
+#[no_link]
+extern crate git_version;
 #[macro_use]
 extern crate lazy_static;
 extern crate num_cpus;
@@ -15,6 +17,7 @@ use std::process::exit;
 use std::sync::Arc;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
+use git_version::git_version;
 use tracing::trace;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
@@ -40,6 +43,7 @@ mod printer;
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const GIT_VERSION: &str = git_version!(fallback = "unknown");
 
 #[derive(Clone, Debug)]
 struct EmptyGraph {}
@@ -334,8 +338,9 @@ fn parse_arguments() -> ArgMatches<'static> {
             )
     }
 
+    let version_text = format!("{} ({})", VERSION, GIT_VERSION);
     let app = App::new(PKG_NAME)
-        .version(VERSION)
+        .version(version_text.as_str())
         .author(AUTHORS)
         .arg(
             Arg::with_name("log_filter")
