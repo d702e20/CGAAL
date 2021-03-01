@@ -1,10 +1,7 @@
 {
-  "enforce until": {
+  "enforce eventually": {
     "players": [0],
-    "pre": {
-      "proposition": 0
-    },
-    "until": {
+    "formula": {
       "not": {
         "proposition": 0
       }

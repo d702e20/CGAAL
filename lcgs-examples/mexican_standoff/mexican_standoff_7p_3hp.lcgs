@@ -1,15 +1,14 @@
-// Mexican Standoff PRISM-inspired 2
+// Mexican Standoff
 
-const max_health = 1;
+const max_health = 3;
 
-player p0 = shooter [index=0, other1=p1, other2=p2, other3=p3, other4=p4, other5=p5, other6=p6, other7=p7];
-player p1 = shooter [index=1, other1=p0, other2=p2, other3=p3, other4=p4, other5=p5, other6=p6, other7=p7];
-player p2 = shooter [index=2, other1=p0, other2=p1, other3=p3, other4=p4, other5=p5, other6=p6, other7=p7];
-player p3 = shooter [index=3, other1=p0, other2=p1, other3=p2, other4=p4, other5=p5, other6=p6, other7=p7];
-player p4 = shooter [index=4, other1=p0, other2=p1, other3=p2, other4=p3, other5=p5, other6=p6, other7=p7];
-player p5 = shooter [index=5, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p6, other7=p7];
-player p6 = shooter [index=6, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5, other7=p7];
-player p7 = shooter [index=7, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5, other7=p6];
+player p0 = shooter [index=0, other1=p1, other2=p2, other3=p3, other4=p4, other5=p5, other6=p6];
+player p1 = shooter [index=1, other1=p0, other2=p2, other3=p3, other4=p4, other5=p5, other6=p6];
+player p2 = shooter [index=2, other1=p0, other2=p1, other3=p3, other4=p4, other5=p5, other6=p6];
+player p3 = shooter [index=3, other1=p0, other2=p1, other3=p2, other4=p4, other5=p5, other6=p6];
+player p4 = shooter [index=4, other1=p0, other2=p1, other3=p2, other4=p3, other5=p5, other6=p6];
+player p5 = shooter [index=5, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p6];
+player p6 = shooter [index=6, other1=p0, other2=p1, other3=p2, other4=p3, other5=p4, other6=p5];
 
 
 template shooter
@@ -22,7 +21,6 @@ template shooter
         (index == 0) * other4.shoot_other1 +
         (index == 0) * other5.shoot_other1 +
         (index == 0) * other6.shoot_other1 +
-        (index == 0) * other7.shoot_other1 +
 
         (index == 1) * other1.shoot_other1 +
         (index == 1) * other2.shoot_other2 +
@@ -30,7 +28,6 @@ template shooter
         (index == 1) * other4.shoot_other2 +
         (index == 1) * other5.shoot_other2 +
         (index == 1) * other6.shoot_other2 +
-        (index == 1) * other7.shoot_other2 +
 
         (index == 2) * other1.shoot_other2 +
         (index == 2) * other2.shoot_other2 +
@@ -38,7 +35,6 @@ template shooter
         (index == 2) * other4.shoot_other3 +
         (index == 2) * other5.shoot_other3 +
         (index == 2) * other6.shoot_other3 +
-        (index == 2) * other7.shoot_other3 +
 
         (index == 3) * other1.shoot_other3 +
         (index == 3) * other2.shoot_other3 +
@@ -46,7 +42,6 @@ template shooter
         (index == 3) * other4.shoot_other4 +
         (index == 3) * other5.shoot_other4 +
         (index == 3) * other6.shoot_other4 +
-        (index == 3) * other7.shoot_other4 +
 
         (index == 4) * other1.shoot_other4 +
         (index == 4) * other2.shoot_other4 +
@@ -54,7 +49,6 @@ template shooter
         (index == 4) * other4.shoot_other4 +
         (index == 4) * other5.shoot_other5 +
         (index == 4) * other6.shoot_other5 +
-        (index == 4) * other7.shoot_other5 +
 
         (index == 5) * other1.shoot_other5 +
         (index == 5) * other2.shoot_other5 +
@@ -62,23 +56,13 @@ template shooter
         (index == 5) * other4.shoot_other5 +
         (index == 5) * other5.shoot_other5 +
         (index == 5) * other6.shoot_other6 +
-        (index == 5) * other7.shoot_other6 +
 
         (index == 6) * other1.shoot_other6 +
         (index == 6) * other2.shoot_other6 +
         (index == 6) * other3.shoot_other6 +
         (index == 6) * other4.shoot_other6 +
         (index == 6) * other5.shoot_other6 +
-        (index == 6) * other6.shoot_other6 +
-        (index == 6) * other7.shoot_other7 +
-
-        (index == 7) * other1.shoot_other7 +
-        (index == 7) * other2.shoot_other7 +
-        (index == 7) * other3.shoot_other7 +
-        (index == 7) * other4.shoot_other7 +
-        (index == 7) * other5.shoot_other7 +
-        (index == 7) * other6.shoot_other7 +
-        (index == 7) * other7.shoot_other7
+        (index == 6) * other6.shoot_other6
         ), 0);
 
     [wait] 1;
@@ -88,5 +72,4 @@ template shooter
     [shoot_other4] health > 0 && other4.health > 0;
     [shoot_other5] health > 0 && other5.health > 0;
     [shoot_other6] health > 0 && other6.health > 0;
-    [shoot_other7] health > 0 && other7.health > 0;
 endtemplate

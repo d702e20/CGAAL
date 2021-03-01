@@ -1,6 +1,6 @@
-// Mexican Standoff PRISM-inspired 2
+// Mexican Standoff
 
-const max_health = 2;
+const max_health = 1;
 
 player p1 = shooter [target1=p2, target2=p3];
 player p2 = shooter [target1=p3, target2=p1];
