@@ -23,9 +23,10 @@ impl CheckMode {
             CheckMode::LabelOrTransition => {
                 matches!(decl_kind, DeclKind::Const(_) | DeclKind::StateVar(_))
             }
-            CheckMode::StateVarUpdate => {
-                matches!(decl_kind, DeclKind::Const(_) | DeclKind::StateVar(_) | DeclKind::Transition(_))
-            }
+            CheckMode::StateVarUpdate => matches!(
+                decl_kind,
+                DeclKind::Const(_) | DeclKind::StateVar(_) | DeclKind::Transition(_)
+            ),
         }
     }
 }
