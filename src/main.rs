@@ -24,8 +24,7 @@ use crate::atl::formula::Phi;
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
-use crate::lcgs::ir::intermediate;
-use crate::lcgs::ir::intermediate::{IntermediateLCGS, Player};
+use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
@@ -112,8 +111,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
                 exit(1);
             });
-            let ir = IntermediateLCGS::create(lcgs).unwrap_or_else(|_err| {
-                eprintln!("Invalid LCGS program");
+            let ir = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
+                eprintln!("Invalid LCGS program.\n\n{}", err);
                 exit(1);
             });
 
@@ -285,11 +284,11 @@ where
         }
         "lcgs" => {
             let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
-                eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
+                eprintln!("Failed to parse the LCGS program\nError: {}", err);
                 exit(1);
             });
-            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|_err| {
-                eprintln!("Invalid LCGS program");
+            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
+                eprintln!("Invalid LCGS program.\n{}", err);
                 exit(1);
             });
             let graph = ATLDependencyGraph { game_structure };
