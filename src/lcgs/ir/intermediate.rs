@@ -66,7 +66,7 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state index to a [State].
-    fn state_from_index(&self, state_index: usize) -> State {
+    pub(crate) fn state_from_index(&self, state_index: usize) -> State {
         let mut state = State(HashMap::new());
         let mut carry = state_index;
 
@@ -95,7 +95,7 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state into its index
-    fn index_of_state(&self, state: &State) -> usize {
+    pub(crate) fn index_of_state(&self, state: &State) -> usize {
         let mut combined_size = 1;
         let mut res = 0usize;
 
