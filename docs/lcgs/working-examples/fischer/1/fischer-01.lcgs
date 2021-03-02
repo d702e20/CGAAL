@@ -1,0 +1,31 @@
+const k = 2;
+
+player p1 = process [id=1];
+
+label p1_in_cs = p1.state == 3;
+
+label ensure_mutual_exclusion = (p1.state == 3) <= 1;
+
+label multiple_in_cs = (p1.state == 3) > 1;
+
+in_cs : [0 .. 1] init 0;
+in_cs' = p1.start ? 0 :
+        (p1.wait ? 1 : in_cs);
+
+template process
+
+	time_waited : [0 .. k+1] init 0;
+	time_waited' = min((time_waited + 1 * !wait * !req),k+1);
+
+	// Represents the four states it can be in, 0=start, 1=req, 2=wait, 3=cs
+	state : [0 .. 3] init 0;
+	state' = start ? 0 : (req ? 1 : (wait ? 2 : (cs ? 3 : state)));
+	
+	
+	[req] (in_cs == 0) && (state == 0 || state==2);
+	[wait] (time_waited <= k) && (state == 1);
+	[cs] (time_waited > k) && (in_cs == id) && (state == 2);
+	[start] (in_cs == id) && (state == 3);
+	[do_nothing] state != 3;
+
+endtemplate
