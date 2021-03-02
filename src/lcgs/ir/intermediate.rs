@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, LabelDecl, Root};
+use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::relabeling::Relabeler;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
