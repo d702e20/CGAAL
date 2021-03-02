@@ -1,0 +1,23 @@
+// Network Topology example featuring 2 routers
+const nr_routers = 2;
+
+player router1 = router [self=router1,self_index=1, neighbour_self=neighbour_router1];
+player router2 = router [self=router2,self_index=2, neighbour_self=neighbour_router2];
+
+template router
+  label reach_r1 = (self_index == 1) || self.neighbour_router1 || (self.neighbour_router2 && router2.neighbour_router1);
+  label reach_r2 = (self_index == 2) || self.neighbour_router2 || (self.neighbour_router1 && router1.neighbour_router2);
+
+  failed : [0..1] init 0;
+  failed' = max(full_failure,0);
+
+  neighbour_router1 : [0..1] init (self_index==1);
+  neighbour_router1' = max((self_index==1), router1.neighbour_self) - (max(self.failed,router1.failed));
+
+  neighbour_router2 : [0..1] init (self_index==2);
+  neighbour_router2' = max((self_index==2), router2.neighbour_self) - (max(self.failed,router2.failed));
+
+
+  [full_failure] !failed;
+  [wait] 1;
+endtemplate
