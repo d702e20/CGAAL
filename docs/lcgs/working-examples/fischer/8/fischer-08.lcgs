@@ -11,7 +11,7 @@ player p8 = process [id=8];
 
 label p1_in_cs = p1.state == 3;
 
-label multiple_in_cs = ((p1.state == 3) +
+label ensure_mutual_exclusion = ((p1.state == 3) +
                         (p2.state == 3) +
                         (p3.state == 3) +
                         (p4.state == 3) +
