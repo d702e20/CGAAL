@@ -1,4 +1,4 @@
-// Peterson with 6 processes using filter algorithm. Might be a typo in this one, as one formula returns wrong result
+// Peterson with 6 processes using filter algorithm
 const n = 6;
 
 label wack = 1;

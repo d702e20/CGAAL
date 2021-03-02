@@ -1,4 +1,4 @@
-// Peterson with 5 processes using filter algorithm.
+// Peterson with 5 processes using filter algorithm
 const n = 5;
 
 label wack = 1;
