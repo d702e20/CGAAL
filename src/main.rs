@@ -9,7 +9,7 @@ extern crate tracing;
 extern crate git_version;
 
 use std::collections::hash_map::RandomState;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::Debug;
 use std::fs::File;
@@ -26,7 +26,7 @@ use crate::common::Edges;
 use crate::edg::{distributed_certain_zero, Vertex};
 use crate::lcgs::ast::DeclKind;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
-use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
+use crate::lcgs::ir::symbol_table::Owner;
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;

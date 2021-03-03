@@ -110,6 +110,6 @@ mod test {
         };
         let state = State(HashMap::new());
         let evaluator = Evaluator::new(&state);
-        assert_eq!(evaluator.eval(&expr).unwrap(), 1);
+        assert_eq!(evaluator.eval(&expr), 1);
     }
 }
