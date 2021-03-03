@@ -127,8 +127,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
                 exit(1);
             });
-            let ir = IntermediateLCGS::create(lcgs).unwrap_or_else(|_err| {
-                eprintln!("Invalid LCGS program");
+            let ir = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
+                eprintln!("Invalid LCGS program.\n\n{}", err);
                 exit(1);
             });
 
@@ -315,11 +315,11 @@ where
         }
         "lcgs" => {
             let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
-                eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
+                eprintln!("Failed to parse the LCGS program\nError: {}", err);
                 exit(1);
             });
-            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|_err| {
-                eprintln!("Invalid LCGS program");
+            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
+                eprintln!("Invalid LCGS program.\n{}", err);
                 exit(1);
             });
 

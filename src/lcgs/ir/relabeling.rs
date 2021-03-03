@@ -4,6 +4,11 @@ use crate::lcgs::ast::{
 };
 use std::ops::Deref;
 
+#[derive(Debug)]
+pub struct RelabelError {
+    pub msg: String,
+}
+
 /// A [Relabeler] applies relabeling of declarations and their parts. It performs the
 /// first [RelabelCase] that applies. A [RelabelCase] consists of a `prev` name and
 /// a `new` expressions. Whenever `prev` is found in the given template, it is
@@ -28,7 +33,7 @@ impl<'a> Relabeler<'a> {
         Relabeler { relabeling }
     }
 
-    pub fn relabel_decl(&self, decl: &Decl) -> Result<Decl, ()> {
+    pub fn relabel_decl(&self, decl: &Decl) -> Result<Decl, RelabelError> {
         match &decl.kind {
             DeclKind::Label(label) => self.relabel_label(label),
             DeclKind::StateVar(var) => self.relabel_var(var),
@@ -40,7 +45,7 @@ impl<'a> Relabeler<'a> {
         }
     }
 
-    fn relabel_label(&self, label: &LabelDecl) -> Result<Decl, ()> {
+    fn relabel_label(&self, label: &LabelDecl) -> Result<Decl, RelabelError> {
         Ok(Decl {
             kind: DeclKind::Label(Box::new(LabelDecl {
                 index: label.index,
@@ -50,7 +55,7 @@ impl<'a> Relabeler<'a> {
         })
     }
 
-    fn relabel_var(&self, var: &StateVarDecl) -> Result<Decl, ()> {
+    fn relabel_var(&self, var: &StateVarDecl) -> Result<Decl, RelabelError> {
         Ok(Decl {
             kind: DeclKind::StateVar(Box::new(StateVarDecl {
                 name: self.relabel_simple_ident(&var.name)?,
@@ -66,7 +71,7 @@ impl<'a> Relabeler<'a> {
         })
     }
 
-    fn relabel_transition(&self, tran: &TransitionDecl) -> Result<Decl, ()> {
+    fn relabel_transition(&self, tran: &TransitionDecl) -> Result<Decl, RelabelError> {
         Ok(Decl {
             kind: DeclKind::Transition(Box::new(TransitionDecl {
                 name: self.relabel_simple_ident(&tran.name)?,
@@ -77,7 +82,7 @@ impl<'a> Relabeler<'a> {
 
     /// Relabel a simple identifier (declaration name). The returned identifier is guaranteed
     /// to be a [Identifier::Simple] too.
-    fn relabel_simple_ident(&self, ident: &Identifier) -> Result<Identifier, ()> {
+    fn relabel_simple_ident(&self, ident: &Identifier) -> Result<Identifier, RelabelError> {
         let name = match ident {
             Identifier::Simple { name } => name,
             _ => unreachable!(),
@@ -95,7 +100,9 @@ impl<'a> Relabeler<'a> {
                     } = &new_ident.deref()
                     {
                         if owner.is_some() {
-                            panic!("You cannot rename a declaration's name to an expression.")
+                            return Err(RelabelError {
+                                msg: format!("You cannot relabel '{}' to an expression since it is the name of a declaration.", name)
+                            });
                         }
                         return Ok(Identifier::Simple {
                             name: new_name.clone(),
@@ -103,7 +110,11 @@ impl<'a> Relabeler<'a> {
                     }
                     unreachable!()
                 } else {
-                    panic!("You cannot rename a declaration's name to an expression.")
+                    // The new name is not an identifier, so it is some other expression, which
+                    // is not valid
+                    return Err(RelabelError {
+                        msg: format!("You cannot relabel '{}' to an expression since it is the name of a declaration.", name)
+                    });
                 }
             }
         }
@@ -112,7 +123,7 @@ impl<'a> Relabeler<'a> {
         Ok(ident.clone())
     }
 
-    pub fn relabel_expr(&self, expr: &Expr) -> Result<Expr, ()> {
+    pub fn relabel_expr(&self, expr: &Expr) -> Result<Expr, RelabelError> {
         match &expr.kind {
             ExprKind::Number(_) => Ok(expr.clone()),
             ExprKind::OwnedIdent(ident) => self.relabel_owned_ident(ident),
@@ -129,7 +140,7 @@ impl<'a> Relabeler<'a> {
     /// Relabels an owner identifier (those found in expressions). The owner is not guaranteed
     /// to be there. If it is there, we allow rename of the owner and the name separately.
     /// If there is no explicit owner, then relabeling to an expression is also okay.
-    fn relabel_owned_ident(&self, ident: &Identifier) -> Result<Expr, ()> {
+    fn relabel_owned_ident(&self, ident: &Identifier) -> Result<Expr, RelabelError> {
         if let Identifier::OptionalOwner { owner, name } = ident {
             // If we have an owner, we relabel owner and name separately
             if let Some(owner) = owner {
@@ -163,7 +174,7 @@ impl<'a> Relabeler<'a> {
     /// Relabels a part of an [Identifier::OptionallyOwned]. That is, either "p1" or "foo" in
     /// "p1.foo". In this case, it is not allowed to relabel to an expression, only another name,
     /// so the resulting identifier still makes sense.
-    fn relabel_ident_part(&self, name: &str) -> Result<String, ()> {
+    fn relabel_ident_part(&self, name: &str) -> Result<String, RelabelError> {
         for relabel_case in &self.relabeling.relabellings {
             if relabel_case.prev == name {
                 // We found a case that applies. Since we are relabeling a part of an identifier
@@ -176,13 +187,19 @@ impl<'a> Relabeler<'a> {
                     } = &new_ident.deref()
                     {
                         if owner.is_some() {
-                            panic!("You cannot relabel a part of an identifier to an expression.")
+                            return Err(RelabelError {
+                                msg: format!("You cannot relabel '{}' to an expression since it is a part of an owned identifier.", name)
+                            });
                         }
                         return Ok(new_name.clone());
                     }
                     unreachable!()
                 }
-                panic!("You cannot relabel a part of an identifier to an expression.")
+                // The new name is not an identifier, so it is some other expression which
+                // is not allowed
+                return Err(RelabelError {
+                    msg: format!("You cannot relabel '{}' to an expression since it is a part of an owned identifier.", name)
+                });
             }
         }
 
@@ -190,13 +207,18 @@ impl<'a> Relabeler<'a> {
         Ok(name.to_string())
     }
 
-    fn relabel_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, ()> {
+    fn relabel_unop(&self, op: &UnaryOpKind, expr: &Expr) -> Result<Expr, RelabelError> {
         Ok(Expr {
             kind: ExprKind::UnaryOp(op.clone(), Box::new(self.relabel_expr(expr)?)),
         })
     }
 
-    fn relabel_binop(&self, op: &BinaryOpKind, lhs: &Expr, rhs: &Expr) -> Result<Expr, ()> {
+    fn relabel_binop(
+        &self,
+        op: &BinaryOpKind,
+        lhs: &Expr,
+        rhs: &Expr,
+    ) -> Result<Expr, RelabelError> {
         Ok(Expr {
             kind: ExprKind::BinaryOp(
                 op.clone(),
@@ -206,7 +228,12 @@ impl<'a> Relabeler<'a> {
         })
     }
 
-    fn relabel_if(&self, cond: &Expr, true_expr: &Expr, false_expr: &Expr) -> Result<Expr, ()> {
+    fn relabel_if(
+        &self,
+        cond: &Expr,
+        true_expr: &Expr,
+        false_expr: &Expr,
+    ) -> Result<Expr, RelabelError> {
         Ok(Expr {
             kind: ExprKind::TernaryIf(
                 Box::new(self.relabel_expr(&cond)?),
@@ -216,24 +243,24 @@ impl<'a> Relabeler<'a> {
         })
     }
 
-    fn relabel_min(&self, exprs: &[Expr]) -> Result<Expr, ()> {
+    fn relabel_min(&self, exprs: &[Expr]) -> Result<Expr, RelabelError> {
         Ok(Expr {
             kind: ExprKind::Min(
                 exprs
                     .iter()
                     .map(|e| self.relabel_expr(e))
-                    .collect::<Result<Vec<Expr>, ()>>()?,
+                    .collect::<Result<Vec<Expr>, RelabelError>>()?,
             ),
         })
     }
 
-    fn relabel_max(&self, exprs: &[Expr]) -> Result<Expr, ()> {
+    fn relabel_max(&self, exprs: &[Expr]) -> Result<Expr, RelabelError> {
         Ok(Expr {
             kind: ExprKind::Max(
                 exprs
                     .iter()
                     .map(|e| self.relabel_expr(e))
-                    .collect::<Result<Vec<Expr>, ()>>()?,
+                    .collect::<Result<Vec<Expr>, RelabelError>>()?,
             ),
         })
     }
