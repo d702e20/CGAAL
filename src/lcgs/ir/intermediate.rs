@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
+use crate::atl::common;
 use crate::atl::common::Proposition;
 use crate::atl::formula::{identifier, ATLExpressionParser};
 use crate::atl::gamestructure::GameStructure;
@@ -487,7 +488,7 @@ impl GameStructure for IntermediateLCGS {
 }
 
 impl ATLExpressionParser for IntermediateLCGS {
-    fn player_parser(&self) -> Parser<u8, Proposition> {
+    fn player_parser(&self) -> Parser<u8, common::Player> {
         // In ATL, players are referred to using their name, i.e. an identifier
         identifier().convert(move |name| {
             // We check if a declaration with the given name exists,
