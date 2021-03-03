@@ -11,9 +11,9 @@ impl<'a> Evaluator<'a> {
         Evaluator { state }
     }
 
-    pub fn eval(&self, expr: &Expr) -> Result<i32, ()> {
+    pub fn eval(&self, expr: &Expr) -> i32 {
         match &expr.kind {
-            ExprKind::Number(n) => Ok(*n),
+            ExprKind::Number(n) => *n,
             ExprKind::OwnedIdent(id) => self.eval_ident(id),
             ExprKind::UnaryOp(op, e) => self.eval_unop(op, e),
             ExprKind::BinaryOp(op, e1, e2) => self.eval_binop(op, e1, e2),
@@ -23,9 +23,9 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn eval_ident(&self, id: &Identifier) -> Result<i32, ()> {
+    fn eval_ident(&self, id: &Identifier) -> i32 {
         // At this point identifiers should be resolved and easily found in the State's value table
-        let value = match id {
+        match id {
             Identifier::Simple { .. } | Identifier::OptionalOwner { .. } => {
                 panic!("Unresolved identifier. Something went wrong in symbol checking.")
             }
@@ -37,32 +37,31 @@ impl<'a> Evaluator<'a> {
                     name: name.to_string(),
                 })
                 .expect("Symbol does not exist. Compiler should have failed already."),
-        };
-        Ok(value)
+        }
     }
 
-    fn eval_unop(&self, op: &UnaryOpKind, e: &Expr) -> Result<i32, ()> {
-        let res = self.eval(e)?;
-        Ok(op.as_fn()(res))
+    fn eval_unop(&self, op: &UnaryOpKind, e: &Expr) -> i32 {
+        let res = self.eval(e);
+        op.as_fn()(res)
     }
 
-    fn eval_binop(&self, op: &BinaryOpKind, e1: &Expr, e2: &Expr) -> Result<i32, ()> {
-        let res1 = self.eval(e1)?;
-        let res2 = self.eval(e2)?;
-        Ok(op.as_fn()(res1, res2))
+    fn eval_binop(&self, op: &BinaryOpKind, e1: &Expr, e2: &Expr) -> i32 {
+        let res1 = self.eval(e1);
+        let res2 = self.eval(e2);
+        op.as_fn()(res1, res2)
     }
-    fn eval_if(&self, c: &Expr, e1: &Expr, e2: &Expr) -> Result<i32, ()> {
-        let c = self.eval(c)?;
+    fn eval_if(&self, c: &Expr, e1: &Expr, e2: &Expr) -> i32 {
+        let c = self.eval(c);
         if c != 0 {
             self.eval(e1)
         } else {
             self.eval(e2)
         }
     }
-    fn eval_min(&self, ls: &[Expr]) -> Result<i32, ()> {
+    fn eval_min(&self, ls: &[Expr]) -> i32 {
         ls.iter().map(|p| self.eval(p)).min().unwrap()
     }
-    fn eval_max(&self, ls: &[Expr]) -> Result<i32, ()> {
+    fn eval_max(&self, ls: &[Expr]) -> i32 {
         ls.iter().map(|p| self.eval(p)).max().unwrap()
     }
 }
@@ -91,7 +90,7 @@ mod test {
         };
         let state = State(HashMap::new());
         let evaluator = Evaluator::new(&state);
-        assert_eq!(evaluator.eval(&expr).unwrap(), 3);
+        assert_eq!(evaluator.eval(&expr), 3);
     }
 
     #[test]
@@ -111,12 +110,6 @@ mod test {
         };
         let state = State(HashMap::new());
         let evaluator = Evaluator::new(&state);
-        assert_eq!(evaluator.eval(&expr).unwrap(), 1);
-    }
-
-    #[test]
-    fn test_rust_max() {
-        let mut v: Vec<Result<i32, ()>> = vec![Ok(1), Ok(3), Ok(2)];
-        assert_eq!(v.iter().cloned().max().unwrap(), Ok(3));
+        assert_eq!(evaluator.eval(&expr), 1);
     }
 }
