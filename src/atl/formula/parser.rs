@@ -5,13 +5,14 @@ use pom::parser::{end, Parser};
 use pom::parser::{list, one_of, seq, sym};
 
 use super::Phi;
+use crate::atl::common::Proposition;
 
 /// Parse an ATL formula
 pub(crate) fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
     expr_parser: &'b A,
     input: &'a str,
 ) -> Result<Phi, String> {
-    let formula = ws() * phi(expr_parser) - end();
+    let formula = ws() * phi(expr_parser) - ws() - end();
     formula
         .parse(input.as_bytes())
         .map_err(|err| err.to_string())
@@ -22,9 +23,9 @@ pub(crate) fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
 /// in json, players and propositions are numbers.
 pub trait ATLExpressionParser {
     /// A parser that parses a player name
-    fn player_parser(&self) -> Parser<u8, usize>;
+    fn player_parser(&self) -> Parser<u8, Proposition>;
     /// A parser that parses a proposition name
-    fn proposition_parser(&self) -> Parser<u8, usize>;
+    fn proposition_parser(&self) -> Parser<u8, Proposition>;
 }
 
 /// Whitespace
@@ -260,6 +261,7 @@ mod test {
 
     use pom::parser::Parser;
 
+    use crate::atl::common::Proposition;
     use crate::atl::formula::parser::{
         boolean, despite_eventually, despite_invariant, despite_next, despite_players,
         despite_until, enforce_eventually, enforce_invariant, enforce_next, enforce_players,
@@ -273,11 +275,11 @@ mod test {
     struct TestModel;
 
     impl ATLExpressionParser for TestModel {
-        fn player_parser(&self) -> Parser<u8, usize> {
+        fn player_parser(&self) -> Parser<u8, Proposition> {
             number()
         }
 
-        fn proposition_parser(&self) -> Parser<u8, usize> {
+        fn proposition_parser(&self) -> Parser<u8, Proposition> {
             number()
         }
     }
