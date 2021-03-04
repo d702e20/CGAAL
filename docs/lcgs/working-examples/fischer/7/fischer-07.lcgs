@@ -49,5 +49,5 @@ template process
 	[wait] (time_waited <= k) && (state == 1);
 	[cs] (time_waited > k) && (in_cs == id) && (state == 2);
 	[start] (in_cs == id) && (state == 3);
-	[do_nothing] state != 3;
+	[do_nothing] state == 2;
 endtemplate
