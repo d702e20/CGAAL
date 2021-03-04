@@ -1,15 +1,15 @@
+#[no_link]
+extern crate git_version;
+#[macro_use]
+extern crate lazy_static;
 extern crate num_cpus;
 #[macro_use]
 extern crate serde;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate tracing;
-#[no_link]
-extern crate git_version;
 
 use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::Debug;
 use std::fs::File;
@@ -18,6 +18,8 @@ use std::process::exit;
 use std::sync::Arc;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
+use git_version::git_version;
+use tracing::trace;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::{ATLExpressionParser, Phi};
@@ -30,8 +32,6 @@ use crate::lcgs::ir::symbol_table::Owner;
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
-use git_version::git_version;
-use tracing::trace;
 
 mod atl;
 mod com;
@@ -58,13 +58,29 @@ impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
     }
 }
 
+/// The formula types that the system supports
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum FormulaFormat {
     JSON,
     ATL,
 }
 
+/// The model types that the system supports
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum ModelType {
+    JSON,
+    LCGS,
+}
+
 #[tracing::instrument]
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
+    if let Err(msg) = main_inner() {
+        println!("{}", msg);
+        exit(1);
+    }
+}
+
+fn main_inner() -> Result<(), String> {
     let args = parse_arguments();
 
     setup_tracing(&args);
@@ -72,65 +88,41 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let subargs = args.subcommand().1.unwrap();
 
-    let input_model_path = subargs.value_of("input_model").unwrap();
-    let model_type = match subargs.value_of("model_type") {
-        Some("lcgs") => "lcgs",
-        Some("json") => "json",
-        None => {
-            // Infer model type from file extension
-            let model_path = subargs.value_of("input_model").unwrap();
-            if model_path.ends_with(".lcgs") {
-                "lcgs"
-            } else if model_path.ends_with(".json") {
-                "json"
-            } else {
-                eprintln!(
-                    "Cannot infer model type from file the extension. You can specify it with '--model_type=MODEL_TYPE'"
-                );
-                exit(1)
-            }
-        }
-        Some(model_type) => {
-            eprintln!("Model type '{:?}' is not supported", model_type);
-            exit(1);
-        }
-    };
     let formula_format = match subargs.value_of("formula_format") {
         Some("json") => FormulaFormat::JSON,
         Some("atl") => FormulaFormat::ATL,
         // Default value in case user did not give one
         None => FormulaFormat::ATL,
         _ => {
-            eprintln!("Invalid formula format specified");
-            exit(1)
+            return Err(format!("Invalid formula format specified"));
         }
     };
 
     match args.subcommand() {
         ("index", Some(_number_args)) => {
-            // Get the indexes for the players and labels
+            // Display the indexes for the players and labels
+
+            let input_model_path = number_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(&number_args)?;
+
+            if model_type != ModelType::LCGS {
+                return Err(format!("The 'index' command is only valid for LCGS models"));
+            }
 
             // Open the input model file
-            let mut file = File::open(input_model_path).unwrap_or_else(|err| {
-                eprintln!("Failed to open input model\n\nError:\n{}", err);
-                exit(1);
-            });
+            let mut file = File::open(input_model_path)
+                .map_err(|err| format!("Failed to open input model.\n{}", err))?;
 
             // Read the input model from the file into memory
             let mut content = String::new();
-            file.read_to_string(&mut content).unwrap_or_else(|err| {
-                eprintln!("Failed to read input model\n\nError:\n{}", err);
-                exit(1);
-            });
+            file.read_to_string(&mut content)
+                .map_err(|err| format!("Failed to read input model.\n{}", err))?;
 
-            let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
-                eprintln!("Failed to parse the LCGS program\n\nError:\n{}", err);
-                exit(1);
-            });
-            let ir = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
-                eprintln!("Invalid LCGS program.\n\n{}", err);
-                exit(1);
-            });
+            let lcgs = parse_lcgs(&content)
+                .map_err(|err| format!("Failed to parse the LCGS program.\n{}", err))?;
+
+            let ir = IntermediateLCGS::create(lcgs)
+                .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
             println!("Players:");
             for player in &ir.get_player() {
@@ -148,9 +140,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             }
+
+            Ok(())
         }
         ("solver", Some(solver_args)) => {
-            let formula_path = subargs.value_of("formula").unwrap();
+            let input_model_path = solver_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(&solver_args)?;
+            let formula_path = solver_args.value_of("formula").unwrap();
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
@@ -172,11 +168,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 formula_path,
                 formula_format,
                 |graph, formula, raw_phi| {
+                    println!("Checking the formula: {}", formula);
                     let v0 = ATLVertex::FULL { state: 0, formula };
                     println!("Solving: {}", raw_phi);
                     check_model(graph, v0, threads);
                 },
                 |graph, formula, raw_phi| {
+                    println!("Checking the formula: {}", formula);
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
                         formula,
@@ -184,12 +182,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                     println!("Solving: {}", raw_phi);
                     check_model(graph, v0, threads);
                 },
-            )
+            )?
         }
-        ("graph", Some(_args)) => {
+        ("graph", Some(graph_args)) => {
             #[cfg(feature = "graph-printer")]
             {
-                let formula_path = subargs.value_of("formula").unwrap();
+                let input_model_path = graph_args.value_of("input_model").unwrap();
+                let model_type = get_model_type_from_args(&graph_args)?;
+                let formula_path = graph_args.value_of("formula").unwrap();
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
@@ -219,7 +219,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     |graph, formula, raw_phi| {
                         let v0 = ATLVertex::FULL { state: 0, formula };
                         println!("Printing graph for: {}", raw_phi);
-                        print_model(graph, v0, subargs.value_of("output"));
+                        print_model(graph, v0, graph_args.value_of("output"));
                     },
                     |graph, formula, raw_phi| {
                         let v0 = ATLVertex::FULL {
@@ -227,9 +227,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                             formula,
                         };
                         println!("Printing graph for: {}", raw_phi);
-                        print_model(graph, v0, subargs.value_of("output"));
+                        print_model(graph, v0, graph_args.value_of("output"));
                     },
-                )
+                )?
             }
         }
         _ => (),
@@ -275,62 +275,70 @@ fn load_formula<A: ATLExpressionParser>(
     return (raw_phi, phi);
 }
 
+/// Determine the model type (either "json" or "lcgs") by reading the the
+/// --model_type argument or inferring it from the model's path extension.  
+fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
+    match args.value_of("model_type") {
+        Some("lcgs") => Ok(ModelType::LCGS),
+        Some("json") => Ok(ModelType::JSON),
+        None => {
+            // Infer model type from file extension
+            let model_path = args.value_of("input_model").unwrap();
+            if model_path.ends_with(".lcgs") {
+                Ok(ModelType::LCGS)
+            } else if model_path.ends_with(".json") {
+                Ok(ModelType::JSON)
+            } else {
+                Err("Cannot infer model type from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
+            }
+        }
+        Some(model_type) => Err(format!("Model type '{:?}' is not supported", model_type)),
+    }
+}
+
 /// Loads a model and a formula from files, and then call the handler function with the loaded model and formula.
 fn load<R, J, L>(
-    model_type: &str,
+    model_type: ModelType,
     game_structure_path: &str,
     formula_path: &str,
     formula_format: FormulaFormat,
     handle_json: J,
     handle_lcgs: L,
-) -> R
+) -> Result<R, String>
 where
     J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>, String) -> R,
     L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>, String) -> R,
 {
     // Open the input model file
-    let mut file = File::open(game_structure_path).unwrap_or_else(|err| {
-        eprintln!("Failed to open input model\n\nError:\n{}", err);
-        exit(1);
-    });
+    let mut file = File::open(game_structure_path)
+        .map_err(|err| format!("Failed to open input model.\n{}", err))?;
     // Read the input model from the file into memory
     let mut content = String::new();
-    file.read_to_string(&mut content).unwrap_or_else(|err| {
-        eprintln!("Failed to read input model\n\nError:\n{}", err);
-        exit(1);
-    });
+    file.read_to_string(&mut content)
+        .map_err(|err| format!("Failed to read input model.\n{}", err))?;
 
     // Depending on which model_type is specified, use the relevant parsing logic
     match model_type {
-        "json" => {
-            let game_structure = serde_json::from_str(content.as_str()).unwrap_or_else(|err| {
-                eprintln!("Failed to deserialize input model\n\nError:\n{}", err);
-                exit(1);
-            });
+        ModelType::JSON => {
+            let game_structure = serde_json::from_str(content.as_str())
+                .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
             let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
             let graph = ATLDependencyGraph { game_structure };
 
             handle_json(graph, phi, raw_phi)
         }
-        "lcgs" => {
-            let lcgs = parse_lcgs(&content).unwrap_or_else(|err| {
-                eprintln!("Failed to parse the LCGS program\nError: {}", err);
-                exit(1);
-            });
-            let game_structure = IntermediateLCGS::create(lcgs).unwrap_or_else(|err| {
-                eprintln!("Invalid LCGS program.\n{}", err);
-                exit(1);
-            });
+        ModelType::LCGS => {
+            let lcgs = parse_lcgs(&content)
+                .map_err(|err| format!("Failed to parse the LCGS program.\n{}", err))?;
+
+            let game_structure = IntermediateLCGS::create(lcgs)
+                .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
             let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
             let graph = ATLDependencyGraph { game_structure };
 
             handle_lcgs(graph, phi, raw_phi)
-        }
-        &_ => {
-            eprintln!("Model type '{:?}' not supported", model_type);
-            exit(1)
         }
     }
 }
@@ -418,15 +426,14 @@ fn parse_arguments() -> ArgMatches<'static> {
     }
 }
 
-fn setup_tracing(args: &ArgMatches) {
+fn setup_tracing(args: &ArgMatches) -> Result<(), String> {
     // Configure a filter for tracing data if one have been set
     if let Some(filter) = args.value_of("log_filter") {
-        let filter = tracing_subscriber::EnvFilter::try_new(filter).unwrap_or_else(|err| {
-            eprintln!("Invalid log filter\n{}", err);
-            exit(1);
-        });
+        let filter = tracing_subscriber::EnvFilter::try_new(filter)
+            .map_err(|err| format!("Invalid log filter.\n{}", err))?;
         tracing_subscriber::fmt().with_env_filter(filter).init()
     } else {
         tracing_subscriber::fmt().init()
     }
+    Ok(())
 }
