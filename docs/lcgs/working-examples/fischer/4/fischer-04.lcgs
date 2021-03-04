@@ -27,7 +27,7 @@ in_cs' = (p1.start || p2.start || p3.start || p4.start) ? 0 :
 
 template process
 	time_waited : [0 .. k+1] init 0;
-	time_waited' = min((time_waited + 1) * !wait * !req,k+1);
+	time_waited' = min(((time_waited + 1) * !wait * !req),k+1);
 
 	// Represents the four states it can be in, 0=start, 1=req, 2=wait, 3=cs
 	state : [0 .. 3] init 0;
