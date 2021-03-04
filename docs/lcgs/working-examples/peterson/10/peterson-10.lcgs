@@ -170,8 +170,8 @@ template process
             (proceed_to_level_9 ? 9 :
             (exit_cs ? -1 : level))))))))));
 
-    other_level : [0 .. 1] init 0;
-    other_level' = ((other.level >= level) ||
+    [proceed_to_level_0] level == -1;
+    [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && ((other.level >= level) ||
                     (other1.level >= level) ||
                     (other2.level >= level) ||
                     (other3.level >= level) ||
@@ -179,18 +179,79 @@ template process
                     (other5.level >= level) ||
                     (other6.level >= level) ||
                     (other7.level >= level) ||
-                    (other8.level >= level));
-
-    [proceed_to_level_0] level == -1;
-    [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && other_level);
-    [proceed_to_level_2] (level == 1) && !((last_to_enter_1 == id) && other_level);
-    [proceed_to_level_3] (level == 2) && !((last_to_enter_2 == id) && other_level);
-    [proceed_to_level_4] (level == 3) && !((last_to_enter_3 == id) && other_level);
-    [proceed_to_level_5] (level == 4) && !((last_to_enter_4 == id) && other_level);
-    [proceed_to_level_6] (level == 5) && !((last_to_enter_5 == id) && other_level);
-    [proceed_to_level_7] (level == 6) && !((last_to_enter_6 == id) && other_level);
-    [proceed_to_level_8] (level == 7) && !((last_to_enter_7 == id) && other_level);
-    [proceed_to_level_9] (level == 8) && !((last_to_enter_8 == id) && other_level);
+                    (other8.level >= level)));
+    [proceed_to_level_2] (level == 1) && !((last_to_enter_1 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_3] (level == 2) && !((last_to_enter_2 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_4] (level == 3) && !((last_to_enter_3 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_5] (level == 4) && !((last_to_enter_4 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_6] (level == 5) && !((last_to_enter_5 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_7] (level == 6) && !((last_to_enter_6 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_8] (level == 7) && !((last_to_enter_7 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
+    [proceed_to_level_9] (level == 8) && !((last_to_enter_8 == id) && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
 
     [busy_loop] (((last_to_enter_0 == id) ||
                 (last_to_enter_1 == id) ||
@@ -201,7 +262,15 @@ template process
                 (last_to_enter_6 == id) ||
                 (last_to_enter_7 == id) ||
                 (last_to_enter_8 == id))
-                && other_level);
+                && ((other.level >= level) ||
+                    (other1.level >= level) ||
+                    (other2.level >= level) ||
+                    (other3.level >= level) ||
+                    (other4.level >= level) ||
+                    (other5.level >= level) ||
+                    (other6.level >= level) ||
+                    (other7.level >= level) ||
+                    (other8.level >= level)));
 
     [exit_cs] level == (n-1);
 endtemplate
