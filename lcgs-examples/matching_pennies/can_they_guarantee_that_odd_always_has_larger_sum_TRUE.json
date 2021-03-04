@@ -1,6 +1,6 @@
 {
-  "enforce eventually": {
-    "players": [0],
+  "enforce invariant": {
+    "players": [0, 1],
     "formula": {
       "proposition": 1
     }
