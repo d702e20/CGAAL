@@ -1,3 +1,4 @@
+mod error;
 mod eval;
 pub(crate) mod intermediate;
 mod relabeling;
