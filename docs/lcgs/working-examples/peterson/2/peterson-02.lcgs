@@ -19,8 +19,8 @@ template process
 	want_to_enter' = indicate_enter ? 1 : (indicate_leaving ? 0 : want_to_enter);
 
     [indicate_enter] (want_to_enter == 0) && (in_cs == 0);
-    [allow_other] turn != otherturn && in_cs == 0;
-    [enter_cs] !((other.want_to_enter) && (turn == otherturn)) && in_cs == 0;
-    [busy_loop] (other.want_to_enter) && (turn == otherturn) && in_cs == 0;
-    [indicate_leaving] !((other.want_to_enter) && (turn == otherturn)) && in_cs == 1;
+    [allow_other] (turn != otherturn) && (in_cs == 0);
+    [enter_cs] (!((other.want_to_enter) && (turn == otherturn))) && ((in_cs == 0) && (want_to_enter == 1));
+    [busy_loop] (other.want_to_enter) && (turn == otherturn) && (in_cs == 0);
+    [indicate_leaving] in_cs == 1;
 endtemplate
