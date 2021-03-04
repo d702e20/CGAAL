@@ -1,4 +1,5 @@
-// Peterson
+// Peterson with 2 processes. There is a bug somewhere, but 95% done.
+//Moved to here, because this case uses a different algorithm from the other peterson cases, thereby making a comparison between these not optimal
 
 label p0_in_cs = p0.in_cs == 1;
 label mutual_exclusion = (p0.in_cs == 1) + (p1.in_cs == 1) <= 1;
