@@ -371,6 +371,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     fn explore(&mut self, vertex: &V, weight: Weight) {
         trace!(?vertex, ?weight, "exploring vertex");
+        #[cfg(feature = "use-counts")]
         eprintln!("worker explore");
         let mut weight = weight;
         // Line 2
