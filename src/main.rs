@@ -9,8 +9,7 @@ extern crate serde;
 extern crate tracing;
 
 use std::collections::hash_map::RandomState;
-use std::collections::{HashMap, HashSet};
-use std::error::Error;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{stdout, Read, Write};
@@ -83,27 +82,15 @@ fn main() {
 fn main_inner() -> Result<(), String> {
     let args = parse_arguments();
 
-    setup_tracing(&args);
+    setup_tracing(&args)?;
     trace!(?args, "commandline arguments");
 
-    let subargs = args.subcommand().1.unwrap();
-
-    let formula_format = match subargs.value_of("formula_format") {
-        Some("json") => FormulaFormat::JSON,
-        Some("atl") => FormulaFormat::ATL,
-        // Default value in case user did not give one
-        None => FormulaFormat::ATL,
-        _ => {
-            return Err(format!("Invalid formula format specified"));
-        }
-    };
-
     match args.subcommand() {
-        ("index", Some(_number_args)) => {
+        ("index", Some(index_args)) => {
             // Display the indexes for the players and labels
 
-            let input_model_path = number_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&number_args)?;
+            let input_model_path = index_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(&index_args)?;
 
             if model_type != ModelType::LCGS {
                 return Err(format!("The 'index' command is only valid for LCGS models"));
@@ -140,13 +127,12 @@ fn main_inner() -> Result<(), String> {
                     }
                 }
             }
-
-            Ok(())
         }
         ("solver", Some(solver_args)) => {
             let input_model_path = solver_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
+            let formula_format = get_formula_format_from_args(&solver_args)?;
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
@@ -190,6 +176,7 @@ fn main_inner() -> Result<(), String> {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
                 let model_type = get_model_type_from_args(&graph_args)?;
                 let formula_path = graph_args.value_of("formula").unwrap();
+                let formula_format = get_formula_format_from_args(&graph_args)?;
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
@@ -292,7 +279,19 @@ fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
                 Err("Cannot infer model type from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
             }
         }
-        Some(model_type) => Err(format!("Model type '{:?}' is not supported", model_type)),
+        Some(model_type) => Err(format!("Invalid model type '{}' specified with --model_type. Use either \"lcgs\" or \"json\" [default is inferred from model path].", model_type)),
+    }
+}
+
+/// Determine the formula format (either "json" or "atl") by reading the
+/// --formula_format argument. If none is given, we default to ATL
+fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, String> {
+    match args.value_of("formula_format") {
+        Some("json") => Ok(FormulaFormat::JSON),
+        Some("atl") => Ok(FormulaFormat::ATL),
+        // Default value in case user did not give one
+        None => Ok(FormulaFormat::ATL),
+        Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
 
@@ -326,7 +325,7 @@ where
             let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
             let graph = ATLDependencyGraph { game_structure };
 
-            handle_json(graph, phi, raw_phi)
+            Ok(handle_json(graph, phi, raw_phi))
         }
         ModelType::LCGS => {
             let lcgs = parse_lcgs(&content)
@@ -338,7 +337,7 @@ where
             let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
             let graph = ATLDependencyGraph { game_structure };
 
-            handle_lcgs(graph, phi, raw_phi)
+            Ok(handle_lcgs(graph, phi, raw_phi))
         }
     }
 }
