@@ -39,6 +39,7 @@ mod edg;
 mod lcgs;
 #[cfg(feature = "graph-printer")]
 mod printer;
+mod solve_dist;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
