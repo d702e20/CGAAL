@@ -85,7 +85,9 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     depends: HashMap<V, HashSet<Edges<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
-    distances: HashMap<V, u32>,
+    /// Latest path of negation edges starting from v0 leading to the vertex.
+    /// Example: If a path starting from v0, and that contains two negation edges, exists to the vertex the depth will be two.
+    depth: HashMap<V, u32>,
     msg_rx: Receiver<Message<V>>,
     msg_queue: VecDeque<Message<V>>,
     hyper_queue: VecDeque<HyperEdge<V>>,
@@ -150,7 +152,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             hyper_queue: VecDeque::new(),
             negation_queue: VecDeque::new(),
             unsafe_edges: Vec::<Vec<NegationEdge<V>>>::new(),
-            distances: HashMap::<V, u32>::new(),
+            depth: HashMap::<V, u32>::new(),
             broker,
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
@@ -210,9 +212,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     // Alg 1, Line 8
                     Message::REQUEST {
                         vertex,
-                        distance,
+                        depth,
                         worker_id,
-                    } => self.process_request(&vertex, worker_id, distance),
+                    } => self.process_request(&vertex, worker_id, depth),
                     // Alg 1, Line 9
                     Message::ANSWER { vertex, assignment } => {
                         self.process_answer(&vertex, assignment)
@@ -321,19 +323,15 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     /// Releasing the edges from the unsafe queue to the safe negation channel
-    fn release_negations(&mut self, dist: usize) {
-        trace!(distance = dist, "release negation");
+    fn release_negations(&mut self) {
+        trace!(depth = self.unsafe_edges.len(), "release negation");
 
-        while self.unsafe_edges.len() >= dist && !self.unsafe_edges.is_empty() {
-            if let Some(edges) = self.unsafe_edges.last_mut() {
-                // Queue all edges in the negation channel that have the given distance
-                while !edges.is_empty() {
-                    let edge = edges.pop().unwrap();
-                    trace!(?edge, "release negation edge");
-                    self.broker.queue_negation(self.id, edge);
-                }
+        if let Some(edges) = self.unsafe_edges.pop() {
+            // Queue all edges in the negation channel that have the given depth
+            for edge in edges {
+                trace!(?edge, "release negation edge");
+                self.broker.queue_negation(self.id, edge);
             }
-            self.unsafe_edges.pop();
         }
     }
     /// Adds worker to C^i(vertex)
@@ -376,7 +374,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
-                    distance: *self.distances.get(vertex).unwrap_or(&0),
+                    depth: *self.depth.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
                 },
             )
@@ -434,17 +432,33 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
-        // Update the distance
-        let default = 0;
-        let tdist = *self.distances.get(vertex).unwrap_or(&default);
+        // Update the depth
+        let default_depth = 0;
+        let vertex_depth = *self.depth.get(vertex).unwrap_or(&default_depth);
         match dependency.clone() {
             Edges::NEGATION(edge) => {
-                let sdist = self.distances.get(&edge.source).unwrap_or(&default) + 1;
-                self.distances.insert(vertex.clone(), max(sdist, tdist));
+                let source_depth = self.depth.get(&edge.source).unwrap_or_else(|| {
+                    debug!(
+                        ?edge,
+                        worker_id = self.id,
+                        "Assigned default depth to edge because source edge depth is unknown",
+                    );
+                    &default_depth
+                }) + 1;
+                self.depth
+                    .insert(vertex.clone(), max(source_depth, vertex_depth));
             }
             Edges::HYPER(edge) => {
-                let sdist = *self.distances.get(&edge.source).unwrap_or(&default);
-                self.distances.insert(vertex.clone(), max(sdist, tdist));
+                let source_depth = *self.depth.get(&edge.source).unwrap_or_else(|| {
+                    trace!(
+                        ?edge,
+                        worker_id = self.id,
+                        "Assigned default depth to edge because source edge depth is unknown"
+                    );
+                    &default_depth
+                });
+                self.depth
+                    .insert(vertex.clone(), max(source_depth, vertex_depth));
             }
         }
 
@@ -497,26 +511,29 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// release negation is called
     fn queue_negation(&mut self, edge: NegationEdge<V>) {
         let len = self.unsafe_edges.len();
-        let mut dist: usize = 0;
-        if let Some(n) = self.distances.get(&edge.source) {
-            dist = *n as usize;
+        let mut depth: usize = 0;
+        if let Some(n) = self.depth.get(&edge.source) {
+            depth = *n as usize;
         }
 
-        if len <= dist {
-            for _ in len..(dist + 1) {
+        if len <= depth {
+            for _ in len..(depth + 1) {
                 self.unsafe_edges.push(Vec::new());
             }
         }
 
-        self.unsafe_edges.get_mut(dist as usize).unwrap().push(edge);
+        self.unsafe_edges
+            .get_mut(depth as usize)
+            .unwrap()
+            .push(edge);
     }
 
     // Another worker has requested the final assignment of a `vertex`
-    fn process_request(&mut self, vertex: &V, requester: WorkerId, distance: u32) {
+    fn process_request(&mut self, vertex: &V, requester: WorkerId, depth: u32) {
         trace!(
             ?vertex,
             ?requester,
-            distance,
+            depth,
             "got request for vertex assignment"
         );
         if let Some(assigned) = self.assignment.get(&vertex) {
@@ -541,9 +558,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     );
                 }
                 _ => {
-                    // update distance
-                    let dist = *self.distances.get(vertex).unwrap_or(&0);
-                    self.distances.insert(vertex.clone(), max(dist, distance));
+                    // update depth
+                    let local_depth = *self.depth.get(vertex).unwrap_or(&0);
+                    self.depth.insert(vertex.clone(), max(local_depth, depth));
 
                     self.mark_interest(vertex, requester);
 

@@ -45,7 +45,7 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
     REQUEST {
         vertex: V,
-        distance: u32,
+        depth: u32,
         worker_id: WorkerId,
     },
     /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
