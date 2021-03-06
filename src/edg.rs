@@ -100,8 +100,6 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
     counter: u32,
-    /// True if the worker have done work since last time it saw a Message::Token
-    dirty: bool,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -157,8 +155,19 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
             counter: 0,
-            dirty: false,
         }
+    }
+
+    fn have_pending_work(&self) -> bool {
+        self.msg_queue.is_empty()
+    }
+
+    fn have_pending_negation_edges(&self) -> bool {
+        self.unsafe_edges.is_empty()
+    }
+
+    fn is_leader(&self) -> bool {
+        self.id == 0
     }
 
     // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
@@ -271,8 +280,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Message::TERMINATE(_) => unreachable!(),
                 }
             } else if let Some(edge) = self.hyper_queue.pop_front() {
-                self.dirty = true;
-
                 let _guard = span!(
                     Level::TRACE,
                     "worker receive hyper-edge",
@@ -281,8 +288,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 );
                 self.process_hyper_edge(edge)
             } else if let Some(edge) = self.negation_queue.pop_front() {
-                self.dirty = true;
-
                 let _guard = span!(
                     Level::TRACE,
                     "worker receive negation-edge",
