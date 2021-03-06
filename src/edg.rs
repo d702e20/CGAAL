@@ -170,6 +170,21 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.id == 0
     }
 
+    fn forward_token(&self, received_token: Token) {
+        let local_token_value = if self.have_pending_negation_edges() {
+            Token::HaveNegations
+        } else if self.have_pending_work() {
+            Token::Dirty
+        } else {
+            Token::Clean
+        };
+
+        self.broker.send(
+            (self.id + 1) % self.worker_count,
+            Message::TOKEN(max(received_token, local_token_value)),
+        )
+    }
+
     // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
     pub fn run(&mut self) -> VertexAssignment {
         let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
@@ -182,12 +197,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             self.explore(&self.v0.clone());
         }
 
-        let msg_rx = self.msg_rx.clone();
-
         loop {
             // Pump all messages from broker to queues
             loop {
-                match msg_rx.try_recv() {
+                match self.msg_rx.try_recv() {
                     Ok(msg) => match msg {
                         Message::REQUEST { .. } => self.msg_queue.push_back(msg),
                         Message::ANSWER { .. } => self.msg_queue.push_back(msg),
@@ -228,52 +241,29 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Message::ANSWER { vertex, assignment } => {
                         self.process_answer(&vertex, assignment)
                     }
-                    Message::TOKEN(token) => {
+                    Message::TOKEN(received_token) => {
                         // TODO check that the token ring logic works correctly with only a single worker
-                        match token {
-                            Token::Clean => {
-                                if self.id == 0 {
+                        if self.is_leader() {
+                            match received_token {
+                                Token::Clean => {
                                     // Late termination
                                     self.broker.terminate(VertexAssignment::FALSE)
-                                } else {
-                                    if self.dirty {
-                                        todo!("check if the token should be changed to Dirty or HaveNegations")
-                                    } else {
-                                        // Forward the Token::Clean
-                                        self.broker.send(
-                                            (self.id + 1) % self.worker_count,
-                                            Message::TOKEN(token),
-                                        )
-                                    }
                                 }
-                            }
-                            Token::HaveNegations => {
-                                if self.id == 0 {
+                                Token::HaveNegations => {
                                     for worker_id in 0..self.worker_count {
                                         self.broker.send(worker_id, Message::RELEASE)
                                     }
-                                } else {
-                                    self.broker.send(
-                                        (self.id + 1) % self.worker_count,
-                                        Message::TOKEN(token),
-                                    )
                                 }
-                            }
-                            Token::Dirty => {
-                                if self.id == 0 {
+                                Token::Dirty => {
                                     // no-op, other workers are busy
-                                } else {
-                                    todo!("check if Token::Dirty need to be upgraded to Token::HaveNegations");
-                                    self.broker.send(
-                                        (self.id + 1) % self.worker_count,
-                                        Message::TOKEN(token),
-                                    )
                                 }
                             }
+                        } else {
+                            self.forward_token(received_token);
                         }
                     }
                     Message::RELEASE => {
-                        todo!("release negation")
+                        self.release_negations();
                     }
                     Message::NEGATION(_) => unreachable!(),
                     Message::HYPER(_) => unreachable!(),
@@ -322,7 +312,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             } else {
                 let _guard = span!(Level::TRACE, "worker release negation", worker_id = self.id);
                 // if the negation channel is empty, unsafe negation edges are released
-                self.release_negations(self.unsafe_edges.len());
+                self.release_negations();
             }
         }
     }
@@ -596,7 +586,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         // Line 2
         if *vertex == self.v0 {
             self.broker.terminate(assignment);
-            // Don't bother returning the weight, this is early termination
             return;
         }
         // Line 3
@@ -1089,9 +1078,7 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_small_dg_all_true_except_for_c() {
-        warn!("foo bar");
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
             A,
@@ -1187,7 +1174,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_small_dg_all_false_except_for_d() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1283,7 +1269,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_a_node_with_no_succsessors() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1321,7 +1306,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_termination_condtion() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1471,7 +1455,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_negation_edges() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
@@ -1530,6 +1513,113 @@ mod test {
             distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::B, WORKER_COUNT),
             VertexAssignment::TRUE,
             "Vertex B"
+        );
+    }
+
+    #[test]
+    fn test_multipe_negation_edges() {
+        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        enum ExampleEDGVertices {
+            H1,
+            N1,
+            H2,
+            N2,
+            H3,
+            N3,
+            H4,
+        }
+
+        impl Display for ExampleEDGVertices {
+            fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+                unimplemented!()
+            }
+        }
+
+        impl Vertex for ExampleEDGVertices {}
+
+        impl ExtendedDependencyGraph<ExampleEDGVertices> for ExampleEDG {
+            // H1 -> N1
+            // N1 ..> H2
+            // H2 -> N2
+            // N2 ..> H3
+            // H3 -> N3
+            // N3 ..> H4
+
+            fn succ(
+                &self,
+                vertex: &ExampleEDGVertices,
+            ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
+                debug!(?vertex, "edg succ");
+                match vertex {
+                    ExampleEDGVertices::H1 => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::H1,
+                            targets: vec![ExampleEDGVertices::N1],
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::N1 => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::NEGATION(NegationEdge {
+                            source: ExampleEDGVertices::N1,
+                            target: ExampleEDGVertices::H2,
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::H2 => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::H2,
+                            targets: vec![ExampleEDGVertices::N2],
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::N2 => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::NEGATION(NegationEdge {
+                            source: ExampleEDGVertices::N2,
+                            target: ExampleEDGVertices::H3,
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::H3 => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::HYPER(HyperEdge {
+                            source: ExampleEDGVertices::H3,
+                            targets: vec![ExampleEDGVertices::N3],
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::N3 => {
+                        let mut successors = HashSet::new();
+
+                        successors.insert(Edges::NEGATION(NegationEdge {
+                            source: ExampleEDGVertices::N3,
+                            target: ExampleEDGVertices::H4,
+                        }));
+
+                        successors
+                    }
+                    ExampleEDGVertices::H4 => HashSet::new(),
+                }
+            }
+        }
+
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::H1, WORKER_COUNT),
+            VertexAssignment::TRUE,
+            "Vertex H1"
         );
     }
 }

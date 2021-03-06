@@ -54,19 +54,22 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
         assignment: VertexAssignment,
     },
     TOKEN(Token),
-    /// Release negation edge
+    /// Release component/negation-edges
     RELEASE,
+    /// Negation edge to be queued on the receiving worker
     NEGATION(NegationEdge<V>),
+    /// Hyper edge to be queued on the receiving worker
     HYPER(HyperEdge<V>),
+    /// Terminate the worker and return the `VertexAssignment` as the assignment for `v0`
     TERMINATE(VertexAssignment),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd, Ord, Eq, PartialEq)]
 pub enum Token {
     /// Indicate that no previous holder of the token have any pending hyper- or negations-edges
-    Clean,
+    Clean = 0,
     /// Indicate that no previous holder of the token have pending hyper-edges, but at least one do have pending negation-edges
-    HaveNegations,
+    HaveNegations = 1,
     /// Indicate that a previous holder of the token have pending hyper-edges
-    Dirty,
+    Dirty = 2,
 }
