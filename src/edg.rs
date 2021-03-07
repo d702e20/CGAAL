@@ -9,8 +9,12 @@ use std::thread;
 use crossbeam_channel::{Receiver, TryRecvError, TrySendError};
 
 use crate::com::{Broker, ChannelBroker};
-use crate::common::{Edges, HyperEdge, Message, NegationEdge, Token, VertexAssignment, WorkerId};
+use crate::common::{
+    Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
+};
 use std::cmp::max;
+use std::thread::sleep;
+use std::time::Duration;
 use tracing::{span, trace, Level};
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
@@ -80,26 +84,29 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     id: WorkerId,
     /// Number of workers working on solving the query. This is used as part of the static allocation scheme, see `crate::Worker::vertex_owner`.
     worker_count: u64,
+    /// The vertex that the worker is attempting to find the assignment of.
     v0: V,
+    /// Greatest known assignment for vertices.
+    /// Order is as follow UNEXPLORED/None < UNDECIDED < {TRUE, FALSE}. Once a vertex has been assigned TRUE or FALSE it will never change assignment.
     assignment: HashMap<V, VertexAssignment>,
     depends: HashMap<V, HashSet<Edges<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
     /// Latest path of negation edges starting from v0 leading to the vertex.
-    /// Example: If a path starting from v0, and that contains two negation edges, exists to the vertex the depth will be two.
+    /// Example: If a path starting from v0, that contains two negation edges, exists to the vertex depth will be two.
     depth: HashMap<V, u32>,
     msg_rx: Receiver<Message<V>>,
     msg_queue: VecDeque<Message<V>>,
     hyper_queue: VecDeque<HyperEdge<V>>,
     negation_queue: VecDeque<NegationEdge<V>>,
-    unsafe_edges: Vec<Vec<NegationEdge<V>>>,
+    unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
+    /// Used to communicate with other workers
     broker: Arc<B>,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
     /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
-    counter: u32,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -112,7 +119,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let mut hasher = DefaultHasher::new();
         vertex.hash::<DefaultHasher>(&mut hasher);
         let hash = hasher.finish();
-        trace!(hash);
         hash % self.worker_count
     }
 
@@ -149,12 +155,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             msg_queue: VecDeque::new(),
             hyper_queue: VecDeque::new(),
             negation_queue: VecDeque::new(),
-            unsafe_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
             depth: HashMap::<V, u32>::new(),
             broker,
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
-            counter: 0,
         }
     }
 
@@ -163,14 +168,20 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn have_pending_negation_edges(&self) -> bool {
-        self.unsafe_edges.is_empty()
+        !self.unsafe_neg_edges.is_empty() && !self.negation_queue.is_empty()
     }
 
+    /// Is this worker the leader of the token ring
     fn is_leader(&self) -> bool {
         self.id == 0
     }
 
-    fn forward_token(&self, received_token: Token) {
+    fn get_depth_of_deepest_component(&self) -> usize {
+        self.unsafe_neg_edges.len()
+    }
+
+    /// Determine the token value of this worker, and forward either the local token value or the received depending on which is greater.
+    fn forward_token(&self, msg: MsgToken) {
         let local_token_value = if self.have_pending_negation_edges() {
             Token::HaveNegations
         } else if self.have_pending_work() {
@@ -181,7 +192,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         self.broker.send(
             (self.id + 1) % self.worker_count,
-            Message::TOKEN(max(received_token, local_token_value)),
+            Message::TOKEN(MsgToken {
+                token: max(msg.token, local_token_value),
+                deepest_component: max(
+                    msg.deepest_component,
+                    self.get_depth_of_deepest_component(),
+                ),
+            }),
         )
     }
 
@@ -199,25 +216,39 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         loop {
             // Pump all messages from broker to queues
+            let mut token: Option<MsgToken> = None;
             loop {
                 match self.msg_rx.try_recv() {
-                    Ok(msg) => match msg {
-                        Message::REQUEST { .. } => self.msg_queue.push_back(msg),
-                        Message::ANSWER { .. } => self.msg_queue.push_back(msg),
-                        Message::TOKEN(_) => self.msg_queue.push_back(msg),
-                        Message::RELEASE => self.msg_queue.push_back(msg),
-                        Message::NEGATION(edge) => self.negation_queue.push_back(edge),
-                        Message::HYPER(edge) => self.hyper_queue.push_back(edge),
-                        Message::TERMINATE(assignment) => {
-                            // Alg 1, Line 11-12
-                            trace!(?assignment, "worker received termination");
-                            return match assignment {
-                                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                                VertexAssignment::FALSE => VertexAssignment::FALSE,
-                                VertexAssignment::TRUE => VertexAssignment::TRUE,
-                            };
+                    Ok(msg) => {
+                        match msg {
+                            Message::REQUEST { .. } => self.msg_queue.push_back(msg),
+                            Message::ANSWER { .. } => self.msg_queue.push_back(msg),
+                            Message::TOKEN(msg_token) => {
+                                debug_assert!(token.is_none(), "Received multiple tokens. Something is wrong with the token ring");
+                                token = Some(msg_token)
+                            }
+                            Message::RELEASE(_) => self.msg_queue.push_back(msg),
+                            Message::NEGATION(edge) => {
+                                match self.assignment.get(&edge.target) {
+                                    None => self.queue_negation(edge),
+                                    Some(_) => {
+                                        // Edge have assignment UNDECIDED, TRUE, or FALSE, and is there for safe to explore
+                                        self.negation_queue.push_back(edge)
+                                    }
+                                }
+                            }
+                            Message::HYPER(edge) => self.hyper_queue.push_back(edge),
+                            Message::TERMINATE(assignment) => {
+                                // Alg 1, Line 11-12
+                                trace!(?assignment, "worker received termination");
+                                return match assignment {
+                                    VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
+                                    VertexAssignment::FALSE => VertexAssignment::FALSE,
+                                    VertexAssignment::TRUE => VertexAssignment::TRUE,
+                                };
+                            }
                         }
-                    },
+                    }
                     Err(err) => match err {
                         TryRecvError::Empty => break,
                         TryRecvError::Disconnected => {
@@ -227,9 +258,42 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             }
 
-            if let Some(msg) = self.msg_queue.pop_back() {
+            if let Some(msg_token) = token {
+                if self.is_leader() {
+                    match msg_token {
+                        MsgToken {
+                            token: Token::Clean,
+                            deepest_component: _,
+                        } => {
+                            // Late termination
+                            trace!("Late termination");
+                            self.broker.terminate(VertexAssignment::FALSE)
+                        }
+                        MsgToken {
+                            token: Token::HaveNegations,
+                            deepest_component,
+                        } => {
+                            trace!(
+                                depth = deepest_component,
+                                "sending release component message"
+                            );
+                            for worker_id in 0..self.worker_count {
+                                self.broker
+                                    .send(worker_id, Message::RELEASE(deepest_component))
+                            }
+                        }
+                        MsgToken {
+                            token: Token::Dirty,
+                            deepest_component: _,
+                        } => {
+                            // no-op, other workers are busy
+                        }
+                    }
+                } else {
+                    self.forward_token(msg_token);
+                }
+            } else if let Some(msg) = self.msg_queue.pop_back() {
                 let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
-                self.counter = 0;
                 match msg {
                     // Alg 1, Line 8
                     Message::REQUEST {
@@ -241,29 +305,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Message::ANSWER { vertex, assignment } => {
                         self.process_answer(&vertex, assignment)
                     }
-                    Message::TOKEN(received_token) => {
-                        // TODO check that the token ring logic works correctly with only a single worker
-                        if self.is_leader() {
-                            match received_token {
-                                Token::Clean => {
-                                    // Late termination
-                                    self.broker.terminate(VertexAssignment::FALSE)
-                                }
-                                Token::HaveNegations => {
-                                    for worker_id in 0..self.worker_count {
-                                        self.broker.send(worker_id, Message::RELEASE)
-                                    }
-                                }
-                                Token::Dirty => {
-                                    // no-op, other workers are busy
-                                }
-                            }
-                        } else {
-                            self.forward_token(received_token);
-                        }
-                    }
-                    Message::RELEASE => {
-                        self.release_negations();
+                    Message::TOKEN(_) => unreachable!(),
+                    Message::RELEASE(depth) => {
+                        self.release_negations(depth);
                     }
                     Message::NEGATION(_) => unreachable!(),
                     Message::HYPER(_) => unreachable!(),
@@ -284,48 +328,49 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     worker_id = self.id,
                     ?edge,
                 );
-                match self.assignment.get(&edge.target) {
-                    None => self.process_negation_edge(edge.clone()),
-                    // Alg 1, Line 7
-                    Some(assignment) => match assignment {
-                        VertexAssignment::FALSE => {
-                            self.counter = 0;
-                            self.process_negation_edge(edge.clone())
-                        }
-                        VertexAssignment::TRUE => {
-                            self.counter = 0;
-                            self.process_negation_edge(edge.clone())
-                        }
-                        // In case of undecided the edge is only processed after 10 iterations
-                        VertexAssignment::UNDECIDED => {
-                            if self.counter == 9 {
-                                self.counter = 0;
-                                self.process_negation_edge(edge.clone())
-                            } else {
-                                trace!(?edge, "queueing negation");
-                                self.broker.queue_negation(self.id, edge.clone());
-                                self.counter += 1;
-                            }
-                        }
-                    },
-                }
+                self.process_negation_edge(edge);
+            } else if self.is_leader() {
+                let token = if self.unsafe_neg_edges.is_empty() {
+                    Token::Clean
+                } else {
+                    Token::HaveNegations
+                };
+                self.broker.send(
+                    (self.id + 1) % self.worker_count,
+                    Message::TOKEN(MsgToken {
+                        token,
+                        deepest_component: self.get_depth_of_deepest_component(),
+                    }),
+                )
             } else {
-                let _guard = span!(Level::TRACE, "worker release negation", worker_id = self.id);
-                // if the negation channel is empty, unsafe negation edges are released
-                self.release_negations();
+                // TODO maybe find a more appropriate delay that doesn't turn this into a busy loop when there is no work to do
+                sleep(Duration::from_millis(1))
             }
         }
     }
 
     /// Releasing the edges from the unsafe queue to the safe negation channel
-    fn release_negations(&mut self) {
-        trace!(depth = self.unsafe_edges.len(), "release negation");
+    fn release_negations(&mut self, depth: usize) {
+        trace!(
+            depth = self.unsafe_neg_edges.len(),
+            "releasing previously unsafe negation edges"
+        );
 
-        if let Some(edges) = self.unsafe_edges.pop() {
+        assert!(
+            self.unsafe_neg_edges.len() <= depth,
+            "Attempted to release more than one component"
+        );
+
+        if self.unsafe_neg_edges.len() < depth {
+            // If the worker does not have any negation edges with the given depth, then do nothing
+            return;
+        }
+
+        if let Some(edges) = self.unsafe_neg_edges.pop() {
             // Queue all edges in the negation channel that have the given depth
             for edge in edges {
-                trace!(?edge, "release negation edge");
-                self.broker.queue_negation(self.id, edge);
+                trace!(?edge, "releasing negation edge");
+                self.negation_queue.push_back(edge);
             }
         }
     }
@@ -435,7 +480,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 let source_depth = self.depth.get(&edge.source).unwrap_or_else(|| {
                     debug!(
                         ?edge,
-                        worker_id = self.id,
                         "Assigned default depth to edge because source edge depth is unknown",
                     );
                     &default_depth
@@ -447,7 +491,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 let source_depth = *self.depth.get(&edge.source).unwrap_or_else(|| {
                     trace!(
                         ?edge,
-                        worker_id = self.id,
                         "Assigned default depth to edge because source edge depth is unknown"
                     );
                     &default_depth
@@ -505,7 +548,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Queueing unsafe negation, which will be queued to negation channel whenever
     /// release negation is called
     fn queue_negation(&mut self, edge: NegationEdge<V>) {
-        let len = self.unsafe_edges.len();
+        let len = self.unsafe_neg_edges.len();
         let mut depth: usize = 0;
         if let Some(n) = self.depth.get(&edge.source) {
             depth = *n as usize;
@@ -513,11 +556,11 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         if len <= depth {
             for _ in len..(depth + 1) {
-                self.unsafe_edges.push(Vec::new());
+                self.unsafe_neg_edges.push(Vec::new());
             }
         }
 
-        self.unsafe_edges
+        self.unsafe_neg_edges
             .get_mut(depth as usize)
             .unwrap()
             .push(edge);
@@ -601,6 +644,30 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             "final assigned"
         );
 
+        // If `assignment` is UNDECIDED, then `prev_assigment` must be UNEXPLORED/None.
+        // If `assignment` is TRUE or FALSE, then `prev_assignment` must be UNEXPLORED/None or UNDECIDED
+        debug_assert!(
+            match assignment {
+                VertexAssignment::UNDECIDED => {
+                    prev_assignment == None
+                }
+                VertexAssignment::TRUE => {
+                    prev_assignment == None
+                        || prev_assignment == Some(VertexAssignment::UNDECIDED)
+                        || prev_assignment == Some(VertexAssignment::TRUE)
+                }
+                VertexAssignment::FALSE => {
+                    prev_assignment == None
+                        || prev_assignment == Some(VertexAssignment::UNDECIDED)
+                        || prev_assignment == Some(VertexAssignment::FALSE)
+                }
+            },
+            format!(
+                "attempted to change final assignment from {:?} to {}",
+                prev_assignment, assignment
+            )
+        );
+
         if changed_assignment {
             // Line 4
             if let Some(interested) = self.interests.get(&vertex) {
@@ -624,7 +691,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     );
                     match edge {
                         Edges::HYPER(edge) => self.broker.queue_hyper(self.id, edge.clone()),
-                        Edges::NEGATION(edge) => self.queue_negation(edge.clone()),
+                        Edges::NEGATION(edge) => {
+                            self.negation_queue.push_back(edge);
+                        }
                     }
                 }
             }
@@ -822,6 +891,12 @@ mod test {
             ) -> HashSet<Edges<ExampleEDGVertices>, RandomState> {
                 debug!(?vertex, "edg succ");
                 match vertex {
+                    // A -> B, C
+                    // B ..> E
+                    // C -> ø
+                    // D -> ø
+                    // D -> C
+                    // E ..> D
                     ExampleEDGVertices::A => {
                         let mut successors = HashSet::new();
 
@@ -829,6 +904,7 @@ mod test {
                             source: ExampleEDGVertices::A,
                             targets: vec![ExampleEDGVertices::B, ExampleEDGVertices::C],
                         }));
+
                         successors
                     }
                     ExampleEDGVertices::B => {

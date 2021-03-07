@@ -53,9 +53,9 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
         vertex: V,
         assignment: VertexAssignment,
     },
-    TOKEN(Token),
-    /// Release component/negation-edges
-    RELEASE,
+    TOKEN(MsgToken),
+    /// Release component/negation-edges of `depth` depth
+    RELEASE(usize),
     /// Negation edge to be queued on the receiving worker
     NEGATION(NegationEdge<V>),
     /// Hyper edge to be queued on the receiving worker
@@ -72,4 +72,10 @@ pub enum Token {
     HaveNegations = 1,
     /// Indicate that a previous holder of the token have pending hyper-edges
     Dirty = 2,
+}
+
+#[derive(Clone, Debug)]
+pub struct MsgToken {
+    pub(crate) token: Token,
+    pub(crate) deepest_component: usize,
 }
