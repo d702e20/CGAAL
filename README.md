@@ -29,9 +29,9 @@ template cowboy
 
     label alive = health > 0;
 
-    [wait] true;
-    [shoot_right] health > 0 & target1.health > 0;
-    [shoot_left] health > 0 & target2.health > 0;
+    [wait] 1;
+    [shoot_right] health > 0 && target1.health > 0;
+    [shoot_left] health > 0 && target2.health > 0;
 
 endtemplate
 ```
