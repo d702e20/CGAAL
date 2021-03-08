@@ -92,8 +92,8 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     depends: HashMap<V, HashSet<Edges<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
-    /// Latest path of negation edges starting from v0 leading to the vertex.
-    /// Example: If a path starting from v0, that contains two negation edges, exists to the vertex depth will be two.
+    /// Greatest number of negation edges in any path from v0 to the given vertex.
+    /// Example: If there exists a path from v0 to a vertex, which contains two negation edges, then depth will be two (or more if there is a path with more negation edges).
     depth: HashMap<V, u32>,
     msg_rx: Receiver<Message<V>>,
     msg_queue: VecDeque<Message<V>>,
