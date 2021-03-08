@@ -1425,7 +1425,6 @@ mod test {
     }
 
     #[test]
-    //#[ignore]
     fn test_loop_di_loops() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {
