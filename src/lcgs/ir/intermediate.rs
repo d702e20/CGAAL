@@ -3,14 +3,15 @@ use std::collections::{HashMap, HashSet};
 
 use crate::atl::gamestructure::GameStructure;
 use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
+use crate::lcgs::ir::error::Error;
 use crate::lcgs::ir::eval::Evaluator;
 use crate::lcgs::ir::relabeling::Relabeler;
-use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker};
+use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Player {
     name: String,
     actions: Vec<SymbolIdentifier>,
@@ -28,6 +29,10 @@ impl Player {
     pub fn to_owner(&self) -> Owner {
         Owner::Player(self.name.clone())
     }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
 }
 
 /// An [IntermediateLCGS] is created from processing an AST and checking the validity of the
@@ -43,7 +48,7 @@ pub struct IntermediateLCGS {
 impl IntermediateLCGS {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(root: Root) -> Result<IntermediateLCGS, ()> {
+    pub fn create(root: Root) -> Result<IntermediateLCGS, Error> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
@@ -103,7 +108,7 @@ impl IntermediateLCGS {
             if let DeclKind::StateVar(var) = &symb.kind {
                 let size = (var.ir_range.end() - var.ir_range.start() + 1) as usize;
                 let val = state.0.get(symb_id).unwrap();
-                res += ((val - var.ir_range.start()) as usize * combined_size);
+                res += (val - var.ir_range.start()) as usize * combined_size;
                 combined_size *= size;
             }
         }
@@ -119,7 +124,7 @@ impl IntermediateLCGS {
                 let symb = self.symbols.get(symb_id).unwrap();
                 if let DeclKind::Transition(trans) = &symb.kind {
                     // The action is available if the condition is not evaluated to 0 in this state
-                    return 0 != Evaluator::new(state).eval(&trans.condition).unwrap();
+                    return 0 != Evaluator::new(state).eval(&trans.condition);
                 }
                 panic!("Transition was not a transition.")
             })
@@ -139,6 +144,16 @@ impl IntermediateLCGS {
         res
     }
 
+    /// Returns a vector of players
+    pub fn get_player(&self) -> Vec<Player> {
+        self.players.clone()
+    }
+
+    /// Returns vector of labels
+    pub fn get_labels(&self) -> Vec<SymbolIdentifier> {
+        self.labels.clone()
+    }
+
     /// Returns the initial state index of the LCGS game
     pub fn initial_state_index(&self) -> usize {
         self.index_of_state(&self.initial_state())
@@ -152,7 +167,7 @@ type DeclNames = (Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>);
 /// Registers all declarations from the root in the symbol table. Constants are optimized to
 /// numbers immediately. On success, a vector of [Player]s is returned with information
 /// about players and the names of their actions.
-fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()> {
+fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, Error> {
     let mut player_decls = vec![];
     let mut player_names = HashSet::new();
     let mut labels = vec![];
@@ -317,7 +332,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, ()
 
 /// Reduces the declarations in a [SymbolTable] to a more compact version, if possible.
 /// Validity of identifiers are also checked and resolved.
-fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), ()> {
+fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SymbolError> {
     for (symb_id, rc_symb) in symbols {
         // Create resolved name
         let SymbolIdentifier { owner, name } = symb_id;
@@ -387,7 +402,7 @@ impl GameStructure for IntermediateLCGS {
             if let DeclKind::Label(label) = &symb.kind {
                 // We evaluate the condition with the values of the current state to know
                 // whether the label is present or not
-                let value = Evaluator::new(&state).eval(&label.condition).unwrap();
+                let value = Evaluator::new(&state).eval(&label.condition);
                 if value != 0 {
                     res.insert(i);
                 }
@@ -430,7 +445,7 @@ impl GameStructure for IntermediateLCGS {
         for symb_id in &self.vars {
             let symb = self.symbols.get(symb_id).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
-                let val = evaluator.eval(&var.next_value).unwrap();
+                let val = evaluator.eval(&var.next_value);
                 next_state.0.insert(symb_id.clone(), val);
             }
         }
@@ -504,8 +519,7 @@ mod test {
         let input2 = "
         label foo = foo > 0;
         ";
-        let lcgs2 =
-            std::panic::catch_unwind(|| IntermediateLCGS::create(parse_lcgs(input2).unwrap()));
+        let lcgs2 = IntermediateLCGS::create(parse_lcgs(input2).unwrap());
         assert!(lcgs2.is_err());
     }
 

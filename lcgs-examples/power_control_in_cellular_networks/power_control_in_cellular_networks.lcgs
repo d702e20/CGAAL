@@ -1,0 +1,44 @@
+// Power Control in Cellular Networks - http://www.prismmodelchecker.org/casestudies/power_control.php
+// This version is heavily modified compared to the PRISM case study. Most notably the reward structures are gone. 
+// Labels have been added to check ATL formulae. 
+// Probability to fail is removed
+// As comment in template says, we do not have exponent function, so this has been rewritten. 
+// Tracks quality in templates, and global sum of the qualities. 
+
+player p1 = phoneuser [otheruser = p2];
+player p2 = phoneuser [otheruser = p1];
+
+const powmax = 10;
+const energymax = 10;
+
+label p1_quality_greatest = p1.quality > p2.quality;
+label p2_quality_greatest = p2.quality > p1.quality;
+label p2_quality_geq = p2.quality > p1.quality || p2.quality == p1.quality;
+label total_quality_high = 15 < totalquality;
+label p1_high_power = 1 < p1.power;
+label equal_quality = p1.quality == p2.quality;
+
+totalquality : [0..30] init 0;
+totalquality' = p1.quality + p2.quality;
+
+template phoneuser
+	power : [1 .. powmax] init 1;
+	power' = power + increase_power;
+	energy : [0 .. energymax] init energymax;
+	energy' = max(0, (energy - power));
+
+    // The below update of quality is wrong compared to prism example - the "pow" is being used in reverse compared to example
+    // (y to the power of x, not x to the power of y), because of lacking pow expression in lcgs
+	quality : [0..15] init 0;
+	quality' =
+	    	(0 < energy && 0 < otheruser.energy) * (10 * (1 - ((( -1 * (power / 2)) / (otheruser.power + 1)) * (( -1 * (power / 2)) / (otheruser.power + 1)))))
+   	    	+
+	    	(0 < energy && 0 == otheruser.energy) * (10 * (1 - (( -1 * (power / 2)) * ( -1 * (power / 2)))));
+
+	
+	[empty_battery] energy == 0;
+	[no_increase] 0 < energy;
+	[increase_power] 0 < energy && power < powmax;
+endtemplate
+
+

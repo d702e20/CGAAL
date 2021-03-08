@@ -9,7 +9,9 @@ use std::io::Write;
 // The graph can be rendered using the `dot` command graphviz, specifically like this `dot -Tpng graph.dot -O -Nfontname=noto`
 
 fn print_vertex<V: Hash + Display, W: Write>(vertex: V, mut output: W) -> std::io::Result<()> {
-    output.write_all(format!("v{}[label=\"{}\"];\n", hash_name(&vertex), vertex).as_bytes())?;
+    output.write_all(
+        format!("v{}[label=\"{}\",shape=box];\n", hash_name(&vertex), vertex).as_bytes(),
+    )?;
     Ok(())
 }
 
@@ -45,9 +47,7 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
 
             match edge {
                 Edges::HYPER(hyper) => {
-                    output.write_all(
-                        format!("v{}[shape=box];\n", hash_name(&hyper.source)).as_bytes(),
-                    )?;
+                    print_vertex(&hyper.source, &mut output)?;
 
                     if hyper.targets.is_empty() {
                         let empty_id = hash_name(&hyper);
@@ -104,10 +104,11 @@ pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                     }
                 }
                 Edges::NEGATION(neg) => {
+                    print_vertex(&neg.source, &mut output)?;
+
                     output.write_all(
                         format!(
-                            "v{}[shape=box];\nv{} -> v{}[style=dashed];\n",
-                            hash_name(&neg.source),
+                            "v{} -> v{}[style=dashed];\n",
                             hash_name(&neg.source),
                             hash_name(&neg.target)
                         )

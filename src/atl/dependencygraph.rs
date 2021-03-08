@@ -30,22 +30,20 @@ pub enum ATLVertex {
 impl Display for ATLVertex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ATLVertex::FULL { state, formula } => {
-                f.write_fmt(format_args!("state={} formula={}", state, formula))
-            }
+            ATLVertex::FULL { state, formula } => write!(f, "state={} formula={}", state, formula),
             ATLVertex::PARTIAL {
                 state,
                 partial_move,
                 formula,
             } => {
-                f.write_fmt(format_args!("state={} partial_move=[", state))?;
+                write!(f, "state={} pmove=[", state)?;
                 for (i, choice) in partial_move.iter().enumerate() {
                     choice.fmt(f)?;
                     if i < partial_move.len() - 1 {
                         f.write_str(", ")?;
                     }
                 }
-                f.write_fmt(format_args!("] formula={}", formula))
+                write!(f, "] formula={}", formula)
             }
         }
     }
@@ -80,10 +78,8 @@ pub enum PartialMoveChoice {
 impl Display for PartialMoveChoice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PartialMoveChoice::RANGE(max) => f.write_fmt(format_args!("RANGE(0..{})", max - 1)),
-            PartialMoveChoice::SPECIFIC(choice) => {
-                f.write_fmt(format_args!("SPECIFIC({})", choice))
-            }
+            PartialMoveChoice::RANGE(max) => write!(f, "(0..{})", max - 1),
+            PartialMoveChoice::SPECIFIC(choice) => write!(f, "{}", choice),
         }
     }
 }
@@ -130,7 +126,7 @@ impl<'a> PartialMoveIterator<'a> {
         if player >= self.partial_move.len() {
             false
 
-            // Call this function recursively, where we check the next player
+        // Call this function recursively, where we check the next player
         } else if !self.make_next(player + 1) {
             // The next player's move has rolled over or doesn't exist.
             // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
@@ -165,12 +161,10 @@ impl<'a> Iterator for PartialMoveIterator<'a> {
         if !self.initialized {
             self.make_first();
             Some(self.current.clone())
+        } else if self.make_next(0) {
+            Some(self.current.clone())
         } else {
-            if self.make_next(0) {
-                Some(self.current.clone())
-            } else {
-                None
-            }
+            None
         }
     }
 }
@@ -296,25 +290,27 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     type Item = State;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Get the next move vector from the partial move
-        let mov = self.moves.next();
-        if let Some(mov) = mov {
-            let res = self.game_structure.transitions(self.state, mov);
-            // Have we already produced this resulting state before?
-            if self.known.contains(&res) {
-                // Not new. We simply call this function recursively to find a new next
-                self.next()
+        loop {
+            // Get the next move vector from the partial move
+            let mov = self.moves.next();
+            if let Some(mov) = mov {
+                let res = self.game_structure.transitions(self.state, mov);
+                // Have we already produced this resulting state before?
+                if self.known.contains(&res) {
+                    continue;
+                } else {
+                    self.known.insert(res);
+                    return Some(res);
+                }
             } else {
-                self.known.insert(res);
-                Some(res)
+                return None;
             }
-        } else {
-            None
         }
     }
 }
 
 impl<G: GameStructure> ATLDependencyGraph<G> {
+    #[allow(dead_code)]
     fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
         let max_players = self.game_structure.max_player();
         let mut inv_players =
@@ -416,12 +412,11 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     edges
                 }
                 Phi::DespiteNext { players, formula } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     let moves = self.game_structure.move_count(*state);
                     let targets: Vec<ATLVertex> =
-                        VarsIterator::new(moves, inv_players.iter().copied().collect())
+                        VarsIterator::new(moves, players.iter().copied().collect())
                             .map(|pmove| ATLVertex::PARTIAL {
                                 state: *state,
                                 partial_move: pmove,
@@ -458,7 +453,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     pre,
                     until,
                 } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // `pre`-target
@@ -469,13 +463,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     };
 
                     let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
-                        .map(|pmove| ATLVertex::PARTIAL {
-                            state: *state,
-                            partial_move: pmove,
-                            formula: vert.formula(),
-                        })
-                        .collect();
+                    let mut targets: Vec<ATLVertex> =
+                        VarsIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: vert.formula(),
+                            })
+                            .collect();
                     targets.push(pre);
 
                     edges.insert(Edges::HYPER(HyperEdge {
@@ -542,19 +537,19 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
 
                     // Partial targets with same formula
                     // "Is the formula also satisfied in the next state?"
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
-                        .map(|pmove| ATLVertex::PARTIAL {
-                            state: *state,
-                            partial_move: pmove,
-                            formula: formula.clone(),
-                        })
-                        .collect();
+                    let targets: Vec<ATLVertex> =
+                        VarsIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: formula.clone(),
+                            })
+                            .collect();
                     edges.insert(Edges::HYPER(HyperEdge {
                         source: vert.clone(),
                         targets,
@@ -612,66 +607,36 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let inv_players = self.invert_players(players.as_slice());
                     let mut edges = HashSet::new();
-
-                    // Partial targets with same formula
-                    // "Is the formula also satisfied in the next state?"
-                    let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> = VarsIterator::new(moves, inv_players)
-                        .map(|pmove| ATLVertex::PARTIAL {
-                            state: *state,
-                            partial_move: pmove,
-                            formula: formula.clone(),
-                        })
-                        .collect();
-
-                    // sub-formula target
-                    // "Is the sub formula satisfied in current state?"
-                    targets.push(ATLVertex::FULL {
-                        state: *state,
-                        formula: subformula.clone(),
-                    });
-
-                    edges.insert(Edges::HYPER(HyperEdge {
+                    edges.insert(Edges::NEGATION(NegationEdge {
                         source: vert.clone(),
-                        targets,
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            formula: Arc::new(Phi::EnforceUntil {
+                                players: players.clone(),
+                                pre: Arc::new(Phi::True),
+                                until: Arc::new(Phi::Not(subformula.clone())),
+                            }),
+                        },
                     }));
-
                     edges
                 }
                 Phi::EnforceInvariant {
                     players,
                     formula: subformula,
                 } => {
-                    let moves = self.game_structure.move_count(*state);
-                    let edges: HashSet<Edges<ATLVertex>> =
-                        VarsIterator::new(moves, players.iter().copied().collect())
-                            .map(|pmove| {
-                                // Successor states with same formula
-                                // "Is the formula also satisfied in next state?"
-                                let mut targets: Vec<ATLVertex> =
-                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                        .map(|state| ATLVertex::FULL {
-                                            state,
-                                            formula: formula.clone(),
-                                        })
-                                        .collect();
-
-                                // sub-formula target
-                                // "Is the sub formula satisfied in current state?"
-                                targets.push(ATLVertex::FULL {
-                                    state: *state,
-                                    formula: subformula.clone(),
-                                });
-
-                                Edges::HYPER(HyperEdge {
-                                    source: vert.clone(),
-                                    targets,
-                                })
-                            })
-                            .collect();
-
+                    let mut edges = HashSet::new();
+                    edges.insert(Edges::NEGATION(NegationEdge {
+                        source: vert.clone(),
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            formula: Arc::new(Phi::DespiteUntil {
+                                players: players.clone(),
+                                pre: Arc::new(Phi::True),
+                                until: Arc::new(Phi::Not(subformula.clone())),
+                            }),
+                        },
+                    }));
                     edges
                 }
             },
@@ -786,6 +751,53 @@ mod test {
 
         let value = iter.next();
         assert_eq!(value, None);
+    }
+
+    #[test]
+    fn vars_iterator_03() {
+        // Both players choose. So we should end up with every move vector
+        let mut players = HashSet::new();
+        players.insert(0);
+        players.insert(1);
+        let mut iter = VarsIterator::new(vec![3, 3], players);
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        assert_eq!(iter.next(), None);
     }
 
     #[test]

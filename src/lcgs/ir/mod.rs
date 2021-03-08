@@ -1,3 +1,4 @@
+mod error;
 mod eval;
 pub mod intermediate;
 mod relabeling;

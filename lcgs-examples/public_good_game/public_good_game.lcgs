@@ -1,0 +1,85 @@
+// The public goods game is a standard of experimental economics.
+// In this game, subjects secretly choose how many of their private tokens to put into a public pot.
+// The tokens in this pot are multiplied by a factor (greater than one and less than the number of players, N)
+// and this "public good" payoff is then evenly divided among players.
+// Each subject also keeps the tokens they do not contribute.
+// This variant has 2 players.
+// The group's total payoff is maximized when everyone contributes all of their tokens to the public pool.
+// However, the Nash equilibrium in this game is simply zero contributions by all.
+
+player Donald_Trump = capitalist [other: Elon_Musk]
+player Elon_Musk = capitalist [other: Donald_Trump]
+
+const NUMBER_OF_ROUNDS = 10;
+const CAP_OF_CAPITAL = 1000;
+const INITIAL_ENDOWMENT = 10;
+const MULTIPLIER = 2;
+
+rounds : [0 .. NUMBER_OF_ROUNDS] init 0;
+rounds' = min(rounds + 1, NUMBER_OF_ROUNDS);
+
+template capitalist
+    total_profit : [-INITIAL_ENDOWMENT .. CAP_OF_CAPITAL - INITIAL_ENDOWMENT] init INITIAL_ENDOWMENT;
+    total_profit' = max(min(((
+        // Firstly calculate how much we loose in capital that we put into the shared account
+        capital -
+            (
+                25 * (capital / 100) * i_25 +
+                50 * (capital / 100) * i_50 +
+                75 * (capital / 100) * i_75 +
+                capital * i_100
+            )
+    ) + (
+        // Then calculate how much we obtain from putting money into the shared account
+        (MULTIPLIER *
+            (
+                25 * (capital / 100) * i_25 +
+                50 * (capital / 100) * i_50 +
+                75 * (capital / 100) * i_75 +
+                capital * i_100
+            ) + (
+                25 * (other.capital / 100) * other.i_25 +
+                50 * (other.capital / 100) * other.i_50 +
+                75 * (other.capital / 100) * other.i_75 +
+                other.capital * other.i_100
+            )
+        )
+    // Half for each player, and subtract initial endowment.
+    ) / 2), CAP_OF_CAPITAL) - INITIAL_ENDOWMENT, -INITIAL_ENDOWMENT);
+
+    // Essentially same calculation as above, just without subtracting the initial endowment.
+    capital : [0 .. CAP_OF_CAPITAL] init INITIAL_ENDOWMENT;
+    capital' = max(min((
+        capital -
+            25 * (capital / 100) * i_25 +
+            50 * (capital / 100) * i_50 +
+            75 * (capital / 100) * i_75 +
+            capital * i_100
+    ) + (
+        (MULTIPLIER *
+            (
+                25 * (capital / 100) * i_25 +
+                50 * (capital / 100) * i_50 +
+                75 * (capital / 100) * i_75 +
+                capital * i_100
+            ) + (
+                25 * (other.capital / 100) * other.i_25 +
+                50 * (other.capital / 100) * other.i_50 +
+                75 * (other.capital / 100) * other.i_75 +
+                other.capital * other.i_100
+            )
+        )
+    ) / 2, CAP_OF_CAPITAL), 0);
+
+    label worth_most = capital >= other.capital;
+    label capped_for_capital = capital == CAP_OF_CAPITAL;
+    label lost_everything = capital <= 1; // It is not possible to reach 0
+
+	[i_0]   rounds <  NUMBER_OF_ROUNDS;
+	[i_25]  rounds <  NUMBER_OF_ROUNDS;
+	[i_50]  rounds <  NUMBER_OF_ROUNDS;
+	[i_75]  rounds <  NUMBER_OF_ROUNDS;
+	[i_100] rounds <  NUMBER_OF_ROUNDS;
+	[done]  rounds >= NUMBER_OF_ROUNDS;
+
+endtemplate
