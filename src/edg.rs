@@ -601,14 +601,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     self.depth.insert(vertex.clone(), max(local_depth, depth));
 
                     self.mark_interest(vertex, requester);
-
-                    if self.depends.contains_key(vertex) {
-                        if let Some(assignment) = self.assignment.get(vertex) {
-                            if let VertexAssignment::UNDECIDED = assignment {
-                                self.explore(vertex)
-                            }
-                        }
-                    }
                 }
             }
         }
