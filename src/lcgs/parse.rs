@@ -109,6 +109,7 @@ fn number<'a>() -> Parser<'a, u8, Expr> {
     parsed
         .with_span()
         .map(|(_span, v)| Expr { kind: Number(v) })
+        .name("number")
 }
 
 /// Parser that parses a symbol name. It must start with an alpha character, but subsequent
@@ -132,7 +133,9 @@ fn name<'a>() -> Parser<'a, u8, String> {
 
 /// Parser that parses an identifier.
 fn identifier<'a>() -> Parser<'a, u8, Identifier> {
-    name().map(|name| Identifier::Simple { name })
+    name()
+        .map(|name| Identifier::Simple { name })
+        .name("identifier")
 }
 
 /// Parser that parses a name with an optional owner and returns an `OwnedIdentifier`.
@@ -142,6 +145,7 @@ fn owned_identifier<'a>() -> Parser<'a, u8, Identifier> {
     identifier
         .with_span()
         .map(|(_span, (owner, name))| Identifier::OptionalOwner { owner, name })
+        .name("owned identifier")
 }
 
 /// Parser that parses binary operators
@@ -161,7 +165,7 @@ fn binop<'a>() -> Parser<'a, u8, BinaryOpKind> {
         | seq(b"&&")
         | seq(b"||")
         | seq(b"^");
-    op.map(BinaryOpKind::from)
+    op.map(BinaryOpKind::from).name("binary operator")
 }
 
 /// Combine a list of expressions and binary operators to a single `Expr` with correct
@@ -202,18 +206,25 @@ fn solve_binary_precedence(
 
 /// Parser that parses an expression
 pub(crate) fn expr<'a>() -> Parser<'a, u8, Expr> {
-    let tern = binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
-        + binary_expr();
-    tern.map(|((cond, then), els)| Expr {
+    (ternary_expr() | binary_expr()).name("expression")
+}
+
+fn ternary_expr<'a>() -> Parser<'a, u8, Expr> {
+    (binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
+        + binary_expr())
+    .map(|((cond, then), els)| Expr {
         kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
-    }) | binary_expr()
+    })
+    .name("ternary expression")
 }
 
 /// Parser that parses an expression consisting of binary operators and primary expressions
 fn binary_expr<'a>() -> Parser<'a, u8, Expr> {
     // TODO Spans and combining them
     let binexpr = primary_expr() + (ws() * binop() - ws() + primary_expr()).repeat(0..);
-    binexpr.map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
+    binexpr
+        .map(|(e, mut es)| solve_binary_precedence(e, 0, &mut es.drain(..).peekable()))
+        .name("binary expression")
 }
 
 /// Parser that parses an expression with a unary operator
@@ -230,28 +241,33 @@ fn primary_expr<'a>() -> Parser<'a, u8, Expr> {
         kind: OwnedIdent(Box::new(i)),
     });
     let par = sym(b'(') * ws() * call(expr) - ws() - sym(b')');
-    let min = seq(b"min") * ws() * type_min();
-    let max = seq(b"max") * ws() * type_max();
 
-    neg | not | num | min | max | ident | par
+    neg | not | num | min_expr() | max_expr() | ident | par
 }
 
-fn type_min<'a>() -> Parser<'a, u8, Expr> {
+/// Parser for min expressions, e.g. "`min(0, 1, 2)`"
+fn min_expr<'a>() -> Parser<'a, u8, Expr> {
     let inner = list(call(expr), ws() * sym(b',') - ws());
-    let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
-    methoded.map(|min| Expr { kind: Min(min) })
+    let full = seq(b"min") * ws() * sym(b'(') * ws() * inner - ws() - sym(b')');
+    full.map(|min| Expr { kind: Min(min) })
+        .name("min expression")
 }
-fn type_max<'a>() -> Parser<'a, u8, Expr> {
+
+/// Parser for max expressions, e.g. "`max(0, 1, 2)`"
+fn max_expr<'a>() -> Parser<'a, u8, Expr> {
     let inner = list(call(expr), ws() - sym(b',') - ws());
-    let methoded = sym(b'(') * ws() * inner - ws() - sym(b')');
-    methoded.map(|max| Expr { kind: Max(max) })
+    let full = seq(b"max") * ws() * sym(b'(') * ws() * inner - ws() - sym(b')');
+    full.map(|max| Expr { kind: Max(max) })
+        .name("max expression")
 }
 
 /// Parser that parses a type range, e.g. "`[0 .. max_health]`"
 fn type_range<'a>() -> Parser<'a, u8, TypeRange> {
     let inner = expr() - ws() - seq(b"..") - ws() + expr();
     let bracked = sym(b'[') * ws() * inner - ws() - sym(b']');
-    bracked.map(|(min, max)| TypeRange { min, max })
+    bracked
+        .map(|(min, max)| TypeRange { min, max })
+        .name("type range")
 }
 
 /// Parser that parses a variable, e.g.
@@ -275,13 +291,16 @@ fn var_decl<'a>() -> Parser<'a, u8, StateVarDecl> {
             Err("The names of the state variable and the following update declaration does not match.")
         }
     })
+        .name("variable declaration")
 }
 
 /// Parser that parses a label declaration, e.g.
 /// "`label alive = health > 0`"
 pub(crate) fn label_decl<'a>() -> Parser<'a, u8, LabelDecl> {
     let label = seq(b"label") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
-    label.map(|(name, condition)| LabelDecl { condition, name })
+    label
+        .map(|(name, condition)| LabelDecl { condition, name })
+        .name("label declaration")
 }
 
 /// Parser that parses a const declaration, e.g.
@@ -289,6 +308,7 @@ pub(crate) fn label_decl<'a>() -> Parser<'a, u8, LabelDecl> {
 fn const_decl<'a>() -> Parser<'a, u8, ConstDecl> {
     let con = seq(b"const") * ws() * identifier() - ws() - sym(b'=') - ws() + expr();
     con.map(|(name, definition)| ConstDecl { name, definition })
+        .name("const declaration")
 }
 
 /// Parser that parses a relabelling, e.g.
@@ -298,9 +318,11 @@ pub(crate) fn relabeling<'a>() -> Parser<'a, u8, Relabeling> {
     let case = raw_case.map(|(prev, new)| RelabelCase { prev, new });
     let inner = list(case, ws() * sym(b',') - ws());
     let whole = sym(b'[') * ws() * inner - ws() - sym(b']');
-    whole.map(|cases| Relabeling {
-        relabellings: cases,
-    })
+    whole
+        .map(|cases| Relabeling {
+            relabellings: cases,
+        })
+        .name("relabeling term")
 }
 
 /// Parser that parses a player declaration, e.g.
@@ -309,13 +331,15 @@ fn player_decl<'a>() -> Parser<'a, u8, PlayerDecl> {
     let rhs = seq(b"player") * ws() * identifier();
     let lhs = identifier() - ws() + relabeling().opt();
     let whole = rhs - ws() - sym(b'=') - ws() + lhs;
-    whole.map(|(name, (template, relabel))| PlayerDecl {
-        name,
-        template,
-        relabeling: relabel.unwrap_or_else(|| Relabeling {
-            relabellings: vec![],
-        }),
-    })
+    whole
+        .map(|(name, (template, relabel))| PlayerDecl {
+            name,
+            template,
+            relabeling: relabel.unwrap_or_else(|| Relabeling {
+                relabellings: vec![],
+            }),
+        })
+        .name("player declaration")
 }
 
 /// Parser that parses a transition declaration, e.g.
@@ -323,10 +347,12 @@ fn player_decl<'a>() -> Parser<'a, u8, PlayerDecl> {
 fn transition_decl<'a>() -> Parser<'a, u8, TransitionDecl> {
     let name = sym(b'[') * ws() * identifier() - ws() - sym(b']');
     let whole = name - ws() + expr();
-    whole.map(|(name, cond)| TransitionDecl {
-        name,
-        condition: cond,
-    })
+    whole
+        .map(|(name, cond)| TransitionDecl {
+            name,
+            condition: cond,
+        })
+        .name("transition declaration")
 }
 
 /// Parser that parses template declarations
@@ -342,6 +368,7 @@ fn template_decl<'a>() -> Parser<'a, u8, TemplateDecl> {
     let temp =
         seq(b"template") * ws() * identifier() - ws() + inner_decls - ws() - seq(b"endtemplate");
     temp.map(|(name, decls)| TemplateDecl { name, decls })
+        .name("template declaration")
 }
 
 /// Parser that parses root level, i.e. all the global declarations
@@ -364,18 +391,18 @@ fn root<'a>() -> Parser<'a, u8, Root> {
 }
 
 /// Parse a LCGS program
-pub fn parse_lcgs(input: &str) -> Result<Root, String> {
-    root().parse(input.as_bytes()).map_err(|e| match e {
-        Error::Incomplete => "".to_string(),
-        Error::Mismatch { position, .. } => format!(
-            "Failed at char: {} at position: {}",
-            input.chars().nth(position).unwrap(),
-            position
-        )
-        .to_string(),
-        Error::Conversion { .. } => "".to_string(),
-        Error::Expect { .. } => "".to_string(),
-        Error::Custom { .. } => "".to_string(),
+pub fn parse_lcgs(input: &str) -> pom::Result<Root> {
+    root().parse(input.as_bytes()).map_err(|err| {
+        if let pom::Error::Mismatch { position, .. } = err {
+            let line_nr = 1 + input.chars().take(position).filter(|c| *c == '\n').count();
+            Error::Custom {
+                message: format!("Bad declaration on line {}", line_nr),
+                position,
+                inner: Some(Box::new(err)),
+            }
+        } else {
+            err
+        }
     })
 }
 
