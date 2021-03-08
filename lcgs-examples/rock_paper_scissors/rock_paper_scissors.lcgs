@@ -1,0 +1,23 @@
+// Rock-Paper-Scissors
+// Rock-Paper-Scissors is a game of two players, each goes with an action either Rock, Paper or Scissors
+// Scissors cut paper (and wins)
+// Rock dulls scissors (and wins)
+// Paper wraps Rock (and wins)
+// In this CGS the winner is determined based on the INDEX of the player
+// and it is best of one
+
+
+player p1 = rsplayer[INDEX=0];
+player p2 = rsplayer[INDEX=1];
+
+winner : [-1..1] init -1;
+winner' = (p1.paper && p2.scissors) || (p1.scissors && p2.rock) || (p1.rock && p2.paper);
+
+template rsplayer
+
+    label wins = winner == INDEX;
+
+    [rock] 1;
+    [paper] 1;
+    [scissors] 1;
+endtemplate
