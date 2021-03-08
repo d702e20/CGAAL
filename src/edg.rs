@@ -305,13 +305,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     Message::ANSWER { vertex, assignment } => {
                         self.process_answer(&vertex, assignment)
                     }
-                    Message::TOKEN(_) => unreachable!(),
                     Message::RELEASE(depth) => {
                         self.release_negations(depth);
                     }
-                    Message::NEGATION(_) => unreachable!(),
-                    Message::HYPER(_) => unreachable!(),
-                    Message::TERMINATE(_) => unreachable!(),
+                    _ => unreachable!(),
                 }
             } else if let Some(edge) = self.hyper_queue.pop_front() {
                 let _guard = span!(
