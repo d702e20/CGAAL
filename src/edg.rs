@@ -1689,5 +1689,35 @@ mod test {
             VertexAssignment::TRUE,
             "Vertex H1"
         );
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N1, WORKER_COUNT),
+            VertexAssignment::TRUE,
+            "Vertex N1"
+        );
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::H2, WORKER_COUNT),
+            VertexAssignment::FALSE,
+            "Vertex H2"
+        );
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N2, WORKER_COUNT),
+            VertexAssignment::FALSE,
+            "Vertex N2"
+        );
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::H3, WORKER_COUNT),
+            VertexAssignment::TRUE,
+            "Vertex H3"
+        );
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::N3, WORKER_COUNT),
+            VertexAssignment::TRUE,
+            "Vertex N3"
+        );
+        assert_eq!(
+            distributed_certain_zero(ExampleEDG {}, ExampleEDGVertices::H4, WORKER_COUNT),
+            VertexAssignment::FALSE,
+            "Vertex H4"
+        );
     }
 }
