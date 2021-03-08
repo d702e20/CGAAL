@@ -9,16 +9,17 @@ template router
   label reach_r2 = (self_index == 2) || self.neighbour_router2 || (self.neighbour_router1 && router1.neighbour_router2);
 
   failed : [0..1] init 0;
-  failed' = max(full_failure,0);
+  failed' = max(full_failure,0) - recover;
 
   neighbour_router1 : [0..1] init (self_index==1) || r1;
-  neighbour_router1' = max((self_index==1), router1.neighbour_self, connect_router1, router1.connect_self) - (max(self.failed,router1.failed));
+  neighbour_router1' = max((max((self_index==1), router1.neighbour_self, connect_router1, router1.connect_self) - (max(self.failed,router1.failed))),0);
 
   neighbour_router2 : [0..1] init (self_index==2) || r2;
-  neighbour_router2' = max((self_index==2), router2.neighbour_self, connect_router2, router2.connect_self) - (max(self.failed,router2.failed));
+  neighbour_router2' = max((max((self_index==2), router2.neighbour_self, connect_router2, router2.connect_self) - (max(self.failed,router2.failed))),0);
 
 
   [full_failure] !failed;
+  [recover] failed;
   [wait] 1;
   [connect_router1] !failed && !router1.failed && (neighbour_router1 == 0);
   [connect_router2] !failed && !router2.failed && (neighbour_router2 == 0);

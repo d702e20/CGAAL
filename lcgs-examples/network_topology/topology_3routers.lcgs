@@ -1,0 +1,38 @@
+// Network Topology example featuring 3 routers
+const nr_routers = 3;
+
+player router1 = router [self=router1, self_index=1, neighbour_self=neighbour_router1, connect_self=connect_router1, r1=1, r2=1, r3=1];
+player router2 = router [self=router2, self_index=2, neighbour_self=neighbour_router2, connect_self=connect_router2, r1=1, r2=1, r3=1];
+player router3 = router [self=router3, self_index=3, neighbour_self=neighbour_router3, connect_self=connect_router3, r1=1, r2=1, r3=1];
+
+template router
+  label reach_r1 = (self_index == 1) || self.neighbour_router1
+                   || self.neighbour_router2 && (router2.neighbour_router1 || router2.neighbour_router3 && router3.neighbour_router1)
+                   || self.neighbour_router3 && (router3.neighbour_router1 || router3.neighbour_router2 && router2.neighbour_router1);
+  label reach_r2 = (self_index == 2) || self.neighbour_router2
+                   || self.neighbour_router1 && (router1.neighbour_router2 || router1.neighbour_router3 && router3.neighbour_router2)
+                   || self.neighbour_router3 && (router3.neighbour_router2 || router3.neighbour_router1 && router1.neighbour_router2);
+  label reach_r3 = (self_index == 3) || self.neighbour_router3
+                   || self.neighbour_router1 && (router1.neighbour_router3 || router1.neighbour_router2 && router2.neighbour_router3)
+                   || self.neighbour_router2 && (router2.neighbour_router3 || router2.neighbour_router1 && router1.neighbour_router3);
+
+  failed : [0..1] init 0;
+  failed' = max(full_failure,0) - recover;
+
+  neighbour_router1 : [0..1] init (self_index==1) || r1;
+  neighbour_router1' = max((max((self_index==1), router1.neighbour_self, connect_router1, router1.connect_self) - (max(self.failed,router1.failed))),0);
+
+  neighbour_router2 : [0..1] init (self_index==2) || r2;
+  neighbour_router2' = max((max((self_index==2), router2.neighbour_self, connect_router2, router2.connect_self) - (max(self.failed,router2.failed))),0);
+
+  neighbour_router3 : [0..1] init (self_index==3) || r3;
+  neighbour_router3' = max((max((self_index==3), router3.neighbour_self, connect_router3, router3.connect_self) - (max(self.failed,router3.failed))),0);
+
+  [full_failure] !failed;
+  [recover] failed;
+  [wait] 1;
+  [connect_router1] !failed && !router1.failed && (neighbour_router1 == 0);
+  [connect_router2] !failed && !router2.failed && (neighbour_router2 == 0);
+  [connect_router3] !failed && !router3.failed && (neighbour_router3 == 0);
+
+endtemplate
