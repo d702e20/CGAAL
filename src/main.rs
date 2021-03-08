@@ -93,7 +93,7 @@ fn main_inner() -> Result<(), String> {
             let model_type = get_model_type_from_args(&index_args)?;
 
             if model_type != ModelType::LCGS {
-                return Err(format!("The 'index' command is only valid for LCGS models"));
+                return Err("The 'index' command is only valid for LCGS models".to_string());
             }
 
             // Open the input model file
@@ -259,7 +259,7 @@ fn load_formula<A: ATLExpressionParser>(
 
     raw_phi = raw_phi.trim().to_string();
 
-    return (raw_phi, phi);
+    (raw_phi, phi)
 }
 
 /// Determine the model type (either "json" or "lcgs") by reading the the
