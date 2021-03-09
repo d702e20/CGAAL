@@ -776,6 +776,23 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
+    fn test_simple_01() {
+        simple_edg![
+            A, B, C, D ::
+            A => -> {B, C} -> {D};
+            B => ;
+            C => .> D;
+            D => -> {};
+        ];
+
+        assert_eq!(
+            distributed_certain_zero(SimpleEDG, SimpleVertex::A, WORKER_COUNT),
+            VertexAssignment::TRUE,
+            "Vertex A"
+        );
+    }
+
+    #[test]
     fn test_empty_hyper_edge() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {

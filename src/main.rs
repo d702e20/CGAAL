@@ -31,6 +31,8 @@ use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
 
+#[macro_use]
+mod simple_edg;
 mod atl;
 mod com;
 mod common;
