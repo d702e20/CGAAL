@@ -785,11 +785,7 @@ mod test {
             D => -> {};
         ];
 
-        assert_eq!(
-            distributed_certain_zero(SimpleEDG, SimpleVertex::A, WORKER_COUNT),
-            VertexAssignment::TRUE,
-            "Vertex A"
-        );
+        edg_assert!(A, VertexAssignment::TRUE);
     }
 
     #[test]

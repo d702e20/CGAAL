@@ -47,3 +47,14 @@ macro_rules! simple_edg {
         }
     };
 }
+
+macro_rules! edg_assert {
+    ($v:ident, $assign:expr) => {
+        assert_eq!(
+            distributed_certain_zero(SimpleEDG, SimpleVertex::$v, WORKER_COUNT),
+            $assign,
+            "Vertex {}",
+            stringify!($v)
+        );
+    };
+}
