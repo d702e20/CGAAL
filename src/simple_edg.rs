@@ -49,10 +49,10 @@ macro_rules! simple_edg {
 }
 
 macro_rules! edg_assert {
-    ($v:ident, $assign:expr) => {
+    ($v:ident, $assign:ident) => {
         assert_eq!(
             distributed_certain_zero(SimpleEDG, SimpleVertex::$v, WORKER_COUNT),
-            $assign,
+            crate::common::VertexAssignment::$assign,
             "Vertex {}",
             stringify!($v)
         );
@@ -60,7 +60,7 @@ macro_rules! edg_assert {
 }
 
 macro_rules! edg_test {
-    { $test_name:ident, [ $( $v:ident ),+ :: $( $rest:tt )* ], $($rem_v:ident => $rem_assign:expr),+ } => {
+    { $test_name:ident, [ $( $v:ident ),+ :: $( $rest:tt )* ], $($rem_v:ident => $rem_assign:ident),+ } => {
         #[test]
         fn $test_name() {
             simple_edg![$( $v ),+ :: $( $rest )*];
@@ -68,10 +68,10 @@ macro_rules! edg_test {
             edg_test!{ @assert $($rem_v => $rem_assign),+ };
         }
     };
-    { @assert $v:ident => $assign:expr } => {
+    { @assert $v:ident => $assign:ident } => {
         edg_assert!($v, $assign);
     };
-    { @assert $v:ident => $assign:expr, $($rem_v:ident => $rem_assign:expr),+ } => {
+    { @assert $v:ident => $assign:ident, $($rem_v:ident => $rem_assign:ident),+ } => {
         edg_test!{ @assert $v => $assign };
         edg_test!{ @assert $($rem_v => $rem_assign),+ };
     };

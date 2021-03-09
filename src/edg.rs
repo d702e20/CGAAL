@@ -785,7 +785,7 @@ mod test {
             D => -> {};
         ];
 
-        edg_assert!(A, VertexAssignment::TRUE);
+        edg_assert!(A, TRUE);
     }
 
     edg_test!(
@@ -797,10 +797,10 @@ mod test {
             C => .> D;
             D => -> {};
         ],
-        A => VertexAssignment::TRUE,
-        B => VertexAssignment::FALSE,
-        C => VertexAssignment::FALSE,
-        D => VertexAssignment::TRUE
+        A => TRUE,
+        B => FALSE,
+        C => FALSE,
+        D => TRUE
     );
 
     #[test]
