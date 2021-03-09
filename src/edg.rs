@@ -107,6 +107,8 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
+    /// Used on the leader as a gate to avoid starting a round of the token ring if one is already in progress.
+    token_in_circulation: bool,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -160,6 +162,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             broker,
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
+            token_in_circulation: false,
         }
     }
 
@@ -216,17 +219,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         loop {
             // Pump all messages from broker to queues
-            let mut token: Option<MsgToken> = None;
             loop {
                 match self.msg_rx.try_recv() {
                     Ok(msg) => {
                         match msg {
                             Message::REQUEST { .. } => self.msg_queue.push_back(msg),
                             Message::ANSWER { .. } => self.msg_queue.push_back(msg),
-                            Message::TOKEN(msg_token) => {
-                                debug_assert!(token.is_none(), "Received multiple tokens. Something is wrong with the token ring");
-                                token = Some(msg_token)
-                            }
+                            Message::TOKEN(_) => self.msg_queue.push_back(msg),
                             Message::RELEASE(_) => self.msg_queue.push_back(msg),
                             Message::NEGATION(edge) => {
                                 match self.assignment.get(&edge.target) {
@@ -258,41 +257,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             }
 
-            if let Some(msg_token) = token {
-                if self.is_leader() {
-                    match msg_token {
-                        MsgToken {
-                            token: Token::Clean,
-                            deepest_component: _,
-                        } => {
-                            // Late termination
-                            trace!("Late termination");
-                            self.broker.terminate(VertexAssignment::FALSE)
-                        }
-                        MsgToken {
-                            token: Token::HaveNegations,
-                            deepest_component,
-                        } => {
-                            trace!(
-                                depth = deepest_component,
-                                "sending release component message"
-                            );
-                            for worker_id in 0..self.worker_count {
-                                self.broker
-                                    .send(worker_id, Message::RELEASE(deepest_component))
-                            }
-                        }
-                        MsgToken {
-                            token: Token::Dirty,
-                            deepest_component: _,
-                        } => {
-                            // no-op, other workers are busy
-                        }
-                    }
-                } else {
-                    self.forward_token(msg_token);
-                }
-            } else if let Some(msg) = self.msg_queue.pop_back() {
+            if let Some(msg) = self.msg_queue.pop_back() {
                 let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
                 match msg {
                     // Alg 1, Line 8
@@ -307,6 +272,43 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     }
                     Message::RELEASE(depth) => {
                         self.release_negations(depth);
+                    }
+                    Message::TOKEN(msg_token) => {
+                        if self.is_leader() {
+                            self.token_in_circulation = false;
+                            match msg_token {
+                                MsgToken {
+                                    token: Token::Clean,
+                                    deepest_component: _,
+                                } => {
+                                    // Late termination
+                                    trace!("Late termination");
+                                    self.broker.terminate(VertexAssignment::FALSE)
+                                }
+                                MsgToken {
+                                    token: Token::HaveNegations,
+                                    deepest_component,
+                                } => {
+                                    trace!(
+                                        depth = deepest_component,
+                                        "sending release component message"
+                                    );
+                                    for worker_id in 0..self.worker_count {
+                                        self.broker
+                                            .send(worker_id, Message::RELEASE(deepest_component))
+                                    }
+                                }
+                                MsgToken {
+                                    token: Token::Dirty,
+                                    deepest_component: _,
+                                } => {
+                                    // no-op, other workers are busy
+                                    trace!("leader received Token::Dirty")
+                                }
+                            }
+                        } else {
+                            self.forward_token(msg_token);
+                        }
                     }
                     _ => unreachable!(),
                 }
@@ -326,19 +328,21 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     ?edge,
                 );
                 self.process_negation_edge(edge);
-            } else if self.is_leader() {
+            } else if self.is_leader() && !self.token_in_circulation {
                 let token = if self.unsafe_neg_edges.is_empty() {
                     Token::Clean
                 } else {
                     Token::HaveNegations
                 };
+                debug!(?token, "starting token ring round");
                 self.broker.send(
                     (self.id + 1) % self.worker_count,
                     Message::TOKEN(MsgToken {
                         token,
                         deepest_component: self.get_depth_of_deepest_component(),
                     }),
-                )
+                );
+                self.token_in_circulation = true;
             } else {
                 // TODO maybe find a more appropriate delay that doesn't turn this into a busy loop when there is no work to do
                 sleep(Duration::from_millis(1))
