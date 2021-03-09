@@ -1,0 +1,10 @@
+{
+  "enforce eventually": {
+    "players": [0],
+    "formula": {
+      "not": {
+        "proposition": 2
+      }
+    }
+  }
+}

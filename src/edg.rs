@@ -778,6 +778,34 @@ mod test {
     struct ExampleEDG {}
 
     #[test]
+    fn test_simple_01() {
+        simple_edg![
+            A, B, C, D ::
+            A => -> {B, C} -> {D};
+            B => ;
+            C => .> D;
+            D => -> {};
+        ];
+
+        edg_assert!(A, TRUE);
+    }
+
+    edg_test!(
+        test_simple_02,
+        [
+            A, B, C, D ::
+            A => -> {B, C} -> {D};
+            B => ;
+            C => .> D;
+            D => -> {};
+        ],
+        A => TRUE,
+        B => FALSE,
+        C => FALSE,
+        D => TRUE
+    );
+
+    #[test]
     fn test_empty_hyper_edge() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         enum ExampleEDGVertices {

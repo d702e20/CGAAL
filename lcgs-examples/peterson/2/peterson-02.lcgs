@@ -1,0 +1,34 @@
+// Peterson with 2 processes using filter algorithm
+const n = 2;
+
+label p0_in_cs = p0.level == (n-1);
+label mutual_exclusion = (p0.level == (n-1))
+                            + (p1.level == (n-1)) <= 1;
+
+label multiple_in_cs = (p0.level == (n-1))
+                        + (p1.level == (n-1)) > 1;
+
+player p0 = process [id=0, other = p1];
+player p1 = process [id=1, other = p0];
+
+
+last_to_enter_0 : [-1 .. n-1] init -1;
+last_to_enter_0' = p0.proceed_to_level_0 ? 0 :
+                    (p1.proceed_to_level_0 ? 1 : (last_to_enter_0));
+
+last_to_enter_1 : [-1 .. n-1] init -1;
+last_to_enter_1' = p0.proceed_to_level_1 ? 0 :
+                    (p1.proceed_to_level_1 ? 1 : (last_to_enter_1));
+
+template process
+    level : [-1.. n-1] init -1;
+    level' = proceed_to_level_0 ? 0 : (proceed_to_level_1 ? 1 : (exit_cs ? -1 : level));
+
+    other_level : [0 .. 1] init 0;
+    other_level' = (other.level >= level);
+
+    [proceed_to_level_0] level == -1;
+    [proceed_to_level_1] (level == 0) && !((last_to_enter_0 == id) && other_level);
+    [busy_loop] (last_to_enter_0 == id) && other_level;
+    [exit_cs] level == (n-1);
+endtemplate
