@@ -788,6 +788,21 @@ mod test {
         edg_assert!(A, VertexAssignment::TRUE);
     }
 
+    edg_test!(
+        test_simple_02,
+        [
+            A, B, C, D ::
+            A => -> {B, C} -> {D};
+            B => ;
+            C => .> D;
+            D => -> {};
+        ],
+        A => VertexAssignment::TRUE,
+        B => VertexAssignment::FALSE,
+        C => VertexAssignment::FALSE,
+        D => VertexAssignment::TRUE
+    );
+
     #[test]
     fn test_empty_hyper_edge() {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]

@@ -58,3 +58,21 @@ macro_rules! edg_assert {
         );
     };
 }
+
+macro_rules! edg_test {
+    { $test_name:ident, [ $( $v:ident ),+ :: $( $rest:tt )* ], $($rem_v:ident => $rem_assign:expr),+ } => {
+        #[test]
+        fn $test_name() {
+            simple_edg![$( $v ),+ :: $( $rest )*];
+
+            edg_test!{ @assert $($rem_v => $rem_assign),+ };
+        }
+    };
+    { @assert $v:ident => $assign:expr } => {
+        edg_assert!($v, $assign);
+    };
+    { @assert $v:ident => $assign:expr, $($rem_v:ident => $rem_assign:expr),+ } => {
+        edg_test!{ @assert $v => $assign };
+        edg_test!{ @assert $($rem_v => $rem_assign),+ };
+    };
+}
