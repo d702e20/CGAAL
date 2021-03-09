@@ -164,7 +164,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn have_pending_work(&self) -> bool {
-        self.msg_queue.is_empty()
+        !self.msg_queue.is_empty()
     }
 
     fn have_pending_negation_edges(&self) -> bool {
