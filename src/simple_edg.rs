@@ -6,7 +6,6 @@
 /// A simple EDG with 4 vertices A, B, C, D:
 /// ```
 /// simple_edg![
-///     A, B, C, D ::
 ///     A => -> {B, C} -> {D};
 ///     B => ;
 ///     C => -> {B} .> D;
@@ -16,8 +15,7 @@
 /// edg_assert!(A, TRUE);
 /// edg_assert!(B, FALSE);
 /// ```
-/// The first line defines the vertices of the EDG. Afterwards we list the edges of each vertex,
-/// separating each vertex using a semicolon.
+/// We list the edges of each vertex, separating each vertex using a semicolon.
 /// The syntax `-> {V, ..., W}` defines a hyper-edge with targets `V`,...,`W`, and the syntax
 /// `.> P` defines a negation edge with target `P`. Declare multiple edges by writing them
 /// after each other (as seen for vertex `A` and `C` above), but note that hyper-edges must
@@ -33,7 +31,6 @@
 /// ```
 /// simple_edg![
 ///     [MyEDG1, MyVertex1]
-///     A, B, C, D ::
 ///     A => -> {B} .> {D};
 ///     B => -> {D, C};
 ///     C => ;
@@ -46,11 +43,11 @@
 /// The `edg_assert` macro allows the same naming functionality.
 macro_rules! simple_edg {
     // Standard use
-    [ $( $v:ident ),+ :: $( $rest:tt )* ] => {
-        simple_edg![[SimpleEDG, SimpleVertex] $( $v ),+ :: $( $rest )* ]
+    [ $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
+        simple_edg![[SimpleEDG, SimpleVertex] $( $v => $( -> { $( $t ),* } )* $( .> $n )* );*; ]
     };
     // Defines struct and enum
-    [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident ),+ :: $( $rest:tt )* ] => {
+    [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
         #[derive(Hash, Clone, Eq, PartialEq, Debug)]
@@ -68,7 +65,7 @@ macro_rules! simple_edg {
                 &self,
                 vertex: &$vertex_name,
             ) -> HashSet<Edges<$vertex_name>> {
-                simple_edg![@match vertex_name=$vertex_name, vertex $( $rest )*]
+                simple_edg![@match vertex_name=$vertex_name, vertex $( $v => $( -> { $( $t ),* } )* $( .> $n )* );*;]
             }
         }
     };
@@ -99,7 +96,6 @@ macro_rules! simple_edg {
 /// # Example
 /// ```
 /// simple_edg![
-///     A, B ::
 ///     A => .> B;
 ///     B => -> {};
 /// ];
@@ -167,7 +163,6 @@ macro_rules! edg_assert {
 /// edg_test!(
 ///     test_simple_02,
 ///     [
-///         A, B, C, D ::
 ///         A => -> {B, C} -> {D};
 ///         B => ;
 ///         C => .> D;

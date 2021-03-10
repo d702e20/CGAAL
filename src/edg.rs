@@ -779,7 +779,6 @@ mod test {
     fn test_simple_01() {
         simple_edg![
             [Henry, HenryVertex]
-            A, B, C, D ::
             A => -> {B, C} -> {D};
             B => ;
             C => .> D;
@@ -792,7 +791,6 @@ mod test {
     edg_test!(
         test_simple_02,
         [
-            A, B, C, D ::
             A => -> {B, C} -> {D};
             B => ;
             C => .> D;
