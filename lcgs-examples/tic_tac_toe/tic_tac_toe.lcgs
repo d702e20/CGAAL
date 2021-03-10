@@ -1,0 +1,118 @@
+// Tic Tac Toe, a turn-based game between nought and cross.
+// Each turn a the given player adds a piece of their shape to an empty
+// spot on the 3x3 grid. If a player manages to get 3 of their shapes on
+// a straight line, they win. The player with crosses starts.
+// (This implementation is the variant, where pieces are not removed again)
+// It has been proven, that if there exists a strategy for the starting
+// player such that they cannot lose. Can we find it?
+
+const EMPTY = 0;
+const NOUGHT = 1;
+const CROSS = 2;
+
+const STARTING_PLAYER = CROSS;
+
+player nought = tictactoe [SHAPE=NOUGHT];
+player cross = tictactoe [SHAPE=CROSS];
+
+// Board:
+// 13 23 33
+// 12 22 32
+// 11 21 31
+
+pos11 : [0..2] init EMPTY;
+pos11' = nought.play11 * NOUGHT + cross.play11 * CROSS;
+
+pos12 : [0..2] init EMPTY;
+pos12' = nought.play12 * NOUGHT + cross.play12 * CROSS;
+
+pos13 : [0..2] init EMPTY;
+pos13' = nought.play13 * NOUGHT + cross.play13 * CROSS;
+
+pos21 : [0..2] init EMPTY;
+pos21' = nought.play21 * NOUGHT + cross.play21 * CROSS;
+
+pos22 : [0..2] init EMPTY;
+pos22' = nought.play22 * NOUGHT + cross.play22 * CROSS;
+
+pos23 : [0..2] init EMPTY;
+pos23' = nought.play23 * NOUGHT + cross.play23 * CROSS;
+
+pos31 : [0..2] init EMPTY;
+pos31' = nought.play31 * NOUGHT + cross.play31 * CROSS;
+
+pos32 : [0..2] init EMPTY;
+pos32' = nought.play32 * NOUGHT + cross.play32 * CROSS;
+
+pos33 : [0..2] init EMPTY;
+pos33' = nought.play33 * NOUGHT + cross.play33 * CROSS;
+
+turn : [1..2] init STARTING_PLAYER;
+turn' = (turn == NOUGHT) * CROSS + (turn == CROSS) * NOUGHT;
+
+board_full : [0..1] init 0;
+board_full' = !(
+    pos11 == EMPTY
+    || pos12 == EMPTY
+    || pos13 == EMPTY
+    || pos21 == EMPTY
+    || pos22 == EMPTY
+    || pos23 == EMPTY
+    || pos31 == EMPTY
+    || pos32 == EMPTY
+    || pos33 == EMPTY
+);
+
+winner : [0..2] init EMPTY;
+winner' = NOUGHT * (
+    // Noughts on bottom row
+    ((pos11 == NOUGHT || nought.play11) && (pos21 == NOUGHT || nought.play21) && (pos31 == NOUGHT || nought.play31))
+    // Noughts on middle row
+    || ((pos12 == NOUGHT || nought.play12) && (pos22 == NOUGHT || nought.play22) && (pos32 == NOUGHT || nought.play32))
+    // Noughts on top row
+    || ((pos13 == NOUGHT || nought.play13) && (pos23 == NOUGHT || nought.play23) && (pos33 == NOUGHT || nought.play33))
+    // Noughts on left column
+    || ((pos11 == NOUGHT || nought.play11) && (pos12 == NOUGHT || nought.play12) && (pos13 == NOUGHT || nought.play13))
+    // Noughts on middle column
+    || ((pos21 == NOUGHT || nought.play21) && (pos22 == NOUGHT || nought.play22) && (pos23 == NOUGHT || nought.play23))
+    // Noughts on right column
+    || ((pos31 == NOUGHT || nought.play31) && (pos32 == NOUGHT || nought.play32) && (pos33 == NOUGHT || nought.play33))
+    // Noughts on diagonal /
+    || ((pos11 == NOUGHT || nought.play11) && (pos22 == NOUGHT || nought.play22) && (pos33 == NOUGHT || nought.play33))
+    // Noughts on diagonal \
+    || ((pos13 == NOUGHT || nought.play13) && (pos22 == NOUGHT || nought.play22) && (pos31 == NOUGHT || nought.play31))
+) + CROSS * (
+    // Crosses on bottom row
+    ((pos11 == CROSS || cross.play11) && (pos21 == CROSS || cross.play21) && (pos31 == CROSS || cross.play31))
+    // Crosses on middle row
+    || ((pos12 == CROSS || cross.play12) && (pos22 == CROSS || cross.play22) && (pos32 == CROSS || cross.play32))
+    // Crosses on top row
+    || ((pos13 == CROSS || cross.play13) && (pos23 == CROSS || cross.play23) && (pos33 == CROSS || cross.play33))
+    // Crosses on left column
+    || ((pos11 == CROSS || cross.play11) && (pos12 == CROSS || cross.play12) && (pos13 == CROSS || cross.play13))
+    // Crosses on middle column
+    || ((pos21 == CROSS || cross.play21) && (pos22 == CROSS || cross.play22) && (pos23 == CROSS || cross.play23))
+    // Crosses on right column
+    || ((pos31 == CROSS || cross.play31) && (pos32 == CROSS || cross.play32) && (pos33 == CROSS || cross.play33))
+    // Crosses on diagonal /
+    || ((pos11 == CROSS || cross.play11) && (pos22 == CROSS || cross.play22) && (pos33 == CROSS || cross.play33))
+    // Crosses on diagonal \
+    || ((pos13 == CROSS || cross.play13) && (pos22 == CROSS || cross.play22) && (pos31 == CROSS || cross.play31))
+);
+
+template tictactoe
+    [wait] turn != SHAPE || winner || board_full;
+    [play11] !board_full && !winner && turn == SHAPE && pos11 == EMPTY;
+    [play12] !board_full && !winner && turn == SHAPE && pos12 == EMPTY;
+    [play13] !board_full && !winner && turn == SHAPE && pos13 == EMPTY;
+    [play21] !board_full && !winner && turn == SHAPE && pos21 == EMPTY;
+    [play22] !board_full && !winner && turn == SHAPE && pos22 == EMPTY;
+    [play23] !board_full && !winner && turn == SHAPE && pos23 == EMPTY;
+    [play31] !board_full && !winner && turn == SHAPE && pos31 == EMPTY;
+    [play32] !board_full && !winner && turn == SHAPE && pos32 == EMPTY;
+    [play33] !board_full && !winner && turn == SHAPE && pos33 == EMPTY;
+endtemplate
+
+label tie = board_full && winner == EMPTY;
+label nought_wins = winner == NOUGHT;
+label cross_wins = winner == CROSS;
