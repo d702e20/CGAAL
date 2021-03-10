@@ -57,4 +57,50 @@ regions, and therefore bubble down the results. If you adhere to a strict schema
 The `count-atlsolver.sh` script does this automatically for you.
 
 ## Time
-TBD
+Measuring runtime of the entire execution of the solver is useful for comparing high-level performance between code-bases.
+For this purpose we use Criterion, at least until `cargo bench` becomes more mature and `#[bench]` attribute is no longer nightly-only.
+Benchmarking is set up as single runs of model-formula pairs, either with just NUM_CPU threads with the `bench_lcgs` macro
+or using the `bench_lcgs_threads` macro for individual tests for all thread-counts from 1 to NUM_CPU.
+
+Output of benchmarking is a very readable HTML-report, CSV/JSON output if we want to further post-process the measurements
+or stdout readable metrics:
+```
+mexican_standoff_lcgs_alive_till_not_threads/16                                                                            
+                        time:   [24.017 ms 25.128 ms 26.284 ms]
+                        change: [-59.416% -55.977% -52.171%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  5 (5.00%) high mild
+
+```
+
+Time profiling is mostly useful for comparisons to some other code-base. Criterion always saves the last run and compares any new run to the previous one.
+You can also use [baselines](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html), so you can easily compare your feature-branch's performance to that of main:
+```shell
+git checkout main
+cargo bench -- --save-baseline main
+git checkout feature
+cargo bench
+cargo bench -- --load-baseline new --baseline main # does not rerun benchmark, only generates data and report
+```
+
+It is very important to be aware of the impact the system load and performance characteristics have on results. 
+A quiet, dedicated machine is preferable to obtain precise and repeatable results. 
+For this purpose running the benchmarks on the AAU MMC in a dedicated job is optimal for final results. 
+Intermediate results from benchmarking on your own machine can be useful, especially for huge performance changes, but be cautious.
+
+## Profiling
+IDE's can do various profiling which may be useful depending on your goal. CLion can generate flamegraphs, call trees, and method lists.
+Microsoft Visual Studio can do similar profiling. Plenty of documentation is available for these use-cases.
+
+### Flamegraph
+These are useful for identifying hot sections that are candidates for optimisation. Width is a function of time, and height is call-stack.
+A particularly wide and tall function is therefore a good place to start. Note that you may need to turn on symbols in Cargo.toml if you get mangled function names.
+
+### Call tree
+Identify the call stack of the program. Shows percentage of total time spent for the given function and number of invocations (samples).
+This clashes with the Counts functionality somewhat. However, both can be useful depending on what you're investigating:
+- If you want a general overview, use the builtin profiling call tree.
+- If you want to investigate specific parts of the program and maybe record values, use Counts.
+
+The method list view of CLion is similar to call tree but sorts them by cumulative sample time. 

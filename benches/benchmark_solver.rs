@@ -24,7 +24,7 @@ macro_rules! bench_json {
 
                     let v0 = ATLVertex::FULL { state: 0, formula };
 
-                    distributed_certain_zero(graph, v0, 1); // todo mutate thread count as extra dimension
+                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
                 })
             });
         }
@@ -95,7 +95,6 @@ macro_rules! bench_lcgs_threads {
                         });
                     },
                 );
-                //group.finish();
             }
         }
     };
@@ -168,7 +167,7 @@ bench_lcgs_threads!(
 
 criterion_group!(
     static_thread_benches,
-    mexican_standoff_json,
+    //mexican_standoff_json,
     mexican_standoff_lcgs_wack,
     //mexican_standoff_lcgs_alive_till_not,
     //gossiping_girls_circular_10_steps_omniscient_atleast,
