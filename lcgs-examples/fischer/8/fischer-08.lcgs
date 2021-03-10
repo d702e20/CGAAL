@@ -38,6 +38,8 @@ label process_in_deadlock = p1.deadlock ||
                             p7.deadlock ||
                             p8.deadlock;
 
+label p1_requested_access = (0 < p1.state) && (p1.state < 3);
+
 in_cs : [0 .. 8] init 0;
 in_cs' = (p1.start || p2.start || p3.start || p4.start || p5.start || p6.start || p7.start || p8.start) ? 0 :
             (p1.wait ? 1 :

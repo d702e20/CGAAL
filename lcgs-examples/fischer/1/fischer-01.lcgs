@@ -10,6 +10,8 @@ label multiple_in_cs = (p1.state == 3) > 1;
 
 label process_in_deadlock = p1.deadlock;
 
+label p1_requested_access = (0 < p1.state) && (p1.state < 3);
+
 in_cs : [0 .. 1] init 0;
 in_cs' = p1.start ? 0 :
         (p1.wait ? 1 : in_cs);
