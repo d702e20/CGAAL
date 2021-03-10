@@ -94,6 +94,7 @@ macro_rules! simple_edg {
 /// This macro is intended to be used in conjunction with the `simple_edg` macro.
 ///
 /// # Example
+/// Simple usage:
 /// ```
 /// simple_edg![
 ///     A => .> B;
@@ -103,9 +104,11 @@ macro_rules! simple_edg {
 /// edg_assert!(A, FALSE);
 /// edg_assert!(B, TRUE);
 /// ```
+/// Note that TRUE/FALSE must be capitalized.
 ///
 /// # Worker count
-/// You can set the worker count by supplying a third argument to the marco.
+/// You can set the worker count by supplying a third argument to the marco. The default
+/// number of workers are 3.
 /// ```
 /// edg_assert!(A, FALSE, 5);
 /// ```
@@ -151,36 +154,5 @@ macro_rules! edg_assert {
             "Vertex {}",
             stringify!($v)
         );
-    };
-}
-
-/// Constructs an test of the distributed certain zero algorithm using the given EDG definition
-/// and the expected assignment of vertices.
-/// This macro is essentially a shorthand for using the `simple_edg` and `edg_assert` macros.
-/// # Example
-/// The following macro call constructs a test function named `test_simple_02`.
-/// ```
-/// edg_test!(
-///     test_simple_02,
-///     [
-///         A => -> {B, C} -> {D};
-///         B => ;
-///         C => .> D;
-///         D => -> {};
-///     ],
-///     A => TRUE,
-///     B => FALSE,
-///     C => FALSE,
-///     D => TRUE
-/// );
-/// ```
-macro_rules! edg_test {
-    { $test_name:ident, [ $( $edg:tt )* ], $( $v:ident => $assign:ident),* } => {
-        #[test]
-        fn $test_name() {
-            simple_edg![$( $edg )* ];
-
-            $( edg_assert!($v, $assign); )*
-        }
     };
 }

@@ -770,59 +770,56 @@ mod test {
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 
-    #[derive(Hash, Clone, Eq, PartialEq, Debug)]
-    struct ExampleEDG {}
-
-    edg_test!(
-        test_dcz_empty_hyper_edge,
-        [
+    #[test]
+    fn test_dcz_empty_hyper_edge() {
+        simple_edg![
             A => -> {};
-        ],
-        A => TRUE
-    );
+        ];
+        edg_assert!(A, TRUE);
+    }
 
-    edg_test!(
-        test_dcz_no_successors,
-        [
+    #[test]
+    fn test_dcz_no_successors() {
+        simple_edg![
             A => ;
-        ],
-        A => FALSE
-    );
+        ];
+        edg_assert!(A, FALSE);
+    }
 
-    edg_test!(
-        test_dcz_general_01,
-        [
+    #[test]
+    fn test_dcz_general_01() {
+        simple_edg![
             A => -> {B, C} -> {D};
             B => ;
             C => .> D;
             D => -> {};
-        ],
-        A => TRUE,
-        B => FALSE,
-        C => FALSE,
-        D => TRUE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, FALSE);
+        edg_assert!(D, TRUE);
+    }
 
-    edg_test!(
-        test_dcz_general_02,
-        [
+    #[test]
+    fn test_dcz_general_02() {
+        simple_edg![
             A => -> {B, C};
             B => .> E;
             C => -> {};
             D => -> {} -> {C};
             E => .> D;
-        ],
-        A => TRUE,
-        B => TRUE,
-        C => TRUE,
-        D => TRUE,
-        E => FALSE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, TRUE);
+        edg_assert!(C, TRUE);
+        edg_assert!(D, TRUE);
+        edg_assert!(E, FALSE);
+    }
 
+    #[test]
     #[ignore]
-    edg_test!(
-        test_dcz_general_03,
-        [
+    fn test_dcz_general_03() {
+        simple_edg![
             A => -> {B} -> {E};
             B => -> {C};
             C => -> {F} -> {H};
@@ -832,133 +829,133 @@ mod test {
             G => .> A;
             H => -> {I};
             I => ;
-        ],
-        A => TRUE,
-        B => TRUE,
-        C => TRUE,
-        D => TRUE,
-        E => TRUE,
-        F => TRUE,
-        G => FALSE,
-        H => FALSE,
-        I => FALSE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, TRUE);
+        edg_assert!(C, TRUE);
+        edg_assert!(D, TRUE);
+        edg_assert!(E, TRUE);
+        edg_assert!(F, TRUE);
+        edg_assert!(G, FALSE);
+        edg_assert!(H, FALSE);
+        edg_assert!(I, FALSE);
+    }
 
-    edg_test!(
-        test_dcz_general_04,
-        [
+    #[test]
+    fn test_dcz_general_04() {
+        simple_edg![
             A => -> {B} -> {C};
             B => -> {D};
             C => ;
             D => -> {};
-        ],
-        A => TRUE,
-        B => TRUE,
-        C => FALSE,
-        D => TRUE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, TRUE);
+        edg_assert!(C, FALSE);
+        edg_assert!(D, TRUE);
+    }
 
-    edg_test!(
-        test_dcz_general_05,
-        [
+    #[test]
+    fn test_dcz_general_05() {
+        simple_edg![
             A => -> {B};
             B => -> {C};
             C => -> {B};
-        ],
-        A => FALSE,
-        B => FALSE,
-        C => FALSE
-    );
+        ];
+        edg_assert!(A, FALSE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, FALSE);
+    }
 
-    edg_test!(
-        test_dcz_general_06,
-        [
+    #[test]
+    fn test_dcz_general_06() {
+        simple_edg![
             A => -> {B} -> {C};
             B => ;
             C => ;
-        ],
-        A => FALSE,
-        B => FALSE,
-        C => FALSE
-    );
+        ];
+        edg_assert!(A, FALSE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, FALSE);
+    }
 
-    edg_test!(
-        test_dcz_general_07,
-        [
+    #[test]
+    fn test_dcz_general_07() {
+        simple_edg![
             A => -> {B};
             B => -> {A, C};
             C => -> {D};
             D => -> {};
-        ],
-        A => FALSE,
-        B => FALSE,
-        C => TRUE,
-        D => TRUE
-    );
+        ];
+        edg_assert!(A, FALSE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, TRUE);
+        edg_assert!(D, TRUE);
+    }
 
-    edg_test!(
-        test_dcz_general_08,
-        [
+    #[test]
+    fn test_dcz_general_08() {
+        simple_edg![
             A => -> {B, C};
             B => -> {C} -> {D};
             C => -> {B};
             D => -> {C} -> {};
-        ],
-        A => TRUE,
-        B => TRUE,
-        C => TRUE,
-        D => TRUE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, TRUE);
+        edg_assert!(C, TRUE);
+        edg_assert!(D, TRUE);
+    }
 
+    #[test]
     #[ignore]
-    edg_test!(
-        test_dcz_negation_01,
-        [
+    fn test_dcz_negation_01() {
+        simple_edg![
             A => .> B;
             B => -> {};
-        ],
-        A => FALSE,
-        B => TRUE
-    );
+        ];
+        edg_assert!(A, FALSE);
+        edg_assert!(B, TRUE);
+    }
 
+    #[test]
     #[ignore]
-    edg_test!(
-        test_dcz_negation_02,
-        [
+    fn test_dcz_negation_02() {
+        simple_edg![
             A => .> B;
             B => -> {C};
             C => -> {B} .> D;
             D => -> {E};
             E => -> {D};
-        ],
-        A => FALSE,
-        B => TRUE,
-        C => TRUE,
-        D => FALSE,
-        E => FALSE
-    );
+        ];
+        edg_assert!(A, FALSE);
+        edg_assert!(B, TRUE);
+        edg_assert!(C, TRUE);
+        edg_assert!(D, FALSE);
+        edg_assert!(E, FALSE);
+    }
 
-    edg_test!(
-        test_dcz_negation_03,
-        [
+    #[test]
+    fn test_dcz_negation_03() {
+        simple_edg![
             A => .> B .> C;
             B => .> D;
             C => -> {D};
             D => ;
-        ],
-        A => TRUE,
-        B => TRUE,
-        C => FALSE,
-        D => FALSE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, TRUE);
+        edg_assert!(C, FALSE);
+        edg_assert!(D, FALSE);
+    }
 
-    edg_test!(
-        test_dcz_negation_04,
-        [
+    #[test]
+    fn test_dcz_negation_04() {
+        simple_edg![
             A => .> B;
             B => -> {B};
-        ],
-        A => TRUE,
-        B => FALSE
-    );
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, FALSE);
+    }
 }
