@@ -60,19 +60,12 @@ macro_rules! edg_assert {
 }
 
 macro_rules! edg_test {
-    { $test_name:ident, [ $( $v:ident ),+ :: $( $rest:tt )* ], $($rem_v:ident => $rem_assign:ident),+ } => {
+    { $test_name:ident, [ $( $edg:tt )* ], $( $v:ident => $assign:ident),* } => {
         #[test]
         fn $test_name() {
-            simple_edg![$( $v ),+ :: $( $rest )*];
+            simple_edg![$( $edg )* ];
 
-            edg_test!{ @assert $($rem_v => $rem_assign),+ };
+            $( edg_assert!($v, $assign); )*
         }
-    };
-    { @assert $v:ident => $assign:ident } => {
-        edg_assert!($v, $assign);
-    };
-    { @assert $v:ident => $assign:ident, $($rem_v:ident => $rem_assign:ident),+ } => {
-        edg_test!{ @assert $v => $assign };
-        edg_test!{ @assert $($rem_v => $rem_assign),+ };
     };
 }
