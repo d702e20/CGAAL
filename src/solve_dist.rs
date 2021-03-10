@@ -137,3 +137,45 @@ fn find_solve_dist<G: ExtendedDependencyGraph<V>, V: Vertex>(
         solve_dist
     })
 }
+
+#[cfg(test)]
+mod test {
+    use crate::solve_dist::solve_dist;
+    /// Defines a test of the solve distance algorithm.
+    /// Meant to be used in conjunction with `simple_edg`.
+    ///
+    /// # Example
+    /// ```
+    /// assert_solve_dist!(
+    ///     A => 2,
+    ///     B => 1,
+    /// )
+    /// ```
+    macro_rules! assert_solve_dists {
+        // Standard use, no custom names
+        ( root=$root:ident, $( $v:ident => $sd:expr, )* ) => {
+            assert_solve_dists!([SimpleEDG, SimpleVertex] root=$root, $( $v => $sd, )* )
+        };
+        // With custom names given
+        ( [$edg_name:ident, $vertex_name:ident] root=$root:ident, $( $v:ident => $sd:expr, )* ) => {
+            let dists = solve_dist(&$edg_name, $vertex_name::$root);
+            $( assert_eq!(dists.get(&$vertex_name::$v).unwrap().dist(), $sd); )*
+        };
+    }
+
+    #[test]
+    fn test_sd_basic_01() {
+        simple_edg![
+            A => -> {};
+            B => ;
+        ];
+        assert_solve_dists!(
+            root=A,
+            A => 1,
+        );
+        assert_solve_dists!(
+            root=B,
+            B => 1,
+        );
+    }
+}
