@@ -29,6 +29,15 @@ label multiple_in_cs = ((p1.state == 3) +
                         (p7.state == 3) +
                         (p8.state == 3)) > 1;
 
+label process_in_deadlock = p1.deadlock ||
+                            p2.deadlock ||
+                            p3.deadlock ||
+                            p4.deadlock ||
+                            p5.deadlock ||
+                            p6.deadlock ||
+                            p7.deadlock ||
+                            p8.deadlock;
+
 in_cs : [0 .. 8] init 0;
 in_cs' = (p1.start || p2.start || p3.start || p4.start || p5.start || p6.start || p7.start || p8.start) ? 0 :
             (p1.wait ? 1 :
@@ -42,6 +51,13 @@ in_cs' = (p1.start || p2.start || p3.start || p4.start || p5.start || p6.start |
             in_cs))))))));
 
 template process
+    deadlock : [0 .. 1] init 0;
+    deadlock' = !(((in_cs == 0) && (state == 0 || state==2)) ||
+                    ((time_waited <= k) && (state == 1)) ||
+                    ((time_waited > k) && (in_cs == id) && (state == 2)) ||
+                    ((in_cs == id) && (state == 3)) ||
+                    (state == 2));
+
 	time_waited : [0 .. k+1] init 0;
 	time_waited' = min(((time_waited + 1) * !wait * !req),k+1);
 
