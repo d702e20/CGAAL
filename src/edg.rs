@@ -770,8 +770,6 @@ mod test {
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 
-    const WORKER_COUNT: u64 = 3;
-
     #[derive(Hash, Clone, Eq, PartialEq, Debug)]
     struct ExampleEDG {}
 
@@ -821,6 +819,7 @@ mod test {
         E => FALSE
     );
 
+    #[ignore]
     edg_test!(
         test_dcz_general_03,
         [
@@ -911,6 +910,7 @@ mod test {
         D => TRUE
     );
 
+    #[ignore]
     edg_test!(
         test_dcz_negation_01,
         [
@@ -921,6 +921,7 @@ mod test {
         B => TRUE
     );
 
+    #[ignore]
     edg_test!(
         test_dcz_negation_02,
         [

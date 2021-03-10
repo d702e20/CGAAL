@@ -133,7 +133,7 @@ macro_rules! simple_edg {
 macro_rules! edg_assert {
     // Standard use, no names or worker count given
     ( $v:ident, $assign:ident ) => {
-        edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 1)
+        edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 3)
     };
     // With worker count given
     ( $v:ident, $assign:ident, $wc:expr ) => {
@@ -141,7 +141,7 @@ macro_rules! edg_assert {
     };
     // With custom names given
     ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident ) => {
-        edg_assert!([$edg_name, $vertex_name] $v, $assign, 1)
+        edg_assert!([$edg_name, $vertex_name] $v, $assign, 3)
     };
     // With custom names and worker count
     ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
