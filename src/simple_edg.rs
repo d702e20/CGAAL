@@ -19,8 +19,8 @@
 /// The syntax `-> {V, ..., W}` defines a hyper-edge with targets `V`,...,`W`, and the syntax
 /// `.> P` defines a negation edge with target `P`. Declare multiple edges by writing them
 /// after each other (as seen for vertex `A` and `C` above), but note that hyper-edges must
-/// precede negation edges. Additionally, all targets must also be declared in the first line
-/// of the macro, and the vertex declarations and the edge declarations are separated with `::`.
+/// precede negation edges. Note that all vertices must declared their edges, even if it
+/// has no edges. In that case, write `B => ;` as seen above for vertex `B`.
 ///
 /// # Example B
 /// By default the created EDG consists of a struct named `SimpleEDG` and enum named
