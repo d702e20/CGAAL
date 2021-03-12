@@ -166,12 +166,13 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
-    fn have_pending_work(&self) -> bool {
+    fn has_pending_work(&self) -> bool {
+        // FIXME check other queues and dirty flag
         !self.msg_queue.is_empty()
     }
 
-    fn have_pending_negation_edges(&self) -> bool {
-        !self.unsafe_neg_edges.is_empty() && !self.negation_queue.is_empty()
+    fn has_unsafe_negation_edges(&self) -> bool {
+        !self.unsafe_neg_edges.is_empty()
     }
 
     /// Is this worker the leader of the token ring
@@ -183,26 +184,25 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.unsafe_neg_edges.len()
     }
 
-    /// Determine the token value of this worker, and forward either the local token value or the received depending on which is greater.
-    fn forward_token(&self, msg: MsgToken) {
-        let local_token_value = if self.have_pending_negation_edges() {
-            Token::HaveNegations
-        } else if self.have_pending_work() {
+    /// Determine the token value of this worker, and forward either the local token value or
+    /// the received token depending on which is greater. This function should never be called
+    /// by the leader.
+    fn update_and_forward_token(&self, msg: MsgToken) {
+        let local_token_value = if self.has_pending_work() {
             Token::Dirty
+        } else if self.has_unsafe_negation_edges() {
+            Token::HaveNegations
         } else {
             Token::Clean
         };
 
-        self.broker.send(
-            (self.id + 1) % self.worker_count,
-            Message::TOKEN(MsgToken {
-                token: max(msg.token, local_token_value),
-                deepest_component: max(
-                    msg.deepest_component,
-                    self.get_depth_of_deepest_component(),
-                ),
-            }),
-        )
+        let successor = (self.id + 1) % self.worker_count;
+        let token = MsgToken {
+            token: max(msg.token, local_token_value),
+            deepest_component: max(msg.deepest_component, self.get_depth_of_deepest_component()),
+        };
+
+        self.broker.send(successor, Message::TOKEN(token))
     }
 
     // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
@@ -218,136 +218,195 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
 
         loop {
-            // Pump all messages from broker to queues
-            loop {
-                match self.msg_rx.try_recv() {
-                    Ok(msg) => {
-                        match msg {
-                            Message::REQUEST { .. } => self.msg_queue.push_back(msg),
-                            Message::ANSWER { .. } => self.msg_queue.push_back(msg),
-                            Message::TOKEN(_) => self.msg_queue.push_back(msg),
-                            Message::RELEASE(_) => self.msg_queue.push_back(msg),
-                            Message::NEGATION(edge) => {
-                                match self.assignment.get(&edge.target) {
-                                    None => self.queue_negation(edge),
-                                    Some(_) => {
-                                        // Edge have assignment UNDECIDED, TRUE, or FALSE, and is there for safe to explore
-                                        self.negation_queue.push_back(edge)
-                                    }
-                                }
-                            }
-                            Message::HYPER(edge) => self.hyper_queue.push_back(edge),
-                            Message::TERMINATE(assignment) => {
-                                // Alg 1, Line 11-12
-                                trace!(?assignment, "worker received termination");
-                                return match assignment {
-                                    VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                                    VertexAssignment::FALSE => VertexAssignment::FALSE,
-                                    VertexAssignment::TRUE => VertexAssignment::TRUE,
-                                };
-                            }
-                        }
-                    }
-                    Err(err) => match err {
-                        TryRecvError::Empty => break,
-                        TryRecvError::Disconnected => {
-                            panic!("worker receive channel disconnected unexpectedly: {}", err)
-                        }
-                    },
-                }
+            // Receive incoming tasks and terminate if requested
+            let result = self.recv_all_and_fill_queues();
+            if let Some(assignment) = result {
+                return assignment;
             }
 
-            if let Some(msg) = self.msg_queue.pop_back() {
-                let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
-                match msg {
-                    // Alg 1, Line 8
-                    Message::REQUEST {
-                        vertex,
-                        depth,
-                        worker_id,
-                    } => self.process_request(&vertex, worker_id, depth),
-                    // Alg 1, Line 9
-                    Message::ANSWER { vertex, assignment } => {
-                        self.process_answer(&vertex, assignment)
-                    }
-                    Message::RELEASE(depth) => {
-                        self.release_negations(depth);
-                    }
-                    Message::TOKEN(msg_token) => {
-                        if self.is_leader() {
-                            self.token_in_circulation = false;
-                            match msg_token {
-                                MsgToken {
-                                    token: Token::Clean,
-                                    deepest_component: _,
-                                } => {
-                                    // Late termination
-                                    trace!("Late termination");
-                                    self.broker.terminate(VertexAssignment::FALSE)
-                                }
-                                MsgToken {
-                                    token: Token::HaveNegations,
-                                    deepest_component,
-                                } => {
-                                    trace!(
-                                        depth = deepest_component,
-                                        "sending release component message"
-                                    );
-                                    for worker_id in 0..self.worker_count {
-                                        self.broker
-                                            .send(worker_id, Message::RELEASE(deepest_component))
-                                    }
-                                }
-                                MsgToken {
-                                    token: Token::Dirty,
-                                    deepest_component: _,
-                                } => {
-                                    // no-op, other workers are busy
-                                    trace!("leader received Token::Dirty")
-                                }
-                            }
-                        } else {
-                            self.forward_token(msg_token);
-                        }
-                    }
-                    _ => unreachable!(),
-                }
-            } else if let Some(edge) = self.hyper_queue.pop_front() {
-                let _guard = span!(
-                    Level::TRACE,
-                    "worker receive hyper-edge",
-                    worker_id = self.id,
-                    ?edge,
-                );
-                self.process_hyper_edge(edge)
-            } else if let Some(edge) = self.negation_queue.pop_front() {
-                let _guard = span!(
-                    Level::TRACE,
-                    "worker receive negation-edge",
-                    worker_id = self.id,
-                    ?edge,
-                );
-                self.process_negation_edge(edge);
-            } else if self.is_leader() && !self.token_in_circulation {
-                let token = if self.unsafe_neg_edges.is_empty() {
-                    Token::Clean
-                } else {
-                    Token::HaveNegations
-                };
-                debug!(?token, "starting token ring round");
-                self.broker.send(
-                    (self.id + 1) % self.worker_count,
-                    Message::TOKEN(MsgToken {
-                        token,
-                        deepest_component: self.get_depth_of_deepest_component(),
-                    }),
-                );
-                self.token_in_circulation = true;
+            if self.process_task() {
+                continue;
+            }
+
+            if self.is_leader() && !self.token_in_circulation {
+                // We are out of safe tasks so consider termination
+                self.initiate_potential_termination();
             } else {
                 // TODO maybe find a more appropriate delay that doesn't turn this into a busy loop when there is no work to do
                 sleep(Duration::from_millis(1))
             }
         }
+    }
+
+    /// Receive all messages from the broker and put them into the right queues. This function
+    /// will return a VertexAssignment, if the worker has been signaled to terminate. The
+    /// assignment is then the assignment of the root.
+    #[must_use]
+    fn recv_all_and_fill_queues(&mut self) -> Option<VertexAssignment> {
+        // Pump all messages from broker to queues
+        loop {
+            match self.msg_rx.try_recv() {
+                Ok(msg) => {
+                    match msg {
+                        Message::REQUEST { .. } => self.msg_queue.push_back(msg),
+                        Message::ANSWER { .. } => self.msg_queue.push_back(msg),
+                        Message::TOKEN(_) => self.msg_queue.push_back(msg),
+                        Message::RELEASE(_) => self.msg_queue.push_back(msg),
+                        Message::NEGATION(edge) => {
+                            match self.assignment.get(&edge.target) {
+                                None => self.queue_negation(edge),
+                                Some(_) => {
+                                    // Edge have assignment UNDECIDED, TRUE, or FALSE, and is there for safe to explore
+                                    self.negation_queue.push_back(edge)
+                                }
+                            }
+                        }
+                        Message::HYPER(edge) => self.hyper_queue.push_back(edge),
+                        Message::TERMINATE(assignment) => {
+                            // Alg 1, Line 11-12
+                            trace!(?assignment, "worker received termination");
+                            return Some(match assignment {
+                                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
+                                VertexAssignment::FALSE => VertexAssignment::FALSE,
+                                VertexAssignment::TRUE => VertexAssignment::TRUE,
+                            });
+                        }
+                    }
+                }
+                Err(err) => match err {
+                    TryRecvError::Empty => break,
+                    TryRecvError::Disconnected => {
+                        panic!("worker receive channel disconnected unexpectedly: {}", err)
+                    }
+                },
+            }
+        }
+        None
+    }
+
+    /// Handle an incoming token.
+    ///
+    /// If this worker is the leader, it will decide the state of
+    /// the algorithm. Termination begins if no worker has seen safe work since last
+    /// synchronization. If some workers have unsafe negation edges, the negation edges of the
+    /// deepest component will be released instead.
+    ///
+    /// If this worker is not the leader, it will upgrade the token, if needed, and forward it.
+    fn handle_incoming_token(&mut self, token: MsgToken) {
+        if self.is_leader() {
+            // The token has returned to the leader
+            self.token_in_circulation = false;
+            match token {
+                // The token made it all the way without getting dirty
+                // That means there are no more tasks and we can terminate
+                MsgToken {
+                    token: Token::Clean,
+                    deepest_component: _,
+                } => {
+                    trace!("Late termination");
+                    self.broker.terminate(VertexAssignment::FALSE)
+                }
+                // No one has seen safe tasks, but some workers have unsafe negation edges.
+                MsgToken {
+                    token: Token::HaveNegations,
+                    deepest_component,
+                } => {
+                    // Tell everyone to release negation edges of deepest component
+                    trace!(
+                        depth = deepest_component,
+                        "sending release component message"
+                    );
+                    for worker_id in 0..self.worker_count {
+                        self.broker
+                            .send(worker_id, Message::RELEASE(deepest_component))
+                    }
+                }
+                // Some workers have seen safe tasks, so we can't terminate yet
+                MsgToken {
+                    token: Token::Dirty,
+                    deepest_component: _,
+                } => {
+                    // no-op, other workers are busy
+                    trace!("leader received Token::Dirty")
+                }
+            }
+        } else {
+            self.update_and_forward_token(msg_token);
+        }
+    }
+
+    /// Initiate a synchronization with the other workers to determine if it is time to
+    /// terminate. Only the leader can initiate termination and the token can't be in
+    /// circulation already.
+    fn initiate_potential_termination(&mut self) {
+        debug_assert!(self.is_leader(), "Only the leader can initiate termination");
+        debug_assert!(
+            !self.token_in_circulation,
+            "Token is already in circulation"
+        );
+
+        // What token to send
+        let token = if self.has_unsafe_negation_edges() {
+            Token::HaveNegations
+        } else {
+            Token::Clean
+        };
+
+        debug!(?token, "starting token ring round");
+        self.broker.send(
+            (self.id + 1) % self.worker_count,
+            Message::TOKEN(MsgToken {
+                token,
+                deepest_component: self.get_depth_of_deepest_component(),
+            }),
+        );
+
+        self.token_in_circulation = true;
+    }
+
+    /// Process the next task. This returns true if any task was processed.
+    fn process_task(&mut self) -> bool {
+        if let Some(msg) = self.msg_queue.pop_back() {
+            let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
+            match msg {
+                // Alg 1, Line 8
+                Message::REQUEST {
+                    vertex,
+                    depth,
+                    worker_id,
+                } => self.process_request(&vertex, worker_id, depth),
+                // Alg 1, Line 9
+                Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment),
+                Message::RELEASE(depth) => {
+                    self.release_negations(depth);
+                }
+                Message::TOKEN(msg_token) => {
+                    self.handle_incoming_token(msg_token);
+                }
+                _ => unreachable!(),
+            }
+            return true;
+        } else if let Some(edge) = self.hyper_queue.pop_front() {
+            let _guard = span!(
+                Level::TRACE,
+                "worker receive hyper-edge",
+                worker_id = self.id,
+                ?edge,
+            );
+            self.process_hyper_edge(edge);
+            return true;
+        } else if let Some(edge) = self.negation_queue.pop_front() {
+            let _guard = span!(
+                Level::TRACE,
+                "worker receive negation-edge",
+                worker_id = self.id,
+                ?edge,
+            );
+            self.process_negation_edge(edge);
+            return true;
+        }
+        // No tasks
+        false
     }
 
     /// Releasing the edges from the unsafe queue to the safe negation channel
