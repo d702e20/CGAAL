@@ -33,6 +33,16 @@ impl SolveDistAssignment {
             SolveDistAssignment::False(dist) => dist,
         }
     }
+
+    /// Get the signed solve distance. The sign is an implementation detail, so this function
+    /// is mainly for debugging.
+    pub fn signed_dist(self) -> i32 {
+        match self {
+            SolveDistAssignment::BeingCalculated => panic!("Solve distance is being calculated."),
+            SolveDistAssignment::True(dist) => dist as i32,
+            SolveDistAssignment::False(dist) => -(dist as i32),
+        }
+    }
 }
 
 /// The solve_dist algorithm will find the number of iterations needed to find the assigment
@@ -151,31 +161,212 @@ mod test {
     ///     B => 1,
     /// )
     /// ```
-    macro_rules! assert_solve_dists {
+    macro_rules! assert_signed_solve_dists {
         // Standard use, no custom names
         ( root=$root:ident, $( $v:ident => $sd:expr, )* ) => {
-            assert_solve_dists!([SimpleEDG, SimpleVertex] root=$root, $( $v => $sd, )* )
+            assert_signed_solve_dists!([SimpleEDG, SimpleVertex] root=$root, $( $v => $sd, )* )
         };
         // With custom names given
         ( [$edg_name:ident, $vertex_name:ident] root=$root:ident, $( $v:ident => $sd:expr, )* ) => {
             let dists = solve_dist(&$edg_name, $vertex_name::$root);
-            $( assert_eq!(dists.get(&$vertex_name::$v).unwrap().dist(), $sd); )*
+            $( assert_eq!(dists.get(&$vertex_name::$v).unwrap().signed_dist(), $sd); )*
         };
     }
 
     #[test]
     fn test_sd_basic_01() {
+        // No successors
         simple_edg![
             A => -> {};
             B => ;
         ];
-        assert_solve_dists!(
+        assert_signed_solve_dists!(
             root=A,
             A => 1,
         );
-        assert_solve_dists!(
+        assert_signed_solve_dists!(
             root=B,
+            B => -1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_02() {
+        // Hyper-edge, all targets negative
+        simple_edg![
+            A => -> {B, C};
+            B => ;
+            C => -> {B};
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => -2,
+            B => -1,
+            C => -2,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_03() {
+        // Hyper-edge, one target negative
+        simple_edg![
+            A => -> {B, C};
+            B => -> {};
+            C => ;
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => -2,
             B => 1,
+            C => -1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_04() {
+        // Hyper-edge, all targets positive
+        simple_edg![
+            A => -> {B, C};
+            B => -> {};
+            C => -> {D};
+            D => -> {};
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => 4, // B:1 + C:2 + 1 = 4
+            B => 1,
+            C => 2,
+            D => 1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_05() {
+        // Cycle
+        simple_edg![
+            A => -> {B};
+            B => -> {C};
+            C => -> {A};
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => -3,
+            B => -2,
+            C => -1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_06() {
+        // Multiple hyper-edges, all targets negative
+        simple_edg![
+            A => -> {B} -> {C};
+            B => ;
+            C => -> {D};
+            D => ;
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => -4, // B:-1 + C:-2 - 1 = -4
+            B => -1,
+            C => -2,
+            D => -1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_07() {
+        // Multiple hyper-edges, one target negative
+        simple_edg![
+            A => -> {B} -> {C};
+            B => -> {};
+            C => ;
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => 2,
+            B => 1,
+            C => -1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_08() {
+        // Multiple hyper-edges, all targets positive
+        simple_edg![
+            A => -> {B} -> {C};
+            B => -> {};
+            C => -> {B};
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => 2,
+            B => 1,
+            C => 2,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_09() {
+        // Hyper-edge vs negation edge, both negative
+        simple_edg![
+            A => -> {B} .> C;
+            B => ;
+            C => ;
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => 2,
+            B => -1,
+            C => -1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_10() {
+        // Hyper-edge vs negation edge, both positive
+        simple_edg![
+            A => -> {B} .> C;
+            B => -> {};
+            C => -> {};
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => 2,
+            B => 1,
+            C => 1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_11() {
+        // Negative hyper-edge vs positive negation edge
+        simple_edg![
+            A => -> {B} .> C;
+            B => ;
+            C => -> {};
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => -3,
+            B => -1,
+            C => 1,
+        );
+    }
+
+    #[test]
+    fn test_sd_basic_12() {
+        // Positive hyper-edge vs negative negation edge
+        simple_edg![
+            A => -> {B} .> C;
+            B => -> {};
+            C => ;
+        ];
+        assert_signed_solve_dists!(
+            root=A,
+            A => 2,
+            B => 1,
+            C => -1,
         );
     }
 }
