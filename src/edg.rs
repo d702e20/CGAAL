@@ -109,6 +109,9 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     edg: G,
     /// Used on the leader as a gate to avoid starting a round of the token ring if one is already in progress.
     token_in_circulation: bool,
+    /// A flag to keep track of whether or not this worker has seen safe work since last time it
+    /// saw the termination token
+    dirty: bool,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -163,12 +166,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
             token_in_circulation: false,
+            dirty: false,
         }
     }
 
-    fn has_pending_work(&self) -> bool {
-        // FIXME check other queues and dirty flag
-        !self.msg_queue.is_empty()
+    fn has_seen_dirty_work(&self) -> bool {
+        self.dirty || !self.msg_queue.is_empty()
     }
 
     fn has_unsafe_negation_edges(&self) -> bool {
@@ -188,7 +191,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// the received token depending on which is greater. This function should never be called
     /// by the leader.
     fn update_and_forward_token(&self, msg: MsgToken) {
-        let local_token_value = if self.has_pending_work() {
+        let local_token_value = if self.has_seen_dirty_work() {
             Token::Dirty
         } else if self.has_unsafe_negation_edges() {
             Token::HaveNegations
@@ -248,11 +251,18 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             match self.msg_rx.try_recv() {
                 Ok(msg) => {
                     match msg {
-                        Message::REQUEST { .. } => self.msg_queue.push_back(msg),
-                        Message::ANSWER { .. } => self.msg_queue.push_back(msg),
+                        Message::REQUEST { .. } => {
+                            self.dirty = true;
+                            self.msg_queue.push_back(msg)
+                        }
+                        Message::ANSWER { .. } => {
+                            self.dirty = true;
+                            self.msg_queue.push_back(msg)
+                        }
                         Message::TOKEN(_) => self.msg_queue.push_back(msg),
                         Message::RELEASE(_) => self.msg_queue.push_back(msg),
                         Message::NEGATION(edge) => {
+                            self.dirty = true;
                             match self.assignment.get(&edge.target) {
                                 None => self.queue_negation(edge),
                                 Some(_) => {
@@ -261,7 +271,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                                 }
                             }
                         }
-                        Message::HYPER(edge) => self.hyper_queue.push_back(edge),
+                        Message::HYPER(edge) => {
+                            self.dirty = true;
+                            self.hyper_queue.push_back(edge)
+                        }
                         Message::TERMINATE(assignment) => {
                             // Alg 1, Line 11-12
                             trace!(?assignment, "worker received termination");
@@ -331,7 +344,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             }
         } else {
-            self.update_and_forward_token(msg_token);
+            self.update_and_forward_token(token);
+            self.dirty = false;
         }
     }
 
@@ -362,6 +376,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         );
 
         self.token_in_circulation = true;
+        self.dirty = false;
     }
 
     /// Process the next task. This returns true if any task was processed.
@@ -385,6 +400,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
                 _ => unreachable!(),
             }
+            self.dirty = true;
             return true;
         } else if let Some(edge) = self.hyper_queue.pop_front() {
             let _guard = span!(
@@ -394,6 +410,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 ?edge,
             );
             self.process_hyper_edge(edge);
+            self.dirty = true;
             return true;
         } else if let Some(edge) = self.negation_queue.pop_front() {
             let _guard = span!(
@@ -403,6 +420,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 ?edge,
             );
             self.process_negation_edge(edge);
+            self.dirty = true;
             return true;
         }
         // No tasks
