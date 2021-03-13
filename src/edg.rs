@@ -400,7 +400,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
                 _ => unreachable!(),
             }
-            self.dirty = true;
             return true;
         } else if let Some(edge) = self.hyper_queue.pop_front() {
             let _guard = span!(
@@ -410,7 +409,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 ?edge,
             );
             self.process_hyper_edge(edge);
-            self.dirty = true;
             return true;
         } else if let Some(edge) = self.negation_queue.pop_front() {
             let _guard = span!(
@@ -420,7 +418,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 ?edge,
             );
             self.process_negation_edge(edge);
-            self.dirty = true;
             return true;
         }
         // No tasks
@@ -429,6 +426,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Releasing the edges from the unsafe queue to the safe negation channel
     fn release_negations(&mut self, depth: usize) {
+        self.dirty = true;
         trace!(
             depth = self.unsafe_neg_edges.len(),
             "releasing previously unsafe negation edges"
@@ -500,6 +498,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
+        self.dirty = true;
         trace!(?edge, "processing hyper-edge");
         // Line 3, condition (in case of targets is empty, the default value is true)
         let all_final = edge.targets.iter().all(|target| {
@@ -596,6 +595,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
+        self.dirty = true;
         match self.assignment.get(&edge.target) {
             // UNEXPLORED
             None => {
@@ -646,6 +646,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     // Another worker has requested the final assignment of a `vertex`
     fn process_request(&mut self, vertex: &V, requester: WorkerId, depth: u32) {
+        self.dirty = true;
         trace!(
             ?vertex,
             ?requester,
@@ -691,6 +692,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
+        self.dirty = true;
         trace!(?vertex, ?assigned, "received final assignment");
         self.final_assign(vertex, assigned);
     }
@@ -900,7 +902,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_dcz_general_03() {
         simple_edg![
             A => -> {B} -> {E};
@@ -991,7 +992,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_dcz_negation_01() {
         simple_edg![
             A => .> B;
@@ -1002,7 +1002,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_dcz_negation_02() {
         simple_edg![
             A => .> B;
