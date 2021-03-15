@@ -12,6 +12,7 @@ use crate::lcgs::ir::relabeling::Relabeler;
 use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 use pom::parser::{sym, Parser};
+use std::fmt::{Display, Formatter};
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
@@ -80,9 +81,9 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state index to a [State].
-    fn state_from_index(&self, state_index: usize) -> State {
+    pub(crate) fn state_from_index(&self, state_index: usize) -> State {
         let mut state = State(HashMap::new());
-        let mut carry = state_index as i32;
+        let mut carry = state_index;
 
         // The following method resembles the typical way of transforming a number of seconds
         // into seconds, minutes, hours, and days. In this case the time units are state variables
@@ -91,11 +92,11 @@ impl IntermediateLCGS {
             let symb = self.symbols.get(symb_id).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
                 let value = {
-                    let size = var.ir_range.end() - var.ir_range.start() + 1;
+                    let size = (var.ir_range.end() - var.ir_range.start() + 1) as usize;
                     let quotient = carry / size;
                     let remainder = carry.rem_euclid(size);
                     carry = quotient;
-                    var.ir_range.start() + remainder
+                    var.ir_range.start() + remainder as i32
                 };
                 state.0.insert(symb_id.clone(), value);
             }
@@ -109,7 +110,7 @@ impl IntermediateLCGS {
     }
 
     /// Transforms a state into its index
-    fn index_of_state(&self, state: &State) -> usize {
+    pub(crate) fn index_of_state(&self, state: &State) -> usize {
         let mut combined_size = 1;
         let mut res = 0usize;
 
@@ -130,7 +131,7 @@ impl IntermediateLCGS {
     }
 
     /// Returns a list of the moves available to the given player in the given state.
-    fn available_actions(&self, state: &State, player: usize) -> Vec<SymbolIdentifier> {
+    pub(crate) fn available_actions(&self, state: &State, player: usize) -> Vec<SymbolIdentifier> {
         self.players[player]
             .actions
             .iter()
@@ -409,6 +410,16 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SymbolError> {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct State(pub HashMap<SymbolIdentifier, i32>);
 
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        for (symb_id, val) in self.0.iter() {
+            writeln!(f, "\t{}: {}", symb_id, val)?;
+        }
+        writeln!(f, "}}")
+    }
+}
+
 impl GameStructure for IntermediateLCGS {
     fn max_player(&self) -> usize {
         self.players.len()
@@ -549,9 +560,11 @@ impl ATLExpressionParser for IntermediateLCGS {
 mod test {
     use crate::atl::gamestructure::GameStructure;
     use crate::lcgs::ast::DeclKind;
-    use crate::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::lcgs::ir::intermediate::{IntermediateLCGS, State};
     use crate::lcgs::ir::symbol_table::Owner;
+    use crate::lcgs::ir::symbol_table::SymbolIdentifier;
     use crate::lcgs::parse::parse_lcgs;
+    use std::collections::HashMap;
 
     #[test]
     fn test_symbol_01() {
@@ -747,6 +760,67 @@ mod test {
         let state = lcgs.state_from_index(index);
         let index2 = lcgs.index_of_state(&state);
         assert_eq!(index, index2);
+    }
+
+    #[test]
+    fn test_state_translation_04() {
+        // Is translation back and forth between state and index correct
+        // Player vars and wack ranges
+        let input = "
+        foo : [5 .. 20] init 5;
+        foo' = foo;
+        bar : [-2 .. 5] init 3;
+        bar' = bar;
+        
+        player p1 = test;
+        player p2 = test;
+        player p3 = test;
+
+        template test
+            yum : [0 .. 8] init 0;
+            yum' = yum;
+            zap : [-2 .. 3] init -1;
+            zap' = zap;
+            [wait] 1;
+        endtemplate
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let indexes = [12, 55, 126, 78, 99, 150, 555, 992, 1001, 733];
+        for i in &indexes {
+            let state = lcgs.state_from_index(*i);
+            let i2 = lcgs.index_of_state(&state);
+            assert_eq!(*i, i2);
+        }
+    }
+
+    #[test]
+    fn test_state_translation_05() {
+        // Is translation back and forth between state and index correct
+        // Big ranges
+        let input = "
+        foo : [0 .. 2000000] init 5;
+        foo' = foo;
+        bar : [0 .. 2000000] init 3;
+        bar' = bar;
+        ";
+
+        // Index to state to index
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let indexes = [12_340, 1_987_158, 3_000_000_000];
+        for i in &indexes {
+            let state = lcgs.state_from_index(*i);
+            let i2 = lcgs.index_of_state(&state);
+            assert_eq!(*i, i2);
+        }
+
+        // State to index to state
+        let mut map: HashMap<SymbolIdentifier, i32> = HashMap::new();
+        map.insert(":global.foo".into(), 2_000_000);
+        map.insert(":global.bar".into(), 2_000_000);
+        let state = State(map);
+        let index = lcgs.index_of_state(&state);
+        let state2 = lcgs.state_from_index(index);
+        assert_eq!(state, state2)
     }
 
     #[test]
