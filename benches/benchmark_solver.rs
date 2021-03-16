@@ -182,6 +182,7 @@ bench_lcgs_threads!(
     "Mexican_Standoff/Mexican_Standoff_p1_is_alive_till_he_aint.json"
 );
 
+// groups take a name as first argument, all subsequent arguments are benchmarks for this group
 criterion_group!(
     static_thread_benches,
     //mexican_standoff_json,

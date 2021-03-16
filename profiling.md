@@ -62,6 +62,9 @@ For this purpose we use Criterion, at least until `cargo bench` becomes more mat
 Benchmarking is set up as single runs of model-formula pairs, either with just NUM_CPU threads with the `bench_lcgs` macro
 or using the `bench_lcgs_threads` macro for individual tests for all thread-counts from 1 to NUM_CPU.
 
+Usage is fairly simple, use `bench_lcgs!` or `bench_lcgs_threads!` and give arguments; name, model-, and formula- paths. 
+The macro sets up all boilerplate and you can now add this benchmark to a `criterion_group!` for running by `criterion_main!`.
+
 Output of benchmarking is a very readable HTML-report, CSV/JSON output if we want to further post-process the measurements
 or stdout readable metrics:
 ```
