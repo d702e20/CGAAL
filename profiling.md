@@ -61,12 +61,14 @@ Measuring runtime of the entire execution of the solver is useful for comparing 
 For this purpose we use Criterion, at least until `cargo bench` becomes more mature and `#[bench]` attribute is no longer nightly-only.
 Benchmarking is set up as single runs of model-formula pairs, either with just NUM_CPU threads with the `bench_lcgs` macro
 or using the `bench_lcgs_threads` macro for individual tests for all thread-counts from 1 to NUM_CPU.
+Criterion does dynamic sample-size; it takes at minimum 100 samples, or however many it can fit in a 5 second window. 
+Before running, it warms up the CPU pipeline with the workload for 3 seconds, to prime caches. 
 
 Usage is fairly simple, use `bench_lcgs!` or `bench_lcgs_threads!` and give arguments; name, model-, and formula- paths. 
 The macro sets up all boilerplate and you can now add this benchmark to a `criterion_group!` for running by `criterion_main!`.
 
-Output of benchmarking is a very readable HTML-report, CSV/JSON output if we want to further post-process the measurements
-or stdout readable metrics:
+Output of benchmarking is a very readable HTML-report(available under `target/criterion/`), CSV/JSON output if we 
+want to further post-process the measurements or stdout readable metrics:
 ```
 mexican_standoff_lcgs_alive_till_not_threads/16                                                                            
                         time:   [24.017 ms 25.128 ms 26.284 ms]
@@ -76,6 +78,10 @@ Found 5 outliers among 100 measurements (5.00%)
   5 (5.00%) high mild
 
 ```
+
+Consider whether you'd like to spend time benchmarking on variable thread count or just use the highest number of cores 
+your machine has. At time of writing, the single-thread suite takes ~110 seconds on a 16-thread machine, where the 
+equivalent variable thread count suite would likely spend at least 16 times this duration.   
 
 Time profiling is mostly useful for comparisons to some other code-base. Criterion always saves the last run and compares any new run to the previous one.
 You can also use [baselines](https://bheisler.github.io/criterion.rs/book/user_guide/command_line_options.html), so you can easily compare your feature-branch's performance to that of main:
