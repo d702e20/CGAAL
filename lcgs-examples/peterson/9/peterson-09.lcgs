@@ -1,4 +1,7 @@
 // Peterson with 9 processes using filter algorithm
+// The "process_in_deadlock" label is very large because I cannot check it using variables (as i can in peterson 2-7) because
+// it would make the state space too large, and not compile, therefore I have to list all possible combinations
+// we can have a deadlock in any process :)
 const n = 9;
 
 label p0_in_cs = p0.level == (n-1);
