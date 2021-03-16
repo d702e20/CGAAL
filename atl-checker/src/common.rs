@@ -11,6 +11,13 @@ pub enum VertexAssignment {
     TRUE,
 }
 
+impl VertexAssignment {
+    /// Returns true if the assignment is either true or false.
+    pub fn is_certain(self) -> bool {
+        return matches!(self, VertexAssignment::TRUE | VertexAssignment::FALSE);
+    }
+}
+
 impl Display for VertexAssignment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -56,12 +63,8 @@ pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     TOKEN(MsgToken),
     /// Release component/negation-edges of `depth` depth
     RELEASE(usize),
-    /// Negation edge to be queued on the receiving worker
-    NEGATION(NegationEdge<V>),
-    /// Hyper edge to be queued on the receiving worker
-    HYPER(HyperEdge<V>),
-    /// Terminate the worker and return the `VertexAssignment` as the assignment for `v0`
-    TERMINATE(VertexAssignment),
+    /// Terminate the worker
+    TERMINATE,
 }
 
 #[derive(Clone, Debug, PartialOrd, Ord, Eq, PartialEq)]

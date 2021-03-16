@@ -38,12 +38,9 @@ pub fn distributed_certain_zero<
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
-    // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs) = ChannelBroker::new(worker_count);
+    let (broker, mut msg_rxs, mut result_rx) = ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
-    // Channel used for returning the final assigment of `v0` to the calling thread
-    let (early_tx, early_rx) = crossbeam_channel::bounded(worker_count as usize);
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
@@ -55,27 +52,17 @@ pub fn distributed_certain_zero<
             broker.clone(),
             edg.clone(),
         );
-        let tx = early_tx.clone();
         thread::spawn(move || {
             trace!("worker thread start");
-            let result = worker.run();
-            match tx.try_send(result) {
-                Ok(_) => {}
-                Err(err) => match err {
-                    TrySendError::Full(_) => panic!(
-                        "Failed to submit final assignment of v0 because the channel is full: {}",
-                        err
-                    ),
-                    TrySendError::Disconnected(_) => {}
-                },
-            }
+            worker.run();
         });
     }
 
-    let assignment = early_rx
+    let assignment = result_rx
         .recv()
-        .expect("Error receiving final assigment from early termination");
-    trace!(v0_assignment = ?assignment, "early termination");
+        .expect("Error receiving final assigment on termination");
+    broker.terminate();
+    trace!(v0_assignment = ?assignment, "Found assignment of v0");
     assignment
 }
 
@@ -86,6 +73,8 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     worker_count: u64,
     /// The vertex that the worker is attempting to find the assignment of.
     v0: V,
+    /// When this flags becomes false, the worker will end its loop and terminate
+    running: bool,
     /// Greatest known assignment for vertices.
     /// Order is as follow UNEXPLORED/None < UNDECIDED < {TRUE, FALSE}. Once a vertex has been assigned TRUE or FALSE it will never change assignment.
     assignment: HashMap<V, VertexAssignment>,
@@ -153,6 +142,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             id,
             worker_count,
             v0,
+            running: true,
             assignment: HashMap::new(),
             depends: HashMap::<V, HashSet<Edges<V>>>::new(),
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
@@ -208,8 +198,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         self.broker.send(successor, Message::TOKEN(token))
     }
 
-    // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
-    pub fn run(&mut self) -> VertexAssignment {
+    pub fn run(&mut self) {
         let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
         let _enter = span.enter();
         trace!("worker start");
@@ -218,14 +207,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         if self.is_owner(&self.v0.clone()) {
             trace!(worker_id = self.id, "exploring v0");
             self.explore(&self.v0.clone());
+            self.dirty = true;
         }
 
-        loop {
+        while self.running {
             // Receive incoming tasks and terminate if requested
-            let result = self.recv_all_and_fill_queues();
-            if let Some(assignment) = result {
-                return assignment;
-            }
+            self.recv_all_and_fill_queues();
 
             if self.process_task() {
                 continue;
@@ -245,47 +232,16 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// will return a VertexAssignment, if the worker has been signaled to terminate. The
     /// assignment is then the assignment of the root.
     #[must_use]
-    fn recv_all_and_fill_queues(&mut self) -> Option<VertexAssignment> {
-        // Pump all messages from broker to queues
+    fn recv_all_and_fill_queues(&mut self) {
+        // Pump all messages from broker to msg queues, except terminate messages
         loop {
             match self.msg_rx.try_recv() {
-                Ok(msg) => {
-                    match msg {
-                        Message::REQUEST { .. } => {
-                            self.dirty = true;
-                            self.msg_queue.push_back(msg)
-                        }
-                        Message::ANSWER { .. } => {
-                            self.dirty = true;
-                            self.msg_queue.push_back(msg)
-                        }
-                        Message::TOKEN(_) => self.msg_queue.push_back(msg),
-                        Message::RELEASE(_) => self.msg_queue.push_back(msg),
-                        Message::NEGATION(edge) => {
-                            self.dirty = true;
-                            match self.assignment.get(&edge.target) {
-                                None => self.queue_negation(edge),
-                                Some(_) => {
-                                    // Edge have assignment UNDECIDED, TRUE, or FALSE, and is there for safe to explore
-                                    self.negation_queue.push_back(edge)
-                                }
-                            }
-                        }
-                        Message::HYPER(edge) => {
-                            self.dirty = true;
-                            self.hyper_queue.push_back(edge)
-                        }
-                        Message::TERMINATE(assignment) => {
-                            // Alg 1, Line 11-12
-                            trace!(?assignment, "worker received termination");
-                            return Some(match assignment {
-                                VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                                VertexAssignment::FALSE => VertexAssignment::FALSE,
-                                VertexAssignment::TRUE => VertexAssignment::TRUE,
-                            });
-                        }
+                Ok(msg) => match msg {
+                    Message::TERMINATE => {
+                        self.running = false;
                     }
-                }
+                    _ => self.msg_queue.push_back(msg),
+                },
                 Err(err) => match err {
                     TryRecvError::Empty => break,
                     TryRecvError::Disconnected => {
@@ -294,7 +250,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 },
             }
         }
-        None
     }
 
     /// Handle an incoming token.
@@ -317,7 +272,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     deepest_component: _,
                 } => {
                     trace!("Late termination");
-                    self.broker.terminate(VertexAssignment::FALSE)
+                    self.broker.return_result(VertexAssignment::FALSE)
                 }
                 // No one has seen safe tasks, but some workers have unsafe negation edges.
                 MsgToken {
@@ -329,16 +284,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         depth = deepest_component,
                         "sending release component message"
                     );
-                    for worker_id in 0..self.worker_count {
-                        self.broker
-                            .send(worker_id, Message::RELEASE(deepest_component))
-                    }
+                    self.broker.release(deepest_component);
                 }
-                // Some workers have seen safe tasks, so we can't terminate yet
-                MsgToken {
-                    token: Token::Dirty,
-                    deepest_component: _,
-                } => {
+                // Some workers still have safe tasks, so we can't terminate yet
+                _ => {
                     // no-op, other workers are busy
                     trace!("leader received Token::Dirty")
                 }
@@ -381,7 +330,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Process the next task. This returns true if any task was processed.
     fn process_task(&mut self) -> bool {
-        if let Some(msg) = self.msg_queue.pop_back() {
+        if let Some(msg) = self.msg_queue.pop_front() {
             let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
             match msg {
                 // Alg 1, Line 8
@@ -479,8 +428,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 // Line 5
                 for edge in successors.iter() {
                     match edge {
-                        Edges::HYPER(edge) => self.broker.queue_hyper(self.id, edge.clone()),
-                        Edges::NEGATION(edge) => self.queue_negation(edge.clone()),
+                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
+                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
                     }
                 }
             }
@@ -493,7 +442,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     depth: *self.depth.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
                 },
-            )
+            );
         }
     }
 
@@ -603,7 +552,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 // Line 6
                 trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                self.queue_negation(edge.clone());
+                self.queue_unsafe_negation(edge.clone());
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
@@ -625,7 +574,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Queueing unsafe negation, which will be queued to negation channel whenever
     /// release negation is called
-    fn queue_negation(&mut self, edge: NegationEdge<V>) {
+    fn queue_unsafe_negation(&mut self, edge: NegationEdge<V>) {
         let len = self.unsafe_neg_edges.len();
         let mut depth: usize = 0;
         if let Some(n) = self.depth.get(&edge.source) {
@@ -653,41 +602,34 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             depth,
             "got request for vertex assignment"
         );
-        if let Some(assigned) = self.assignment.get(&vertex) {
+        if let Some(assignment) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
-            match assigned {
-                VertexAssignment::FALSE => {
-                    return self.broker.send(
-                        requester,
-                        Message::ANSWER {
-                            vertex: vertex.clone(),
-                            assignment: VertexAssignment::FALSE,
-                        },
-                    );
-                }
-                VertexAssignment::TRUE => {
-                    return self.broker.send(
-                        requester,
-                        Message::ANSWER {
-                            vertex: vertex.clone(),
-                            assignment: VertexAssignment::TRUE,
-                        },
-                    );
-                }
-                _ => {
-                    // update depth
-                    let local_depth = *self.depth.get(vertex).unwrap_or(&0);
-                    self.depth.insert(vertex.clone(), max(local_depth, depth));
-
-                    self.mark_interest(vertex, requester);
-                }
+            if assignment.is_certain() {
+                self.broker.send(
+                    requester,
+                    Message::ANSWER {
+                        vertex: vertex.clone(),
+                        assignment: *assignment,
+                    },
+                );
+            } else {
+                // update depth
+                let local_depth = *self.depth.get(vertex).unwrap_or(&0);
+                self.depth.insert(vertex.clone(), max(local_depth, depth));
+                self.mark_interest(vertex, requester);
             }
-        }
-        // Final assignment of `vertex` is not yet known
-        self.mark_interest(vertex, requester);
-        if self.assignment.get(&vertex).is_none() {
-            // UNEXPLORED
-            self.explore(&vertex);
+        } else {
+            // Final assignment of `vertex` is not yet known
+
+            // update depth
+            let local_depth = *self.depth.get(vertex).unwrap_or(&0);
+            self.depth.insert(vertex.clone(), max(local_depth, depth));
+            self.mark_interest(vertex, requester);
+
+            if self.assignment.get(&vertex).is_none() {
+                // UNEXPLORED
+                self.explore(&vertex);
+            }
         }
     }
 
@@ -700,48 +642,17 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
         // Line 2
         if *vertex == self.v0 {
-            self.broker.terminate(assignment);
+            self.broker.return_result(assignment);
             return;
         }
+
         // Line 3
         let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
         let changed_assignment = prev_assignment != Some(assignment);
-        debug!(
-            ?prev_assignment,
-            new_assignment = ?assignment,
-            ?vertex,
-            final_again =
-                !(prev_assignment == Some(VertexAssignment::UNDECIDED) || prev_assignment == None),
-            changed_assignment,
-            "final assigned"
-        );
-
-        // If `assignment` is UNDECIDED, then `prev_assigment` must be UNEXPLORED/None.
-        // If `assignment` is TRUE or FALSE, then `prev_assignment` must be UNEXPLORED/None or UNDECIDED
-        debug_assert!(
-            match assignment {
-                VertexAssignment::UNDECIDED => {
-                    prev_assignment == None
-                }
-                VertexAssignment::TRUE => {
-                    prev_assignment == None
-                        || prev_assignment == Some(VertexAssignment::UNDECIDED)
-                        || prev_assignment == Some(VertexAssignment::TRUE)
-                }
-                VertexAssignment::FALSE => {
-                    prev_assignment == None
-                        || prev_assignment == Some(VertexAssignment::UNDECIDED)
-                        || prev_assignment == Some(VertexAssignment::FALSE)
-                }
-            },
-            format!(
-                "attempted to change final assignment from {:?} to {}",
-                prev_assignment, assignment
-            )
-        );
+        debug!(?assignment, ?vertex, "final assigned");
 
         if changed_assignment {
-            // Line 4
+            // Line 4 - Notify other workers interested in this assignment
             if let Some(interested) = self.interests.get(&vertex) {
                 for worker_id in interested {
                     self.broker.send(
@@ -754,7 +665,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             }
 
-            // Line 5
+            // Line 5 - Requeue my edges that depend on this assignment
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
                     trace!(
@@ -762,10 +673,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         "requeueing edg because edge have received final assignment"
                     );
                     match edge {
-                        Edges::HYPER(edge) => self.broker.queue_hyper(self.id, edge.clone()),
-                        Edges::NEGATION(edge) => {
-                            self.negation_queue.push_back(edge);
-                        }
+                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
+                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
                     }
                 }
             }

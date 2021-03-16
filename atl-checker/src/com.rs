@@ -7,20 +7,21 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
     /// Send message to worker with id `to`
     fn send(&self, to: WorkerId, msg: Message<V>);
 
-    /// Send hyper edge for queuing to worker with id `to`
-    fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>);
+    /// Send result to the main thread
+    fn return_result(&self, assignment: VertexAssignment);
 
-    /// Send safe negation edge for queuing to worker with id `to`
-    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>);
+    /// Signal all workers to release the given depth
+    fn release(&self, depth: usize);
 
-    /// Signal to all workers to terminate because a result has been found
-    fn terminate(&self, assignment: VertexAssignment);
+    /// Signal to all workers to terminate
+    fn terminate(&self);
 }
 
 /// Implements Broker using channels from crossbeam_channel
 #[derive(Debug)]
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
+    result: Sender<VertexAssignment>,
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
@@ -32,17 +33,21 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
             .expect(&*format!("Send to worker {} failed", to));
     }
 
-    fn queue_hyper(&self, to: WorkerId, edge: HyperEdge<V>) {
-        self.send(to, Message::HYPER(edge));
+    fn return_result(&self, assignment: VertexAssignment) {
+        self.result
+            .send(assignment)
+            .expect("Failed to send result to main thread")
     }
 
-    fn queue_negation(&self, to: WorkerId, edge: NegationEdge<V>) {
-        self.send(to, Message::NEGATION(edge));
+    fn release(&self, depth: usize) {
+        for i in 0..self.workers.len() {
+            self.send(i as u64, Message::RELEASE(depth))
+        }
     }
 
-    fn terminate(&self, assignment: VertexAssignment) {
-        for i in 0u64..self.workers.len() as u64 {
-            self.send(i, Message::TERMINATE(assignment))
+    fn terminate(&self) {
+        for i in 0..self.workers.len() {
+            self.send(i as u64, Message::TERMINATE)
         }
     }
 }
@@ -50,7 +55,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
 type MsgQueueList<V> = Vec<Receiver<Message<V>>>;
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
-    pub fn new(worker_count: u64) -> (Self, MsgQueueList<V>) {
+    pub fn new(worker_count: u64) -> (Self, MsgQueueList<V>, Receiver<VertexAssignment>) {
         // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);
@@ -61,11 +66,15 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
             msg_receivers.push(receiver);
         }
 
+        let (result_tx, result_rx) = unbounded();
+
         (
             Self {
                 workers: msg_senders,
+                result: result_tx,
             },
             msg_receivers,
+            result_rx,
         )
     }
 }
