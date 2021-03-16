@@ -23,6 +23,752 @@ label multiple_in_cs = ((p0.level == n-1) +
                         (p7.level == n-1) +
                         (p8.level == n-1)) > 1;
 
+label process_in_deadlock = (((p0.level == -1) ||
+((p0.level == 0) && !((last_to_enter_0 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 1) && !((last_to_enter_1 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 2) && !((last_to_enter_2 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 3) && !((last_to_enter_3 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 4) && !((last_to_enter_4 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 5) && !((last_to_enter_5 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 6) && !((last_to_enter_6 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+((p0.level == 7) && !((last_to_enter_7 == 0) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level)))) ||
+(((last_to_enter_0 == 0) ||
+                (last_to_enter_1 == 0) ||
+                (last_to_enter_2 == 0) ||
+                (last_to_enter_3 == 0) ||
+                (last_to_enter_4 == 0) ||
+                (last_to_enter_5 == 0) ||
+                (last_to_enter_6 == 0) ||
+                (last_to_enter_7 == 0)) && ((p1.level >= p0.level) ||
+                                                (p2.level >= p0.level) ||
+                                                (p3.level >= p0.level) ||
+                                                (p4.level >= p0.level) ||
+                                                (p5.level >= p0.level) ||
+                                                (p6.level >= p0.level) ||
+                                                (p7.level >= p0.level) ||
+                                                (p8.level >= p0.level))) ||
+(p0.level == (n-1))) ||
+
+
+                            ((p1.level == -1) ||
+((p1.level == 0) && !((last_to_enter_0 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 1) && !((last_to_enter_1 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 2) && !((last_to_enter_2 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 3) && !((last_to_enter_3 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 4) && !((last_to_enter_4 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 5) && !((last_to_enter_5 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 6) && !((last_to_enter_6 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+((p1.level == 7) && !((last_to_enter_7 == 1) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level)))) ||
+(((last_to_enter_0 == 1) ||
+                (last_to_enter_1 == 1) ||
+                (last_to_enter_2 == 1) ||
+                (last_to_enter_3 == 1) ||
+                (last_to_enter_4 == 1) ||
+                (last_to_enter_5 == 1) ||
+                (last_to_enter_6 == 1) ||
+                (last_to_enter_7 == 1)) && ((p0.level >= p1.level) ||
+                                                (p2.level >= p1.level) ||
+                                                (p3.level >= p1.level) ||
+                                                (p4.level >= p1.level) ||
+                                                (p5.level >= p1.level) ||
+                                                (p6.level >= p1.level) ||
+                                                (p7.level >= p1.level) ||
+                                                (p8.level >= p1.level))) ||
+(p1.level == (n-1))) ||
+
+
+                            ((p2.level == -1) ||
+((p2.level == 0) && !((last_to_enter_0 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 1) && !((last_to_enter_1 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 2) && !((last_to_enter_2 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 3) && !((last_to_enter_3 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 4) && !((last_to_enter_4 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 5) && !((last_to_enter_5 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 6) && !((last_to_enter_6 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+((p2.level == 7) && !((last_to_enter_7 == 2) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level)))) ||
+(((last_to_enter_0 == 2) ||
+                (last_to_enter_1 == 2) ||
+                (last_to_enter_2 == 2) ||
+                (last_to_enter_3 == 2) ||
+                (last_to_enter_4 == 2) ||
+                (last_to_enter_5 == 2) ||
+                (last_to_enter_6 == 2) ||
+                (last_to_enter_7 == 2)) && ((p0.level >= p2.level) ||
+                                                (p1.level >= p2.level) ||
+                                                (p3.level >= p2.level) ||
+                                                (p4.level >= p2.level) ||
+                                                (p5.level >= p2.level) ||
+                                                (p6.level >= p2.level) ||
+                                                (p7.level >= p2.level) ||
+                                                (p8.level >= p2.level))) ||
+(p2.level == (n-1))) ||
+
+
+
+                            ((p3.level == -1) ||
+((p3.level == 0) && !((last_to_enter_0 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 1) && !((last_to_enter_1 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 2) && !((last_to_enter_2 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 3) && !((last_to_enter_3 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 4) && !((last_to_enter_4 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 5) && !((last_to_enter_5 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 6) && !((last_to_enter_6 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+((p3.level == 7) && !((last_to_enter_7 == 3) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level)))) ||
+(((last_to_enter_0 == 3) ||
+                (last_to_enter_1 == 3) ||
+                (last_to_enter_2 == 3) ||
+                (last_to_enter_3 == 3) ||
+                (last_to_enter_4 == 3) ||
+                (last_to_enter_5 == 3) ||
+                (last_to_enter_6 == 3) ||
+                (last_to_enter_7 == 3)) && ((p0.level >= p3.level) ||
+                                                (p1.level >= p3.level) ||
+                                                (p2.level >= p3.level) ||
+                                                (p4.level >= p3.level) ||
+                                                (p5.level >= p3.level) ||
+                                                (p6.level >= p3.level) ||
+                                                (p7.level >= p3.level) ||
+                                                (p8.level >= p3.level))) ||
+(p3.level == (n-1))) ||
+
+
+                            ((p4.level == -1) ||
+((p4.level == 0) && !((last_to_enter_0 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 1) && !((last_to_enter_1 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 2) && !((last_to_enter_2 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 3) && !((last_to_enter_3 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 4) && !((last_to_enter_4 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 5) && !((last_to_enter_5 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 6) && !((last_to_enter_6 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+((p4.level == 7) && !((last_to_enter_7 == 4) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level)))) ||
+(((last_to_enter_0 == 4) ||
+                (last_to_enter_1 == 4) ||
+                (last_to_enter_2 == 4) ||
+                (last_to_enter_3 == 4) ||
+                (last_to_enter_4 == 4) ||
+                (last_to_enter_5 == 4) ||
+                (last_to_enter_6 == 4) ||
+                (last_to_enter_7 == 4)) && ((p0.level >= p4.level) ||
+                                                (p1.level >= p4.level) ||
+                                                (p2.level >= p4.level) ||
+                                                (p3.level >= p4.level) ||
+                                                (p5.level >= p4.level) ||
+                                                (p6.level >= p4.level) ||
+                                                (p7.level >= p4.level) ||
+                                                (p8.level >= p4.level))) ||
+(p4.level == (n-1))) ||
+
+                            ((p5.level == -1) ||
+((p5.level == 0) && !((last_to_enter_0 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 1) && !((last_to_enter_1 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 2) && !((last_to_enter_2 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 3) && !((last_to_enter_3 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 4) && !((last_to_enter_4 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 5) && !((last_to_enter_5 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 6) && !((last_to_enter_6 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+((p5.level == 7) && !((last_to_enter_7 == 5) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level)))) ||
+(((last_to_enter_0 == 5) ||
+                (last_to_enter_1 == 5) ||
+                (last_to_enter_2 == 5) ||
+                (last_to_enter_3 == 5) ||
+                (last_to_enter_4 == 5) ||
+                (last_to_enter_5 == 5) ||
+                (last_to_enter_6 == 5) ||
+                (last_to_enter_7 == 5)) && ((p0.level >= p5.level) ||
+                                                (p1.level >= p5.level) ||
+                                                (p2.level >= p5.level) ||
+                                                (p3.level >= p5.level) ||
+                                                (p4.level >= p5.level) ||
+                                                (p6.level >= p5.level) ||
+                                                (p7.level >= p5.level) ||
+                                                (p8.level >= p5.level))) ||
+(p5.level == (n-1))) ||
+
+                            ((p6.level == -1) ||
+((p6.level == 0) && !((last_to_enter_0 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 1) && !((last_to_enter_1 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 2) && !((last_to_enter_2 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 3) && !((last_to_enter_3 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 4) && !((last_to_enter_4 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 5) && !((last_to_enter_5 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 6) && !((last_to_enter_6 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+((p6.level == 7) && !((last_to_enter_7 == 6) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level)))) ||
+(((last_to_enter_0 == 6) ||
+                (last_to_enter_1 == 6) ||
+                (last_to_enter_2 == 6) ||
+                (last_to_enter_3 == 6) ||
+                (last_to_enter_4 == 6) ||
+                (last_to_enter_5 == 6) ||
+                (last_to_enter_6 == 6) ||
+                (last_to_enter_7 == 6)) && ((p0.level >= p6.level) ||
+                                                (p1.level >= p6.level) ||
+                                                (p2.level >= p6.level) ||
+                                                (p3.level >= p6.level) ||
+                                                (p4.level >= p6.level) ||
+                                                (p5.level >= p6.level) ||
+                                                (p7.level >= p6.level) ||
+                                                (p8.level >= p6.level))) ||
+(p6.level == (n-1))) ||
+
+
+                            ((p7.level == -1) ||
+((p7.level == 0) && !((last_to_enter_0 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 1) && !((last_to_enter_1 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 2) && !((last_to_enter_2 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 3) && !((last_to_enter_3 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 4) && !((last_to_enter_4 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 5) && !((last_to_enter_5 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 6) && !((last_to_enter_6 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+((p7.level == 7) && !((last_to_enter_7 == 7) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level)))) ||
+(((last_to_enter_0 == 7) ||
+                (last_to_enter_1 == 7) ||
+                (last_to_enter_2 == 7) ||
+                (last_to_enter_3 == 7) ||
+                (last_to_enter_4 == 7) ||
+                (last_to_enter_5 == 7) ||
+                (last_to_enter_6 == 7) ||
+                (last_to_enter_7 == 7)) && ((p0.level >= p7.level) ||
+                                                (p1.level >= p7.level) ||
+                                                (p2.level >= p7.level) ||
+                                                (p3.level >= p7.level) ||
+                                                (p4.level >= p7.level) ||
+                                                (p5.level >= p7.level) ||
+                                                (p6.level >= p7.level) ||
+                                                (p8.level >= p7.level))) ||
+(p7.level == (n-1))) ||
+
+                            ((p8.level == -1) ||
+((p8.level == 0) && !((last_to_enter_0 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 1) && !((last_to_enter_1 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 2) && !((last_to_enter_2 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 3) && !((last_to_enter_3 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 4) && !((last_to_enter_4 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 5) && !((last_to_enter_5 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 6) && !((last_to_enter_6 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+((p8.level == 7) && !((last_to_enter_7 == 8) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level)))) ||
+(((last_to_enter_0 == 8) ||
+                (last_to_enter_1 == 8) ||
+                (last_to_enter_2 == 8) ||
+                (last_to_enter_3 == 8) ||
+                (last_to_enter_4 == 8) ||
+                (last_to_enter_5 == 8) ||
+                (last_to_enter_6 == 8) ||
+                (last_to_enter_7 == 8)) && ((p0.level >= p8.level) ||
+                                                (p1.level >= p8.level) ||
+                                                (p2.level >= p8.level) ||
+                                                (p3.level >= p8.level) ||
+                                                (p4.level >= p8.level) ||
+                                                (p5.level >= p8.level) ||
+                                                (p6.level >= p8.level) ||
+                                                (p7.level >= p8.level))) ||
+(p8.level == (n-1))));
+
+label p1_requested_access = 0 <= p1.level && p1.level < n;
+
 player p0 = process [id=0, other = p1, other1 = p2, other2 = p3, other3 = p4, other4 = p5, other5 = p6, other6 = p7, other7 = p8];
 player p1 = process [id=1, other = p0, other1 = p2, other2 = p3, other3 = p4, other4 = p5, other5 = p6, other6 = p7, other7 = p8];
 player p2 = process [id=2, other = p0, other1 = p1, other2 = p3, other3 = p4, other4 = p5, other5 = p6, other6 = p7, other7 = p8];

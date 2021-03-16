@@ -19,6 +19,16 @@ label multiple_in_cs = (p0.level == (n-1)) +
                         (p5.level == (n-1)) +
                         (p6.level == (n-1)) > 1;
 
+label process_in_deadlock = p0.deadlock ||
+                            p1.deadlock ||
+                            p2.deadlock ||
+                            p3.deadlock ||
+                            p4.deadlock ||
+                            p5.deadlock ||
+                            p6.deadlock;
+
+label p1_requested_access = 0 <= p1.level && p1.level < n;
+
 player p0 = process [id=0, other = p1, other1 = p2, other2 = p3, other3 = p4, other4 = p5, other5 = p6];
 player p1 = process [id=1, other = p0, other1 = p2, other2 = p3, other3 = p4, other4 = p5, other5 = p6];
 player p2 = process [id=2, other = p0, other1 = p1, other2 = p3, other3 = p4, other4 = p5, other5 = p6];
@@ -91,6 +101,17 @@ last_to_enter_6' = p0.proceed_to_level_6 ? 0 :
                     (p6.proceed_to_level_6 ? 6 : last_to_enter_6))))));
 
 template process
+    deadlock : [0 .. 1] init 0;
+    deadlock' = !((level == -1) ||
+                    ((level == 0) && !((last_to_enter_0 == id) && other_level)) ||
+                    ((level == 1) && !((last_to_enter_1 == id) && other_level)) ||
+                    ((level == 2) && !((last_to_enter_2 == id) && other_level)) ||
+                    ((level == 3) && !((last_to_enter_3 == id) && other_level)) ||
+                    ((level == 4) && !((last_to_enter_4 == id) && other_level)) ||
+                    ((level == 5) && !((last_to_enter_5 == id) && other_level)) ||
+                    ((last_to_enter_0 == id) && other_level) ||
+                    (level == (n-1)));
+
     level : [-1 .. n-1] init -1;
     level' = proceed_to_level_0 ? 0 :
             (proceed_to_level_1 ? 1 :
