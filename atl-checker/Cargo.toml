@@ -22,6 +22,7 @@ criterion = "0.3"
 
 [[bench]]
 name = "benchmark_solver"
+path = "../benches/benchmark_solver.rs"
 harness = false
 
 [dependencies]

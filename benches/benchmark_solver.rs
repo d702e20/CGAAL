@@ -9,6 +9,14 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
 
+// CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
+// workaround src: https://github.com/rust-lang/rust/issues/31383
+macro_rules! model_path_prefix {
+    () => {
+        "../benches"
+    };
+}
+
 /// Benchmark solver given json-model and -formula.
 macro_rules! bench_json {
     ($name:ident, $model:expr, $formula:expr) => {
@@ -45,20 +53,24 @@ macro_rules! bench_lcgs {
         fn $name(c: &mut Criterion) {
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
-                    let lcgs = parse_lcgs(include_str!(concat!("lcgs/", $model)))
-                        .expect(&format!("Could not read model {}", $model));
+                    let lcgs = parse_lcgs(include_str!(concat!(
+                        model_path_prefix!(),
+                        "/lcgs/",
+                        $model
+                    )))
+                    .expect(&format!("Could not read model {}", $model));
                     let game_structure =
                         IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                     let graph = ATLDependencyGraph { game_structure };
 
-                    let formula = load_formula(concat!("benches/lcgs/", $formula));
+                    let formula = load_formula(concat!(model_path_prefix!(), "/lcgs/", $formula));
 
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
                         formula,
                     };
 
-                    let result = distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
                 });
             });
         }
@@ -71,27 +83,32 @@ macro_rules! bench_lcgs_threads {
             let mut group = c.benchmark_group(stringify!($name));
 
             for core_count in 1..num_cpus::get() + 1 {
-                let core_count = core_count as u64; //todo, this should be simplified if able
-                                                    //todo is criterion throughput useful here?
+                let core_count = core_count as u64; //todo, 1. this should be simplified if able
+                                                    //todo, 2. is criterion throughput useful here?
                 group.bench_with_input(
                     BenchmarkId::from_parameter(core_count),
                     &core_count,
                     |b, &core_count| {
                         b.iter(|| {
-                            let lcgs = parse_lcgs(include_str!(concat!("lcgs/", $model)))
-                                .expect(&format!("Could not read model {}", $model));
+                            let lcgs = parse_lcgs(include_str!(concat!(
+                                model_path_prefix!(),
+                                "/lcgs/",
+                                $model
+                            )))
+                            .expect(&format!("Could not read model {}", $model));
                             let game_structure =
                                 IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                             let graph = ATLDependencyGraph { game_structure };
 
-                            let formula = load_formula(concat!("benches/lcgs/", $formula));
+                            let formula =
+                                load_formula(concat!(model_path_prefix!(), "/lcgs/", $formula));
 
                             let v0 = ATLVertex::FULL {
                                 state: graph.game_structure.initial_state_index(),
                                 formula,
                             };
 
-                            let result = distributed_certain_zero(graph, v0, core_count);
+                            distributed_certain_zero(graph, v0, core_count);
                         });
                     },
                 );
