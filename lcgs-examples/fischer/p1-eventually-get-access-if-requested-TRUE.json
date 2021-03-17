@@ -1,0 +1,20 @@
+{
+  "enforce invariant": {
+    "players": [0],
+    "formula": {
+      "or": [
+        {
+          "not": {"proposition": 4}
+        },
+        {
+          "enforce eventually": {
+            "players": [],
+            "formula": {
+              "proposition": 0
+            }
+          }
+        }
+      ]
+    }
+  }
+}
