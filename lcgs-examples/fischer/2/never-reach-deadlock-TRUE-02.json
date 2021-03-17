@@ -1,0 +1,8 @@
+{
+  "despite invariant": {
+    "players": [0,1],
+    "formula": {
+      "not": {"proposition": 3}
+    }
+  }
+}
