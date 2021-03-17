@@ -204,6 +204,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         trace!("worker start");
 
         // Alg 1, Line 2
+        // The owner of v0 starts by exploring it
         if self.is_owner(&self.v0.clone()) {
             trace!(worker_id = self.id, "exploring v0");
             self.explore(&self.v0.clone());
@@ -215,14 +216,14 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             self.recv_all_and_fill_queues();
 
             if self.process_task() {
-                continue;
+                continue; // We did a task
             }
 
             if self.is_leader() && !self.token_in_circulation {
                 // We are out of safe tasks so consider termination
                 self.initiate_potential_termination();
             } else {
-                // TODO maybe find a more appropriate delay that doesn't turn this into a busy loop when there is no work to do
+                // Idle
                 sleep(Duration::from_millis(1))
             }
         }
@@ -231,9 +232,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Receive all messages from the broker and put them into the right queues. This function
     /// will return a VertexAssignment, if the worker has been signaled to terminate. The
     /// assignment is then the assignment of the root.
-    #[must_use]
     fn recv_all_and_fill_queues(&mut self) {
-        // Pump all messages from broker to msg queues, except terminate messages
+        // Pump all messages from broker to msg queue. Terminate messages are handled immediately.
         loop {
             match self.msg_rx.try_recv() {
                 Ok(msg) => match msg {
@@ -373,7 +373,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         false
     }
 
-    /// Releasing the edges from the unsafe queue to the safe negation channel
+    /// Releasing the edges from the unsafe queue to the safe negation
     fn release_negations(&mut self, depth: usize) {
         self.dirty = true;
         trace!(
@@ -399,7 +399,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             }
         }
     }
-    /// Adds worker to C^i(vertex)
+
+    /// Mark the given worker as being interested in the assignment of the given vertex.
+    /// When the certain assignment of the vertex is found, the worker will be notified.
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         if let Some(set) = self.interests.get_mut(vertex) {
             trace!(is_initialized = true, ?vertex, "mark vertex interest");
@@ -412,6 +414,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
+    /// Explore a vertex by finding the outgoing edges of the vertex. In the process, the vertex
+    /// will be assigned UNDECIDED. If the vertex has no edges, the vertex is immediately
+    /// assigned false. If the vertex is owned by another worker, we send a request
+    /// to that worker instead of evaluating the edges ourself.
     fn explore(&mut self, vertex: &V) {
         trace!(?vertex, "exploring vertex");
         // Line 2
@@ -423,10 +429,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             let successors = self.succ(vertex); // Line 4
             if successors.is_empty() {
                 // Line 4
+                // The vertex has no outgoing edges, so we assign it false
                 self.final_assign(vertex, VertexAssignment::FALSE);
             } else {
                 // Line 5
-                for edge in successors.iter() {
+                // Queue the new edges
+                for edge in &successors {
                     match edge {
                         Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
                         Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
@@ -435,6 +443,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             }
         } else {
             // Line 7
+            // The vertex is owned by another worker, so we send a request
             self.broker.send(
                 self.vertex_owner(vertex),
                 Message::REQUEST {
@@ -496,47 +505,26 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
-    // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
+    /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         // Update the depth
-        let default_depth = 0;
-        let vertex_depth = *self.depth.get(vertex).unwrap_or(&default_depth);
-        match dependency.clone() {
-            Edges::NEGATION(edge) => {
-                let source_depth = self.depth.get(&edge.source).unwrap_or_else(|| {
-                    debug!(
-                        ?edge,
-                        "Assigned default depth to edge because source edge depth is unknown",
-                    );
-                    &default_depth
-                }) + 1;
-                self.depth
-                    .insert(vertex.clone(), max(source_depth, vertex_depth));
-            }
-            Edges::HYPER(edge) => {
-                let source_depth = *self.depth.get(&edge.source).unwrap_or_else(|| {
-                    trace!(
-                        ?edge,
-                        "Assigned default depth to edge because source edge depth is unknown"
-                    );
-                    &default_depth
-                });
-                self.depth
-                    .insert(vertex.clone(), max(source_depth, vertex_depth));
-            }
-        }
+        let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
+        let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
+        let new_vertex_depth = if dependency.is_negation() {
+            max(old_vertex_depth, source_depth + 1)
+        } else {
+            max(old_vertex_depth, source_depth)
+        };
+        self.depth.insert(vertex.clone(), new_vertex_depth);
 
         // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-        if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.insert(dependency);
-        } else {
-            let mut dependencies = HashSet::new();
-            dependencies.insert(dependency);
-            self.depends.insert(vertex.clone(), dependencies);
-        }
+        self.depends
+            .entry(vertex.clone())
+            .or_default()
+            .insert(dependency);
     }
 
-    // Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
+    /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn remove_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         if let Some(dependencies) = self.depends.get_mut(vertex) {
             dependencies.remove(&dependency);
@@ -572,8 +560,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
-    /// Queueing unsafe negation, which will be queued to negation channel whenever
-    /// release negation is called
+    /// Queue unsafe negation, which will be queued to negation channel whenever
+    /// release negation is called. If the negation edges later becomes safe, it does
+    /// not have to be removed from the negation queue.
     fn queue_unsafe_negation(&mut self, edge: NegationEdge<V>) {
         let len = self.unsafe_neg_edges.len();
         let mut depth: usize = 0;
@@ -593,7 +582,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             .push(edge);
     }
 
-    // Another worker has requested the final assignment of a `vertex`
+    /// Process a request from another worker. We either answer immediately if we know the
+    /// assignment of the requested vertex, or we explore it and mark the other as being
+    /// interested in the assignment of the vertex.
     fn process_request(&mut self, vertex: &V, requester: WorkerId, depth: u32) {
         self.dirty = true;
         trace!(
@@ -633,24 +624,32 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
+    /// Process an answer by applying the given assignment
     fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
         self.dirty = true;
         trace!(?vertex, ?assigned, "received final assignment");
         self.final_assign(vertex, assigned);
     }
 
+    /// Set the assignment of the given vertex. Dependent edges are requeued and interested
+    /// workers are notified of the assignment.
     fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
         // Line 2
         if *vertex == self.v0 {
+            // We found the result of the query
             self.broker.return_result(assignment);
             return;
         }
 
         // Line 3
+        debug!(?assignment, ?vertex, "final assigned");
         let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
         let changed_assignment = prev_assignment != Some(assignment);
-        debug!(?assignment, ?vertex, "final assigned");
 
+        // There are a few cases, where we redundantly assign a vertex to what it already is:
+        // - An unsafe negation edge, turned out to be safe, and now it has been release
+        // - We request the assignment of a vertex multiple times and we get two answers due to
+        //   race conditions
         if changed_assignment {
             // Line 4 - Notify other workers interested in this assignment
             if let Some(interested) = self.interests.get(&vertex) {
@@ -665,13 +664,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
             }
 
-            // Line 5 - Requeue my edges that depend on this assignment
+            // Line 5 - Requeue edges that depend on this assignment
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
-                    trace!(
-                        ?edge,
-                        "requeueing edg because edge have received final assignment"
-                    );
+                    trace!(?edge, "requeueing edge because target got assignment");
                     match edge {
                         Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
                         Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
@@ -683,23 +679,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
     /// Helper function for deleting edges from a vertex.
     fn delete_edge(&mut self, edge: Edges<V>) {
-        // Get v
-        let source = match edge {
-            Edges::HYPER(ref edge) => edge.source.clone(),
-            Edges::NEGATION(ref edge) => edge.source.clone(),
-        };
+        let source = edge.source();
 
-        // Initializes the successors hashmap for key source
-        if let Some(successors) = self.successors.get_mut(&source) {
-            successors.remove(&edge);
-        } else {
-            let mut successors = self.edg.succ(&source);
-            trace!(?successors, remove_edge = ?edge, "initializing successors hashmap in edg::delete_edge");
-            successors.remove(&edge);
-            self.successors.insert(source.clone(), successors);
-        }
+        // Remove edge from source
+        self.successors.get_mut(source).unwrap().remove(&edge);
 
-        match self.successors.get(&source) {
+        match self.successors.get(source) {
             None => panic!("successors should have been filled, or at least have a empty vector"),
             Some(successors) => {
                 // Line 3
@@ -709,7 +694,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         assignment = ?VertexAssignment::FALSE,
                         "no more successors, final assignment is FALSE"
                     );
-                    self.final_assign(&source, VertexAssignment::FALSE);
+                    self.final_assign(source, VertexAssignment::FALSE);
                 }
             }
         }

@@ -46,6 +46,26 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
     NEGATION(NegationEdge<V>),
 }
 
+impl<V: Hash + Eq + PartialEq + Clone> Edges<V> {
+    /// Returns true if this is a hyper edge
+    pub fn is_hyper(&self) -> bool {
+        matches!(self, Edges::HYPER(_))
+    }
+
+    /// Returns true if this is a negation edge
+    pub fn is_negation(&self) -> bool {
+        !self.is_hyper()
+    }
+
+    /// Returns the source vertex of this edge
+    pub fn source(&self) -> &V {
+        match self {
+            Edges::HYPER(e) => &e.source,
+            Edges::NEGATION(e) => &e.source,
+        }
+    }
+}
+
 /// Inter-Worker communication
 #[derive(Clone, Debug)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
