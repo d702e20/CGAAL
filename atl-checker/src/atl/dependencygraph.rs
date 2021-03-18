@@ -169,7 +169,7 @@ impl<'a> Iterator for PartialMoveIterator<'a> {
     }
 }
 
-struct VarsIterator {
+pub struct VarsIterator {
     moves: Vec<usize>,
     position: PartialMove,
     completed: bool,
@@ -184,23 +184,7 @@ impl VarsIterator {
     /// * `moves` number of moves for each player.
     /// * `players` set of players who has to make a specific move.
     ///
-    /// # Example
-    ///
-    /// ```
-    /// use std::result::Result::{Some, None};
-    ///
-    /// let moves = vec![2, 3, 2];
-    /// let mut players = HashSet::new();
-    /// players.insert(0);
-    /// players.insert(2);
-    /// let mut iter = VarsIterator::new(moves, players);
-    ///
-    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(0), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(0)]));
-    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(1), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(0)]));
-    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(0), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(1)]));
-    /// assert_eq!(iter.next(), &Some(vec![PartialMoveChoice::SPECIFIC(1), PartialMoveChoice::RANGE(3), PartialMoveChoice::SPECIFIC(1)]));
-    /// ```
-    fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
+    pub fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
         let mut position = Vec::with_capacity(moves.len());
         for (i, mov) in moves.iter().enumerate() {
             position.push(if players.contains(&i) {
