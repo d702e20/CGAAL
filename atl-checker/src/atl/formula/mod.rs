@@ -1,4 +1,7 @@
+mod parser;
+
 use crate::atl::common::{Player, Proposition};
+pub(crate) use crate::atl::formula::parser::*;
 use joinery::prelude::*;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
