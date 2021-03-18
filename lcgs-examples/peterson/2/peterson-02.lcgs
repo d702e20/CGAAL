@@ -8,7 +8,7 @@ label mutual_exclusion = (p0.level == (n-1))
 label multiple_in_cs = (p0.level == (n-1))
                         + (p1.level == (n-1)) > 1;
 
-label process_in_deadlock = p0.deadlock ||
+label deadlock = p0.deadlock ||
                             p1.deadlock;
 
 label p1_requested_access = 0 <= p1.level && p1.level < n;

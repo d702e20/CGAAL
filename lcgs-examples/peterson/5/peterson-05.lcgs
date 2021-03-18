@@ -15,7 +15,7 @@ label multiple_in_cs = (p0.level == (n-1)) +
                         (p3.level == (n-1)) +
                         (p4.level == (n-1)) > 1;
 
-label process_in_deadlock = p0.deadlock ||
+label deadlock = p0.deadlock ||
                             p1.deadlock ||
                             p2.deadlock ||
                             p3.deadlock ||
