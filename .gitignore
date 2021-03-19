@@ -1,4 +1,4 @@
 target
 /.idea
 model-checker.log
-/atl-checker/Cargo.lock
+Cargo.lock
