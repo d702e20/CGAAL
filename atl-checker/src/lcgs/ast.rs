@@ -82,6 +82,7 @@ pub struct ConstDecl {
 /// A label declaration. Labels are also called propositions. Example: "`label alive = health > 0`"
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LabelDecl {
+    pub index: usize,
     pub condition: Expr,
     pub name: Identifier,
 }
@@ -90,6 +91,7 @@ pub struct LabelDecl {
 /// E.g. "`player p1 = shooter [target1=p2, target2=p3]`"
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PlayerDecl {
+    pub index: usize,
     pub name: Identifier,
     pub template: Identifier,
     pub relabeling: Relabeling,
