@@ -1,4 +1,3 @@
-use crate::distterm::Weight;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -10,6 +9,13 @@ pub enum VertexAssignment {
     UNDECIDED,
     FALSE,
     TRUE,
+}
+
+impl VertexAssignment {
+    /// Returns true if the assignment is either true or false.
+    pub fn is_certain(self) -> bool {
+        return matches!(self, VertexAssignment::TRUE | VertexAssignment::FALSE);
+    }
 }
 
 impl Display for VertexAssignment {
@@ -40,20 +46,59 @@ pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
     NEGATION(NegationEdge<V>),
 }
 
+impl<V: Hash + Eq + PartialEq + Clone> Edges<V> {
+    /// Returns true if this is a hyper edge
+    pub fn is_hyper(&self) -> bool {
+        matches!(self, Edges::HYPER(_))
+    }
+
+    /// Returns true if this is a negation edge
+    pub fn is_negation(&self) -> bool {
+        !self.is_hyper()
+    }
+
+    /// Returns the source vertex of this edge
+    pub fn source(&self) -> &V {
+        match self {
+            Edges::HYPER(e) => &e.source,
+            Edges::NEGATION(e) => &e.source,
+        }
+    }
+}
+
 /// Inter-Worker communication
 #[derive(Clone, Debug)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
     REQUEST {
         vertex: V,
-        distance: u32,
+        depth: u32,
         worker_id: WorkerId,
-        weight: Weight,
     },
     /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
     ANSWER {
         vertex: V,
         assignment: VertexAssignment,
-        weight: Weight,
     },
+    TOKEN(MsgToken),
+    /// Release component/negation-edges of `depth` depth
+    RELEASE(usize),
+    /// Terminate the worker
+    TERMINATE,
+}
+
+#[derive(Clone, Debug, PartialOrd, Ord, Eq, PartialEq)]
+pub enum Token {
+    /// Indicate that no previous holder of the token have any pending hyper- or negations-edges
+    Clean = 0,
+    /// Indicate that no previous holder of the token have pending hyper-edges, but at least one do have pending negation-edges
+    HaveNegations = 1,
+    /// Indicate that a previous holder of the token have pending hyper-edges
+    Dirty = 2,
+}
+
+#[derive(Clone, Debug)]
+pub struct MsgToken {
+    pub(crate) token: Token,
+    pub(crate) deepest_component: usize,
 }

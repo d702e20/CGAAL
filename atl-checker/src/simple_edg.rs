@@ -41,6 +41,7 @@
 /// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
 /// ```
 /// The `edg_assert` macro allows the same naming functionality.
+#[allow(unused_macros)]
 macro_rules! simple_edg {
     // Standard use
     [ $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
@@ -133,6 +134,7 @@ macro_rules! simple_edg {
 /// edg_assert!([MyEDG1, MyVertex1] A, TRUE);
 /// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
 /// ```
+#[allow(unused_macros)]
 macro_rules! edg_assert {
     // Standard use, no names or worker count given
     ( $v:ident, $assign:ident ) => {
