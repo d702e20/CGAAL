@@ -21,7 +21,7 @@ fn hash_name<V: Hash>(vertex: &V) -> String {
     hasher.finish().to_string()
 }
 
-pub(crate) fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
+pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
     graph: G,
     v0: V,
     mut output: W,
