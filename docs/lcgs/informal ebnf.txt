@@ -30,8 +30,6 @@ param := lbrac identifier colon type (comma identifier colon type)* rbrac
 expr := identifier
     | identifier dot identifier(
     | int
-    | true
-    | false
     | not expr
     | expr binop expr
     | expr questionmark expr colon expr
@@ -45,9 +43,6 @@ dot := "."
 semicolon := ";"
 colon := ":"
 assign := ":="
-
-true := "true"
-false := "false"
 
 binop := and | or | xor | implies | eq | neq | gt | lt | geq | leq | plus | minus | mult | fdiv
 not := "!"
@@ -76,4 +71,4 @@ prime := "'"
 rangedots := ".."
 
 identifier = [a-zA-Z] ([_a-zA-Z0-9])*
-int := [1-9] [0-9]* | [0-9]
+int := [1-9] [0-9]* | [0-9] // 0 interpreted as false, all other is true
