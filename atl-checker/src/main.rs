@@ -37,7 +37,6 @@ mod simple_edg;
 mod atl;
 mod com;
 mod common;
-mod distterm;
 mod edg;
 mod lcgs;
 #[cfg(feature = "graph-printer")]
@@ -48,17 +47,6 @@ const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GIT_VERSION: &str = git_version!(fallback = "unknown");
-
-#[derive(Clone, Debug)]
-struct EmptyGraph {}
-
-impl Vertex for i32 {}
-
-impl edg::ExtendedDependencyGraph<i32> for EmptyGraph {
-    fn succ(&self, _vert: &i32) -> HashSet<Edges<i32>, RandomState> {
-        HashSet::new()
-    }
-}
 
 /// The formula types that the system supports
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]

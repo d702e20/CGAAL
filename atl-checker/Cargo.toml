@@ -14,9 +14,16 @@ edition = "2018"
 [features]
 default = ["graph-printer"]
 graph-printer = []
+use-counts = []
 
 [dev-dependencies]
-test-env-log = { git = "https://github.com/d-e-s-o/test-env-log", branch = "topic/global-tracing", features = ["trace"], default-features = false }
+test-env-log = { version = "0.2.5", features = ["trace"], default-features = false }
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark_solver"
+path = "../benches/benchmark_solver.rs"
+harness = false
 
 [dependencies]
 crossbeam-channel = "0.5.0"
