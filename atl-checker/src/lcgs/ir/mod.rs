@@ -1,6 +1,6 @@
 mod error;
 mod eval;
-pub(crate) mod intermediate;
+pub mod intermediate;
 mod relabeling;
 mod symbol_checker;
 pub mod symbol_table;
