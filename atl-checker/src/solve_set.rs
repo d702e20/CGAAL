@@ -23,16 +23,17 @@ pub enum SolveSetAssignment<V: Hash + Eq + PartialEq + Clone + Debug> {
 
     /// False indicate that the vertex can be assigned certain 0 by checking the given set
     /// of vertices, assuming a local algorithm with a perfect heuristic.
-    False(HashSet<V>),
+    /// The boolean indicates if the assignment is uncertain (depends on a cycle)
+    False(HashSet<V>, bool),
 }
 
 impl<V: Hash + Eq + PartialEq + Clone + Debug> SolveSetAssignment<V> {
     /// Get the number of elements in the solve set. Will panic if not calculated.
     pub fn len(&self) -> usize {
         match self {
-            SolveSetAssignment::BeingCalculated => panic!("Solve distance is being calculated."),
+            SolveSetAssignment::BeingCalculated => panic!("Solve set is being calculated"),
             SolveSetAssignment::True(vertices) => vertices.len(),
-            SolveSetAssignment::False(vertices) => vertices.len(),
+            SolveSetAssignment::False(vertices, _) => vertices.len(),
         }
     }
 
@@ -40,9 +41,19 @@ impl<V: Hash + Eq + PartialEq + Clone + Debug> SolveSetAssignment<V> {
     /// The sign is an implementation detail, so this function is mainly for debugging.
     pub fn signed_len(&self) -> i32 {
         match self {
-            SolveSetAssignment::BeingCalculated => panic!("Solve distance is being calculated."),
+            SolveSetAssignment::BeingCalculated => panic!("Solve set is being calculated"),
             SolveSetAssignment::True(vertices) => vertices.len() as i32,
-            SolveSetAssignment::False(vertices) => -(vertices.len() as i32),
+            SolveSetAssignment::False(vertices, _) => -(vertices.len() as i32),
+        }
+    }
+
+    /// Returns true if this assignment is uncertain (depends on a cycle).
+    /// Will panic if not calculated.
+    pub fn is_uncertain(&self) -> bool {
+        match self {
+            SolveSetAssignment::BeingCalculated => panic!("Solve set is being calculated"),
+            SolveSetAssignment::False(_, true) => true,
+            _ => false,
         }
     }
 }
@@ -52,10 +63,14 @@ impl<V: Hash + Eq + PartialEq + Clone + Debug> SolveSetAssignment<V> {
 /// algorithm with a perfect heuristic. The algorithm uses a recursive approach
 /// since a perfect heuristic would induce a depth-first search that only explores the vertices
 /// needed to confirm the root's assigment.
-/// Note that found solve sets are minimum, but not necessarily unique.
+/// Note that found solve sets are minimum, but not necessarily the only minimum solve set.
 /// Also, note that the true/false part of the assignment of a vertex is not guaranteed to match the
 /// minimum fixed-point assignment of the certain_zero algorithm. Only the root is guaranteed
 /// to be correct. The true/false part is used in the algorithm to find short circuiting.
+/// Lastly, some vertices will be given an uncertain false assignment. This means their assignment
+/// depends on a cycle and how it is entered. These assignments are therefore only as correct as
+/// the root requires them to be. They could be bigger in some cases, but this should be good
+/// enough for any analysis, since their sizes relative to sibling edges, are correct.
 pub fn minimum_solve_set<G: ExtendedDependencyGraph<V>, V: Vertex>(
     edg: &G,
     root: V,
@@ -72,8 +87,13 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
     vertex: V,
     assignments: &mut HashMap<V, SolveSetAssignment<V>>,
 ) -> SolveSetAssignment<V> {
-    // We might know the assignment already, otherwise, calculate it
-    assignments.get(&vertex).cloned().unwrap_or_else(move || {
+    // We might know the assignment already, otherwise, calculate it.
+    // We also recalculate it, if it is uncertain (part of cycle)
+    let prev_assignment = assignments.get(&vertex).cloned();
+    if matches!(
+        prev_assignment,
+        None | Some(SolveSetAssignment::False(_, true))
+    ) {
         // Mark this vertex as being calculated to find cycles
         assignments.insert(vertex.clone(), SolveSetAssignment::BeingCalculated);
 
@@ -85,6 +105,8 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
         // then we have to evaluate all false-edges to confirm it. So we union the false-sets.
         let mut best_true_set: Option<HashSet<V>> = None;
         let mut false_union: HashSet<V> = HashSet::new();
+        // If any of the false-edges are uncertain, this will be set true
+        let mut any_uncertain = false;
 
         for edge in edges {
             match edge {
@@ -97,31 +119,37 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                     // confirm it. So we union the true-sets.
                     let mut best_false_set: Option<HashSet<V>> = None;
                     let mut true_union: HashSet<V> = HashSet::new();
+                    let mut best_is_uncertain = false;
 
                     for target in hyper.targets {
                         match find_solve_set_rec(edg, target, assignments) {
                             SolveSetAssignment::BeingCalculated => {
                                 // This is a cycle. This is essentially false in Ø.
                                 best_false_set = Some(HashSet::new());
+                                best_is_uncertain = true;
                             }
-                            SolveSetAssignment::False(vertices) => {
-                                if !matches!(best_false_set, Some(ref best) if best.len() < vertices.len()) {
+                            SolveSetAssignment::False(vertices, uncertain) => {
+                                if !matches!(best_false_set, Some(ref best) if best.len() < vertices.len())
+                                {
                                     // We found a (smaller) false set
                                     best_false_set = Some(vertices.clone());
+                                    best_is_uncertain = uncertain;
                                 }
                             }
                             SolveSetAssignment::True(vertices) => {
                                 true_union = true_union.union(&vertices).cloned().collect()
-                            },
+                            }
                         }
                     }
 
                     if let Some(vertices) = best_false_set {
                         // We found at least one false target, so this hyper-edge is a false-edge
                         false_union = false_union.union(&vertices).cloned().collect();
+                        any_uncertain = any_uncertain || best_is_uncertain
                     } else {
                         // We found no false targets, so we check if this is the best true-edge
-                        if !matches!(best_true_set, Some(ref best) if best.len() < true_union.len()) {
+                        if !matches!(best_true_set, Some(ref best) if best.len() < true_union.len())
+                        {
                             best_true_set = Some(true_union);
                         }
                     }
@@ -134,8 +162,9 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                         SolveSetAssignment::True(vertices) => {
                             false_union = false_union.union(&vertices).cloned().collect()
                         }
-                        SolveSetAssignment::False(vertices) => {
-                            if !matches!(best_true_set, Some(ref best) if best.len() < vertices.len()) {
+                        SolveSetAssignment::False(vertices, _) => {
+                            if !matches!(best_true_set, Some(ref best) if best.len() < vertices.len())
+                            {
                                 // We found a (smaller) true set
                                 best_true_set = Some(vertices.clone());
                             }
@@ -154,18 +183,36 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
             // We found no true-edges, so this vertex is false
             // Also add self
             false_union.insert(vertex.clone());
-            SolveSetAssignment::False(false_union)
+            SolveSetAssignment::False(false_union, any_uncertain)
         };
 
-        // Save result and return
-        assignments.insert(vertex.clone(), solve_set.clone());
+        // If we are recalculating an uncertain assignment, check if the new one is worse
+        if solve_set.is_uncertain() && prev_assignment.is_some() {
+            let prev_assign = prev_assignment.unwrap();
+            debug_assert!(
+                prev_assign.is_uncertain(),
+                "We should not be recalculating certain answers"
+            );
+            if solve_set.len() > prev_assign.len() {
+                assignments.insert(vertex.clone(), solve_set.clone());
+            } else {
+                assignments.insert(vertex.clone(), prev_assign);
+            }
+        } else {
+            // No uncertainty in this solve set, just update
+            assignments.insert(vertex.clone(), solve_set.clone());
+        }
+
         solve_set
-    })
+    } else {
+        prev_assignment.unwrap().clone()
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::solve_set::minimum_solve_set;
+    use crate::solve_set::{find_solve_set_rec, minimum_solve_set};
+    use std::collections::{HashMap, HashSet};
     /// Defines a test of the solve distance algorithm.
     /// Meant to be used in conjunction with `simple_edg`.
     ///
@@ -184,7 +231,7 @@ mod test {
         // With custom names given
         ( [$edg_name:ident, $vertex_name:ident] root=$root:ident, $( $v:ident => $size:expr, )* ) => {
             let dists = minimum_solve_set(&$edg_name, $vertex_name::$root);
-            $( assert_eq!(dists.get(&$vertex_name::$v).unwrap().signed_len(), $size); )*
+            $( assert_eq!(dists.get(&$vertex_name::$v).unwrap().signed_len(), $size, stringify!($v)); )*
         };
     }
 
@@ -420,6 +467,98 @@ mod test {
             C => 3,
             D => 1,
             E => 1,
+        );
+    }
+
+    #[test]
+    fn test_mss_uncertainty_01() {
+        // Vertex C has to be recalculated due to how we enter the cycle the first time
+        simple_edg![
+            A => -> {B} -> {C};
+            B => -> {D};
+            C => -> {B};
+            D => -> {C} -> {};
+        ];
+        assert_signed_solve_set_lens!(
+            root=A,
+            A => 3,
+            B => 2,
+            C => 3,
+            D => 1,
+        );
+    }
+
+    #[test]
+    fn test_mss_uncertainty_02() {
+        // Vertex B is updated to worse uncertainty if A->B is checked second
+        simple_edg![
+            A => -> {B} -> {C};
+            B => -> {D};
+            C => -> {D} -> {};
+            D => -> {B,C};
+        ];
+        assert_signed_solve_set_lens!(
+            root=A,
+            A => 2,
+            B => -2,
+            C => 1,
+            D => -1,
+        );
+    }
+
+    #[test]
+    fn test_mss_uncertainty_03() {
+        // Vertex B and C is NOT recalculated since it is stray
+        simple_edg![
+            A => -> {B} -> {};
+            B => -> {C};
+            C => -> {A};
+        ];
+        assert_signed_solve_set_lens!(
+            root=A,
+            A => 1,
+            B => -2,
+            C => -1,
+        );
+    }
+
+    #[test]
+    fn test_mss_uncertainty_04() {
+        // Vertex E is recalculated, however, vertex D is NOT recalculated since it is stray,
+        // which means sometimes D is -2 other times -1
+        simple_edg![
+            A => -> {B} -> {E};
+            B => -> {C};
+            C => -> {} -> {D};
+            D => -> {E};
+            E => -> {B};
+        ];
+        assert_signed_solve_set_lens!(
+            root=A,
+            A => 3,
+            B => 2,
+            C => 1,
+            E => 3,
+        );
+    }
+
+    #[test]
+    fn test_mss_uncertainty_05() {
+        // Vertex C and E are recalculated to worse uncertain false
+        simple_edg![
+            A => -> {C} -> {E};
+            B => -> {C};
+            C => -> {D};
+            D => -> {E};
+            E => -> {B};
+        ];
+        assert_signed_solve_set_lens!(
+            root=A,
+            A => -5,
+            B => -3,
+            C => -4,
+            D => -3,
+            E => -4,
         );
     }
 }
