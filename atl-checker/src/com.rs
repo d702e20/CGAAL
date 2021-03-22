@@ -1,4 +1,4 @@
-use crate::common::{HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
+use crate::common::{Message, VertexAssignment, WorkerId};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::hash::Hash;
 

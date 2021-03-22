@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, TryRecvError, TrySendError};
+use crossbeam_channel::{Receiver, TryRecvError};
 
 use crate::com::{Broker, ChannelBroker};
 use crate::common::{
@@ -38,7 +38,7 @@ pub fn distributed_certain_zero<
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
-    let (broker, mut msg_rxs, mut result_rx) = ChannelBroker::new(worker_count);
+    let (broker, mut msg_rxs, result_rx) = ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
 
