@@ -5,6 +5,8 @@ extern crate serde;
 extern crate lazy_static;
 #[macro_use]
 extern crate tracing;
+#[macro_use]
+mod simple_edg;
 
 pub mod atl;
 mod com;
