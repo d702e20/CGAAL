@@ -3,12 +3,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, TryRecvError};
-
-use crate::com::{Broker, ChannelBroker};
+use crate::com::{Broker, BrokerManager, ChannelBroker};
 use crate::common::{
     Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
@@ -27,7 +24,6 @@ pub trait ExtendedDependencyGraph<V: Vertex> {
     fn succ(&self, vertex: &V) -> HashSet<Edges<V>>;
 }
 
-#[instrument]
 pub fn distributed_certain_zero<
     G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
     V: Vertex + Send + Sync + 'static,
@@ -38,18 +34,14 @@ pub fn distributed_certain_zero<
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
-    let (broker, mut msg_rxs, result_rx) = ChannelBroker::new(worker_count);
-    // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
-    let broker = Arc::new(broker);
+    let (mut brokers, manager_broker) = ChannelBroker::new(worker_count);
 
     for i in (0..worker_count).rev() {
-        let msg_rx = msg_rxs.pop().unwrap();
         let mut worker = Worker::new(
             i,
             worker_count,
             v0.clone(),
-            msg_rx,
-            broker.clone(),
+            brokers.pop_front().unwrap(),
             edg.clone(),
         );
         thread::spawn(move || {
@@ -58,10 +50,9 @@ pub fn distributed_certain_zero<
         });
     }
 
-    let assignment = result_rx
-        .recv()
+    let assignment = manager_broker
+        .receive_result()
         .expect("Error receiving final assigment on termination");
-    broker.terminate();
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
     assignment
 }
@@ -84,13 +75,12 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// Greatest number of negation edges in any path from v0 to the given vertex.
     /// Example: If there exists a path from v0 to a vertex, which contains two negation edges, then depth will be two (or more if there is a path with more negation edges).
     depth: HashMap<V, u32>,
-    msg_rx: Receiver<Message<V>>,
     msg_queue: VecDeque<Message<V>>,
     hyper_queue: VecDeque<HyperEdge<V>>,
     negation_queue: VecDeque<NegationEdge<V>>,
     unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
     /// Used to communicate with other workers
-    broker: Arc<B>,
+    broker: B,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
     /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
@@ -123,14 +113,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        id: WorkerId,
-        worker_count: u64,
-        v0: V,
-        msg_rx: Receiver<Message<V>>,
-        broker: Arc<B>,
-        edg: G,
-    ) -> Self {
+    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G) -> Self {
         trace!(
             worker_id = id,
             worker_count,
@@ -146,7 +129,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             assignment: HashMap::new(),
             depends: HashMap::<V, HashSet<Edges<V>>>::new(),
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
-            msg_rx,
             msg_queue: VecDeque::new(),
             hyper_queue: VecDeque::new(),
             negation_queue: VecDeque::new(),
@@ -237,25 +219,28 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     fn recv_all_and_fill_queues(&mut self) {
         // Pump all messages from broker to msg queue. Terminate messages are handled immediately.
         loop {
-            match self.msg_rx.try_recv() {
-                Ok(msg) => match msg {
-                    Message::TERMINATE => {
-                        #[cfg(feature = "use-counts")]
-                        eprintln!("worker received_termination");
-                        self.running = false;
-                    }
-                    _ => {
-                        #[cfg(feature = "use-counts")]
-                        eprintln!("worker receive_message");
-                        self.msg_queue.push_back(msg)
-                    }
+            match self.broker.receive() {
+                Ok(opt_msg) => match opt_msg {
+                    Some(msg) => match msg {
+                        Message::TERMINATE => {
+                            #[cfg(feature = "use-counts")]
+                            eprintln!("worker received_termination");
+
+                            self.running = false;
+                        }
+                        _ => {
+                            #[cfg(feature = "use-counts")]
+                            eprintln!("worker receive_message");
+
+                            self.msg_queue.push_back(msg)
+                        }
+                    },
+                    None => break,
                 },
-                Err(err) => match err {
-                    TryRecvError::Empty => break,
-                    TryRecvError::Disconnected => {
-                        panic!("worker receive channel disconnected unexpectedly: {}", err)
-                    }
-                },
+                Err(err) => panic!(
+                    "worker encountered error while trying to retrieve message: {}",
+                    err
+                ),
             }
         }
     }
