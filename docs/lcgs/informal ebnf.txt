@@ -1,53 +1,67 @@
-start := "players" players "statevars" statevars ("vars" colon vars)? "propositions" propositions "transitions" transitions EOF
+start := (constdecl semicolon | simpledecl semicolon | moduledecl)*
 
-players := identifier+
-statevars := (identifier colon int eq int)+
-vars := (identifier eq expr)*
-propositions := identifier+ (bexpr arrow identifier+)*
-transitions := (bexpr at expr+ arrow stateupdate)+
-stateupdate := _ | (identifier assign expr)+
+simpledecl := labeldecl
+    | vardecl
+    | playerdecl
+    | statevarchangedecl
+    | transitondecl
 
-bexpr := identifier
-	| not bexpr
-	| some expr
-	| expr comparison expr
-	| bexpr binlogicop bexpr
-	| lpar bexpr rpar
-	...
+constdecl := "const" identifier eq expr;
+labeldecl := "label" identifier eq expr
+playerdecl := "player" identifier eq identifier relabeling?
+
+templatedecl := "template" identifier params? (simpledecl semicolon)* "endtemplate"
+
+params := lpar (param (comma param)*)? rpar
+param := identifier colon identifier
+
+vardecl := identifier colon type "init" expr
+
+transitiondecl := lbrac identifier rbrac expr
+
+statevarchangedecl := identifier prime eq expr
+
+relabeling := lbrac (identifier eq identifier (comma identifier eq identifier)*)? rbrac
+
+type := lbrac expr rangedots expr rbrac
+
+param := lbrac identifier colon type (comma identifier colon type)* rbrac
 
 expr := identifier
-	| int
-	| bexpr   # implicit conversion to 0 or 1
-	| expr binop expr
-	| lpar expr rpar
-	| bexpr questionmark expr colon expr
+    | identifier dot identifier(
+    | int
+    | true
+    | false
+    | not expr
+    | expr binop expr
+    | expr questionmark expr colon expr
+    | lpar expr rpar
+    | "max" lpar expr (comma expr)* rpar
+    | "min" lpar expr (comma expr)* rpar
 	...
 
-identifier = [a-zA-Z] ([_a-zA-Z0-9])*
-int := [1-9] [0-9]* | [0-9]
-
+comma := ","
+dot := "."
+semicolon := ";"
 colon := ":"
-arrow := "=>"
-at := "@"
 assign := ":="
 
+true := "true"
+false := "false"
+
+binop := and | or | xor | implies | eq | neq | gt | lt | geq | leq | plus | minus | mult | fdiv
 not := "!"
-some := "?"
-comparison := eq | neq | gt | lt | geq | leq
 eq := "="
 neq := "!="
 gt := ">"
 lt := "<"
 geq := ">="
 leq := "<="
-binlogicop := and | or | xor | implies
-and := "&&"
-or := "||"
+and := "&"
+or := "|"
 xor := "^"
 implies := "->"
 questionmark := "?"
-
-binop := plus | minus | mult | fdiv
 plus := "+"
 minus := "-"
 mult := "*"
@@ -55,3 +69,11 @@ fdiv := "/"
 
 lpar := "("
 rpar := ")"
+lbrac := "["
+rbrac := "]"
+quote := "\""
+prime := "'"
+rangedots := ".."
+
+identifier = [a-zA-Z] ([_a-zA-Z0-9])*
+int := [1-9] [0-9]* | [0-9]
