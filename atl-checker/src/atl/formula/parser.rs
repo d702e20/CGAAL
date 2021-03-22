@@ -8,7 +8,7 @@ use super::Phi;
 use crate::atl::common::{Player, Proposition};
 
 /// Parse an ATL formula
-pub(crate) fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
+pub fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
     expr_parser: &'b A,
     input: &'a str,
 ) -> Result<Phi, String> {
