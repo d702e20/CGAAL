@@ -1,0 +1,54 @@
+const routers_can_connect = 1;
+
+player router1 = router [self=router1, self_index=1, neighbour_self=neighbour_router1, connect_self=connect_router1, r1=1, r2=1, r3=1, r4=1, r5=1, r6=0, r7=0, r8=0];
+player router2 = router [self=router2, self_index=2, neighbour_self=neighbour_router2, connect_self=connect_router2, r1=1, r2=1, r3=1, r4=1, r5=0, r6=0, r7=0, r8=1];
+player router3 = router [self=router3, self_index=3, neighbour_self=neighbour_router3, connect_self=connect_router3, r1=1, r2=1, r3=1, r4=1, r5=0, r6=0, r7=0, r8=0];
+player router4 = router [self=router4, self_index=4, neighbour_self=neighbour_router4, connect_self=connect_router4, r1=1, r2=1, r3=1, r4=1, r5=0, r6=0, r7=0, r8=1];
+player router5 = router [self=router5, self_index=5, neighbour_self=neighbour_router5, connect_self=connect_router5, r1=1, r2=0, r3=0, r4=0, r5=1, r6=0, r7=0, r8=0];
+player router6 = router [self=router6, self_index=6, neighbour_self=neighbour_router6, connect_self=connect_router6, r1=0, r2=0, r3=0, r4=0, r5=0, r6=1, r7=1, r8=1];
+player router7 = router [self=router7, self_index=7, neighbour_self=neighbour_router7, connect_self=connect_router7, r1=0, r2=0, r3=0, r4=0, r5=0, r6=1, r7=1, r8=1];
+player router8 = router [self=router8, self_index=8, neighbour_self=neighbour_router8, connect_self=connect_router8, r1=0, r2=1, r3=0, r4=1, r5=1, r6=1, r7=1, r8=1];
+
+template router
+    label reach_r1 = self_index == 1 || self.neighbour_router1 ||
+
+
+    failed : [0..1] init 0;
+    failed' = max(full_failure,0) - recover;
+
+    neighbour_router1 : [0..1] init (self_index==1) || r1;
+    neighbour_router1' = max((max((self_index==1), router1.neighbour_self, connect_router1, router1.connect_self) - (max(self.failed,router1.failed))),0);
+
+    neighbour_router2 : [0..1] init (self_index==2) || r2;
+    neighbour_router2' = max((max((self_index==2), router2.neighbour_self, connect_router2, router2.connect_self) - (max(self.failed,router2.failed))),0);
+
+    neighbour_router3 : [0..1] init (self_index==3) || r3;
+    neighbour_router3' = max((max((self_index==3), router3.neighbour_self, connect_router3, router3.connect_self) - (max(self.failed,router3.failed))),0);
+
+    neighbour_router4 : [0..1] init (self_index==4) || r4;
+    neighbour_router4' = max((max((self_index==4), router4.neighbour_self, connect_router4, router4.connect_self) - (max(self.failed,router4.failed))),0);
+
+    neighbour_router5 : [0..1] init (self_index==5) || r5;
+    neighbour_router5' = max((max((self_index==5), router5.neighbour_self, connect_router5, router5.connect_self) - (max(self.failed,router5.failed))),0);
+
+    neighbour_router6 : [0..1] init (self_index==6) || r6;
+    neighbour_router6' = max((max((self_index==6), router6.neighbour_self, connect_router6, router6.connect_self) - (max(self.failed,router6.failed))),0);
+
+    neighbour_router7 : [0..1] init (self_index==7) || r7;
+    neighbour_router7' = max((max((self_index==7), router7.neighbour_self, connect_router7, router7.connect_self) - (max(self.failed,router7.failed))),0);
+
+    neighbour_router8 : [0..1] init (self_index==8) || r8;
+    neighbour_router8' = max((max((self_index==8), router8.neighbour_self, connect_router8, router8.connect_self) - (max(self.failed,router8.failed))),0);
+
+    [full_failure] !failed;
+    [recover] failed;
+    [wait] 1;
+    [connect_router1] !failed && !router1.failed && (neighbour_router1 == 0) && routers_can_connect;
+    [connect_router2] !failed && !router2.failed && (neighbour_router2 == 0) && routers_can_connect;
+    [connect_router3] !failed && !router3.failed && (neighbour_router3 == 0) && routers_can_connect;
+    [connect_router4] !failed && !router4.failed && (neighbour_router4 == 0) && routers_can_connect;
+    [connect_router5] !failed && !router5.failed && (neighbour_router5 == 0) && routers_can_connect;
+    [connect_router6] !failed && !router6.failed && (neighbour_router6 == 0) && routers_can_connect;
+    [connect_router7] !failed && !router7.failed && (neighbour_router7 == 0) && routers_can_connect;
+    [connect_router8] !failed && !router8.failed && (neighbour_router8 == 0) && routers_can_connect;
+endtemplate
