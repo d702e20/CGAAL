@@ -8,8 +8,6 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{stdout, Read, Write};
@@ -23,8 +21,7 @@ use tracing::trace;
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::Edges;
-use crate::edg::{distributed_certain_zero, Vertex};
+use crate::edg::distributed_certain_zero;
 use crate::lcgs::ast::DeclKind;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::ir::symbol_table::Owner;
@@ -185,11 +182,11 @@ fn main_inner() -> Result<(), String> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula, raw_phi| {
+                |graph, formula, _raw_phi| {
                     let v0 = ATLVertex::FULL { state: 0, formula };
                     analyse_model(graph, v0);
                 },
-                |graph, formula, raw_phi| {
+                |graph, formula, _raw_phi| {
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
                         formula,

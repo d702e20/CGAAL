@@ -39,6 +39,7 @@ impl<V: Hash + Eq + PartialEq + Clone + Debug> SolveSetAssignment<V> {
 
     /// Get the number of elements in the solve set, negative if SolveSetAssignment::False.
     /// The sign is an implementation detail, so this function is mainly for debugging.
+    #[allow(dead_code)]
     pub fn signed_len(&self) -> i32 {
         match self {
             SolveSetAssignment::BeingCalculated => panic!("Solve set is being calculated"),
@@ -211,8 +212,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
 #[cfg(test)]
 mod test {
-    use crate::solve_set::{find_solve_set_rec, minimum_solve_set};
-    use std::collections::{HashMap, HashSet};
+    use crate::solve_set::minimum_solve_set;
     /// Defines a test of the solve distance algorithm.
     /// Meant to be used in conjunction with `simple_edg`.
     ///
