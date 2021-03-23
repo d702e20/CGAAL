@@ -1,17 +1,20 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, Select, TrySendError};
+use crossbeam_channel::{Receiver, TryRecvError};
 
 use crate::com::{Broker, ChannelBroker};
-use crate::common::{Edges, HyperEdge, Message, NegationEdge, VertexAssignment, WorkerId};
-use crate::distterm::{ControllerWeight, Weight};
+use crate::common::{
+    Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
+};
 use std::cmp::max;
+use std::thread::sleep;
+use std::time::Duration;
 use tracing::{span, trace, Level};
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
@@ -35,78 +38,32 @@ pub fn distributed_certain_zero<
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
-    // NOTE: 'static lifetime doesn't mean the full duration of the program execution
-    let (broker, mut msg_rxs, mut hyper_rxs, mut negation_rxs, mut term_rxs, weight_rx) =
-        ChannelBroker::new(worker_count);
+    let (broker, mut msg_rxs, result_rx) = ChannelBroker::new(worker_count);
     // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
     let broker = Arc::new(broker);
-    // Channel used for returning the final assigment of `v0` to the calling thread
-    let (early_tx, early_rx) = crossbeam_channel::bounded(worker_count as usize);
-    let mut controller_weight = ControllerWeight::new();
 
     for i in (0..worker_count).rev() {
         let msg_rx = msg_rxs.pop().unwrap();
-        let hyper_rx = hyper_rxs.pop().unwrap();
-        let negation_rx = negation_rxs.pop().unwrap();
-        let term_rx = term_rxs.pop().unwrap();
         let mut worker = Worker::new(
             i,
             worker_count,
             v0.clone(),
             msg_rx,
-            hyper_rx,
-            negation_rx,
-            term_rx,
             broker.clone(),
             edg.clone(),
         );
-        let tx = early_tx.clone();
         thread::spawn(move || {
             trace!("worker thread start");
-            let result = worker.run();
-            match tx.try_send(result) {
-                Ok(_) => {}
-                Err(err) => match err {
-                    TrySendError::Full(_) => panic!(
-                        "Failed to submit final assignment of v0 because the channel is full: {}",
-                        err
-                    ),
-                    TrySendError::Disconnected(_) => {}
-                },
-            }
+            worker.run();
         });
     }
 
-    let mut sel = Select::new();
-    let early_index = sel.recv(&early_rx);
-    let weight_index = sel.recv(&weight_rx);
-
-    loop {
-        // Wait until a receive operation becomes ready and try executing it.
-        let oper = sel.select();
-        match oper.index() {
-            i if i == early_index => {
-                let assignment = oper
-                    .recv(&early_rx)
-                    .expect("Error receiving final assigment from early termination");
-                trace!(v0_assignment = ?assignment, "early termination");
-                return assignment;
-            }
-            i if i == weight_index => {
-                let weight = oper.recv(&weight_rx).expect("Error receiving weight");
-                trace!(?weight, "controller received weight");
-                controller_weight.receive_weight(weight);
-                if controller_weight.is_full() {
-                    trace!("all weight received");
-                    // Send term to all workers
-                    let assignment = VertexAssignment::FALSE;
-                    broker.terminate(assignment);
-                    return assignment;
-                }
-            }
-            _ => unreachable!(),
-        }
-    }
+    let assignment = result_rx
+        .recv()
+        .expect("Error receiving final assigment on termination");
+    broker.terminate();
+    trace!(v0_assignment = ?assignment, "Found assignment of v0");
+    assignment
 }
 
 #[derive(Debug)]
@@ -114,24 +71,36 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     id: WorkerId,
     /// Number of workers working on solving the query. This is used as part of the static allocation scheme, see `crate::Worker::vertex_owner`.
     worker_count: u64,
+    /// The vertex that the worker is attempting to find the assignment of.
     v0: V,
+    /// When this flags becomes false, the worker will end its loop and terminate
+    running: bool,
+    /// Greatest known assignment for vertices.
+    /// Order is as follow UNEXPLORED/None < UNDECIDED < {TRUE, FALSE}. Once a vertex has been assigned TRUE or FALSE it will never change assignment.
     assignment: HashMap<V, VertexAssignment>,
     depends: HashMap<V, HashSet<Edges<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
-    distances: HashMap<V, u32>,
+    /// Greatest number of negation edges in any path from v0 to the given vertex.
+    /// Example: If there exists a path from v0 to a vertex, which contains two negation edges, then depth will be two (or more if there is a path with more negation edges).
+    depth: HashMap<V, u32>,
     msg_rx: Receiver<Message<V>>,
-    hyper_rx: Receiver<(HyperEdge<V>, Weight)>,
-    negation_rx: Receiver<(NegationEdge<V>, Weight)>,
-    unsafe_edges: Vec<Vec<(NegationEdge<V>, Weight)>>,
-    term_rx: Receiver<VertexAssignment>,
+    msg_queue: VecDeque<Message<V>>,
+    hyper_queue: VecDeque<HyperEdge<V>>,
+    negation_queue: VecDeque<NegationEdge<V>>,
+    unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
+    /// Used to communicate with other workers
     broker: Arc<B>,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
     /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
     successors: HashMap<V, HashSet<Edges<V>>>,
     edg: G,
-    counter: u32,
+    /// Used on the leader as a gate to avoid starting a round of the token ring if one is already in progress.
+    token_in_circulation: bool,
+    /// A flag to keep track of whether or not this worker has seen safe work since last time it
+    /// saw the termination token
+    dirty: bool,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -144,7 +113,6 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         let mut hasher = DefaultHasher::new();
         vertex.hash::<DefaultHasher>(&mut hasher);
         let hash = hasher.finish();
-        trace!(hash);
         hash % self.worker_count
     }
 
@@ -160,52 +128,77 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         worker_count: u64,
         v0: V,
         msg_rx: Receiver<Message<V>>,
-        hyper_rx: Receiver<(HyperEdge<V>, Weight)>,
-        negation_rx: Receiver<(NegationEdge<V>, Weight)>,
-        term_rx: Receiver<VertexAssignment>,
         broker: Arc<B>,
         edg: G,
     ) -> Self {
-        // Initialize fields
-        let assignment = HashMap::new();
-        let interests = HashMap::<V, HashSet<WorkerId>>::new();
-        let depends = HashMap::<V, HashSet<Edges<V>>>::new();
-        let successors = HashMap::<V, HashSet<Edges<V>>>::new();
-        let distances = HashMap::<V, u32>::new();
-        let unsafe_edges = Vec::<Vec<(NegationEdge<V>, Weight)>>::new();
-        let counter = 0;
-
         trace!(
             worker_id = id,
             worker_count,
             ?v0,
             "new distributed_certain_zero worker"
         );
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker create");
 
         Self {
             id,
             worker_count,
             v0,
-            assignment,
-            depends,
-            interests,
+            running: true,
+            assignment: HashMap::new(),
+            depends: HashMap::<V, HashSet<Edges<V>>>::new(),
+            interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_rx,
-            hyper_rx,
-            negation_rx,
-            unsafe_edges,
-            distances,
-            term_rx,
+            msg_queue: VecDeque::new(),
+            hyper_queue: VecDeque::new(),
+            negation_queue: VecDeque::new(),
+            unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            depth: HashMap::<V, u32>::new(),
             broker,
-            successors,
+            successors: HashMap::<V, HashSet<Edges<V>>>::new(),
             edg,
-            counter,
+            token_in_circulation: false,
+            dirty: false,
         }
     }
 
-    // TODO move msg_rx and term_rx argument from Worker::new to Worker::run
-    pub fn run(&mut self) -> VertexAssignment {
+    fn has_seen_dirty_work(&self) -> bool {
+        self.dirty || !self.msg_queue.is_empty()
+    }
+
+    fn has_unsafe_negation_edges(&self) -> bool {
+        !self.unsafe_neg_edges.is_empty()
+    }
+
+    /// Is this worker the leader of the token ring
+    fn is_leader(&self) -> bool {
+        self.id == 0
+    }
+
+    fn get_depth_of_deepest_component(&self) -> usize {
+        self.unsafe_neg_edges.len()
+    }
+
+    /// Determine the token value of this worker, and forward either the local token value or
+    /// the received token depending on which is greater. This function should never be called
+    /// by the leader.
+    fn update_and_forward_token(&self, msg: MsgToken) {
+        let local_token_value = if self.has_seen_dirty_work() {
+            Token::Dirty
+        } else if self.has_unsafe_negation_edges() {
+            Token::HaveNegations
+        } else {
+            Token::Clean
+        };
+
+        let successor = (self.id + 1) % self.worker_count;
+        let token = MsgToken {
+            token: max(msg.token, local_token_value),
+            deepest_component: max(msg.deepest_component, self.get_depth_of_deepest_component()),
+        };
+
+        self.broker.send(successor, Message::TOKEN(token))
+    }
+
+    pub fn run(&mut self) {
         let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
         let _enter = span.enter();
         trace!("worker start");
@@ -213,148 +206,218 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         eprintln!("worker start");
 
         // Alg 1, Line 2
+        // The owner of v0 starts by exploring it
         if self.is_owner(&self.v0.clone()) {
             trace!(worker_id = self.id, "exploring v0");
-            let init_weight = Weight::new_full();
-            self.explore(&self.v0.clone(), init_weight);
+            self.explore(&self.v0.clone());
+            self.dirty = true;
         }
 
-        let term_rx = self.term_rx.clone();
-        let hyper_rx = self.hyper_rx.clone();
-        let negation_rx = self.negation_rx.clone();
-        let msg_rx = self.msg_rx.clone();
+        while self.running {
+            // Receive incoming tasks and terminate if requested
+            self.recv_all_and_fill_queues();
 
+            if self.process_task() {
+                continue; // We did a task
+            }
+
+            if self.is_leader() && !self.token_in_circulation {
+                // We are out of safe tasks so consider termination
+                self.initiate_potential_termination();
+            } else {
+                // Idle
+                sleep(Duration::from_millis(1))
+            }
+        }
+    }
+
+    /// Receive all messages from the broker and put them into the right queues. This function
+    /// will return a VertexAssignment, if the worker has been signaled to terminate. The
+    /// assignment is then the assignment of the root.
+    fn recv_all_and_fill_queues(&mut self) {
+        // Pump all messages from broker to msg queue. Terminate messages are handled immediately.
         loop {
-            // Termination signal indicating result have been found
-            if !term_rx.is_empty() {
-                self.counter = 0;
-                match term_rx.recv() {
-                    Ok(assignment) => {
-                        // Alg 1, Line 11-12
-                        trace!(?assignment, "worker received termination");
+            match self.msg_rx.try_recv() {
+                Ok(msg) => match msg {
+                    Message::TERMINATE => {
                         #[cfg(feature = "use-counts")]
                         eprintln!("worker received_termination");
-                        return match assignment {
-                            VertexAssignment::UNDECIDED => VertexAssignment::FALSE,
-                            VertexAssignment::FALSE => VertexAssignment::FALSE,
-                            VertexAssignment::TRUE => VertexAssignment::TRUE,
-                        };
+                        self.running = false;
                     }
-                    Err(err) => panic!("Receiving from termination channel failed with: {}", err),
-                }
-            } else if !msg_rx.is_empty() {
-                let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id); //fixme; this guard is never entered?
-                #[cfg(feature = "use-counts")]
-                eprintln!("worker receive_message");
-                self.counter = 0;
-                match msg_rx.recv() {
-                    // Alg 1, Line 5-9
-                    Ok(msg) => match msg {
-                        // Alg 1, Line 8
-                        Message::REQUEST {
-                            vertex,
-                            distance,
-                            worker_id,
-                            weight,
-                        } => self.process_request(&vertex, worker_id, weight, distance),
-                        // Alg 1, Line 9
-                        Message::ANSWER {
-                            vertex,
-                            assignment,
-                            weight,
-                        } => self.process_answer(&vertex, assignment, weight),
-                    },
-                    Err(err) => panic!("Receiving from message channel failed with: {}", err),
-                }
-            } else if !hyper_rx.is_empty() {
-                self.counter = 0;
-                match hyper_rx.recv() {
-                    // Alg 1, Line 6
-                    Ok((edge, weight)) => {
-                        let _guard = span!(
-                            Level::TRACE,
-                            "worker receive hyper-edge",
-                            worker_id = self.id,
-                            ?edge,
-                            ?weight
-                        );
+                    _ => {
                         #[cfg(feature = "use-counts")]
-                        eprintln!("worker receive_hyper-edge");
-                        self.process_hyper_edge(edge, weight)
+                        eprintln!("worker receive_message");
+                        self.msg_queue.push_back(msg)
                     }
-                    Err(err) => panic!(
-                        "Receiving from hyper edge waiting channel failed with: {}",
-                        err
-                    ),
-                }
-            } else if !negation_rx.is_empty() {
-                match negation_rx.recv() {
-                    Ok((edge, weight)) => {
-                        let _guard = span!(
-                            Level::TRACE,
-                            "worker receive negation-edge",
-                            worker_id = self.id,
-                            ?edge,
-                            ?weight
-                        );
-                        #[cfg(feature = "use-counts")]
-                        eprintln!("worker receive_negation_edge");
-                        match self.assignment.get(&edge.target) {
-                            None => self.process_negation_edge(edge.clone(), weight),
-                            // Alg 1, Line 7
-                            Some(assignment) => match assignment {
-                                VertexAssignment::FALSE => {
-                                    self.counter = 0;
-                                    self.process_negation_edge(edge.clone(), weight)
-                                }
-                                VertexAssignment::TRUE => {
-                                    self.counter = 0;
-                                    self.process_negation_edge(edge.clone(), weight)
-                                }
-                                // In case of undecided the edge is only processed after 10 iterations
-                                VertexAssignment::UNDECIDED => {
-                                    if self.counter == 9 {
-                                        self.counter = 0;
-                                        self.process_negation_edge(edge.clone(), weight)
-                                    } else {
-                                        trace!(?edge, ?weight, "queueing negation");
-                                        self.broker.queue_negation(self.id, edge.clone(), weight);
-                                        self.counter += 1;
-                                    }
-                                }
-                            },
-                        }
+                },
+                Err(err) => match err {
+                    TryRecvError::Empty => break,
+                    TryRecvError::Disconnected => {
+                        panic!("worker receive channel disconnected unexpectedly: {}", err)
                     }
-                    Err(err) => panic!(
-                        "Receiving from negation edge waiting channel failed with: {}",
-                        err
-                    ),
-                }
-            } else {
-                let _guard = span!(Level::TRACE, "worker release negation", worker_id = self.id);
-                // if the negation channel is empty, unsafe negation edges are released
-                self.release_negations(self.unsafe_edges.len());
+                },
             }
         }
     }
 
-    /// Releasing the edges from the unsafe queue to the safe negation channel
-    fn release_negations(&mut self, dist: usize) {
-        trace!(distance = dist, "release negation");
-
-        while self.unsafe_edges.len() >= dist && !self.unsafe_edges.is_empty() {
-            if let Some(edges) = self.unsafe_edges.last_mut() {
-                // Queue all edges in the negation channel that have the given distance
-                while !edges.is_empty() {
-                    let (edge, weight) = edges.pop().unwrap();
-                    trace!(?edge, ?weight, "release negation edge");
-                    self.broker.queue_negation(self.id, edge, weight);
+    /// Handle an incoming token.
+    ///
+    /// If this worker is the leader, it will decide the state of
+    /// the algorithm. Termination begins if no worker has seen safe work since last
+    /// synchronization. If some workers have unsafe negation edges, the negation edges of the
+    /// deepest component will be released instead.
+    ///
+    /// If this worker is not the leader, it will upgrade the token, if needed, and forward it.
+    fn handle_incoming_token(&mut self, token: MsgToken) {
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker handle_token");
+        if self.is_leader() {
+            // The token has returned to the leader
+            self.token_in_circulation = false;
+            match token {
+                // The token made it all the way without getting dirty
+                // That means there are no more tasks and we can terminate
+                MsgToken {
+                    token: Token::Clean,
+                    deepest_component: _,
+                } => {
+                    trace!("Late termination");
+                    self.broker.return_result(VertexAssignment::FALSE)
+                }
+                // No one has seen safe tasks, but some workers have unsafe negation edges.
+                MsgToken {
+                    token: Token::HaveNegations,
+                    deepest_component,
+                } => {
+                    // Tell everyone to release negation edges of deepest component
+                    trace!(
+                        depth = deepest_component,
+                        "sending release component message"
+                    );
+                    #[cfg(feature = "use-counts")]
+                    eprintln!("worker send_release_token");
+                    self.broker.release(deepest_component);
+                }
+                // Some workers still have safe tasks, so we can't terminate yet
+                _ => {
+                    // no-op, other workers are busy
+                    trace!("leader received Token::Dirty")
                 }
             }
-            self.unsafe_edges.pop();
+        } else {
+            self.update_and_forward_token(token);
+            self.dirty = false;
         }
     }
-    /// Adds worker to C^i(vertex)
+
+    /// Initiate a synchronization with the other workers to determine if it is time to
+    /// terminate. Only the leader can initiate termination and the token can't be in
+    /// circulation already.
+    fn initiate_potential_termination(&mut self) {
+        debug_assert!(self.is_leader(), "Only the leader can initiate termination");
+        debug_assert!(
+            !self.token_in_circulation,
+            "Token is already in circulation"
+        );
+
+        // What token to send
+        let token = if self.has_unsafe_negation_edges() {
+            Token::HaveNegations
+        } else {
+            Token::Clean
+        };
+
+        debug!(?token, "starting token ring round");
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker initiate_token_circulation");
+        self.broker.send(
+            (self.id + 1) % self.worker_count,
+            Message::TOKEN(MsgToken {
+                token,
+                deepest_component: self.get_depth_of_deepest_component(),
+            }),
+        );
+
+        self.token_in_circulation = true;
+        self.dirty = false;
+    }
+
+    /// Process the next task. This returns true if any task was processed.
+    fn process_task(&mut self) -> bool {
+        if let Some(msg) = self.msg_queue.pop_front() {
+            let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
+            match msg {
+                // Alg 1, Line 8
+                Message::REQUEST {
+                    vertex,
+                    depth,
+                    worker_id,
+                } => self.process_request(&vertex, worker_id, depth),
+                // Alg 1, Line 9
+                Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment),
+                Message::RELEASE(depth) => {
+                    self.release_negations(depth);
+                }
+                Message::TOKEN(msg_token) => {
+                    self.handle_incoming_token(msg_token);
+                }
+                _ => unreachable!(),
+            }
+            return true;
+        } else if let Some(edge) = self.hyper_queue.pop_front() {
+            let _guard = span!(
+                Level::TRACE,
+                "worker receive hyper-edge",
+                worker_id = self.id,
+                ?edge,
+            );
+            self.process_hyper_edge(edge);
+            return true;
+        } else if let Some(edge) = self.negation_queue.pop_front() {
+            let _guard = span!(
+                Level::TRACE,
+                "worker receive negation-edge",
+                worker_id = self.id,
+                ?edge,
+            );
+            self.process_negation_edge(edge);
+            return true;
+        }
+        // No tasks
+        false
+    }
+
+    /// Releasing the edges from the unsafe queue to the safe negation
+    fn release_negations(&mut self, depth: usize) {
+        self.dirty = true;
+        trace!(
+            depth = self.unsafe_neg_edges.len(),
+            "releasing previously unsafe negation edges"
+        );
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker release_negation_edges");
+
+        assert!(
+            self.unsafe_neg_edges.len() <= depth,
+            "Attempted to release more than one component"
+        );
+
+        if self.unsafe_neg_edges.len() < depth {
+            // If the worker does not have any negation edges with the given depth, then do nothing
+            return;
+        }
+
+        if let Some(edges) = self.unsafe_neg_edges.pop() {
+            // Queue all edges in the negation channel that have the given depth
+            for edge in edges {
+                trace!(?edge, "releasing negation edge");
+                self.negation_queue.push_back(edge);
+            }
+        }
+    }
+
+    /// Mark the given worker as being interested in the assignment of the given vertex.
+    /// When the certain assignment of the vertex is found, the worker will be notified.
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         #[cfg(feature = "use-counts")]
         eprintln!("worker mark_interest");
@@ -369,11 +432,14 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         }
     }
 
-    fn explore(&mut self, vertex: &V, weight: Weight) {
-        trace!(?vertex, ?weight, "exploring vertex");
+    /// Explore a vertex by finding the outgoing edges of the vertex. In the process, the vertex
+    /// will be assigned UNDECIDED. If the vertex has no edges, the vertex is immediately
+    /// assigned false. If the vertex is owned by another worker, we send a request
+    /// to that worker instead of evaluating the edges ourself.
+    fn explore(&mut self, vertex: &V) {
+        trace!(?vertex, "exploring vertex");
         #[cfg(feature = "use-counts")]
         eprintln!("worker explore");
-        let mut weight = weight;
         // Line 2
         self.assignment
             .insert(vertex.clone(), VertexAssignment::UNDECIDED);
@@ -383,46 +449,39 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             let successors = self.succ(vertex); // Line 4
             if successors.is_empty() {
                 // Line 4
-                self.final_assign(vertex, VertexAssignment::FALSE, weight);
+                // The vertex has no outgoing edges, so we assign it false
+                self.final_assign(vertex, VertexAssignment::FALSE);
             } else {
                 // Line 5
-                for (i, edge) in successors.iter().enumerate() {
-                    let split_weight = if i < successors.len() - 1 {
-                        let (weight_for_task, remaining_weight) = weight
-                            .split()
-                            .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
-                        weight = remaining_weight;
-                        weight_for_task
-                    } else {
-                        weight.clone()
-                    };
+                // Queue the new edges
+                for edge in &successors {
                     match edge {
-                        Edges::HYPER(edge) => {
-                            self.broker.queue_hyper(self.id, edge.clone(), split_weight)
-                        }
-                        Edges::NEGATION(edge) => self.queue_negation(edge.clone(), split_weight),
+                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
+                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
                     }
                 }
             }
         } else {
             // Line 7
+            // The vertex is owned by another worker, so we send a request
             self.broker.send(
                 self.vertex_owner(vertex),
                 Message::REQUEST {
                     vertex: vertex.clone(),
-                    distance: *self.distances.get(vertex).unwrap_or(&0),
+                    depth: *self.depth.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
-                    weight,
                 },
-            )
+            );
         }
     }
 
-    fn process_hyper_edge(&mut self, edge: HyperEdge<V>, weight: Weight) {
-        trace!(?edge, ?weight, "processing hyper-edge");
+    fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
+        trace!(?edge, "processing hyper-edge");
         #[cfg(feature = "use-counts")]
         eprintln!("worker processing_hyper-edge");
-        let mut weight = weight;
+
+        self.dirty = true;
+
         // Line 3, condition (in case of targets is empty, the default value is true)
         let all_final = edge.targets.iter().all(|target| {
             self.assignment
@@ -432,7 +491,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 3
         if all_final {
-            self.final_assign(&edge.source, VertexAssignment::TRUE, weight);
+            self.final_assign(&edge.source, VertexAssignment::TRUE);
             return;
         }
 
@@ -445,7 +504,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 4
         if any_target {
-            self.delete_edge(Edges::HYPER(edge), weight);
+            self.delete_edge(Edges::HYPER(edge));
             return;
         }
 
@@ -460,273 +519,203 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
                 None => {
                     // UNEXPLORED
-                    let (weight_for_task, remaining_weight) = weight
-                        .split()
-                        .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
-                    weight = remaining_weight;
                     // Line 7
                     self.add_depend(target, Edges::HYPER(edge.clone()));
                     // Line 8
-                    self.explore(target, weight_for_task);
+                    self.explore(target);
                 }
                 _ => {}
             }
         }
-        // We don't know how many instances of `None` exists without iterating through the loop, so there will always be some left over weight
-        self.broker.return_weight(weight);
     }
 
-    // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
+    /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
-        // Update the distance
-        let default = 0;
-        let tdist = *self.distances.get(vertex).unwrap_or(&default);
-        match dependency.clone() {
-            Edges::NEGATION(edge) => {
-                let sdist = self.distances.get(&edge.source).unwrap_or(&default) + 1;
-                self.distances.insert(vertex.clone(), max(sdist, tdist));
-            }
-            Edges::HYPER(edge) => {
-                let sdist = *self.distances.get(&edge.source).unwrap_or(&default);
-                self.distances.insert(vertex.clone(), max(sdist, tdist));
-            }
-        }
+        // Update the depth
+        let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
+        let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
+        let new_vertex_depth = if dependency.is_negation() {
+            max(old_vertex_depth, source_depth + 1)
+        } else {
+            max(old_vertex_depth, source_depth)
+        };
+        self.depth.insert(vertex.clone(), new_vertex_depth);
 
         // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-        if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.insert(dependency);
-        } else {
-            let mut dependencies = HashSet::new();
-            dependencies.insert(dependency);
-            self.depends.insert(vertex.clone(), dependencies);
-        }
+        self.depends
+            .entry(vertex.clone())
+            .or_default()
+            .insert(dependency);
     }
 
-    // Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
+    /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn remove_depend(&mut self, vertex: &V, dependency: Edges<V>) {
         if let Some(dependencies) = self.depends.get_mut(vertex) {
             dependencies.remove(&dependency);
         }
     }
 
-    fn process_negation_edge(&mut self, edge: NegationEdge<V>, weight: Weight) {
+    fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
+        #[cfg(feature = "use-counts")]
+        eprintln!("worker processing negation edge");
+        self.dirty = true;
         match self.assignment.get(&edge.target) {
             // UNEXPLORED
             None => {
                 // UNEXPLORED
                 // Line 6
-                trace!(
-                    ?edge,
-                    ?weight,
-                    assignment = "UNEXPLORED",
-                    "processing negation edge"
-                );
-                #[cfg(feature = "use-counts")]
-                eprintln!("worker processing negation edge");
+                trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
                 self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
-                let (weight1, weight2) = weight
-                    .split()
-                    .unwrap_or_else(|_| panic!("Worker {} ran out of weight", self.id));
-                self.queue_negation(edge.clone(), weight1);
-                self.explore(&edge.target, weight2);
+                self.queue_unsafe_negation(edge.clone());
+                self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
-                    trace!(?edge, ?weight, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE, weight)
+                    trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
+                    self.final_assign(&edge.source, VertexAssignment::TRUE)
                 }
                 VertexAssignment::FALSE => {
-                    trace!(?edge, ?weight, assignment = ?VertexAssignment::FALSE, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE, weight)
+                    trace!(?edge, assignment = ?VertexAssignment::FALSE, "processing negation edge");
+                    self.final_assign(&edge.source, VertexAssignment::TRUE)
                 }
                 VertexAssignment::TRUE => {
-                    trace!(?edge, ?weight, assignment = ?VertexAssignment::TRUE, "processing negation edge");
-                    self.delete_edge(Edges::NEGATION(edge), weight)
+                    trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
+                    self.delete_edge(Edges::NEGATION(edge))
                 }
             },
         }
     }
 
-    /// Queueing unsafe negation, which will be queued to negation channel whenever
-    /// release negation is called
-    fn queue_negation(&mut self, edge: NegationEdge<V>, weight: Weight) {
-        let len = self.unsafe_edges.len();
-        let mut dist: usize = 0;
-        if let Some(n) = self.distances.get(&edge.source) {
-            dist = *n as usize;
+    /// Queue unsafe negation, which will be queued to negation channel whenever
+    /// release negation is called. If the negation edges later becomes safe, it does
+    /// not have to be removed from the negation queue.
+    fn queue_unsafe_negation(&mut self, edge: NegationEdge<V>) {
+        let len = self.unsafe_neg_edges.len();
+        let mut depth: usize = 0;
+        if let Some(n) = self.depth.get(&edge.source) {
+            depth = *n as usize;
         }
 
-        if len <= dist {
-            for _ in len..(dist + 1) {
-                self.unsafe_edges.push(Vec::new());
+        if len <= depth {
+            for _ in len..(depth + 1) {
+                self.unsafe_neg_edges.push(Vec::new());
             }
         }
 
-        self.unsafe_edges
-            .get_mut(dist as usize)
+        self.unsafe_neg_edges
+            .get_mut(depth as usize)
             .unwrap()
-            .push((edge, weight));
+            .push(edge);
     }
 
-    // Another worker has requested the final assignment of a `vertex`
-    fn process_request(&mut self, vertex: &V, requester: WorkerId, weight: Weight, distance: u32) {
-        let mut weight = weight;
+    /// Process a request from another worker. We either answer immediately if we know the
+    /// assignment of the requested vertex, or we explore it and mark the other as being
+    /// interested in the assignment of the vertex.
+    fn process_request(&mut self, vertex: &V, requester: WorkerId, depth: u32) {
+        self.dirty = true;
         trace!(
             ?vertex,
             ?requester,
-            ?weight,
-            distance,
+            depth,
             "got request for vertex assignment"
         );
         #[cfg(feature = "use-counts")]
         eprintln!("worker process_request");
-        if let Some(assigned) = self.assignment.get(&vertex) {
+        if let Some(assignment) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
-            match assigned {
-                VertexAssignment::FALSE => {
-                    return self.broker.send(
-                        requester,
-                        Message::ANSWER {
-                            vertex: vertex.clone(),
-                            assignment: VertexAssignment::FALSE,
-                            weight,
-                        },
-                    );
-                }
-                VertexAssignment::TRUE => {
-                    return self.broker.send(
-                        requester,
-                        Message::ANSWER {
-                            vertex: vertex.clone(),
-                            assignment: VertexAssignment::TRUE,
-                            weight,
-                        },
-                    );
-                }
-                _ => {
-                    // update distance
-                    let dist = *self.distances.get(vertex).unwrap_or(&0);
-                    self.distances.insert(vertex.clone(), max(dist, distance));
+            if assignment.is_certain() {
+                self.broker.send(
+                    requester,
+                    Message::ANSWER {
+                        vertex: vertex.clone(),
+                        assignment: *assignment,
+                    },
+                );
+            } else {
+                // update depth
+                let local_depth = *self.depth.get(vertex).unwrap_or(&0);
+                self.depth.insert(vertex.clone(), max(local_depth, depth));
+                self.mark_interest(vertex, requester);
+            }
+        } else {
+            // Final assignment of `vertex` is not yet known
 
-                    self.mark_interest(vertex, requester);
+            // update depth
+            let local_depth = *self.depth.get(vertex).unwrap_or(&0);
+            self.depth.insert(vertex.clone(), max(local_depth, depth));
+            self.mark_interest(vertex, requester);
 
-                    if self.depends.contains_key(vertex) {
-                        if let Some(assignment) = self.assignment.get(vertex) {
-                            if let VertexAssignment::UNDECIDED = assignment {
-                                let (weight_for_task, remaining_weight) =
-                                    weight.split().unwrap_or_else(|_| {
-                                        panic!("Worker {} ran out of weight", self.id)
-                                    });
-                                weight = remaining_weight;
-                                self.explore(vertex, weight_for_task)
-                            }
-                        }
-                    }
-                }
+            if self.assignment.get(&vertex).is_none() {
+                // UNEXPLORED
+                self.explore(&vertex);
             }
         }
-        // Final assignment of `vertex` is not yet known
-        self.mark_interest(vertex, requester);
-        if self.assignment.get(&vertex).is_none() {
-            // UNEXPLORED
-            self.explore(&vertex, weight);
-        } else {
-            self.broker.return_weight(weight);
-        }
     }
 
-    fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment, weight: Weight) {
-        trace!(?vertex, ?assigned, ?weight, "received final assignment");
-        self.final_assign(vertex, assigned, weight);
+    /// Process an answer by applying the given assignment
+    fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
+        self.dirty = true;
+        trace!(?vertex, ?assigned, "received final assignment");
+        self.final_assign(vertex, assigned);
     }
 
-    fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment, weight: Weight) {
-        let mut weight = weight;
-        // Line 2
-        if *vertex == self.v0 {
-            self.broker.terminate(assignment);
-            // Don't bother returning the weight, this is early termination
-            return;
-        }
-        // Line 3
-        let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
-        let changed_assignment = prev_assignment != Some(assignment);
-        debug!(
-            ?prev_assignment,
-            new_assignment = ?assignment,
-            ?vertex,
-            final_again =
-                !(prev_assignment == Some(VertexAssignment::UNDECIDED) || prev_assignment == None),
-            changed_assignment,
-            "final assigned"
-        );
+    /// Set the assignment of the given vertex. Dependent edges are requeued and interested
+    /// workers are notified of the assignment.
+    fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
+        debug!(?assignment, ?vertex, "final assigned");
         #[cfg(feature = "use-counts")]
         eprintln!("worker final_assign");
 
+        // Line 2
+        if *vertex == self.v0 {
+            // We found the result of the query
+            self.broker.return_result(assignment);
+            return;
+        }
+
+        // Line 3
+        let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
+        let changed_assignment = prev_assignment != Some(assignment);
+
+        // There are a few cases, where we redundantly assign a vertex to what it already is:
+        // - An unsafe negation edge, turned out to be safe, and now it has been release
+        // - We request the assignment of a vertex multiple times and we get two answers due to
+        //   race conditions
         if changed_assignment {
-            // Line 4
+            // Line 4 - Notify other workers interested in this assignment
             if let Some(interested) = self.interests.get(&vertex) {
                 for worker_id in interested {
-                    let (new_weight, split_weight) = weight
-                        .split()
-                        .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
-                    weight = new_weight;
                     self.broker.send(
                         *worker_id,
                         Message::ANSWER {
                             vertex: vertex.clone(),
                             assignment,
-                            weight: split_weight,
                         },
                     )
                 }
             }
 
-            // Line 5
+            // Line 5 - Requeue edges that depend on this assignment
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
-                    let (new_weight, split_weight) = weight
-                        .split()
-                        .unwrap_or_else(|_| panic!("Ran out of weight on worker {}", self.id));
-                    weight = new_weight;
-                    trace!(
-                        ?edge,
-                        ?weight,
-                        "requeueing edg because edge have received final assignment"
-                    );
+                    trace!(?edge, "requeueing edge because target got assignment");
                     match edge {
-                        Edges::HYPER(edge) => {
-                            self.broker.queue_hyper(self.id, edge.clone(), split_weight)
-                        }
-                        Edges::NEGATION(edge) => self.queue_negation(edge.clone(), split_weight),
+                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
+                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
                     }
                 }
             }
         }
-
-        trace!(?weight, "returning remaining weight to controller");
-        self.broker.return_weight(weight);
     }
 
     /// Helper function for deleting edges from a vertex.
-    fn delete_edge(&mut self, edge: Edges<V>, weight: Weight) {
-        // Get v
-        let source = match edge {
-            Edges::HYPER(ref edge) => edge.source.clone(),
-            Edges::NEGATION(ref edge) => edge.source.clone(),
-        };
+    fn delete_edge(&mut self, edge: Edges<V>) {
+        let source = edge.source();
 
-        // Initializes the successors hashmap for key source
-        if let Some(successors) = self.successors.get_mut(&source) {
-            successors.remove(&edge);
-        } else {
-            let mut successors = self.edg.succ(&source);
-            trace!(?successors, remove_edge = ?edge, "initializing successors hashmap in edg::delete_edge");
-            successors.remove(&edge);
-            self.successors.insert(source.clone(), successors);
-        }
+        // Remove edge from source
+        self.successors.get_mut(source).unwrap().remove(&edge);
 
-        match self.successors.get(&source) {
+        match self.successors.get(source) {
             None => panic!("successors should have been filled, or at least have a empty vector"),
             Some(successors) => {
                 // Line 3
@@ -734,12 +723,9 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                     trace!(
                         ?source,
                         assignment = ?VertexAssignment::FALSE,
-                        ?weight,
                         "no more successors, final assignment is FALSE"
                     );
-                    self.final_assign(&source, VertexAssignment::FALSE, weight);
-                } else {
-                    self.broker.return_weight(weight);
+                    self.final_assign(source, VertexAssignment::FALSE);
                 }
             }
         }
@@ -763,10 +749,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
     /// See documentation for the `successors` field.
     fn succ(&mut self, vertex: &V) -> HashSet<Edges<V>> {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker succ");
         if let Some(successors) = self.successors.get(vertex) {
             debug!(?vertex, ?successors, known_vertex = true, "edg::succ");
+            #[cfg(feature = "use-counts")]
+            eprintln!("worker succ cached");
             // List of successors is already allocated for the vertex
             successors.clone()
         } else {
@@ -779,6 +765,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 known_vertex = false,
                 "loaded successors from EDG"
             );
+            #[cfg(feature = "use-counts")]
+            eprintln!("worker succ generated");
             successors
         }
     }
@@ -843,7 +831,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_dcz_general_03() {
         simple_edg![
             A => -> {B} -> {E};
@@ -934,7 +921,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_dcz_negation_01() {
         simple_edg![
             A => .> B;
@@ -945,7 +931,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn test_dcz_negation_02() {
         simple_edg![
             A => .> B;
@@ -983,5 +968,23 @@ mod test {
         ];
         edg_assert!(A, TRUE);
         edg_assert!(B, FALSE);
+    }
+
+    #[test]
+    fn test_dcz_negation_05() {
+        simple_edg![
+            A => .> B;
+            B => .> C;
+            C => .> D;
+            D => .> E;
+            E => .> F;
+            F => -> {F};
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, TRUE);
+        edg_assert!(D, FALSE);
+        edg_assert!(E, TRUE);
+        edg_assert!(F, FALSE);
     }
 }

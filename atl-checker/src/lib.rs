@@ -11,7 +11,6 @@ mod simple_edg;
 pub mod atl;
 mod com;
 mod common;
-mod distterm;
 pub mod edg;
 pub mod lcgs;
 mod printer;
