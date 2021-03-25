@@ -102,18 +102,19 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
     pub fn new(worker_count: u64) -> (VecDeque<Self>, ChannelBrokerManager) {
         // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
-        let mut msg_receivers = VecDeque::with_capacity(worker_count as usize);
+        let mut msg_receivers = Vec::with_capacity(worker_count as usize);
 
         for _ in 0..worker_count {
             let (sender, receiver) = unbounded();
             msg_senders.push(sender);
-            msg_receivers.push_back(receiver);
+            msg_receivers.push(receiver);
         }
 
         let (result_tx, result_rx) = unbounded();
 
         let brokers = msg_receivers
             .drain(0..msg_receivers.len())
+            .rev()
             .map(|receiver| Self {
                 workers: msg_senders.clone(),
                 result: result_tx.clone(),
