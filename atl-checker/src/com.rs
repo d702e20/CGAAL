@@ -1,6 +1,5 @@
 use crate::common::{Message, VertexAssignment, WorkerId};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
 
