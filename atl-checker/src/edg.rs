@@ -604,6 +604,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             depth,
             "got request for vertex assignment"
         );
+        debug_assert!(self.is_owner(vertex));
         #[cfg(feature = "use-counts")]
         eprintln!("worker process_request");
         if let Some(assignment) = self.assignment.get(&vertex) {
