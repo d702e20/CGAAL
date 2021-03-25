@@ -41,7 +41,7 @@ pub fn distributed_certain_zero<
             i,
             worker_count,
             v0.clone(),
-            brokers.pop_front().unwrap(),
+            brokers.pop().unwrap(),
             edg.clone(),
         );
         thread::spawn(move || {
