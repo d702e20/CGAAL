@@ -112,7 +112,7 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
         let (result_tx, result_rx) = unbounded();
 
         let brokers = msg_receivers
-            .drain(0..msg_receivers.len())
+            .drain(..)
             .map(|receiver| Self {
                 workers: msg_senders.clone(),
                 result: result_tx.clone(),
