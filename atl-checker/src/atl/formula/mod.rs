@@ -3,6 +3,7 @@ mod parser;
 use crate::atl::common::{Player, Proposition};
 pub(crate) use crate::atl::formula::parser::*;
 use joinery::prelude::*;
+use std::cmp::max;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
@@ -77,6 +78,116 @@ pub enum Phi {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
+}
+
+impl Phi {
+    /// Returns the size of the formula. This is equivalent to the number of nodes in the
+    /// phi structure
+    pub fn size(&self) -> u32 {
+        match self {
+            Phi::True => 1,
+            Phi::False => 1,
+            Phi::Proposition(_) => 1,
+            Phi::Not(formula) => formula.size() + 1,
+            Phi::Or(formula1, formula2) => formula1.size() + formula2.size() + 1,
+            Phi::And(formula1, formula2) => formula1.size() + formula2.size() + 1,
+            Phi::DespiteNext { formula, .. } => formula.size() + 1,
+            Phi::EnforceNext { formula, .. } => formula.size() + 1,
+            Phi::DespiteUntil { pre, until, .. } => pre.size() + until.size() + 1,
+            Phi::EnforceUntil { pre, until, .. } => pre.size() + until.size() + 1,
+            Phi::DespiteEventually { formula, .. } => formula.size() + 1,
+            Phi::EnforceEventually { formula, .. } => formula.size() + 1,
+            Phi::DespiteInvariant { formula, .. } => formula.size() + 1,
+            Phi::EnforceInvariant { formula, .. } => formula.size() + 1,
+        }
+    }
+
+    /// Returns the depth of the formula. This is equivalent to the longest branch in the
+    /// phi structure
+    pub fn depth(&self) -> u32 {
+        match self {
+            Phi::True => 1,
+            Phi::False => 1,
+            Phi::Proposition(_) => 1,
+            Phi::Not(formula) => formula.size() + 1,
+            Phi::Or(formula1, formula2) => max(formula1.depth(), formula2.depth()) + 1,
+            Phi::And(formula1, formula2) => max(formula1.depth(), formula2.depth()) + 1,
+            Phi::DespiteNext { formula, .. } => formula.depth() + 1,
+            Phi::EnforceNext { formula, .. } => formula.depth() + 1,
+            Phi::DespiteUntil { pre, until, .. } => max(pre.depth(), until.depth()) + 1,
+            Phi::EnforceUntil { pre, until, .. } => max(pre.depth(), until.depth()) + 1,
+            Phi::DespiteEventually { formula, .. } => formula.depth() + 1,
+            Phi::EnforceEventually { formula, .. } => formula.depth() + 1,
+            Phi::DespiteInvariant { formula, .. } => formula.depth() + 1,
+            Phi::EnforceInvariant { formula, .. } => formula.depth() + 1,
+        }
+    }
+
+    /// Returns the number of path qualifiers in the formula. E.g.
+    /// * `p & q` returns 0
+    /// * `<<p1>> F s` returns 1
+    /// * `(<<p1>> F s) | (<<p2>> F t)` returns 2
+    /// * `<<>> G ([[p1]] F s)` returns 2
+    pub fn path_qualifier_count(&self) -> u32 {
+        match self {
+            Phi::True => 0,
+            Phi::False => 0,
+            Phi::Proposition(_) => 0,
+            Phi::Not(formula) => formula.path_qualifier_count(),
+            Phi::Or(formula1, formula2) => {
+                formula1.path_qualifier_count() + formula2.path_qualifier_count()
+            }
+            Phi::And(formula1, formula2) => {
+                formula1.path_qualifier_count() + formula2.path_qualifier_count()
+            }
+            Phi::DespiteNext { formula, .. } => formula.path_qualifier_count() + 1,
+            Phi::EnforceNext { formula, .. } => formula.path_qualifier_count() + 1,
+            Phi::DespiteUntil { pre, until, .. } => {
+                pre.path_qualifier_count() + until.path_qualifier_count() + 1
+            }
+            Phi::EnforceUntil { pre, until, .. } => {
+                pre.path_qualifier_count() + until.path_qualifier_count() + 1
+            }
+            Phi::DespiteEventually { formula, .. } => formula.path_qualifier_count() + 1,
+            Phi::EnforceEventually { formula, .. } => formula.path_qualifier_count() + 1,
+            Phi::DespiteInvariant { formula, .. } => formula.path_qualifier_count() + 1,
+            Phi::EnforceInvariant { formula, .. } => formula.path_qualifier_count() + 1,
+        }
+    }
+
+    /// Returns the biggest number of nested path qualifiers in the formula. E.g.
+    /// * `p & q` returns 0
+    /// * `<<p1>> F s` returns 1
+    /// * `(<<p1>> F s) | (<<p2>> F t)` returns 1
+    /// * `<<>> G ([[p1]] F s)` returns 2
+    pub fn path_qualifier_depth(&self) -> u32 {
+        match self {
+            Phi::True => 0,
+            Phi::False => 0,
+            Phi::Proposition(_) => 0,
+            Phi::Not(formula) => formula.path_qualifier_depth(),
+            Phi::Or(formula1, formula2) => max(
+                formula1.path_qualifier_depth(),
+                formula2.path_qualifier_depth(),
+            ),
+            Phi::And(formula1, formula2) => max(
+                formula1.path_qualifier_depth(),
+                formula2.path_qualifier_depth(),
+            ),
+            Phi::DespiteNext { formula, .. } => formula.path_qualifier_depth() + 1,
+            Phi::EnforceNext { formula, .. } => formula.path_qualifier_depth() + 1,
+            Phi::DespiteUntil { pre, until, .. } => {
+                max(pre.path_qualifier_depth(), until.path_qualifier_depth()) + 1
+            }
+            Phi::EnforceUntil { pre, until, .. } => {
+                max(pre.path_qualifier_depth(), until.path_qualifier_depth()) + 1
+            }
+            Phi::DespiteEventually { formula, .. } => formula.path_qualifier_depth() + 1,
+            Phi::EnforceEventually { formula, .. } => formula.path_qualifier_depth() + 1,
+            Phi::DespiteInvariant { formula, .. } => formula.path_qualifier_depth() + 1,
+            Phi::EnforceInvariant { formula, .. } => formula.path_qualifier_depth() + 1,
+        }
+    }
 }
 
 impl Display for Phi {
