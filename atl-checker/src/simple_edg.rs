@@ -65,7 +65,7 @@ macro_rules! simple_edg {
             fn succ(
                 &self,
                 vertex: &$vertex_name,
-            ) -> HashSet<Edges<$vertex_name>> {
+            ) -> HashSet<Edges<$vertex_name>, crate::hasher::EdgHasher> {
                 simple_edg![@match vertex_name=$vertex_name, vertex $( $v => $( -> { $( $t ),* } )* $( .> $n )* );*;]
             }
         }
@@ -75,7 +75,7 @@ macro_rules! simple_edg {
         match $vertex {
             $($vertex_name::$v => {
                 #[allow(unused_mut)]
-                let mut successors = HashSet::new();
+                let mut successors = HashSet::with_hasher(crate::hasher::EdgHasher::default());
                 $(successors.insert(Edges::HYPER(HyperEdge {
                     source: $vertex_name::$v,
                     targets: vec![$($vertex_name::$t),*],

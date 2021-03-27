@@ -22,7 +22,6 @@ use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::edg::distributed_certain_zero;
-use crate::hasher::EdgHasher;
 use crate::lcgs::ast::DeclKind;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::ir::symbol_table::Owner;
