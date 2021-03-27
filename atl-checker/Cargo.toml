@@ -39,4 +39,4 @@ joinery = "2.0.0"
 git-version = "0.3.4"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
-fasthash = { git = "https://github.com/flier/rust-fasthash", rev = "3eeed281cc1f6950ad2da6ba7bf56700fc7a0e1f" }
+fasthash = "0.4.0"
