@@ -2,10 +2,10 @@
 use fasthash::FastHasher;
 use std::marker::PhantomData;
 
-//#[cfg(not(target_os = "windows"))]
-//pub type EdgHasher = FixedState<fasthash::xx::Hash64>;
+#[cfg(not(target_os = "windows"))]
+pub type EdgHasher = FixedState<fasthash::xx::Hash64>;
 
-//#[cfg(target_os = "windows")]
+#[cfg(target_os = "windows")]
 pub type EdgHasher = std::collections::hash_map::RandomState;
 
 #[cfg(not(target_os = "windows"))]
