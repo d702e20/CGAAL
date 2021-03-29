@@ -147,22 +147,8 @@ bench_lcgs!(
 // peterson
 bench_lcgs!(
     peterson_3_ensure_mutual_exclusion,
-    "peterson/3/peterson-03.lcgs",
-    "peterson/3/ensure-mutual-exclusion-TRUE-03.json"
-);
-
-// power control
-bench_lcgs!(
-    power_control_p1_enforce_eventually_p1_quality_greatest,
-    "power_control_in_cellular_networks/power_control_in_cellular_networks.lcgs",
-    "power_control_in_cellular_networks/p1_enforce_eventually_p1_quality_greatest_TRUE.json"
-);
-
-// public good game
-bench_lcgs!(
-    public_good_game_can_p1_get_capped_before_p2,
-    "public_good_game/public_good_game.lcgs",
-    "public_good_game/can_p1_get_capped_before_p2_FALSE.json"
+    "peterson/3/peterson_03.lcgs",
+    "peterson/3/ensure_mutual_exclusion_TRUE_03.json"
 );
 
 // robot grid
@@ -241,22 +227,8 @@ bench_lcgs_threads!(
 // peterson
 bench_lcgs_threads!(
     peterson_3_ensure_mutual_exclusion_threads,
-    "peterson/3/peterson-03.lcgs",
-    "peterson/3/ensure-mutual-exclusion-TRUE-03.json"
-);
-
-// power control
-bench_lcgs_threads!(
-    power_control_p1_enforce_eventually_p1_quality_greatest_threads,
-    "power_control_in_cellular_networks/power_control_in_cellular_networks.lcgs",
-    "power_control_in_cellular_networks/p1_enforce_eventually_p1_quality_greatest_TRUE.json"
-);
-
-// public good game
-bench_lcgs_threads!(
-    public_good_game_can_p1_get_capped_before_p2_threads,
-    "public_good_game/public_good_game.lcgs",
-    "public_good_game/can_p1_get_capped_before_p2_FALSE.json"
+    "peterson/3/peterson_03.lcgs",
+    "peterson/3/ensure_mutual_exclusion_TRUE_03.json"
 );
 
 // robot grid
@@ -307,8 +279,6 @@ criterion_group!(
     matching_pennies_can_odd_win_round_eventually,
     matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum,
     peterson_3_ensure_mutual_exclusion,
-    power_control_p1_enforce_eventually_p1_quality_greatest,
-    //public_good_game_can_p1_get_capped_before_p2, // broken model
     //robot_grid_can_r1_and_r2_swap_with_help_from_r3, // a single run takes ~500s @ 1 thread
     //robot_grid_exist_path_to_targets_with_no_crashes, // a single run takes ~500s @ 1 thread
     rock_paper_scissors_p1_always_wins,
@@ -325,8 +295,6 @@ criterion_group!(
     matching_pennies_can_odd_win_round_eventually_threads,
     matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum_threads,
     peterson_3_ensure_mutual_exclusion_threads,
-    power_control_p1_enforce_eventually_p1_quality_greatest_threads,
-    //public_good_game_can_p1_get_capped_before_p2_threads, // broken model
     //robot_grid_can_r1_and_r2_swap_with_help_from_r3_threads, // a single run takes ~500s @ 1 thread
     //robot_grid_exist_path_to_targets_with_no_crashes_threads, // a single run takes ~500s @ 1 thread
     rock_paper_scissors_p1_always_wins_threads,
