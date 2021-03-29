@@ -89,11 +89,11 @@ impl Phi {
     /// Given a Phi `formula` (`<<p1>> G p1.alive`) and a IntermediateLCGS `game_Structure`, you can
     /// create a GamePhi with `formula.in_context_of(&game_structure)`. Using this in a print statement
     /// like
-    /// ```
+    /// ```ignore
     /// println!("{}", formula.in_context_of(&game_structure))
     /// ```
     /// will print "`<<p1>> G p1.alive`" as opposed to "`<<0>> G 1`", which happens when you just write
-    /// ```
+    /// ```ignore
     /// println!("{}", formula)
     /// ```
     pub fn in_context_of<'a, G: GameStructure>(&'a self, game_structure: &'a G) -> GamePhi<'a, G> {
