@@ -91,6 +91,10 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// A flag to keep track of whether or not this worker has seen safe work since last time it
     /// saw the termination token
     dirty: bool,
+    /// This flag indicates that there are only unsafe negation edges, backpropagations, and
+    /// message left as tasks. We know this is the case when the first unsafe negation edges
+    /// are released, because at that point no workers must have had any safe work left.
+    only_unsafe_left: bool,
 }
 
 impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
@@ -139,6 +143,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             edg,
             token_in_circulation: false,
             dirty: false,
+            only_unsafe_left: false,
         }
     }
 
@@ -375,6 +380,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Releasing the edges from the unsafe queue to the safe negation
     fn release_negations(&mut self, depth: usize) {
         self.dirty = true;
+        self.only_unsafe_left = true;
         trace!(
             depth = self.unsafe_neg_edges.len(),
             "releasing previously unsafe negation edges"
@@ -556,8 +562,18 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
-                    trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                    if self.only_unsafe_left {
+                        // This is a released negation edge
+                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing released negation edge");
+                        self.final_assign(&edge.source, VertexAssignment::TRUE)
+                    } else {
+                        // We haven't released any negation edges yet, so the undecided assignment
+                        // must be from another branch of the EDG. Hence, we add this edge as an
+                        // unsafe dependency
+                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
+                        self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
+                        self.queue_unsafe_negation(edge.clone())
+                    }
                 }
                 VertexAssignment::FALSE => {
                     trace!(?edge, assignment = ?VertexAssignment::FALSE, "processing negation edge");
@@ -972,5 +988,31 @@ mod test {
         edg_assert!(D, FALSE);
         edg_assert!(E, TRUE);
         edg_assert!(F, FALSE);
+    }
+
+    #[test]
+    fn test_dcz_negation_to_undecided_01() {
+        // A case where we might explore and find a negation edges to something that is
+        // currently assigned undecided
+        simple_edg![
+            A => .> B .> E;
+            B => -> {C};
+            C => -> {D};
+            D => .> E;
+            E => -> {F};
+            F => -> {G};
+            G => -> {H};
+            H => -> {I};
+            I => -> {J};
+            J => -> {K};
+            K => -> {};
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, FALSE);
+        edg_assert!(D, FALSE);
+        edg_assert!(E, TRUE);
+        edg_assert!(F, TRUE);
+        edg_assert!(G, TRUE);
     }
 }
