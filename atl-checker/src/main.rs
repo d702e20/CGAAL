@@ -41,6 +41,7 @@ mod edg;
 mod lcgs;
 #[cfg(feature = "graph-printer")]
 mod printer;
+mod search_strategy;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
