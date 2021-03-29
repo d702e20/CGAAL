@@ -4,7 +4,6 @@ use std::collections::HashSet;
 pub use eager::EagerGameStructure;
 
 use crate::atl::common::{Action, Player, Proposition, State};
-use std::fmt::Formatter;
 
 mod eager;
 
