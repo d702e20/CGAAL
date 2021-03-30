@@ -9,7 +9,6 @@ use crate::com::{Broker, BrokerManager, ChannelBroker};
 use crate::common::{
     Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
-use crate::search_strategy::bfs::BreadthFirstSearch;
 use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::cmp::max;
 use std::thread::sleep;
