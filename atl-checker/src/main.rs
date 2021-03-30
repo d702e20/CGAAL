@@ -192,15 +192,20 @@ fn main_inner() -> Result<(), String> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula, _raw_phi| {
-                    let v0 = ATLVertex::FULL { state: 0, formula };
+                |game_structure, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
                     analyse_model(graph, v0);
                 },
-                |graph, formula, _raw_phi| {
+                |game_structure, formula| {
                     let v0 = ATLVertex::FULL {
-                        state: graph.game_structure.initial_state_index(),
-                        formula,
+                        state: game_structure.initial_state_index(),
+                        formula: Arc::from(formula),
                     };
+                    let graph = ATLDependencyGraph { game_structure };
                     analyse_model(graph, v0);
                 },
             )?
