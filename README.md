@@ -2,7 +2,7 @@
 
 This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGSs).
 It uses an on-the-fly evaluation method as opposed to calculating the fixed point like PRISM does.
-With this lazy method we avoid generating the whole graph, and it is therefore faster in most cases.
+With this lazy method we avoid generating the whole graph, and it is therefore an order of magnitude faster in most cases.
 
 The ATL-checker also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
 its syntax is inspired by PRISM-lang, however, the concepts of synchronization and modules are very different.  
