@@ -31,6 +31,7 @@ use crate::lcgs::ir::symbol_table::Owner;
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
+use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
 
 #[macro_use]
 mod simple_edg;
@@ -130,7 +131,8 @@ fn main_inner() -> Result<(), String> {
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = distributed_certain_zero(graph, v0, threads);
+                let result =
+                    distributed_certain_zero(graph, v0, threads, BreadthFirstSearchBuilder);
                 println!("Result: {}", result);
             }
 

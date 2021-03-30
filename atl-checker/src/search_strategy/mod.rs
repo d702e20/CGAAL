@@ -24,3 +24,7 @@ pub trait SearchStrategy<V: Vertex> {
         self.queue_new_edges(set)
     }
 }
+
+pub trait SearchStrategyBuilder<V: Vertex, S: SearchStrategy<V>> {
+    fn build(&self) -> S;
+}

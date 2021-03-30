@@ -10,7 +10,7 @@ use crate::common::{
     Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
 use crate::search_strategy::bfs::BreadthFirstSearch;
-use crate::search_strategy::SearchStrategy;
+use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::cmp::max;
 use std::thread::sleep;
 use std::time::Duration;
@@ -29,10 +29,13 @@ pub trait ExtendedDependencyGraph<V: Vertex> {
 pub fn distributed_certain_zero<
     G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
     V: Vertex + Send + Sync + 'static,
+    S: SearchStrategy<V> + Send + 'static,
+    SB: SearchStrategyBuilder<V, S>,
 >(
     edg: G,
     v0: V,
     worker_count: u64,
+    ss_builder: SB,
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
@@ -45,7 +48,7 @@ pub fn distributed_certain_zero<
             v0.clone(),
             brokers.pop().unwrap(),
             edg.clone(),
-            BreadthFirstSearch::new(),
+            ss_builder.build(),
         );
         thread::spawn(move || {
             trace!("worker thread start");
@@ -774,6 +777,7 @@ mod test {
 
     use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
+    use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
 
     #[test]
     fn test_dcz_empty_hyper_edge() {
