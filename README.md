@@ -1,15 +1,15 @@
 # atl-checker
 
 This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGSs).
-It uses a on-the-fly evaluation method as opposed to calculating the fixed point like PRISM do.
-This lazy method avoids having to generate the whole graph, and is therefore faster in most cases (has yet to be proved).
+It uses an on-the-fly evaluation method as opposed to calculating the fixed point like PRISM does.
+With this lazy method we avoid generating the whole graph, and it is therefore an order of magnitude faster in most cases.
 
 The ATL-checker also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
-it's syntax is inspired by PRISM-lang, however, the concepts of syncronization and modules are very different.  
+its syntax is inspired by PRISM-lang, however, the concepts of synchronization and modules are very different.  
 
 ## Example of how to use
 
-We want to check if a cowboy can guarantee stay alive in a 3-way Mexican standoff.
+Let's say we want to check if a cowboy can guarantee staying alive in a 3-way Mexican standoff.
 The standoff is simulated in rounds and in each round a cowboy can choose to wait, shoot the cowboy to the right, or shoot the cowboy to the left.
 If a cowboy is hit by two bullets, he dies.
 
@@ -37,26 +37,16 @@ endtemplate
 ```
 
 We can now use ATL logic and query whether there exists a strategy for Billy that guarantees that he survives.
-The ATL formula is given in json:
+The ATL formula is given below in a file called `billy-can-stay-alive.atl`:
 
-
-```json
-{
-  "enforce invariant": {
-    "players": [0],
-    "formula": {
-      "proposition": 0
-    }
-  }
-}
 ```
-
-Here `"players": [0]` refers to Billy, and `"proposition": 0` refers to Billy's label called "alive".
+<<billy>> G billy.alive
+```
 
 We now call the atl-checker with the following arguments
 
 ```
-./atl-checker solver -m standoff.lcgs -f billy-stays-alive.json
+./atl-checker solver -m standoff.lcgs -f billy-can-stay-alive.atl
 ```
 
-The result turns out to be FALSE. Billy cannot guarantee to stay alive.
+The result turns out to be false. Billy cannot guarantee to stay alive.
