@@ -1,4 +1,4 @@
-mod bfs;
+pub mod bfs;
 
 use crate::common::{Edges, NegationEdge};
 use crate::edg::Vertex;
@@ -19,6 +19,8 @@ pub trait SearchStrategy<V: Vertex> {
 
     /// Requeue an edge because one of its targets was assigned a certain value
     fn queue_back_propagation(&mut self, edge: Edges<V>) {
-        self.queue_new_edges(Some(edge).iter().collect())
+        let mut set = HashSet::new();
+        set.insert(edge);
+        self.queue_new_edges(set)
     }
 }

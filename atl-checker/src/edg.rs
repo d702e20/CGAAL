@@ -9,6 +9,8 @@ use crate::com::{Broker, BrokerManager, ChannelBroker};
 use crate::common::{
     Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
+use crate::search_strategy::bfs::BreadthFirstSearch;
+use crate::search_strategy::SearchStrategy;
 use std::cmp::max;
 use std::thread::sleep;
 use std::time::Duration;
@@ -43,6 +45,7 @@ pub fn distributed_certain_zero<
             v0.clone(),
             brokers.pop().unwrap(),
             edg.clone(),
+            BreadthFirstSearch::new(),
         );
         thread::spawn(move || {
             trace!("worker thread start");
@@ -58,7 +61,8 @@ pub fn distributed_certain_zero<
 }
 
 #[derive(Debug)]
-struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
+struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S: SearchStrategy<V>>
+{
     id: WorkerId,
     /// Number of workers working on solving the query. This is used as part of the static allocation scheme, see `crate::Worker::vertex_owner`.
     worker_count: u64,
@@ -76,9 +80,9 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// Example: If there exists a path from v0 to a vertex, which contains two negation edges, then depth will be two (or more if there is a path with more negation edges).
     depth: HashMap<V, u32>,
     msg_queue: VecDeque<Message<V>>,
-    hyper_queue: VecDeque<HyperEdge<V>>,
-    negation_queue: VecDeque<NegationEdge<V>>,
     unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
+    /// Search strategy. Defines in which order edges are processed
+    strategy: S,
     /// Used to communicate with other workers
     broker: B,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
@@ -97,8 +101,12 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     only_unsafe_left: bool,
 }
 
-impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
-    Worker<B, G, V>
+impl<
+        B: Broker<V> + Debug,
+        G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
+        V: Vertex,
+        S: SearchStrategy<V>,
+    > Worker<B, G, V, S>
 {
     /// Determines which worker instance is responsible for computing the value of the vertex.
     /// Vertices are allocated to workers using a static allocation scheme. Dynamic addition and removal of workers isn't supported with this method.
@@ -117,7 +125,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G) -> Self {
+    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G, strategy: S) -> Self {
         trace!(
             worker_id = id,
             worker_count,
@@ -134,9 +142,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             depends: HashMap::<V, HashSet<Edges<V>>>::new(),
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_queue: VecDeque::new(),
-            hyper_queue: VecDeque::new(),
-            negation_queue: VecDeque::new(),
             unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            strategy,
             depth: HashMap::<V, u32>::new(),
             broker,
             successors: HashMap::<V, HashSet<Edges<V>>>::new(),
@@ -354,23 +361,15 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 _ => unreachable!(),
             }
             return true;
-        } else if let Some(edge) = self.hyper_queue.pop_front() {
-            let _guard = span!(
-                Level::TRACE,
-                "worker receive hyper-edge",
-                worker_id = self.id,
-                ?edge,
-            );
-            self.process_hyper_edge(edge);
-            return true;
-        } else if let Some(edge) = self.negation_queue.pop_front() {
-            let _guard = span!(
-                Level::TRACE,
-                "worker receive negation-edge",
-                worker_id = self.id,
-                ?edge,
-            );
-            self.process_negation_edge(edge);
+        } else if let Some(edge) = self.strategy.next() {
+            match edge {
+                Edges::HYPER(e) => {
+                    self.process_hyper_edge(e);
+                }
+                Edges::NEGATION(e) => {
+                    self.process_negation_edge(e);
+                }
+            }
             return true;
         }
         // No tasks
@@ -400,10 +399,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         if let Some(edges) = self.unsafe_neg_edges.pop() {
             // Queue all edges in the negation channel that have the given depth
-            for edge in edges {
-                trace!(?edge, "releasing negation edge");
-                self.negation_queue.push_back(edge);
-            }
+            trace!("releasing negation edges");
+            self.strategy.queue_released_edges(edges);
         }
     }
 
@@ -445,12 +442,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             } else {
                 // Line 5
                 // Queue the new edges
-                for edge in &successors {
-                    match edge {
-                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
-                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
-                    }
-                }
+                self.strategy.queue_new_edges(successors);
             }
         } else {
             // Line 7
@@ -701,10 +693,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
                     trace!(?edge, "requeueing edge because target got assignment");
-                    match edge {
-                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
-                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
-                    }
+                    self.strategy.queue_back_propagation(edge)
                 }
             }
         }

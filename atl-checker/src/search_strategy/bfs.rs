@@ -5,8 +5,16 @@ use std::collections::{HashSet, VecDeque};
 
 /// Breadth-first search strategy traverses vertices close to the root first, using a FIFO
 /// (first in, first out) data structure.
-pub struct BreadthFirstSearch<V> {
+pub struct BreadthFirstSearch<V: Vertex> {
     queue: VecDeque<Edges<V>>,
+}
+
+impl<V: Vertex> BreadthFirstSearch<V> {
+    pub fn new() -> BreadthFirstSearch<V> {
+        BreadthFirstSearch {
+            queue: VecDeque::new(),
+        }
+    }
 }
 
 impl<V: Vertex> SearchStrategy<V> for BreadthFirstSearch<V> {
