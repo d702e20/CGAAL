@@ -19,6 +19,7 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
+use crate::atl::formula::game_formula::GamePhi;
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::edg::distributed_certain_zero;
@@ -142,19 +143,29 @@ fn main_inner() -> Result<(), String> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula, raw_phi| {
-                    println!("Checking the formula: {}", formula);
-                    let v0 = ATLVertex::FULL { state: 0, formula };
-                    println!("Solving: {}", raw_phi);
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
                     check_model(graph, v0, threads);
                 },
-                |graph, formula, raw_phi| {
-                    println!("Checking the formula: {}", formula);
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let arc = Arc::from(formula);
+                    let graph = ATLDependencyGraph { game_structure };
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
-                        formula,
+                        formula: arc,
                     };
-                    println!("Solving: {}", raw_phi);
                     check_model(graph, v0, threads);
                 },
             )?
@@ -181,15 +192,20 @@ fn main_inner() -> Result<(), String> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula, _raw_phi| {
-                    let v0 = ATLVertex::FULL { state: 0, formula };
+                |game_structure, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
                     analyse_model(graph, v0);
                 },
-                |graph, formula, _raw_phi| {
+                |game_structure, formula| {
                     let v0 = ATLVertex::FULL {
-                        state: graph.game_structure.initial_state_index(),
-                        formula,
+                        state: game_structure.initial_state_index(),
+                        formula: Arc::from(formula),
                     };
+                    let graph = ATLDependencyGraph { game_structure };
                     analyse_model(graph, v0);
                 },
             )?
@@ -227,17 +243,29 @@ fn main_inner() -> Result<(), String> {
                     input_model_path,
                     formula_path,
                     formula_format,
-                    |graph, formula, raw_phi| {
-                        let v0 = ATLVertex::FULL { state: 0, formula };
-                        println!("Printing graph for: {}", raw_phi);
+                    |game_structure, formula| {
+                        println!(
+                            "Printing graph for: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                        let v0 = ATLVertex::FULL {
+                            state: 0,
+                            formula: Arc::from(formula),
+                        };
+                        let graph = ATLDependencyGraph { game_structure };
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
-                    |graph, formula, raw_phi| {
+                    |game_structure, formula| {
+                        println!(
+                            "Printing graph for: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                        let arc = Arc::from(formula);
+                        let graph = ATLDependencyGraph { game_structure };
                         let v0 = ATLVertex::FULL {
                             state: graph.game_structure.initial_state_index(),
-                            formula,
+                            formula: arc,
                         };
-                        println!("Printing graph for: {}", raw_phi);
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
                 )?
@@ -251,11 +279,7 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula<A: ATLExpressionParser>(
-    path: &str,
-    format: FormulaFormat,
-    expr_parser: &A,
-) -> (String, Arc<Phi>) {
+fn load_formula<A: ATLExpressionParser>(path: &str, format: FormulaFormat, expr_parser: &A) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -267,23 +291,19 @@ fn load_formula<A: ATLExpressionParser>(
         exit(1);
     });
 
-    let phi = match format {
+    match format {
         FormulaFormat::JSON => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
         FormulaFormat::ATL => {
             let result = atl::formula::parse_phi(expr_parser, &raw_phi);
-            Arc::new(result.unwrap_or_else(|err| {
+            result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
-            }))
+            })
         }
-    };
-
-    raw_phi = raw_phi.trim().to_string();
-
-    (raw_phi, phi)
+    }
 }
 
 /// Determine the model type (either "json" or "lcgs") by reading the the
@@ -329,8 +349,8 @@ fn load<R, J, L>(
     handle_lcgs: L,
 ) -> Result<R, String>
 where
-    J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>, String) -> R,
-    L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>, String) -> R,
+    J: FnOnce(EagerGameStructure, Phi) -> R,
+    L: FnOnce(IntermediateLCGS, Phi) -> R,
 {
     // Open the input model file
     let mut file = File::open(game_structure_path)
@@ -346,10 +366,9 @@ where
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
-            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
-            let graph = ATLDependencyGraph { game_structure };
+            let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_json(graph, phi, raw_phi))
+            Ok(handle_json(game_structure, phi))
         }
         ModelType::LCGS => {
             let lcgs = parse_lcgs(&content)
@@ -358,10 +377,9 @@ where
             let game_structure = IntermediateLCGS::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
-            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
-            let graph = ATLDependencyGraph { game_structure };
+            let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_lcgs(graph, phi, raw_phi))
+            Ok(handle_lcgs(game_structure, phi))
         }
     }
 }

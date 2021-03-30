@@ -1,7 +1,10 @@
+pub mod game_formula;
 mod parser;
 
 use crate::atl::common::{Player, Proposition};
+use crate::atl::formula::game_formula::GamePhi;
 pub(crate) use crate::atl::formula::parser::*;
+use crate::atl::gamestructure::GameStructure;
 use joinery::prelude::*;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
@@ -77,6 +80,28 @@ pub enum Phi {
         players: Vec<Player>,
         formula: Arc<Phi>,
     },
+}
+
+impl Phi {
+    /// Pairs an ATL formula with its game structure, allowing us to print
+    /// the formula using the names of players and labels that is defined by the game structure.
+    /// # Example
+    /// Given a Phi `formula` (`<<p1>> G p1.alive`) and a IntermediateLCGS `game_Structure`, you can
+    /// create a GamePhi with `formula.in_context_of(&game_structure)`. Using this in a print statement
+    /// like
+    /// ```ignore
+    /// println!("{}", formula.in_context_of(&game_structure))
+    /// ```
+    /// will print "`<<p1>> G p1.alive`" as opposed to "`<<0>> G 1`", which happens when you just write
+    /// ```ignore
+    /// println!("{}", formula)
+    /// ```
+    pub fn in_context_of<'a, G: GameStructure>(&'a self, game_structure: &'a G) -> GamePhi<'a, G> {
+        GamePhi {
+            formula: self,
+            game: game_structure,
+        }
+    }
 }
 
 impl Display for Phi {
