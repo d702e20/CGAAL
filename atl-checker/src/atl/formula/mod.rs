@@ -1,7 +1,10 @@
+pub mod game_formula;
 mod parser;
 
 use crate::atl::common::{Player, Proposition};
+use crate::atl::formula::game_formula::GamePhi;
 pub(crate) use crate::atl::formula::parser::*;
+use crate::atl::gamestructure::GameStructure;
 use joinery::prelude::*;
 use std::cmp::max;
 use std::fmt::{Display, Formatter};
@@ -188,6 +191,26 @@ impl Phi {
             Phi::EnforceInvariant { formula, .. } => formula.path_qualifier_depth() + 1,
         }
     }
+
+    /// Pairs an ATL formula with its game structure, allowing us to print
+    /// the formula using the names of players and labels that is defined by the game structure.
+    /// # Example
+    /// Given a Phi `formula` (`<<p1>> G p1.alive`) and a IntermediateLCGS `game_Structure`, you can
+    /// create a GamePhi with `formula.in_context_of(&game_structure)`. Using this in a print statement
+    /// like
+    /// ```ignore
+    /// println!("{}", formula.in_context_of(&game_structure))
+    /// ```
+    /// will print "`<<p1>> G p1.alive`" as opposed to "`<<0>> G 1`", which happens when you just write
+    /// ```ignore
+    /// println!("{}", formula)
+    /// ```
+    pub fn in_context_of<'a, G: GameStructure>(&'a self, game_structure: &'a G) -> GamePhi<'a, G> {
+        GamePhi {
+            formula: self,
+            game: game_structure,
+        }
+    }
 }
 
 impl Display for Phi {
@@ -195,19 +218,19 @@ impl Display for Phi {
         match self {
             Phi::True => write!(f, "true"),
             Phi::False => write!(f, "false"),
-            Phi::Proposition(id) => write!(f, "'{}'", id),
-            Phi::Not(formula) => write!(f, "¬({})", formula),
-            Phi::Or(left, right) => write!(f, "({} ∨ {})", left, right),
-            Phi::And(left, right) => write!(f, "({} ∧ {})", left, right),
+            Phi::Proposition(id) => write!(f, "{}", id),
+            Phi::Not(formula) => write!(f, "!({})", formula),
+            Phi::Or(left, right) => write!(f, "({} | {})", left, right),
+            Phi::And(left, right) => write!(f, "({} & {})", left, right),
             Phi::DespiteNext { players, formula } => write!(
                 f,
-                "⟦{}⟧◯{}",
+                "[[{}]] X {}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
             Phi::EnforceNext { players, formula } => write!(
                 f,
-                "⟪{}⟫◯{}",
+                "<<{}>> X {}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
@@ -217,7 +240,7 @@ impl Display for Phi {
                 until,
             } => write!(
                 f,
-                "⟦{}⟧({} 𝑼 {})",
+                "[[{}]] ({} U {})",
                 players.iter().join_with(",").to_string(),
                 pre,
                 until
@@ -228,32 +251,32 @@ impl Display for Phi {
                 until,
             } => write!(
                 f,
-                "⟪{}⟫({} 𝑼 {})",
+                "<<{}>> ({} U {})",
                 players.iter().join_with(",").to_string(),
                 pre,
                 until
             ),
             Phi::DespiteEventually { players, formula } => write!(
                 f,
-                "⟦{}⟧◇{}",
+                "[[{}]] F {}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
             Phi::EnforceEventually { players, formula } => write!(
                 f,
-                "⟪{}⟫◇{}",
+                "<<{}>> F {}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
             Phi::DespiteInvariant { players, formula } => write!(
                 f,
-                "⟦{}⟧□{}",
+                "[[{}]] G {}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
             Phi::EnforceInvariant { players, formula } => write!(
                 f,
-                "⟪{}⟫□{}",
+                "<<{}>> G {}",
                 players.iter().join_with(",").to_string(),
                 formula
             ),
@@ -276,6 +299,6 @@ mod test {
             }),
             until: Arc::new(False),
         };
-        assert_eq!("⟪0,1⟫(('1' ∨ ¬('2')) 𝑼 false)", format!("{}", formula));
+        assert_eq!("<<0,1>> ((1 | !(2)) U false)", format!("{}", formula));
     }
 }
