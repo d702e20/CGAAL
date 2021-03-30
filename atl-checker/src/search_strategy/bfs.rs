@@ -29,6 +29,7 @@ impl<V: Vertex> SearchStrategy<V> for BreadthFirstSearch<V> {
     }
 }
 
+/// A SearchStrategyBuilder for building the BreadthFirstSearch strategy.
 pub struct BreadthFirstSearchBuilder;
 
 impl<V: Vertex> SearchStrategyBuilder<V, BreadthFirstSearch<V>> for BreadthFirstSearchBuilder {
