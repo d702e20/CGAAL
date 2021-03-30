@@ -8,8 +8,6 @@ extern crate serde;
 #[macro_use]
 extern crate tracing;
 
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{stdout, Read, Write};
@@ -24,14 +22,14 @@ use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::game_formula::GamePhi;
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::Edges;
-use crate::edg::{distributed_certain_zero, Vertex};
+use crate::edg::distributed_certain_zero;
 use crate::lcgs::ast::DeclKind;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::lcgs::ir::symbol_table::Owner;
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
+use crate::solve_set::minimum_solve_set;
 
 #[macro_use]
 mod simple_edg;
@@ -42,6 +40,7 @@ mod edg;
 mod lcgs;
 #[cfg(feature = "graph-printer")]
 mod printer;
+mod solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -168,6 +167,41 @@ fn main_inner() -> Result<(), String> {
                         formula: arc,
                     };
                     check_model(graph, v0, threads);
+                },
+            )?
+        }
+        ("analyse", Some(analyse_args)) => {
+            let input_model_path = analyse_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(&analyse_args)?;
+            let formula_path = analyse_args.value_of("formula").unwrap();
+            let formula_format = get_formula_format_from_args(&analyse_args)?;
+
+            fn analyse_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
+            where
+                G: GameStructure + Send + Sync + Clone + Debug + 'static,
+            {
+                let mss = minimum_solve_set(&graph, v0);
+                println!("Configuration: Minimum solve set size");
+                for (vertex, assignment) in mss {
+                    println!("{}: {}", vertex, assignment.len());
+                }
+            }
+
+            load(
+                model_type,
+                input_model_path,
+                formula_path,
+                formula_format,
+                |graph, formula, _raw_phi| {
+                    let v0 = ATLVertex::FULL { state: 0, formula };
+                    analyse_model(graph, v0);
+                },
+                |graph, formula, _raw_phi| {
+                    let v0 = ATLVertex::FULL {
+                        state: graph.game_structure.initial_state_index(),
+                        formula,
+                    };
+                    analyse_model(graph, v0);
                 },
             )?
         }
@@ -418,7 +452,8 @@ fn parse_arguments() -> ArgMatches<'static> {
                     .required(true)
                     .help("The input file to generate model from"),
             ),
-        );
+        )
+        .subcommand(build_common_arguments(SubCommand::with_name("analyse")));
 
     if cfg!(feature = "graph-printer") {
         app.subcommand(build_common_arguments(SubCommand::with_name("graph")))
