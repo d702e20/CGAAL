@@ -53,6 +53,18 @@ pub fn distributed_certain_zero<
     let assignment = manager_broker
         .receive_result()
         .expect("Error receiving final assigment on termination");
+
+    /// The assignments of all nodes is received by main node in order to produce
+    /// a witness that proves or disproves that the formula holds for the given model.
+    let mut assignment_table = HashMap::<V, VertexAssignment>::new();
+    for i in 0..worker_count {
+        let assignments = manager_broker
+            .receive_assignment()
+            .expect("Error receiving the assignment table");
+
+        assignment_table.extend(assignments);
+    }
+
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
     assignment
 }
@@ -225,7 +237,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                         Message::TERMINATE => {
                             #[cfg(feature = "use-counts")]
                             eprintln!("worker received_termination");
-
+                            // Send assignments to main thread for collecting
+                            self.broker.return_assignments(self.assignment.clone());
                             self.running = false;
                         }
                         _ => {
