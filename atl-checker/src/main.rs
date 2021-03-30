@@ -169,12 +169,11 @@ fn main_inner() -> Result<(), String> {
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                println!("Analysing EDG ...");
                 let mss = minimum_solve_set(&graph, v0);
+                println!("Configuration: Minimum solve set size");
                 for (vertex, assignment) in mss {
                     println!("{}: {}", vertex, assignment.len());
                 }
-                println!("Done");
             }
 
             load(
