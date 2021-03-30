@@ -54,10 +54,8 @@ pub fn distributed_certain_zero<
         .receive_result()
         .expect("Error receiving final assigment on termination");
 
-    /// The assignments of all nodes is received by main node in order to produce
-    /// a witness that proves or disproves that the formula holds for the given model.
     let mut assignment_table = HashMap::<V, VertexAssignment>::new();
-    for i in 0..worker_count {
+    for _ in 0..worker_count {
         let assignments = manager_broker
             .receive_assignment()
             .expect("Error receiving the assignment table");
