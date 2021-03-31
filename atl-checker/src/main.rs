@@ -23,7 +23,7 @@ use tracing::trace;
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::Edges;
+use crate::common::Edge;
 use crate::edg::{distributed_certain_zero, Vertex};
 use crate::lcgs::ast::DeclKind;
 use crate::lcgs::ir::intermediate::IntermediateLCGS;

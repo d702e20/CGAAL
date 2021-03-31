@@ -1,4 +1,4 @@
-use crate::common::Edges;
+use crate::common::Edge;
 use crate::edg::Vertex;
 use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::collections::{HashSet, VecDeque};
@@ -6,7 +6,7 @@ use std::collections::{HashSet, VecDeque};
 /// Breadth-first search strategy traverses vertices close to the root first, using a FIFO
 /// (first in, first out) data structure.
 pub struct BreadthFirstSearch<V: Vertex> {
-    queue: VecDeque<Edges<V>>,
+    queue: VecDeque<Edge<V>>,
 }
 
 impl<V: Vertex> BreadthFirstSearch<V> {
@@ -18,11 +18,11 @@ impl<V: Vertex> BreadthFirstSearch<V> {
 }
 
 impl<V: Vertex> SearchStrategy<V> for BreadthFirstSearch<V> {
-    fn next(&mut self) -> Option<Edges<V>> {
+    fn next(&mut self) -> Option<Edge<V>> {
         self.queue.pop_front()
     }
 
-    fn queue_new_edges(&mut self, edges: HashSet<Edges<V>>) {
+    fn queue_new_edges(&mut self, edges: Vec<Edge<V>>) {
         for edge in edges {
             self.queue.push_back(edge);
         }
