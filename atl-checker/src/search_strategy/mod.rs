@@ -1,4 +1,5 @@
 pub mod bfs;
+pub mod linear_optimize;
 
 use crate::common::{Edges, NegationEdge};
 use crate::edg::Vertex;
