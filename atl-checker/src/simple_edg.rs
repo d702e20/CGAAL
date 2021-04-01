@@ -49,14 +49,18 @@ macro_rules! simple_edg {
     };
     // Defines struct and enum
     [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
-        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        use std::collections::HashSet;
+        #[allow(unused_imports)]
+        use crate::common::{Edges, HyperEdge, NegationEdge};
+        use crate::edg::{ExtendedDependencyGraph, Vertex};
+        #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
-        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         enum $vertex_name {
             $( $v ),*
         }
-        impl Display for $vertex_name {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        impl std::fmt::Display for $vertex_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{:?}", self)
             }
         }
