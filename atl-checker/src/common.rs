@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::cmp::Ordering::{Equal, Greater, Less};
+use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -15,6 +18,36 @@ impl VertexAssignment {
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
         return matches!(self, VertexAssignment::TRUE | VertexAssignment::FALSE);
+    }
+
+    pub fn max(self, assignment: VertexAssignment) -> VertexAssignment {
+        if assignment > self {
+            assignment
+        } else {
+            self
+        }
+    }
+}
+
+impl PartialOrd for VertexAssignment {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self {
+            VertexAssignment::UNDECIDED => match other {
+                VertexAssignment::UNDECIDED => Some(Equal),
+                VertexAssignment::FALSE => Some(Less),
+                VertexAssignment::TRUE => Some(Less),
+            },
+            VertexAssignment::FALSE => match other {
+                VertexAssignment::UNDECIDED => Some(Greater),
+                VertexAssignment::FALSE => Some(Equal),
+                VertexAssignment::TRUE => None,
+            },
+            VertexAssignment::TRUE => match other {
+                VertexAssignment::UNDECIDED => Some(Greater),
+                VertexAssignment::FALSE => None,
+                VertexAssignment::TRUE => Some(Equal),
+            },
+        }
     }
 }
 

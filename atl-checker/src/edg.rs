@@ -10,6 +10,8 @@ use crate::common::{
     Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
 use std::cmp::max;
+use std::fs::File;
+use std::io::Write;
 use std::thread::sleep;
 use std::time::Duration;
 use tracing::{span, trace, Level};
@@ -54,13 +56,22 @@ pub fn distributed_certain_zero<
         .receive_result()
         .expect("Error receiving final assigment on termination");
 
+    // All assignments is received and collected to a single hashmap
     let mut assignment_table = HashMap::<V, VertexAssignment>::new();
     for _ in 0..worker_count {
         let assignments = manager_broker
             .receive_assignment()
             .expect("Error receiving the assignment table");
 
-        assignment_table.extend(assignments);
+        for (k, v) in assignments {
+            assignment_table.insert(
+                k.clone(),
+                match assignment_table.get(&k) {
+                    Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
+                    None => v.clone(),
+                },
+            );
+        }
     }
 
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
