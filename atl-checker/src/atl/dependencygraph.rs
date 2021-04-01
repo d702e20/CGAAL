@@ -311,11 +311,11 @@ impl<G: GameStructure> ATLDependencyGraph<G> {
 }
 
 impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
+    /// Produce the edges of the given vertex
+    /// Where possible, the smallest edge will be the first in the produced vector,
+    /// and similarly, the smallest target will be the first in the edges' vector of targets.
+    /// This is mostly relevant for the Until formulae
     fn succ(&self, vert: &ATLVertex) -> Vec<Edge<ATLVertex>> {
-        // Produce the edges of the given vertex
-        // Where possible, the smallest edge will be the first in the produced vector,
-        // and similarly, the smallest target will be the first in the edges' vector of targets.
-        // This is mostly relevant for the Until formulae
         match vert {
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
                 Phi::True => {
@@ -453,6 +453,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     vec![
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
+                        // This must be the first edge
                         Edge::HYPER(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
@@ -477,6 +478,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let mut edges = vec![
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
+                        // This must be the first edge
                         Edge::HYPER(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
@@ -539,6 +541,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     vec![
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
+                        // This must be the first edge
                         Edge::HYPER(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
@@ -561,6 +564,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let mut edges = vec![
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
+                        // This must be the first edge
                         Edge::HYPER(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
