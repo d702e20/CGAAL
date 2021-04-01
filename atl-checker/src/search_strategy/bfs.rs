@@ -1,7 +1,7 @@
 use crate::common::Edge;
 use crate::edg::Vertex;
 use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 /// Breadth-first search strategy traverses vertices close to the root first, using a FIFO
 /// (first in, first out) data structure.

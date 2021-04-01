@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub(crate) type Proposition = usize;
 pub(crate) type Player = usize;
 pub(crate) type State = usize;
+pub(crate) type Action = usize;
 
 /// Implements Vec of Vecs in arbitrary runtime determined depth.
 #[derive(Clone, Debug, Deserialize)]

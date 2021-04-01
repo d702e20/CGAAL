@@ -2,7 +2,6 @@ pub mod bfs;
 
 use crate::common::{Edge, NegationEdge};
 use crate::edg::Vertex;
-use std::collections::HashSet;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
 /// certain zero algorithm.

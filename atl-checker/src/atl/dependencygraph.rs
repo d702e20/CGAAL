@@ -1,6 +1,5 @@
 use crate::common::{Edge, HyperEdge, NegationEdge};
 use crate::edg::{ExtendedDependencyGraph, Vertex};
-use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -8,7 +7,6 @@ use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
 use std::fmt::{Display, Formatter};
-use std::iter::Once;
 
 #[derive(Clone, Debug)]
 pub struct ATLDependencyGraph<G: GameStructure> {
@@ -438,7 +436,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     // Together with the `pre` target is all the possible moves by other players,
                     // but it is important that `pre` is the first target
                     let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> = std::iter::once(pre)
+                    let targets: Vec<ATLVertex> = std::iter::once(pre)
                         .chain(
                             PmovesIterator::new(moves, players.iter().cloned().collect()).map(
                                 |pmove| ATLVertex::PARTIAL {
@@ -509,7 +507,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                             formula: formula.clone(),
                                         },
                                     );
-                                let mut targets: Vec<ATLVertex> =
+                                let targets: Vec<ATLVertex> =
                                     std::iter::once(pre.clone()).chain(delta).collect();
                                 Edge::HYPER(HyperEdge {
                                     source: vert.clone(),

@@ -742,7 +742,7 @@ impl<
     /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
     /// See documentation for the `successors` field.
     fn succ(&mut self, vertex: &V) -> Vec<Edge<V>> {
-        if let Some(successors) = self.successors.get(vertex) {
+        if let Some(_successors) = self.successors.get(vertex) {
             panic!("Used cached successors instead")
         } else {
             // Setup the successors list the first time it is requested
