@@ -1,9 +1,9 @@
 pub mod game_formula;
-mod parser;
+pub mod parser;
 
 use crate::atl::common::{Player, Proposition};
 use crate::atl::formula::game_formula::GamePhi;
-pub(crate) use crate::atl::formula::parser::*;
+pub use crate::atl::formula::parser::*;
 use crate::atl::gamestructure::GameStructure;
 use joinery::prelude::*;
 use std::cmp::max;

@@ -1,0 +1,14 @@
+[package]
+name = "cli"
+version = "0.1.0"
+authors = ["Jener Rasmussen <jener@jener.dk>"]
+edition = "2018"
+
+[dependencies]
+num_cpus = "1.13.0"
+git-version = "0.3.4"
+clap = "2.33.3"
+tracing = "0.1"
+tracing-subscriber = "0.2.17"
+serde_json = "1.0.59"
+atl-checker = { path = "../atl-checker", version = "0.1.0"}
