@@ -155,7 +155,7 @@ macro_rules! edg_assert {
     // With custom names and worker count
     ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
         assert_eq!(
-            distributed_certain_zero($edg_name, $vertex_name::$v, $wc),
+            distributed_certain_zero($edg_name, $vertex_name::$v, $wc, BreadthFirstSearchBuilder),
             crate::common::VertexAssignment::$assign,
             "Vertex {}",
             stringify!($v)

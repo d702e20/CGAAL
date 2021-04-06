@@ -29,6 +29,7 @@ use crate::lcgs::ir::symbol_table::Owner;
 use crate::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use crate::printer::print_graph;
+use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
 use crate::solve_set::minimum_solve_set;
 
 #[macro_use]
@@ -40,6 +41,7 @@ mod edg;
 mod lcgs;
 #[cfg(feature = "graph-printer")]
 mod printer;
+mod search_strategy;
 mod solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -129,7 +131,8 @@ fn main_inner() -> Result<(), String> {
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = distributed_certain_zero(graph, v0, threads);
+                let result =
+                    distributed_certain_zero(graph, v0, threads, BreadthFirstSearchBuilder);
                 println!("Result: {}", result);
             }
 
