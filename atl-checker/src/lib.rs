@@ -14,4 +14,5 @@ pub mod edg;
 pub mod lcgs;
 #[cfg(feature = "graph-printer")]
 pub mod printer;
+pub mod search_strategy;
 pub mod solve_set;

@@ -15,7 +15,6 @@ use git_version::git_version;
 use tracing::trace;
 
 use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use atl_checker::atl::formula::game_formula::GamePhi;
 use atl_checker::atl::formula::{ATLExpressionParser, Phi};
 use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
 use atl_checker::edg::distributed_certain_zero;
@@ -23,7 +22,9 @@ use atl_checker::lcgs::ast::DeclKind;
 use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
 use atl_checker::lcgs::ir::symbol_table::Owner;
 use atl_checker::lcgs::parse::parse_lcgs;
+#[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
+use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::solve_set::minimum_solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -113,7 +114,8 @@ fn main_inner() -> Result<(), String> {
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = distributed_certain_zero(graph, v0, threads);
+                let result =
+                    distributed_certain_zero(graph, v0, threads, BreadthFirstSearchBuilder);
                 println!("Result: {}", result);
             }
 
