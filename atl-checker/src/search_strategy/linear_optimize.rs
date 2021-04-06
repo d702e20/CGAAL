@@ -3,6 +3,7 @@ use crate::edg::Vertex;
 use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::collections::{HashSet, VecDeque, HashMap};
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
+use crate::atl::dependencygraph::ATLVertex;
 
 struct Point {
     x: i32,
@@ -12,13 +13,13 @@ struct Point {
 /// Search strategy using ideas from linear programming to order the order in which to visit next
 /// vertices, based on distance from the vertex to a region that borders the line between true/false
 /// in the formula
-pub struct LinearOptimizeSearch<V: Vertex> {
-    queue: VecDeque<Edges<V>>,
+pub struct LinearOptimizeSearch {
+    queue: VecDeque<Edges<ATLVertex>>,
     game: IntermediateLCGS
 }
 
-impl<V: Vertex> LinearOptimizeSearch<V> {
-    pub fn new(game: IntermediateLCGS) -> LinearOptimizeSearch<V> {
+impl LinearOptimizeSearch {
+    pub fn new(game: IntermediateLCGS) -> LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: VecDeque::new(),
             game
@@ -26,23 +27,16 @@ impl<V: Vertex> LinearOptimizeSearch<V> {
     }
 }
 
-impl<V: Vertex> SearchStrategy<V> for LinearOptimizeSearch<V> {
-    fn next(&mut self) -> Option<Edges<V>> {
+impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
+    fn next(&mut self) -> Option<Edges<ATLVertex>> {
         self.queue.pop_front()
     }
 
-
-    /*fn queue_new_edges(&mut self, edges: HashSet<Edges<V>>) {
-        for edge in edges {
-            self.queue.push_back(edge);
-        }
-    }*/
-
-    fn queue_new_edges(&mut self, mut edges: HashSet<Edges<V>>) {
-        let mut evaluated_edges: VecDeque<(Edges<V>, i32)> = VecDeque::new();
+    fn queue_new_edges(&mut self, mut edges: HashSet<Edges<ATLVertex>>) {
+        let mut evaluated_edges: VecDeque<(Edges<ATLVertex>, i32)> = VecDeque::new();
 
         for edge in edges{
-            let average_distance = distance_to_border(&edge);
+            let average_distance = self.distance_to_acceptance_border(&edge);
 
             // add edge and distance to evaluated edges
             evaluated_edges.push_back((edge, average_distance))
@@ -57,20 +51,24 @@ impl<V: Vertex> SearchStrategy<V> for LinearOptimizeSearch<V> {
     }
 }
 
-fn distance_to_border<V: Vertex>(edges: &Edges<V>) -> i32 {
-    let targets:Vec<V> = match &edges {
-        Edges::HYPER(edges) => {
-            //println!("{}",edges.targets[0]);
-            edges.targets.clone()
-        }
-        Edges::NEGATION(edges) => {
-            vec![edges.target.clone()]
-        }
-    };
+impl LinearOptimizeSearch{
+    fn distance_to_acceptance_border(&self, edges: &Edges<ATLVertex>) -> i32 {
+        match &edges {
+            Edges::HYPER(edges) => {
+                let state = edges.targets[0].state();
+                println!("{}", state_vars[0]);
+                edges.targets.clone()
+            }
+            Edges::NEGATION(edges) => {
+                vec![edges.target.clone()]
+            }
+        };
 
-    // find average distance all targets to accept region
-    manhattan_distance(Point{x:1,y:1}, Point{x:1,y:1})
+        // find average distance all targets to accept region
+        manhattan_distance(Point{x:1,y:1}, Point{x:1,y:1})
+    }
 }
+
 
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
@@ -85,8 +83,8 @@ pub struct LinearOptimizeSearchBuilder{
     pub game: IntermediateLCGS
 }
 
-impl<V: Vertex> SearchStrategyBuilder<V, LinearOptimizeSearch<V>> for LinearOptimizeSearchBuilder {
-    fn build(&self) -> LinearOptimizeSearch<V> {
+impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
+    fn build(&self) -> LinearOptimizeSearch {
         LinearOptimizeSearch::new(self.game.clone())
     }
 }
@@ -116,19 +114,4 @@ hvis f.eks y>3 og y>4, smid y>3 væk og bare behold y>4. Start med at find skær
 Kan tænke over less than or equal.
 
 stop hvis det ikke er muligt
-
- */
-
-
-/*
-for edge in edges{
-            let targets:Vec<V> = match &edge {
-                Edges::HYPER(edge) => {
-                    println!("{}",edge.targets[0]);
-                    edge.targets.clone()
-                }
-                Edges::NEGATION(edge) => {
-                    vec![edge.target.clone()]
-                }
-            };
  */
