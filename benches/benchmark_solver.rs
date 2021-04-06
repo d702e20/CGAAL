@@ -275,16 +275,16 @@ criterion_group!(
     static_thread_benches,
     //mexican_standoff_5p_1hp_lcgs_survive,
     mexican_standoff_3p_3hp_lcgs_survive,
-    gossipping_girls_circular_all_ensure_p1_omniscient_before_10_steps,
-    matching_pennies_can_odd_win_round_eventually,
-    matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum,
-    peterson_3_ensure_mutual_exclusion,
+    //gossipping_girls_circular_all_ensure_p1_omniscient_before_10_steps,
+    //matching_pennies_can_odd_win_round_eventually,
+    //matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum,
+    //peterson_3_ensure_mutual_exclusion,
     //robot_grid_can_r1_and_r2_swap_with_help_from_r3, // a single run takes ~500s @ 1 thread
     //robot_grid_exist_path_to_targets_with_no_crashes, // a single run takes ~500s @ 1 thread
-    rock_paper_scissors_p1_always_wins,
-    rock_paper_scissors_p1_can_win_eventually,
-    tic_tac_toe_can_cross_guarantee_tie,
-    tic_tac_toe_can_nought_avoid_lose,
+    //rock_paper_scissors_p1_always_wins,
+    //rock_paper_scissors_p1_can_win_eventually,
+    //tic_tac_toe_can_cross_guarantee_tie,
+    //tic_tac_toe_can_nought_avoid_lose,
 );
 
 criterion_group!(
