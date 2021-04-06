@@ -4,11 +4,11 @@ use atl_checker::atl::gamestructure::EagerGameStructure;
 use atl_checker::edg::distributed_certain_zero;
 use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
 use atl_checker::lcgs::parse::parse_lcgs;
+use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
-
 // CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
 macro_rules! model_path_prefix {
@@ -66,7 +66,12 @@ macro_rules! bench_lcgs {
                         formula,
                     };
 
-                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    distributed_certain_zero(
+                        graph,
+                        v0,
+                        num_cpus::get() as u64,
+                        BreadthFirstSearchBuilder,
+                    );
                 });
             });
         }
@@ -100,7 +105,12 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            distributed_certain_zero(graph, v0, core_count);
+                            distributed_certain_zero(
+                                graph,
+                                v0,
+                                core_count,
+                                BreadthFirstSearchBuilder,
+                            );
                         });
                     },
                 );

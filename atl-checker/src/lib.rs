@@ -14,4 +14,4 @@ mod common;
 pub mod edg;
 pub mod lcgs;
 mod printer;
-mod search_strategy;
+pub mod search_strategy;
