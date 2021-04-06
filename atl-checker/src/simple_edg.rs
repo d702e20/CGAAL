@@ -51,7 +51,7 @@ macro_rules! simple_edg {
     [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
         use std::collections::HashSet;
         #[allow(unused_imports)]
-        use crate::common::{Edges, HyperEdge, NegationEdge};
+        use crate::common::{Edge, HyperEdge, NegationEdge};
         use crate::edg::{ExtendedDependencyGraph, Vertex};
         #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
@@ -69,7 +69,7 @@ macro_rules! simple_edg {
             fn succ(
                 &self,
                 vertex: &$vertex_name,
-            ) -> HashSet<Edges<$vertex_name>> {
+            ) -> Vec<Edge<$vertex_name>> {
                 simple_edg![@match vertex_name=$vertex_name, vertex $( $v => $( -> { $( $t ),* } )* $( .> $n )* );*;]
             }
         }
@@ -79,12 +79,13 @@ macro_rules! simple_edg {
         match $vertex {
             $($vertex_name::$v => {
                 #[allow(unused_mut)]
-                let mut successors = HashSet::new();
-                $(successors.insert(Edges::HYPER(HyperEdge {
+                let mut successors = vec![];
+                $(successors.push(Edge::HYPER(HyperEdge {
                     source: $vertex_name::$v,
+                    pmove: None,
                     targets: vec![$($vertex_name::$t),*],
                 }));)*
-                $(successors.insert(Edges::NEGATION(NegationEdge {
+                $(successors.push(Edge::NEGATION(NegationEdge {
                     source: $vertex_name::$v,
                     target: $vertex_name::$n,
                 }));)*
@@ -155,7 +156,7 @@ macro_rules! edg_assert {
     // With custom names and worker count
     ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
         assert_eq!(
-            distributed_certain_zero($edg_name, $vertex_name::$v, $wc),
+            distributed_certain_zero($edg_name, $vertex_name::$v, $wc, BreadthFirstSearchBuilder),
             crate::common::VertexAssignment::$assign,
             "Vertex {}",
             stringify!($v)
