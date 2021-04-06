@@ -1,4 +1,4 @@
-use crate::common::Edges;
+use crate::common::Edge;
 use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -111,7 +111,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
         for edge in edges {
             match edge {
-                Edges::HYPER(hyper) => {
+                Edge::HYPER(hyper) => {
                     // In the world of hyper-edges, we can short circuit when we find one edge,
                     // where the target is assigned false. So this is the inverse of before:
                     // We hope to find the edges that makes the assignment false with the fewest
@@ -155,7 +155,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                         }
                     }
                 }
-                Edges::NEGATION(negation) => {
+                Edge::NEGATION(negation) => {
                     // When target is true, source if false, and vice versa. But the set of
                     // vertices that need to be checked remain the same
                     match find_solve_set_rec(edg, negation.target, assignments) {

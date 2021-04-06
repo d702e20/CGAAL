@@ -7,7 +7,7 @@ use std::thread;
 
 use crate::com::{Broker, BrokerManager, ChannelBroker};
 use crate::common::{
-    Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
+    Edge, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
 use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::cmp::max;
@@ -22,7 +22,7 @@ pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
 pub trait ExtendedDependencyGraph<V: Vertex> {
     /// Return out going edges from `vertex`.
     /// This will be cached on each worker.
-    fn succ(&self, vertex: &V) -> HashSet<Edges<V>>;
+    fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
 }
 
 pub fn distributed_certain_zero<
@@ -75,7 +75,7 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S:
     /// Greatest known assignment for vertices.
     /// Order is as follow UNEXPLORED/None < UNDECIDED < {TRUE, FALSE}. Once a vertex has been assigned TRUE or FALSE it will never change assignment.
     assignment: HashMap<V, VertexAssignment>,
-    depends: HashMap<V, HashSet<Edges<V>>>,
+    depends: HashMap<V, HashSet<Edge<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
     /// Greatest number of negation edges in any path from v0 to the given vertex.
@@ -90,7 +90,7 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S:
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
     /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
-    successors: HashMap<V, HashSet<Edges<V>>>,
+    successors: HashMap<V, HashSet<Edge<V>>>,
     edg: G,
     /// Used on the leader as a gate to avoid starting a round of the token ring if one is already in progress.
     token_in_circulation: bool,
@@ -141,14 +141,14 @@ impl<
             v0,
             running: true,
             assignment: HashMap::new(),
-            depends: HashMap::<V, HashSet<Edges<V>>>::new(),
+            depends: HashMap::<V, HashSet<Edge<V>>>::new(),
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_queue: VecDeque::new(),
             unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
             strategy,
             depth: HashMap::<V, u32>::new(),
             broker,
-            successors: HashMap::<V, HashSet<Edges<V>>>::new(),
+            successors: HashMap::<V, HashSet<Edge<V>>>::new(),
             edg,
             token_in_circulation: false,
             dirty: false,
@@ -365,10 +365,10 @@ impl<
             return true;
         } else if let Some(edge) = self.strategy.next() {
             match edge {
-                Edges::HYPER(e) => {
+                Edge::HYPER(e) => {
                     self.process_hyper_edge(e);
                 }
-                Edges::NEGATION(e) => {
+                Edge::NEGATION(e) => {
                     self.process_negation_edge(e);
                 }
             }
@@ -489,7 +489,7 @@ impl<
 
         // Line 4
         if any_target {
-            self.delete_edge(Edges::HYPER(edge));
+            self.delete_edge(Edge::HYPER(edge));
             return;
         }
 
@@ -500,12 +500,12 @@ impl<
                 Some(VertexAssignment::UNDECIDED) => {
                     // UNDECIDED
                     // Line 7
-                    self.add_depend(target, Edges::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::HYPER(edge.clone()));
                 }
                 None => {
                     // UNEXPLORED
                     // Line 7
-                    self.add_depend(target, Edges::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::HYPER(edge.clone()));
                     // Line 8
                     self.explore(target);
                 }
@@ -515,7 +515,7 @@ impl<
     }
 
     /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+    fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
         // Update the depth
         let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
         let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
@@ -534,7 +534,7 @@ impl<
     }
 
     /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+    fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
         if let Some(dependencies) = self.depends.get_mut(vertex) {
             dependencies.remove(&dependency);
         }
@@ -550,7 +550,7 @@ impl<
                 // UNEXPLORED
                 // Line 6
                 trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
-                self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
+                self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
                 self.queue_unsafe_negation(edge.clone());
                 self.explore(&edge.target);
             }
@@ -565,7 +565,7 @@ impl<
                         // must be from another branch of the EDG. Hence, we add this edge as an
                         // unsafe dependency
                         trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                        self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
+                        self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
                         self.queue_unsafe_negation(edge.clone())
                     }
                 }
@@ -575,7 +575,7 @@ impl<
                 }
                 VertexAssignment::TRUE => {
                     trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
-                    self.delete_edge(Edges::NEGATION(edge))
+                    self.delete_edge(Edge::NEGATION(edge))
                 }
             },
         }
@@ -702,7 +702,7 @@ impl<
     }
 
     /// Helper function for deleting edges from a vertex.
-    fn delete_edge(&mut self, edge: Edges<V>) {
+    fn delete_edge(&mut self, edge: Edge<V>) {
         let source = edge.source();
 
         // Remove edge from source
@@ -725,33 +725,30 @@ impl<
 
         match edge {
             // Line 4-6
-            Edges::HYPER(ref edge) => {
+            Edge::HYPER(ref edge) => {
                 debug!(source = ?edge, targets = ?edge.targets, "remove hyper-edge as dependency");
                 for target in &edge.targets {
-                    self.remove_depend(target, Edges::HYPER(edge.clone()))
+                    self.remove_depend(target, Edge::HYPER(edge.clone()))
                 }
             }
             // Line 7-8
-            Edges::NEGATION(ref edge) => {
+            Edge::NEGATION(ref edge) => {
                 debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
-                self.remove_depend(&edge.target, Edges::NEGATION(edge.clone()))
+                self.remove_depend(&edge.target, Edge::NEGATION(edge.clone()))
             }
         }
     }
 
     /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
     /// See documentation for the `successors` field.
-    fn succ(&mut self, vertex: &V) -> HashSet<Edges<V>> {
-        if let Some(successors) = self.successors.get(vertex) {
-            debug!(?vertex, ?successors, known_vertex = true, "edg::succ");
-            #[cfg(feature = "use-counts")]
-            eprintln!("worker succ cached");
-            // List of successors is already allocated for the vertex
-            successors.clone()
+    fn succ(&mut self, vertex: &V) -> Vec<Edge<V>> {
+        if let Some(_successors) = self.successors.get(vertex) {
+            panic!("Used cached successors instead")
         } else {
             // Setup the successors list the first time it is requested
             let successors = self.edg.succ(vertex);
-            self.successors.insert(vertex.clone(), successors.clone());
+            let successor_set = successors.iter().cloned().collect();
+            self.successors.insert(vertex.clone(), successor_set);
             debug!(
                 ?vertex,
                 ?successors,
@@ -774,7 +771,7 @@ mod test {
 
     use core::fmt::Formatter;
 
-    use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
+    use crate::common::{Edge, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
     use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
 

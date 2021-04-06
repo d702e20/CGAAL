@@ -19,7 +19,6 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use crate::atl::formula::game_formula::GamePhi;
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
 use crate::edg::distributed_certain_zero;
