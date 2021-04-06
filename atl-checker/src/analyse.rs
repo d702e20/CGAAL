@@ -91,6 +91,8 @@ pub fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: AT
     println!("{}", json);
 }
 
+/// Analyses the vertices of an EDG starting from the given root, and returns a Vec of data
+/// describing each vertex with different data depending of the vertex' ATL formula.
 fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> Vec<VertexData> {
     let mss = minimum_solve_set(edg, root);
     let mut data = vec![];
@@ -242,7 +244,7 @@ fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> V
                     })
                 }
                 Phi::EnforceInvariant { players, .. } => {
-                    // DespiteInvariant formulae only have one negation edge, so stats are boring
+                    // EnforceInvariant formulae only have one negation edge, so stats are boring
                     data.push(VertexData::EnforceInvariant {
                         player_count: players.len() as u32,
                         stats: phi_stats(&mss, v),
@@ -270,6 +272,8 @@ fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> V
     data
 }
 
+/// Returns statistics about a given vertex, fetching some of it from the given minimum solve
+/// set assignment
 fn phi_stats(mss: &HashMap<ATLVertex, SolveSetAssignment<ATLVertex>>, v: &ATLVertex) -> PhiStats {
     let phi = v.formula();
     PhiStats {
