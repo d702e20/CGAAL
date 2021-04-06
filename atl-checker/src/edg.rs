@@ -425,6 +425,10 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
         trace!(?vertex, "exploring vertex");
         #[cfg(feature = "use-counts")]
         eprintln!("worker explore");
+
+        // deliberately nerfing exploring
+        thread::sleep(Duration::from_micros(5));
+
         // Line 2
         self.assignment
             .insert(vertex.clone(), VertexAssignment::UNDECIDED);
