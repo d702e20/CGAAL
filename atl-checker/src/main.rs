@@ -18,6 +18,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
+use crate::analyse::analyse_and_save;
 use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use crate::atl::formula::{ATLExpressionParser, Phi};
 use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
@@ -33,6 +34,7 @@ use crate::solve_set::minimum_solve_set;
 
 #[macro_use]
 mod simple_edg;
+mod analyse;
 mod atl;
 mod com;
 mod common;
@@ -178,17 +180,6 @@ fn main_inner() -> Result<(), String> {
             let formula_path = analyse_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&analyse_args)?;
 
-            fn analyse_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
-            where
-                G: GameStructure + Send + Sync + Clone + Debug + 'static,
-            {
-                let mss = minimum_solve_set(&graph, v0);
-                println!("Configuration: Minimum solve set size");
-                for (vertex, assignment) in mss {
-                    println!("{}: {}", vertex, assignment.len());
-                }
-            }
-
             load(
                 model_type,
                 input_model_path,
@@ -200,7 +191,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_model(graph, v0);
+                    analyse_and_save(&graph, v0);
                 },
                 |game_structure, formula| {
                     let v0 = ATLVertex::FULL {
@@ -208,7 +199,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_model(graph, v0);
+                    analyse_and_save(&graph, v0);
                 },
             )?
         }

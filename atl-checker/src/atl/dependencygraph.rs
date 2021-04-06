@@ -49,14 +49,14 @@ impl Display for ATLVertex {
 }
 
 impl ATLVertex {
-    fn state(&self) -> State {
+    pub fn state(&self) -> State {
         match self {
             ATLVertex::FULL { state, .. } => *state,
             ATLVertex::PARTIAL { state, .. } => *state,
         }
     }
 
-    fn formula(&self) -> Arc<Phi> {
+    pub fn formula(&self) -> Arc<Phi> {
         match self {
             ATLVertex::FULL { formula, .. } => formula.clone(),
             ATLVertex::PARTIAL { formula, .. } => formula.clone(),
