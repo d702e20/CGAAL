@@ -1,3 +1,5 @@
+mod args;
+
 #[no_link]
 extern crate git_version;
 extern crate num_cpus;
@@ -14,6 +16,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
+use crate::args::CommonArgs;
 use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use atl_checker::atl::formula::{ATLExpressionParser, Phi};
 use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
@@ -196,8 +199,8 @@ fn main_inner() -> Result<(), String> {
                 },
             )?
         }
+        #[cfg(feature = "graph-printer")]
         ("graph", Some(graph_args)) => {
-            #[cfg(feature = "graph-printer")]
             {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
                 let model_type = get_model_type_from_args(&graph_args)?;
@@ -372,51 +375,11 @@ where
 
 /// Define and parse command line arguments
 fn parse_arguments() -> ArgMatches<'static> {
-    fn build_common_arguments<'a>(builder: clap::App<'a, 'a>) -> App<'a, 'a> {
-        builder
-            .arg(
-                Arg::with_name("input_model")
-                    .short("m")
-                    .long("model")
-                    .env("INPUT_MODEL")
-                    .required(true)
-                    .help("The input file to generate model from"),
-            )
-            .arg(
-                Arg::with_name("model_type")
-                    .short("t")
-                    .long("model-type")
-                    .env("MODEL_TYPE")
-                    .help("The type of input file given {{lcgs, json}}"),
-            )
-            .arg(
-                Arg::with_name("formula_format")
-                    .short("y")
-                    .long("formula-format")
-                    .env("FORMULA_FORMAT")
-                    .help("The format of ATL formula file given {{json, text}}"),
-            )
-            .arg(
-                Arg::with_name("formula")
-                    .short("f")
-                    .long("formula")
-                    .env("FORMULA")
-                    .required(true)
-                    .help("The formula to check for"),
-            )
-            .arg(
-                Arg::with_name("output")
-                    .short("o")
-                    .long("output")
-                    .env("OUTPUT")
-                    .help("The path to write output to"),
-            )
-    }
-
     let version_text = format!("{} ({})", VERSION, GIT_VERSION);
-    let app = App::new(PKG_NAME)
+    let string = AUTHORS.replace(":", "\n");
+    let mut app = App::new(PKG_NAME)
         .version(version_text.as_str())
-        .author(AUTHORS)
+        .author(string.as_str())
         .arg(
             Arg::with_name("log_filter")
                 .short("l")
@@ -425,33 +388,47 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .default_value("warn")
                 .help("Comma separated list of filter directives"),
         )
-        .subcommand(build_common_arguments(
-            SubCommand::with_name("solver").arg(
-                Arg::with_name("threads")
-                    .short("r")
-                    .long("threads")
-                    .env("THREADS")
-                    .help("Number of threads to run solver on"),
-            ),
-        ))
         .subcommand(
-            SubCommand::with_name("index").arg(
-                Arg::with_name("input_model")
-                    .short("m")
-                    .long("model")
-                    .env("INPUT_MODEL")
-                    .required(true)
-                    .help("The input file to generate model from"),
-            ),
+            SubCommand::with_name("solver")
+                .about("Checks satisfiability of an ATL query on a CGS")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg()
+                .arg(
+                    Arg::with_name("threads")
+                        .short("r")
+                        .long("threads")
+                        .env("THREADS")
+                        .help("Number of threads to run solver on"),
+                ),
         )
-        .subcommand(build_common_arguments(SubCommand::with_name("analyse")));
+        .subcommand(
+            SubCommand::with_name("index")
+                .about("Prints indexes of LCGS declarations")
+                .add_input_model_arg(),
+        )
+        .subcommand(
+            SubCommand::with_name("analyse")
+                .about("Analyses a EDG generated from an ATL query and a CGS")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg(),
+        );
 
     if cfg!(feature = "graph-printer") {
-        app.subcommand(build_common_arguments(SubCommand::with_name("graph")))
-            .get_matches()
-    } else {
-        app.get_matches()
+        app = app.subcommand(
+            SubCommand::with_name("graph")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg()
+                .add_output_arg(false),
+        );
     }
+
+    app.get_matches()
 }
 
 fn setup_tracing(args: &ArgMatches) -> Result<(), String> {
