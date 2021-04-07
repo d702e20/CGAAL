@@ -49,14 +49,18 @@ macro_rules! simple_edg {
     };
     // Defines struct and enum
     [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
-        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        use std::collections::HashSet;
+        #[allow(unused_imports)]
+        use crate::common::{Edge, HyperEdge, NegationEdge};
+        use crate::edg::{ExtendedDependencyGraph, Vertex};
+        #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
-        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         enum $vertex_name {
             $( $v ),*
         }
-        impl Display for $vertex_name {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        impl std::fmt::Display for $vertex_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{:?}", self)
             }
         }
@@ -65,7 +69,7 @@ macro_rules! simple_edg {
             fn succ(
                 &self,
                 vertex: &$vertex_name,
-            ) -> HashSet<Edges<$vertex_name>> {
+            ) -> Vec<Edge<$vertex_name>> {
                 simple_edg![@match vertex_name=$vertex_name, vertex $( $v => $( -> { $( $t ),* } )* $( .> $n )* );*;]
             }
         }
@@ -75,12 +79,13 @@ macro_rules! simple_edg {
         match $vertex {
             $($vertex_name::$v => {
                 #[allow(unused_mut)]
-                let mut successors = HashSet::new();
-                $(successors.insert(Edges::HYPER(HyperEdge {
+                let mut successors = vec![];
+                $(successors.push(Edge::HYPER(HyperEdge {
                     source: $vertex_name::$v,
+                    pmove: None,
                     targets: vec![$($vertex_name::$t),*],
                 }));)*
-                $(successors.insert(Edges::NEGATION(NegationEdge {
+                $(successors.push(Edge::NEGATION(NegationEdge {
                     source: $vertex_name::$v,
                     target: $vertex_name::$n,
                 }));)*

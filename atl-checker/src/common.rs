@@ -1,3 +1,4 @@
+use crate::atl::dependencygraph::PartialMove;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -31,6 +32,7 @@ impl Display for VertexAssignment {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
     pub source: V,
+    pub pmove: Option<PartialMove>,
     pub targets: Vec<V>,
 }
 
@@ -41,15 +43,15 @@ pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
+pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
     HYPER(HyperEdge<V>),
     NEGATION(NegationEdge<V>),
 }
 
-impl<V: Hash + Eq + PartialEq + Clone> Edges<V> {
+impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns true if this is a hyper edge
     pub fn is_hyper(&self) -> bool {
-        matches!(self, Edges::HYPER(_))
+        matches!(self, Edge::HYPER(_))
     }
 
     /// Returns true if this is a negation edge
@@ -60,8 +62,8 @@ impl<V: Hash + Eq + PartialEq + Clone> Edges<V> {
     /// Returns the source vertex of this edge
     pub fn source(&self) -> &V {
         match self {
-            Edges::HYPER(e) => &e.source,
-            Edges::NEGATION(e) => &e.source,
+            Edge::HYPER(e) => &e.source,
+            Edge::NEGATION(e) => &e.source,
         }
     }
 }
