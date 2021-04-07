@@ -429,6 +429,9 @@ fn parse_arguments() -> ArgMatches<'static> {
     if cfg!(feature = "graph-printer") {
         app = app.subcommand(
             SubCommand::with_name("graph")
+                .about(
+                    "Outputs a Graphviz DOT graph of the EDG generated from an ATL query and a CGS",
+                )
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
