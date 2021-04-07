@@ -317,13 +317,22 @@ fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
 }
 
 /// Determine the formula format (either "json" or "atl") by reading the
-/// --formula_format argument. If none is given, we default to ATL
+/// --formula_format argument. If none is given, we try to infer it from the file extension
 fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, String> {
     match args.value_of("formula_format") {
         Some("json") => Ok(FormulaFormat::JSON),
         Some("atl") => Ok(FormulaFormat::ATL),
-        // Default value in case user did not give one
-        None => Ok(FormulaFormat::ATL),
+        None => {
+            // Infer format from file extension
+            let formula_path = args.value_of("formula").unwrap();
+            if formula_path.ends_with(".atl") {
+                Ok(FormulaFormat::ATL)
+            } else if formula_path.ends_with(".json") {
+                Ok(FormulaFormat::JSON)
+            } else {
+                Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
+            }
+        },
         Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
