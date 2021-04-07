@@ -1,0 +1,72 @@
+use clap::{App, Arg};
+
+/// Trait that allows us to easily add common arguments to the CLI, avoiding duplicate code while
+/// remaining flexible in terms of which subcommands have which arguments
+pub(crate) trait CommonArgs {
+    fn add_input_model_arg(self) -> Self;
+    fn add_input_model_type_arg(self) -> Self;
+    fn add_formula_arg(self) -> Self;
+    fn add_formula_format_arg(self) -> Self;
+    fn add_output_arg(self, required: bool) -> Self;
+}
+
+/// Add the common arguments to clap::App
+impl CommonArgs for App<'_, '_> {
+    /// Adds "--input-model" as a required argument
+    fn add_input_model_arg(self) -> Self {
+        self.arg(
+            Arg::with_name("input_model")
+                .short("m")
+                .long("model")
+                .env("INPUT_MODEL")
+                .required(true)
+                .help("The input file to generate model from"),
+        )
+    }
+
+    /// Adds "--model-type" as an optional argument
+    fn add_input_model_type_arg(self) -> Self {
+        self.arg(
+            Arg::with_name("model_type")
+                .short("t")
+                .long("model-type")
+                .env("MODEL_TYPE")
+                .help("The type of input file given {{lcgs, json}}"),
+        )
+    }
+
+    /// Adds "--formula" as a required argument
+    fn add_formula_arg(self) -> Self {
+        self.arg(
+            Arg::with_name("formula")
+                .short("f")
+                .long("formula")
+                .env("FORMULA")
+                .required(true)
+                .help("The formula to check for"),
+        )
+    }
+
+    /// Adds "--formula-format" as an optional argument
+    fn add_formula_format_arg(self) -> Self {
+        self.arg(
+            Arg::with_name("formula_format")
+                .short("y")
+                .long("formula-format")
+                .env("FORMULA_FORMAT")
+                .help("The format of ATL formula file given {{json, text}}"),
+        )
+    }
+
+    /// Adds "--output" as an argument
+    fn add_output_arg(self, required: bool) -> Self {
+        self.arg(
+            Arg::with_name("output")
+                .short("o")
+                .long("output")
+                .env("OUTPUT")
+                .required(required)
+                .help("The path to write output to"),
+        )
+    }
+}

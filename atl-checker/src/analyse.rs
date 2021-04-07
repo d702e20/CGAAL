@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
-enum VertexData {
+pub enum VertexData {
     #[serde(rename = "proposition")]
     Proposition { satisfied: bool },
     #[serde(rename = "negation")]
@@ -77,7 +77,7 @@ enum VertexData {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PhiStats {
+pub struct PhiStats {
     solve_set_size: u32,
     formula_size: u32,
     formula_depth: u32,
@@ -85,15 +85,9 @@ struct PhiStats {
     qualifier_depth: u32,
 }
 
-pub fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) {
-    let data = analyse(edg, root);
-    let json = serde_json::to_string_pretty(&data).expect("Failed to serialize data");
-    println!("{}", json);
-}
-
 /// Analyses the vertices of an EDG starting from the given root, and returns a Vec of data
 /// describing each vertex with different data depending of the vertex' ATL formula.
-fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> Vec<VertexData> {
+pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> Vec<VertexData> {
     let mss = minimum_solve_set(edg, root);
     let mut data = vec![];
     for (v, mssa) in &mss {
