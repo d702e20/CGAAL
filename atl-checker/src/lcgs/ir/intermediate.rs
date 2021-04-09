@@ -13,6 +13,7 @@ use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
 use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 use pom::parser::{sym, Parser};
 use std::fmt::{Display, Formatter};
+use std::sync::Arc;
 
 /// A struct that holds information about players for the intermediate representation
 /// of the lazy game structure
@@ -107,6 +108,13 @@ impl IntermediateLCGS {
             carry
         );
         state
+    }
+
+    pub fn label_index_to_decl(&self, label_index: usize) -> &Decl {
+        let label_symbol = self.labels[label_index].clone();
+
+        let label_decl = self.symbols.get(&label_symbol).unwrap();
+        label_decl
     }
 
     /// Transforms a state into its index
