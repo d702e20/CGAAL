@@ -1,4 +1,5 @@
 pub mod bfs;
+pub mod dfs;
 
 use crate::common::{Edge, NegationEdge};
 use crate::edg::Vertex;

@@ -29,6 +29,7 @@ use atl_checker::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::solve_set::minimum_solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -54,6 +55,7 @@ enum ModelType {
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum SearchStrategyOption {
     BFS,
+    DFS,
 }
 
 impl SearchStrategyOption {
@@ -70,6 +72,9 @@ impl SearchStrategyOption {
         match self {
             SearchStrategyOption::BFS => {
                 distributed_certain_zero(edg, v0, worker_count, BreadthFirstSearchBuilder)
+            }
+            SearchStrategyOption::DFS => {
+                distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
             }
         }
     }
@@ -371,7 +376,8 @@ fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, Stri
 fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOption, String> {
     match args.value_of("search_strategy") {
         Some("bfs") => Ok(SearchStrategyOption::BFS),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" [default is \"bfs\"]", other)),
+        Some("dfs") => Ok(SearchStrategyOption::DFS),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" or \"dfs\" [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::BFS)
     }
