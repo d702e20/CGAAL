@@ -9,7 +9,7 @@ extern crate tracing;
 mod simple_edg;
 pub mod atl;
 mod com;
-mod common;
+pub mod common;
 pub mod edg;
 pub mod lcgs;
 #[cfg(feature = "graph-printer")]
