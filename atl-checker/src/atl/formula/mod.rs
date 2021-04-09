@@ -105,6 +105,45 @@ impl Phi {
         }
     }
 
+    pub fn get_propositions(&self) -> Vec<usize> {
+        match self {
+            Phi::True => Vec::new(),
+            Phi::False => Vec::new(),
+            Phi::Proposition(id) => vec![*id],
+            Phi::Not(formula) => formula.get_propositions(),
+            Phi::Or(formula1, formula2) => {
+                let mut prop1 = formula1.get_propositions();
+                let mut prop2 = formula2.get_propositions();
+                prop1.append(&mut prop2);
+                prop1
+            }
+            Phi::And(formula1, formula2) => {
+                let mut prop1 = formula1.get_propositions();
+                let mut prop2 = formula2.get_propositions();
+                prop1.append(&mut prop2);
+                prop1
+            }
+            Phi::DespiteNext { formula, .. } => formula.get_propositions(),
+            Phi::EnforceNext { formula, .. } => formula.get_propositions(),
+            Phi::DespiteUntil { pre, until, .. } => {
+                let mut prop1 = pre.get_propositions();
+                let mut prop2 = until.get_propositions();
+                prop1.append(&mut prop2);
+                prop1
+            }
+            Phi::EnforceUntil { pre, until, .. } => {
+                let mut prop1 = pre.get_propositions();
+                let mut prop2 = until.get_propositions();
+                prop1.append(&mut prop2);
+                prop1
+            }
+            Phi::DespiteEventually { formula, .. } => formula.get_propositions(),
+            Phi::EnforceEventually { formula, .. } => formula.get_propositions(),
+            Phi::DespiteInvariant { formula, .. } => formula.get_propositions(),
+            Phi::EnforceInvariant { formula, .. } => formula.get_propositions(),
+        }
+    }
+
     /// Returns the depth of the formula. This is equivalent to the longest branch in the
     /// phi structure
     pub fn depth(&self) -> u32 {
