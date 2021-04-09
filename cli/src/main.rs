@@ -166,10 +166,19 @@ fn main_inner() -> Result<(), String> {
             let formula_path = analyse_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&analyse_args)?;
 
-            fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) {
+            let output_arg = analyse_args.value_of("output").unwrap();
+
+            fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(
+                edg: &G,
+                root: ATLVertex,
+                output_path: &str,
+            ) -> Result<(), String> {
                 let data = analyse(edg, root);
                 let json = serde_json::to_string_pretty(&data).expect("Failed to serialize data");
-                println!("{}", json);
+                let mut file = File::create(output_path)
+                    .map_err(|err| format!("Failed to create output file.\n{}", err))?;
+                file.write_all(json.as_bytes())
+                    .map_err(|err| format!("Failed to write to output file.\n{}", err))
             }
 
             load(
@@ -183,7 +192,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0);
+                    analyse_and_save(&graph, v0, output_arg);
                 },
                 |game_structure, formula| {
                     let v0 = ATLVertex::FULL {
@@ -191,7 +200,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0);
+                    analyse_and_save(&graph, v0, output_arg);
                 },
             )?
         }
@@ -419,7 +428,8 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg(),
+                .add_formula_format_arg()
+                .add_output_arg(true),
         );
 
     if cfg!(feature = "graph-printer") {
