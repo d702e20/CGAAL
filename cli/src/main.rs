@@ -21,7 +21,8 @@ use atl_checker::analyse::analyse;
 use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use atl_checker::atl::formula::{ATLExpressionParser, Phi};
 use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
-use atl_checker::edg::{distributed_certain_zero, ExtendedDependencyGraph};
+use atl_checker::common::VertexAssignment;
+use atl_checker::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
 use atl_checker::lcgs::ast::DeclKind;
 use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
 use atl_checker::lcgs::ir::symbol_table::Owner;
@@ -29,6 +30,7 @@ use atl_checker::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::solve_set::minimum_solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -48,6 +50,35 @@ enum FormulaFormat {
 enum ModelType {
     JSON,
     LCGS,
+}
+
+/// Valid search strategies options
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum SearchStrategyOption {
+    BFS,
+    DFS,
+}
+
+impl SearchStrategyOption {
+    /// Run the distributed certain zero algorithm using the given search strategy
+    pub fn distributed_certain_zero<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    >(
+        &self,
+        edg: G,
+        v0: V,
+        worker_count: u64,
+    ) -> VertexAssignment {
+        match self {
+            SearchStrategyOption::BFS => {
+                distributed_certain_zero(edg, v0, worker_count, BreadthFirstSearchBuilder)
+            }
+            SearchStrategyOption::DFS => {
+                distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
+            }
+        }
+    }
 }
 
 #[tracing::instrument]
@@ -112,14 +143,18 @@ fn main_inner() -> Result<(), String> {
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&solver_args)?;
+            let search_strategy = get_search_strategy_from_args(&solver_args)?;
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
-            fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
-            where
+            fn check_model<G>(
+                graph: ATLDependencyGraph<G>,
+                v0: ATLVertex,
+                threads: u64,
+                ss: SearchStrategyOption,
+            ) where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result =
-                    distributed_certain_zero(graph, v0, threads, BreadthFirstSearchBuilder);
+                let result = ss.distributed_certain_zero(graph, v0, threads);
                 println!("Result: {}", result);
             }
 
@@ -143,7 +178,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    check_model(graph, v0, threads);
+                    check_model(graph, v0, threads, search_strategy);
                 },
                 |game_structure, formula| {
                     println!(
@@ -156,7 +191,7 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    check_model(graph, v0, threads);
+                    check_model(graph, v0, threads, search_strategy);
                 },
             )?
         }
@@ -342,6 +377,17 @@ fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, Stri
     }
 }
 
+/// Determine the search strategy by reading the --search-strategy argument. Default is BFS.
+fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOption, String> {
+    match args.value_of("search_strategy") {
+        Some("bfs") => Ok(SearchStrategyOption::BFS),
+        Some("dfs") => Ok(SearchStrategyOption::DFS),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" or \"dfs\" [default is \"bfs\"]", other)),
+        // Default value
+        None => Ok(SearchStrategyOption::BFS)
+    }
+}
+
 /// Loads a model and a formula from files, and then call the handler function with the loaded model and formula.
 fn load<R, J, L>(
     model_type: ModelType,
@@ -409,6 +455,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_type_arg()
                 .add_formula_arg()
                 .add_formula_format_arg()
+                .add_search_strategy_arg()
                 .arg(
                     Arg::with_name("threads")
                         .short("r")
