@@ -17,10 +17,11 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::args::CommonArgs;
+use atl_checker::analyse::analyse;
 use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
 use atl_checker::atl::formula::{ATLExpressionParser, Phi};
 use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
-use atl_checker::edg::distributed_certain_zero;
+use atl_checker::edg::{distributed_certain_zero, ExtendedDependencyGraph};
 use atl_checker::lcgs::ast::DeclKind;
 use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
 use atl_checker::lcgs::ir::symbol_table::Owner;
@@ -165,15 +166,19 @@ fn main_inner() -> Result<(), String> {
             let formula_path = analyse_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&analyse_args)?;
 
-            fn analyse_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
-            where
-                G: GameStructure + Send + Sync + Clone + Debug + 'static,
-            {
-                let mss = minimum_solve_set(&graph, v0);
-                println!("Configuration: Minimum solve set size");
-                for (vertex, assignment) in mss {
-                    println!("{}: {}", vertex, assignment.len());
-                }
+            let output_arg = analyse_args.value_of("output").unwrap();
+
+            fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(
+                edg: &G,
+                root: ATLVertex,
+                output_path: &str,
+            ) -> Result<(), String> {
+                let data = analyse(edg, root);
+                let json = serde_json::to_string_pretty(&data).expect("Failed to serialize data");
+                let mut file = File::create(output_path)
+                    .map_err(|err| format!("Failed to create output file.\n{}", err))?;
+                file.write_all(json.as_bytes())
+                    .map_err(|err| format!("Failed to write to output file.\n{}", err))
             }
 
             load(
@@ -187,7 +192,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_model(graph, v0);
+                    analyse_and_save(&graph, v0, output_arg);
                 },
                 |game_structure, formula| {
                     let v0 = ATLVertex::FULL {
@@ -195,7 +200,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_model(graph, v0);
+                    analyse_and_save(&graph, v0, output_arg);
                 },
             )?
         }
@@ -423,7 +428,8 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg(),
+                .add_formula_format_arg()
+                .add_output_arg(true),
         );
 
     if cfg!(feature = "graph-printer") {

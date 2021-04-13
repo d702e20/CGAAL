@@ -66,6 +66,14 @@ impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
             Edge::NEGATION(e) => &e.source,
         }
     }
+
+    /// Returns the targets vertices of this edge
+    pub fn targets(&self) -> Vec<&V> {
+        match self {
+            Edge::HYPER(e) => e.targets.iter().collect(),
+            Edge::NEGATION(e) => vec![&e.target],
+        }
+    }
 }
 
 /// Inter-Worker communication
