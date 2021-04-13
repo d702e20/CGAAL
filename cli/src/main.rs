@@ -1,15 +1,9 @@
 #[no_link]
 extern crate git_version;
-#[macro_use]
-extern crate lazy_static;
 extern crate num_cpus;
-#[macro_use]
-extern crate serde;
 #[macro_use]
 extern crate tracing;
 
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{stdout, Read, Write};
@@ -20,27 +14,18 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use crate::atl::formula::{ATLExpressionParser, Phi};
-use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::Edges;
-use crate::edg::{distributed_certain_zero, Vertex};
-use crate::lcgs::ast::DeclKind;
-use crate::lcgs::ir::intermediate::IntermediateLCGS;
-use crate::lcgs::ir::symbol_table::Owner;
-use crate::lcgs::parse::parse_lcgs;
+use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
+use atl_checker::atl::formula::{ATLExpressionParser, Phi};
+use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
+use atl_checker::edg::distributed_certain_zero;
+use atl_checker::lcgs::ast::DeclKind;
+use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::lcgs::ir::symbol_table::Owner;
+use atl_checker::lcgs::parse::parse_lcgs;
 #[cfg(feature = "graph-printer")]
-use crate::printer::print_graph;
-
-#[macro_use]
-mod simple_edg;
-mod atl;
-mod com;
-mod common;
-mod edg;
-mod lcgs;
-#[cfg(feature = "graph-printer")]
-mod printer;
+use atl_checker::printer::print_graph;
+use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::solve_set::minimum_solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -129,7 +114,8 @@ fn main_inner() -> Result<(), String> {
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = distributed_certain_zero(graph, v0, threads);
+                let result =
+                    distributed_certain_zero(graph, v0, threads, BreadthFirstSearchBuilder);
                 println!("Result: {}", result);
             }
 
@@ -143,20 +129,70 @@ fn main_inner() -> Result<(), String> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula, raw_phi| {
-                    println!("Checking the formula: {}", formula);
-                    let v0 = ATLVertex::FULL { state: 0, formula };
-                    println!("Solving: {}", raw_phi);
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
                     check_model(graph, v0, threads);
                 },
-                |graph, formula, raw_phi| {
-                    println!("Checking the formula: {}", formula);
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let arc = Arc::from(formula);
+                    let graph = ATLDependencyGraph { game_structure };
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
-                        formula,
+                        formula: arc,
                     };
-                    println!("Solving: {}", raw_phi);
                     check_model(graph, v0, threads);
+                },
+            )?
+        }
+        ("analyse", Some(analyse_args)) => {
+            let input_model_path = analyse_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(&analyse_args)?;
+            let formula_path = analyse_args.value_of("formula").unwrap();
+            let formula_format = get_formula_format_from_args(&analyse_args)?;
+
+            fn analyse_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex)
+            where
+                G: GameStructure + Send + Sync + Clone + Debug + 'static,
+            {
+                let mss = minimum_solve_set(&graph, v0);
+                println!("Configuration: Minimum solve set size");
+                for (vertex, assignment) in mss {
+                    println!("{}: {}", vertex, assignment.len());
+                }
+            }
+
+            load(
+                model_type,
+                input_model_path,
+                formula_path,
+                formula_format,
+                |game_structure, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
+                    analyse_model(graph, v0);
+                },
+                |game_structure, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: game_structure.initial_state_index(),
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
+                    analyse_model(graph, v0);
                 },
             )?
         }
@@ -193,17 +229,29 @@ fn main_inner() -> Result<(), String> {
                     input_model_path,
                     formula_path,
                     formula_format,
-                    |graph, formula, raw_phi| {
-                        let v0 = ATLVertex::FULL { state: 0, formula };
-                        println!("Printing graph for: {}", raw_phi);
+                    |game_structure, formula| {
+                        println!(
+                            "Printing graph for: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                        let v0 = ATLVertex::FULL {
+                            state: 0,
+                            formula: Arc::from(formula),
+                        };
+                        let graph = ATLDependencyGraph { game_structure };
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
-                    |graph, formula, raw_phi| {
+                    |game_structure, formula| {
+                        println!(
+                            "Printing graph for: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                        let arc = Arc::from(formula);
+                        let graph = ATLDependencyGraph { game_structure };
                         let v0 = ATLVertex::FULL {
                             state: graph.game_structure.initial_state_index(),
-                            formula,
+                            formula: arc,
                         };
-                        println!("Printing graph for: {}", raw_phi);
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
                 )?
@@ -217,11 +265,7 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula<A: ATLExpressionParser>(
-    path: &str,
-    format: FormulaFormat,
-    expr_parser: &A,
-) -> (String, Arc<Phi>) {
+fn load_formula<A: ATLExpressionParser>(path: &str, format: FormulaFormat, expr_parser: &A) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -233,23 +277,19 @@ fn load_formula<A: ATLExpressionParser>(
         exit(1);
     });
 
-    let phi = match format {
+    match format {
         FormulaFormat::JSON => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
         FormulaFormat::ATL => {
-            let result = atl::formula::parse_phi(expr_parser, &raw_phi);
-            Arc::new(result.unwrap_or_else(|err| {
+            let result = atl_checker::atl::formula::parse_phi(expr_parser, &raw_phi);
+            result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
-            }))
+            })
         }
-    };
-
-    raw_phi = raw_phi.trim().to_string();
-
-    (raw_phi, phi)
+    }
 }
 
 /// Determine the model type (either "json" or "lcgs") by reading the the
@@ -295,8 +335,8 @@ fn load<R, J, L>(
     handle_lcgs: L,
 ) -> Result<R, String>
 where
-    J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>, String) -> R,
-    L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>, String) -> R,
+    J: FnOnce(EagerGameStructure, Phi) -> R,
+    L: FnOnce(IntermediateLCGS, Phi) -> R,
 {
     // Open the input model file
     let mut file = File::open(game_structure_path)
@@ -312,10 +352,9 @@ where
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
-            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
-            let graph = ATLDependencyGraph { game_structure };
+            let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_json(graph, phi, raw_phi))
+            Ok(handle_json(game_structure, phi))
         }
         ModelType::LCGS => {
             let lcgs = parse_lcgs(&content)
@@ -324,10 +363,9 @@ where
             let game_structure = IntermediateLCGS::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
-            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
-            let graph = ATLDependencyGraph { game_structure };
+            let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_lcgs(graph, phi, raw_phi))
+            Ok(handle_lcgs(game_structure, phi))
         }
     }
 }
@@ -405,7 +443,8 @@ fn parse_arguments() -> ArgMatches<'static> {
                     .required(true)
                     .help("The input file to generate model from"),
             ),
-        );
+        )
+        .subcommand(build_common_arguments(SubCommand::with_name("analyse")));
 
     if cfg!(feature = "graph-printer") {
         app.subcommand(build_common_arguments(SubCommand::with_name("graph")))

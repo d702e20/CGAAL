@@ -1,6 +1,5 @@
-use crate::common::{Edges, HyperEdge, NegationEdge};
+use crate::common::{Edge, HyperEdge, NegationEdge};
 use crate::edg::{ExtendedDependencyGraph, Vertex};
-use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -169,13 +168,13 @@ impl<'a> Iterator for PartialMoveIterator<'a> {
     }
 }
 
-pub struct VarsIterator {
+pub struct PmovesIterator {
     moves: Vec<usize>,
     position: PartialMove,
     completed: bool,
 }
 
-impl VarsIterator {
+impl PmovesIterator {
     /// Iterates over all partial moves variants that results from a number of players
     /// making a combination of specific choices.
     ///
@@ -202,7 +201,7 @@ impl VarsIterator {
     }
 }
 
-impl Iterator for VarsIterator {
+impl Iterator for PmovesIterator {
     type Item = PartialMove;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -310,97 +309,86 @@ impl<G: GameStructure> ATLDependencyGraph<G> {
 }
 
 impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
-    fn succ(&self, vert: &ATLVertex) -> HashSet<Edges<ATLVertex>, RandomState> {
+    /// Produce the edges of the given vertex
+    /// Where possible, the smallest edge will be the first in the produced vector,
+    /// and similarly, the smallest target will be the first in the edges' vector of targets.
+    /// This is mostly relevant for the Until formulae
+    fn succ(&self, vert: &ATLVertex) -> Vec<Edge<ATLVertex>> {
         match vert {
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
                 Phi::True => {
-                    let mut edges = HashSet::new();
-
-                    // Empty hyper edge
-                    edges.insert(Edges::HYPER(HyperEdge {
+                    // Hyper edge with no targets
+                    vec![Edge::HYPER(HyperEdge {
                         source: vert.clone(),
+                        pmove: None,
                         targets: vec![],
-                    }));
-
-                    edges
+                    })]
                 }
                 Phi::False => {
                     // No edges
-                    HashSet::new()
+                    vec![]
                 }
                 Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(prop) {
-                        let mut edges: HashSet<Edges<ATLVertex>> = HashSet::new();
-                        edges.insert(Edges::HYPER(HyperEdge {
+                        vec![Edge::HYPER(HyperEdge {
                             source: vert.clone(),
+                            pmove: None,
                             targets: vec![],
-                        }));
-                        edges
+                        })]
                     } else {
-                        HashSet::new()
+                        vec![]
                     }
                 }
                 Phi::Not(phi) => {
-                    let mut edges: HashSet<Edges<ATLVertex>> = HashSet::new();
-
-                    edges.insert(Edges::NEGATION(NegationEdge {
+                    vec![Edge::NEGATION(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
                             state: *state,
                             formula: phi.clone(),
                         },
-                    }));
-
-                    edges
+                    })]
                 }
                 Phi::Or(left, right) => {
-                    let mut edges = HashSet::new();
-
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: left.clone(),
-                        }],
-                    }));
-
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: right.clone(),
-                        }],
-                    }));
-
-                    edges
+                    vec![
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: left.clone(),
+                            }],
+                        }),
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: right.clone(),
+                            }],
+                        }),
+                    ]
                 }
                 Phi::And(left, right) => {
-                    let mut edges = HashSet::new();
-                    let mut targets = vec![];
-
-                    targets.push(ATLVertex::FULL {
-                        state: *state,
-                        formula: left.clone(),
-                    });
-                    targets.push(ATLVertex::FULL {
-                        state: *state,
-                        formula: right.clone(),
-                    });
-
-                    edges.insert(Edges::HYPER(HyperEdge {
+                    vec![Edge::HYPER(HyperEdge {
                         source: vert.clone(),
-                        targets,
-                    }));
-
-                    edges
+                        pmove: None,
+                        targets: vec![
+                            ATLVertex::FULL {
+                                state: *state,
+                                formula: left.clone(),
+                            },
+                            ATLVertex::FULL {
+                                state: *state,
+                                formula: right.clone(),
+                            },
+                        ],
+                    })]
                 }
                 Phi::DespiteNext { players, formula } => {
-                    let mut edges = HashSet::new();
-
                     let moves = self.game_structure.move_count(*state);
                     let targets: Vec<ATLVertex> =
-                        VarsIterator::new(moves, players.iter().copied().collect())
+                        PmovesIterator::new(moves, players.iter().copied().collect())
                             .map(|pmove| ATLVertex::PARTIAL {
                                 state: *state,
                                 partial_move: pmove,
@@ -408,15 +396,15 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                             })
                             .collect();
 
-                    edges.insert(Edges::HYPER(HyperEdge {
+                    vec![Edge::HYPER(HyperEdge {
                         source: vert.clone(),
+                        pmove: None,
                         targets,
-                    }));
-                    edges
+                    })]
                 }
                 Phi::EnforceNext { players, formula } => {
-                    let moves: Vec<usize> = self.game_structure.move_count(*state);
-                    VarsIterator::new(moves, players.iter().copied().collect())
+                    let moves = self.game_structure.move_count(*state);
+                    PmovesIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
                             let targets: Vec<ATLVertex> =
                                 DeltaIterator::new(&self.game_structure, *state, &pmove)
@@ -425,20 +413,19 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                         formula: formula.clone(),
                                     })
                                     .collect();
-                            Edges::HYPER(HyperEdge {
+                            Edge::HYPER(HyperEdge {
                                 source: vert.clone(),
+                                pmove: Some(pmove),
                                 targets,
                             })
                         })
-                        .collect::<HashSet<Edges<ATLVertex>>>()
+                        .collect::<Vec<Edge<ATLVertex>>>()
                 }
                 Phi::DespiteUntil {
                     players,
                     pre,
                     until,
                 } => {
-                    let mut edges = HashSet::new();
-
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
                     let pre = ATLVertex::FULL {
@@ -446,39 +433,60 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         formula: pre.clone(),
                     };
 
+                    // Together with the `pre` target is all the possible moves by other players,
+                    // but it is important that `pre` is the first target
                     let moves = self.game_structure.move_count(*state);
-                    let mut targets: Vec<ATLVertex> =
-                        VarsIterator::new(moves, players.iter().cloned().collect())
-                            .map(|pmove| ATLVertex::PARTIAL {
+                    let targets: Vec<ATLVertex> = std::iter::once(pre)
+                        .chain(
+                            PmovesIterator::new(moves, players.iter().cloned().collect()).map(
+                                |pmove| ATLVertex::PARTIAL {
+                                    state: *state,
+                                    partial_move: pmove,
+                                    formula: vert.formula(),
+                                },
+                            ),
+                        )
+                        .collect();
+
+                    vec![
+                        // `until`-formula branch
+                        // "Is the `until` formula satisfied now?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
                                 state: *state,
-                                partial_move: pmove,
-                                formula: vert.formula(),
-                            })
-                            .collect();
-                    targets.push(pre);
-
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets,
-                    }));
-
-                    // `until`-formula branch
-                    // "Is the `until` formula satisfied now?"
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: until.clone(),
-                        }],
-                    }));
-
-                    edges
+                                formula: until.clone(),
+                            }],
+                        }),
+                        // Other branches where pre is satisfied
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets,
+                        }),
+                    ]
                 }
                 Phi::EnforceUntil {
                     players,
                     pre,
                     until,
                 } => {
+                    let mut edges = vec![
+                        // `until`-formula branch
+                        // "Is the `until` formula satisfied now?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: until.clone(),
+                            }],
+                        }),
+                    ];
+
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
                     let pre = ATLVertex::FULL {
@@ -487,33 +495,28 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     };
 
                     let moves = self.game_structure.move_count(*state);
-                    let mut edges: HashSet<Edges<ATLVertex>> =
-                        VarsIterator::new(moves, players.iter().copied().collect())
-                            .map(|pmove| {
-                                let mut targets: Vec<ATLVertex> =
-                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                        .map(|state| ATLVertex::FULL {
+                    edges.extend(
+                        PmovesIterator::new(moves, players.iter().copied().collect()).map(
+                            |pmove| {
+                                // Together with the `pre` target is all the possible moves by other players,
+                                // but it is important that `pre` is the first target
+                                let delta =
+                                    DeltaIterator::new(&self.game_structure, *state, &pmove).map(
+                                        |state| ATLVertex::FULL {
                                             state,
                                             formula: formula.clone(),
-                                        })
-                                        .collect();
-                                targets.push(pre.clone());
-                                Edges::HYPER(HyperEdge {
+                                        },
+                                    );
+                                let targets: Vec<ATLVertex> =
+                                    std::iter::once(pre.clone()).chain(delta).collect();
+                                Edge::HYPER(HyperEdge {
                                     source: vert.clone(),
+                                    pmove: Some(pmove),
                                     targets,
                                 })
-                            })
-                            .collect();
-
-                    // `until`-formula branch
-                    // "Is the `until` formula satisfied now?"
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: until.clone(),
-                        }],
-                    }));
+                            },
+                        ),
+                    );
 
                     edges
                 }
@@ -521,46 +524,61 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let mut edges = HashSet::new();
-
                     // Partial targets with same formula
-                    // "Is the formula also satisfied in the next state?"
+                    // "Is the formula satisfied in the next state instead?"
                     let moves = self.game_structure.move_count(*state);
                     let targets: Vec<ATLVertex> =
-                        VarsIterator::new(moves, players.iter().cloned().collect())
+                        PmovesIterator::new(moves, players.iter().cloned().collect())
                             .map(|pmove| ATLVertex::PARTIAL {
                                 state: *state,
                                 partial_move: pmove,
                                 formula: formula.clone(),
                             })
                             .collect();
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets,
-                    }));
 
-                    // sub-formula target
-                    // "Is the sub formula satisfied in current state?"
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: subformula.clone(),
-                        }],
-                    }));
-
-                    edges
+                    vec![
+                        // sub-formula target
+                        // "Is the sub formula satisfied in current state?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: subformula.clone(),
+                            }],
+                        }),
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets,
+                        }),
+                    ]
                 }
                 Phi::EnforceEventually {
                     players,
                     formula: subformula,
                 } => {
+                    let mut edges = vec![
+                        // sub-formula target
+                        // "Is the sub formula satisfied in current state?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: subformula.clone(),
+                            }],
+                        }),
+                    ];
+
                     // Successor states with same formula
-                    // "Is the formula also satisfied in the next state?"
+                    // "Is the formula satisfied in the next state instead?"
                     let moves = self.game_structure.move_count(*state);
-                    let mut edges: HashSet<Edges<ATLVertex>> =
-                        VarsIterator::new(moves, players.iter().copied().collect())
-                            .map(|pmove| {
+                    edges.extend(
+                        PmovesIterator::new(moves, players.iter().copied().collect()).map(
+                            |pmove| {
                                 let targets: Vec<ATLVertex> =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove)
                                         .map(|state| ATLVertex::FULL {
@@ -568,22 +586,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                             formula: formula.clone(),
                                         })
                                         .collect();
-                                Edges::HYPER(HyperEdge {
+                                Edge::HYPER(HyperEdge {
                                     source: vert.clone(),
+                                    pmove: Some(pmove),
                                     targets,
                                 })
-                            })
-                            .collect();
-
-                    // sub-formula target
-                    // "Is the sub formula satisfied in current state?"
-                    edges.insert(Edges::HYPER(HyperEdge {
-                        source: vert.clone(),
-                        targets: vec![ATLVertex::FULL {
-                            state: *state,
-                            formula: subformula.clone(),
-                        }],
-                    }));
+                            },
+                        ),
+                    );
 
                     edges
                 }
@@ -591,37 +601,35 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let mut edges = HashSet::new();
-                    edges.insert(Edges::NEGATION(NegationEdge {
+                    vec![Edge::NEGATION(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
                             state: *state,
+                            // Modified formula, switching to minimum-fixed point domain
                             formula: Arc::new(Phi::EnforceUntil {
                                 players: players.clone(),
                                 pre: Arc::new(Phi::True),
                                 until: Arc::new(Phi::Not(subformula.clone())),
                             }),
                         },
-                    }));
-                    edges
+                    })]
                 }
                 Phi::EnforceInvariant {
                     players,
                     formula: subformula,
                 } => {
-                    let mut edges = HashSet::new();
-                    edges.insert(Edges::NEGATION(NegationEdge {
+                    vec![Edge::NEGATION(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
                             state: *state,
+                            // Modified formula, switching to minimum-fixed point
                             formula: Arc::new(Phi::DespiteUntil {
                                 players: players.clone(),
                                 pre: Arc::new(Phi::True),
                                 until: Arc::new(Phi::Not(subformula.clone())),
                             }),
                         },
-                    }));
-                    edges
+                    })]
                 }
             },
             ATLVertex::PARTIAL {
@@ -634,12 +642,13 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         state,
                         formula: formula.clone(),
                     }];
-                    Edges::HYPER(HyperEdge {
+                    Edge::HYPER(HyperEdge {
                         source: vert.clone(),
+                        pmove: Some(partial_move.clone()),
                         targets,
                     })
                 })
-                .collect::<HashSet<Edges<ATLVertex>>>(),
+                .collect::<Vec<Edge<ATLVertex>>>(),
         }
     }
 }
@@ -648,7 +657,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 mod test {
     use crate::atl::common::DynVec;
     use crate::atl::dependencygraph::{
-        DeltaIterator, PartialMoveChoice, PartialMoveIterator, VarsIterator,
+        DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
     };
     use crate::atl::gamestructure::EagerGameStructure;
     use std::collections::HashSet;
@@ -676,7 +685,7 @@ mod test {
         let mut players = HashSet::new();
         players.insert(0);
         players.insert(2);
-        let mut iter = VarsIterator::new(moves, players);
+        let mut iter = PmovesIterator::new(moves, players);
 
         assert_eq!(
             &iter.next(),
@@ -716,7 +725,7 @@ mod test {
     fn vars_iterator_02() {
         let mut players = HashSet::new();
         players.insert(2);
-        let mut iter = VarsIterator::new(vec![2, 3, 3], players);
+        let mut iter = PmovesIterator::new(vec![2, 3, 3], players);
 
         let value = iter.next().unwrap();
         assert_eq!(value[0], PartialMoveChoice::RANGE(2));
@@ -743,7 +752,7 @@ mod test {
         let mut players = HashSet::new();
         players.insert(0);
         players.insert(1);
-        let mut iter = VarsIterator::new(vec![3, 3], players);
+        let mut iter = PmovesIterator::new(vec![3, 3], players);
 
         let value = iter.next().unwrap();
         assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));

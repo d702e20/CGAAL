@@ -3,15 +3,13 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, TryRecvError};
-
-use crate::com::{Broker, ChannelBroker};
+use crate::com::{Broker, BrokerManager, ChannelBroker};
 use crate::common::{
-    Edges, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
+    Edge, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
 };
+use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::cmp::max;
 use std::thread::sleep;
 use std::time::Duration;
@@ -24,33 +22,32 @@ pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
 pub trait ExtendedDependencyGraph<V: Vertex> {
     /// Return out going edges from `vertex`.
     /// This will be cached on each worker.
-    fn succ(&self, vertex: &V) -> HashSet<Edges<V>>;
+    fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
 }
 
-#[instrument]
 pub fn distributed_certain_zero<
     G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
     V: Vertex + Send + Sync + 'static,
+    S: SearchStrategy<V> + Send + 'static,
+    SB: SearchStrategyBuilder<V, S>,
 >(
     edg: G,
     v0: V,
     worker_count: u64,
+    ss_builder: SB,
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
-    let (broker, mut msg_rxs, result_rx) = ChannelBroker::new(worker_count);
-    // TODO make `Broker` responsible for concurrency, and remove the `Arc` wrapper
-    let broker = Arc::new(broker);
+    let (mut brokers, manager_broker) = ChannelBroker::new(worker_count);
 
     for i in (0..worker_count).rev() {
-        let msg_rx = msg_rxs.pop().unwrap();
         let mut worker = Worker::new(
             i,
             worker_count,
             v0.clone(),
-            msg_rx,
-            broker.clone(),
+            brokers.pop().unwrap(),
             edg.clone(),
+            ss_builder.build(),
         );
         thread::spawn(move || {
             trace!("worker thread start");
@@ -58,16 +55,16 @@ pub fn distributed_certain_zero<
         });
     }
 
-    let assignment = result_rx
-        .recv()
+    let assignment = manager_broker
+        .receive_result()
         .expect("Error receiving final assigment on termination");
-    broker.terminate();
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
     assignment
 }
 
 #[derive(Debug)]
-struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
+struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S: SearchStrategy<V>>
+{
     id: WorkerId,
     /// Number of workers working on solving the query. This is used as part of the static allocation scheme, see `crate::Worker::vertex_owner`.
     worker_count: u64,
@@ -78,33 +75,40 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex> {
     /// Greatest known assignment for vertices.
     /// Order is as follow UNEXPLORED/None < UNDECIDED < {TRUE, FALSE}. Once a vertex has been assigned TRUE or FALSE it will never change assignment.
     assignment: HashMap<V, VertexAssignment>,
-    depends: HashMap<V, HashSet<Edges<V>>>,
+    depends: HashMap<V, HashSet<Edge<V>>>,
     /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
     interests: HashMap<V, HashSet<WorkerId>>,
     /// Greatest number of negation edges in any path from v0 to the given vertex.
     /// Example: If there exists a path from v0 to a vertex, which contains two negation edges, then depth will be two (or more if there is a path with more negation edges).
     depth: HashMap<V, u32>,
-    msg_rx: Receiver<Message<V>>,
     msg_queue: VecDeque<Message<V>>,
-    hyper_queue: VecDeque<HyperEdge<V>>,
-    negation_queue: VecDeque<NegationEdge<V>>,
     unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
+    /// Search strategy. Defines in which order edges are processed
+    strategy: S,
     /// Used to communicate with other workers
-    broker: Arc<B>,
+    broker: B,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
     /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
     /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
-    successors: HashMap<V, HashSet<Edges<V>>>,
+    successors: HashMap<V, HashSet<Edge<V>>>,
     edg: G,
     /// Used on the leader as a gate to avoid starting a round of the token ring if one is already in progress.
     token_in_circulation: bool,
     /// A flag to keep track of whether or not this worker has seen safe work since last time it
     /// saw the termination token
     dirty: bool,
+    /// This flag indicates that there are only unsafe negation edges, backpropagations, and
+    /// message left as tasks. We know this is the case when the first unsafe negation edges
+    /// are released, because at that point no workers must have had any safe work left.
+    only_unsafe_left: bool,
 }
 
-impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, V: Vertex>
-    Worker<B, G, V>
+impl<
+        B: Broker<V> + Debug,
+        G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
+        V: Vertex,
+        S: SearchStrategy<V>,
+    > Worker<B, G, V, S>
 {
     /// Determines which worker instance is responsible for computing the value of the vertex.
     /// Vertices are allocated to workers using a static allocation scheme. Dynamic addition and removal of workers isn't supported with this method.
@@ -123,14 +127,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        id: WorkerId,
-        worker_count: u64,
-        v0: V,
-        msg_rx: Receiver<Message<V>>,
-        broker: Arc<B>,
-        edg: G,
-    ) -> Self {
+    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G, strategy: S) -> Self {
         trace!(
             worker_id = id,
             worker_count,
@@ -144,19 +141,18 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             v0,
             running: true,
             assignment: HashMap::new(),
-            depends: HashMap::<V, HashSet<Edges<V>>>::new(),
+            depends: HashMap::<V, HashSet<Edge<V>>>::new(),
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
-            msg_rx,
             msg_queue: VecDeque::new(),
-            hyper_queue: VecDeque::new(),
-            negation_queue: VecDeque::new(),
             unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            strategy,
             depth: HashMap::<V, u32>::new(),
             broker,
-            successors: HashMap::<V, HashSet<Edges<V>>>::new(),
+            successors: HashMap::<V, HashSet<Edge<V>>>::new(),
             edg,
             token_in_circulation: false,
             dirty: false,
+            only_unsafe_left: false,
         }
     }
 
@@ -237,25 +233,28 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     fn recv_all_and_fill_queues(&mut self) {
         // Pump all messages from broker to msg queue. Terminate messages are handled immediately.
         loop {
-            match self.msg_rx.try_recv() {
-                Ok(msg) => match msg {
-                    Message::TERMINATE => {
-                        #[cfg(feature = "use-counts")]
-                        eprintln!("worker received_termination");
-                        self.running = false;
-                    }
-                    _ => {
-                        #[cfg(feature = "use-counts")]
-                        eprintln!("worker receive_message");
-                        self.msg_queue.push_back(msg)
-                    }
+            match self.broker.receive() {
+                Ok(opt_msg) => match opt_msg {
+                    Some(msg) => match msg {
+                        Message::TERMINATE => {
+                            #[cfg(feature = "use-counts")]
+                            eprintln!("worker received_termination");
+
+                            self.running = false;
+                        }
+                        _ => {
+                            #[cfg(feature = "use-counts")]
+                            eprintln!("worker receive_message");
+
+                            self.msg_queue.push_back(msg)
+                        }
+                    },
+                    None => break,
                 },
-                Err(err) => match err {
-                    TryRecvError::Empty => break,
-                    TryRecvError::Disconnected => {
-                        panic!("worker receive channel disconnected unexpectedly: {}", err)
-                    }
-                },
+                Err(err) => panic!(
+                    "worker encountered error while trying to retrieve message: {}",
+                    err
+                ),
             }
         }
     }
@@ -364,23 +363,15 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 _ => unreachable!(),
             }
             return true;
-        } else if let Some(edge) = self.hyper_queue.pop_front() {
-            let _guard = span!(
-                Level::TRACE,
-                "worker receive hyper-edge",
-                worker_id = self.id,
-                ?edge,
-            );
-            self.process_hyper_edge(edge);
-            return true;
-        } else if let Some(edge) = self.negation_queue.pop_front() {
-            let _guard = span!(
-                Level::TRACE,
-                "worker receive negation-edge",
-                worker_id = self.id,
-                ?edge,
-            );
-            self.process_negation_edge(edge);
+        } else if let Some(edge) = self.strategy.next() {
+            match edge {
+                Edge::HYPER(e) => {
+                    self.process_hyper_edge(e);
+                }
+                Edge::NEGATION(e) => {
+                    self.process_negation_edge(e);
+                }
+            }
             return true;
         }
         // No tasks
@@ -390,6 +381,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     /// Releasing the edges from the unsafe queue to the safe negation
     fn release_negations(&mut self, depth: usize) {
         self.dirty = true;
+        self.only_unsafe_left = true;
         trace!(
             depth = self.unsafe_neg_edges.len(),
             "releasing previously unsafe negation edges"
@@ -409,10 +401,8 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         if let Some(edges) = self.unsafe_neg_edges.pop() {
             // Queue all edges in the negation channel that have the given depth
-            for edge in edges {
-                trace!(?edge, "releasing negation edge");
-                self.negation_queue.push_back(edge);
-            }
+            trace!("releasing negation edges");
+            self.strategy.queue_released_edges(edges);
         }
     }
 
@@ -454,12 +444,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             } else {
                 // Line 5
                 // Queue the new edges
-                for edge in &successors {
-                    match edge {
-                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
-                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
-                    }
-                }
+                self.strategy.queue_new_edges(successors);
             }
         } else {
             // Line 7
@@ -504,7 +489,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         // Line 4
         if any_target {
-            self.delete_edge(Edges::HYPER(edge));
+            self.delete_edge(Edge::HYPER(edge));
             return;
         }
 
@@ -515,12 +500,12 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 Some(VertexAssignment::UNDECIDED) => {
                     // UNDECIDED
                     // Line 7
-                    self.add_depend(target, Edges::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::HYPER(edge.clone()));
                 }
                 None => {
                     // UNEXPLORED
                     // Line 7
-                    self.add_depend(target, Edges::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::HYPER(edge.clone()));
                     // Line 8
                     self.explore(target);
                 }
@@ -530,7 +515,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+    fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
         // Update the depth
         let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
         let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
@@ -549,7 +534,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
     }
 
     /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, dependency: Edges<V>) {
+    fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
         if let Some(dependencies) = self.depends.get_mut(vertex) {
             dependencies.remove(&dependency);
         }
@@ -565,14 +550,24 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 // UNEXPLORED
                 // Line 6
                 trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
-                self.add_depend(&edge.target, Edges::NEGATION(edge.clone()));
+                self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
                 self.queue_unsafe_negation(edge.clone());
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
                 VertexAssignment::UNDECIDED => {
-                    trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                    if self.only_unsafe_left {
+                        // This is a released negation edge
+                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing released negation edge");
+                        self.final_assign(&edge.source, VertexAssignment::TRUE)
+                    } else {
+                        // We haven't released any negation edges yet, so the undecided assignment
+                        // must be from another branch of the EDG. Hence, we add this edge as an
+                        // unsafe dependency
+                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
+                        self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
+                        self.queue_unsafe_negation(edge.clone())
+                    }
                 }
                 VertexAssignment::FALSE => {
                     trace!(?edge, assignment = ?VertexAssignment::FALSE, "processing negation edge");
@@ -580,7 +575,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
                 }
                 VertexAssignment::TRUE => {
                     trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
-                    self.delete_edge(Edges::NEGATION(edge))
+                    self.delete_edge(Edge::NEGATION(edge))
                 }
             },
         }
@@ -619,6 +614,7 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             depth,
             "got request for vertex assignment"
         );
+        debug_assert!(self.is_owner(vertex));
         #[cfg(feature = "use-counts")]
         eprintln!("worker process_request");
         if let Some(assignment) = self.assignment.get(&vertex) {
@@ -699,17 +695,14 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
                     trace!(?edge, "requeueing edge because target got assignment");
-                    match edge {
-                        Edges::HYPER(edge) => self.hyper_queue.push_back(edge.clone()),
-                        Edges::NEGATION(edge) => self.negation_queue.push_back(edge.clone()),
-                    }
+                    self.strategy.queue_back_propagation(edge)
                 }
             }
         }
     }
 
     /// Helper function for deleting edges from a vertex.
-    fn delete_edge(&mut self, edge: Edges<V>) {
+    fn delete_edge(&mut self, edge: Edge<V>) {
         let source = edge.source();
 
         // Remove edge from source
@@ -732,33 +725,30 @@ impl<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V> + Send + Sync + Debug, 
 
         match edge {
             // Line 4-6
-            Edges::HYPER(ref edge) => {
+            Edge::HYPER(ref edge) => {
                 debug!(source = ?edge, targets = ?edge.targets, "remove hyper-edge as dependency");
                 for target in &edge.targets {
-                    self.remove_depend(target, Edges::HYPER(edge.clone()))
+                    self.remove_depend(target, Edge::HYPER(edge.clone()))
                 }
             }
             // Line 7-8
-            Edges::NEGATION(ref edge) => {
+            Edge::NEGATION(ref edge) => {
                 debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
-                self.remove_depend(&edge.target, Edges::NEGATION(edge.clone()))
+                self.remove_depend(&edge.target, Edge::NEGATION(edge.clone()))
             }
         }
     }
 
     /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
     /// See documentation for the `successors` field.
-    fn succ(&mut self, vertex: &V) -> HashSet<Edges<V>> {
-        if let Some(successors) = self.successors.get(vertex) {
-            debug!(?vertex, ?successors, known_vertex = true, "edg::succ");
-            #[cfg(feature = "use-counts")]
-            eprintln!("worker succ cached");
-            // List of successors is already allocated for the vertex
-            successors.clone()
+    fn succ(&mut self, vertex: &V) -> Vec<Edge<V>> {
+        if let Some(_successors) = self.successors.get(vertex) {
+            panic!("Used cached successors instead")
         } else {
             // Setup the successors list the first time it is requested
             let successors = self.edg.succ(vertex);
-            self.successors.insert(vertex.clone(), successors.clone());
+            let successor_set = successors.iter().cloned().collect();
+            self.successors.insert(vertex.clone(), successor_set);
             debug!(
                 ?vertex,
                 ?successors,
@@ -781,8 +771,9 @@ mod test {
 
     use core::fmt::Formatter;
 
-    use crate::common::{Edges, HyperEdge, NegationEdge, VertexAssignment};
+    use crate::common::{Edge, HyperEdge, NegationEdge, VertexAssignment};
     use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
+    use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
 
     #[test]
     fn test_dcz_empty_hyper_edge() {
@@ -986,5 +977,31 @@ mod test {
         edg_assert!(D, FALSE);
         edg_assert!(E, TRUE);
         edg_assert!(F, FALSE);
+    }
+
+    #[test]
+    fn test_dcz_negation_to_undecided_01() {
+        // A case where we might explore and find a negation edges to something that is
+        // currently assigned undecided
+        simple_edg![
+            A => .> B .> E;
+            B => -> {C};
+            C => -> {D};
+            D => .> E;
+            E => -> {F};
+            F => -> {G};
+            G => -> {H};
+            H => -> {I};
+            I => -> {J};
+            J => -> {K};
+            K => -> {};
+        ];
+        edg_assert!(A, TRUE);
+        edg_assert!(B, FALSE);
+        edg_assert!(C, FALSE);
+        edg_assert!(D, FALSE);
+        edg_assert!(E, TRUE);
+        edg_assert!(F, TRUE);
+        edg_assert!(G, TRUE);
     }
 }

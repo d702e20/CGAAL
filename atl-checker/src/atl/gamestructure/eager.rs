@@ -64,6 +64,22 @@ impl GameStructure for EagerGameStructure {
             .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
             .clone()
     }
+
+    fn state_name(&self, state: State) -> String {
+        state.to_string()
+    }
+
+    fn label_name(&self, proposition: Proposition) -> String {
+        proposition.to_string()
+    }
+
+    fn player_name(&self, player: Player) -> String {
+        player.to_string()
+    }
+
+    fn action_name(&self, _state: usize, _player: usize, action: usize) -> String {
+        action.to_string()
+    }
 }
 
 impl ATLExpressionParser for EagerGameStructure {
