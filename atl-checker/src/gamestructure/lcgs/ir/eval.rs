@@ -1,6 +1,6 @@
-use crate::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, UnaryOpKind};
-use crate::lcgs::ir::intermediate::State;
-use crate::lcgs::ir::symbol_table::SymbolIdentifier;
+use crate::gamestructure::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, UnaryOpKind};
+use crate::gamestructure::lcgs::ir::intermediate::State;
+use crate::gamestructure::lcgs::ir::symbol_table::SymbolIdentifier;
 
 pub struct Evaluator<'a> {
     state: &'a State,
@@ -68,9 +68,9 @@ impl<'a> Evaluator<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::lcgs::ast::{Expr, ExprKind};
-    use crate::lcgs::ir::eval::Evaluator;
-    use crate::lcgs::ir::intermediate::State;
+    use crate::gamestructure::lcgs::ast::{Expr, ExprKind};
+    use crate::gamestructure::lcgs::ir::eval::Evaluator;
+    use crate::gamestructure::lcgs::ir::intermediate::State;
     use std::collections::HashMap;
 
     #[test]

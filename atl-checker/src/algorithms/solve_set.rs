@@ -1,4 +1,4 @@
-use crate::atl::atl_cgs_edg::{Edge, ExtendedDependencyGraph, Vertex};
+use crate::atl_cgs_edg::{Edge, ExtendedDependencyGraph, Vertex};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;

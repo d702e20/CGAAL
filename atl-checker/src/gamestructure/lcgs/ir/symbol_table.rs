@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::lcgs::ast::Decl;
+use crate::gamestructure::lcgs::ast::Decl;
 
 /// An identifier for a symbol with a given owner.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]

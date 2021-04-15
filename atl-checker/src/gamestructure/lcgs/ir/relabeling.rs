@@ -1,4 +1,4 @@
-use crate::lcgs::ast::{
+use crate::gamestructure::lcgs::ast::{
     BinaryOpKind, Decl, DeclKind, Expr, ExprKind, Identifier, LabelDecl, Relabeling, StateVarDecl,
     TransitionDecl, TypeRange, UnaryOpKind,
 };
@@ -268,9 +268,11 @@ impl<'a> Relabeler<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::lcgs::ast::{BinaryOpKind, Decl, DeclKind, Expr, ExprKind, Identifier, LabelDecl};
-    use crate::lcgs::ir::relabeling::Relabeler;
-    use crate::lcgs::parse;
+    use crate::gamestructure::lcgs::ast::{
+        BinaryOpKind, Decl, DeclKind, Expr, ExprKind, Identifier, LabelDecl,
+    };
+    use crate::gamestructure::lcgs::ir::relabeling::Relabeler;
+    use crate::gamestructure::lcgs::parse;
 
     #[test]
     fn test_relabeling_expr_01() {

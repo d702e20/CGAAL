@@ -1,5 +1,5 @@
-use crate::lcgs::ir::relabeling::RelabelError;
-use crate::lcgs::ir::symbol_checker::SymbolError;
+use crate::gamestructure::lcgs::ir::relabeling::RelabelError;
+use crate::gamestructure::lcgs::ir::symbol_checker::SymbolError;
 use std::fmt::{Display, Formatter};
 
 /// Error produced during the construction of the intermediate representation of LCGS programs.

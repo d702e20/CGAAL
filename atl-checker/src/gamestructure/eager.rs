@@ -1,9 +1,8 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
-use crate::atl::formula::{number, ATLExpressionParser};
-use crate::atl::gamestructure::GameStructure;
+use crate::atl::{number, ATLExpressionParser};
+use crate::gamestructure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
 use pom::parser::Parser;
 use std::str::{self};
 
@@ -21,6 +20,7 @@ pub struct EagerGameStructure {
 
 impl EagerGameStructure {
     /// Returns the number of moves `player` can take when the game is in `state`.
+    #[allow(dead_code)]
     pub fn available_moves(&self, state: State, player: Player) -> usize {
         *self
             .moves

@@ -20,15 +20,13 @@ use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
-use atl_checker::atl::atl_cgs_edg::{
-    ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex,
-};
-use atl_checker::atl::formula::{ATLExpressionParser, Phi};
-use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
-use atl_checker::lcgs::ast::DeclKind;
-use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
-use atl_checker::lcgs::ir::symbol_table::Owner;
-use atl_checker::lcgs::parse::parse_lcgs;
+use atl_checker::atl::{ATLExpressionParser, Phi};
+use atl_checker::atl_cgs_edg::{ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex};
+use atl_checker::gamestructure::lcgs::ast::DeclKind;
+use atl_checker::gamestructure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::gamestructure::lcgs::ir::symbol_table::Owner;
+use atl_checker::gamestructure::lcgs::parse::parse_lcgs;
+use atl_checker::gamestructure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 
@@ -326,7 +324,7 @@ fn load_formula<A: ATLExpressionParser>(path: &str, format: FormulaFormat, expr_
             exit(1);
         }),
         FormulaFormat::ATL => {
-            let result = atl_checker::atl::formula::parse_phi(expr_parser, &raw_phi);
+            let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)

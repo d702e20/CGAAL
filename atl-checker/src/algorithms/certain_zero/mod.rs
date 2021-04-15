@@ -7,7 +7,7 @@ use crate::algorithms::certain_zero::common::{
     Message, MsgToken, Token, VertexAssignment, WorkerId,
 };
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
-use crate::atl::atl_cgs_edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
+use crate::atl_cgs_edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use std::cmp::max;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;

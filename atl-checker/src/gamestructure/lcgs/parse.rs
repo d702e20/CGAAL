@@ -9,12 +9,14 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::DeclKind::{Const, Label, StateVar, Template, Transition};
-use crate::lcgs::ast::ExprKind::{BinaryOp, Max, Min, Number, OwnedIdent, TernaryIf, UnaryOp};
-use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::ast::*;
-use crate::lcgs::precedence::Associativity::RightToLeft;
-use crate::lcgs::precedence::{precedence, Precedence};
+use crate::gamestructure::lcgs::ast::DeclKind::{Const, Label, StateVar, Template, Transition};
+use crate::gamestructure::lcgs::ast::ExprKind::{
+    BinaryOp, Max, Min, Number, OwnedIdent, TernaryIf, UnaryOp,
+};
+use crate::gamestructure::lcgs::ast::UnaryOpKind::{Negation, Not};
+use crate::gamestructure::lcgs::ast::*;
+use crate::gamestructure::lcgs::precedence::Associativity::RightToLeft;
+use crate::gamestructure::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
 use self::pom::Error;
@@ -413,7 +415,7 @@ pub fn parse_lcgs(input: &str) -> pom::Result<Root> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lcgs::ast::BinaryOpKind::*;
+    use crate::gamestructure::lcgs::ast::BinaryOpKind::*;
 
     use super::*;
 

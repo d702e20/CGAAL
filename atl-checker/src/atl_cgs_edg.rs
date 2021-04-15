@@ -3,9 +3,8 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::sync::Arc;
 
-use crate::atl::common::{Player, State};
-use crate::atl::formula::Phi;
-use crate::atl::gamestructure::GameStructure;
+use crate::atl::Phi;
+use crate::gamestructure::{GameStructure, Player, State};
 
 pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
 
@@ -684,11 +683,10 @@ mod test {
     use std::collections::HashSet;
     use std::sync::Arc;
 
-    use crate::atl::atl_cgs_edg::{
+    use crate::atl_cgs_edg::{
         DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
     };
-    use crate::atl::common::DynVec;
-    use crate::atl::gamestructure::EagerGameStructure;
+    use crate::gamestructure::{DynVec, EagerGameStructure};
 
     #[test]
     fn partial_move_iterator_01() {

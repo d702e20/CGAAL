@@ -1,6 +1,6 @@
-use crate::lcgs::ast::BinaryOpKind;
-use crate::lcgs::ast::BinaryOpKind::*;
-use crate::lcgs::precedence::Associativity::LeftToRight;
+use crate::gamestructure::lcgs::ast::BinaryOpKind;
+use crate::gamestructure::lcgs::ast::BinaryOpKind::*;
+use crate::gamestructure::lcgs::precedence::Associativity::LeftToRight;
 
 /// Describes the precedence of binary operators. Higher precedence means higher priority.
 /// E.g. in "1 + 2 * 3" we have that * has higher precedence than +, and therefore it is

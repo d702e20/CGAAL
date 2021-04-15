@@ -1,4 +1,4 @@
-use crate::atl::atl_cgs_edg::Edge;
+use crate::atl_cgs_edg::Edge;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 

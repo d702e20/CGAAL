@@ -10,6 +10,7 @@ mod simple_edg;
 pub mod algorithms;
 pub mod analyse;
 pub mod atl;
-pub mod lcgs;
+pub mod atl_cgs_edg;
+pub mod gamestructure;
 #[cfg(feature = "graph-printer")]
 pub mod printer;

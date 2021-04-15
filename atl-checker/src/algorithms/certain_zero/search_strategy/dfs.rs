@@ -1,5 +1,5 @@
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
-use crate::atl::atl_cgs_edg::{Edge, Vertex};
+use crate::atl_cgs_edg::{Edge, Vertex};
 
 /// Depth-first search strategy, using a LIFO (last in, first out) data structure.
 pub struct DepthFirstSearch<V: Vertex> {

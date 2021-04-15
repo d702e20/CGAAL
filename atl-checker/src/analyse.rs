@@ -1,6 +1,6 @@
 use crate::algorithms::solve_set::{minimum_solve_set, SolveSetAssignment};
-use crate::atl::atl_cgs_edg::{ATLVertex, Edge, ExtendedDependencyGraph};
-use crate::atl::formula::Phi;
+use crate::atl::Phi;
+use crate::atl_cgs_edg::{ATLVertex, Edge, ExtendedDependencyGraph};
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]

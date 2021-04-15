@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 
-use crate::atl::atl_cgs_edg::{Edge, ExtendedDependencyGraph, Vertex};
+use crate::atl_cgs_edg::{Edge, ExtendedDependencyGraph, Vertex};
 
 // The graph can be rendered using the `dot` command graphviz, specifically like this `dot -Tpng graph.dot -O -Nfontname=noto`
 
