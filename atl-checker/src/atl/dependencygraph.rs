@@ -49,14 +49,14 @@ impl Display for ATLVertex {
 }
 
 impl ATLVertex {
-    pub(crate) fn state(&self) -> State {
+    pub fn state(&self) -> State {
         match self {
             ATLVertex::FULL { state, .. } => *state,
             ATLVertex::PARTIAL { state, .. } => *state,
         }
     }
 
-    pub(crate) fn formula(&self) -> Arc<Phi> {
+    pub fn formula(&self) -> Arc<Phi> {
         match self {
             ATLVertex::FULL { formula, .. } => formula.clone(),
             ATLVertex::PARTIAL { formula, .. } => formula.clone(),
@@ -125,7 +125,7 @@ impl<'a> PartialMoveIterator<'a> {
         if player >= self.partial_move.len() {
             false
 
-        // Call this function recursively, where we check the next player
+            // Call this function recursively, where we check the next player
         } else if !self.make_next(player + 1) {
             // The next player's move has rolled over or doesn't exist.
             // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
