@@ -112,23 +112,16 @@ fn manhattan_distance(point1: Point, point2: Point) -> i32 {
 }
 
 fn expression_is_linear(expr: &Expr) -> bool {
-    println!("{:?}", expr);
     if let ExprKind::BinaryOp(operator, operand1, operand2) = &expr.kind {
         match operator {
-            BinaryOpKind::Division => {
-                //TODO Need more logic here in the future
-                if operand1 == operand2 {
-                    false
-                } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
+            BinaryOpKind::Division | BinaryOpKind::Multiplication => {
+                if let ExprKind::OwnedIdent(ud) = &operand1.kind {
+                    if operand1 == operand2 {
+                        false
+                    } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
+                } else { true }
             }
-            BinaryOpKind::Multiplication => {
-                //TODO Need more logic here in the future
-                if operand1 == operand2 {
-                    false
-                } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
-            }
-            BinaryOpKind::Addition => { expression_is_linear(operand1) && expression_is_linear(operand2) }
-            BinaryOpKind::Subtraction => { expression_is_linear(operand1) && expression_is_linear(operand2) }
+            BinaryOpKind::Addition | BinaryOpKind::Subtraction => { expression_is_linear(operand1) && expression_is_linear(operand2) }
             _ => { true }
         }
     } else { true }
@@ -176,6 +169,20 @@ mod test {
         let outer_operator = Addition;
         let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
+
+        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        assert_eq!(expression_is_linear(&expression), true)
+    }
+
+    #[test]
+    fn expression_is_linear_test_linear_same_constants_in_mult() {
+        let inner_operator = Multiplication;
+        let inner_operand1 = Box::from(Expr { kind: Number(3) });
+        let inner_operand2 = Box::from(Expr { kind: Number(3) });
+
+        let outer_operator = Addition;
+        let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+        let outer_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
         assert_eq!(expression_is_linear(&expression), true)
