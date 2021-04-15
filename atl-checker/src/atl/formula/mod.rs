@@ -105,42 +105,48 @@ impl Phi {
         }
     }
 
-    pub fn get_propositions(&self) -> Vec<usize> {
+    pub fn get_proposition(&self) -> Option<usize> {
+        if let Phi::Proposition(id) = self {
+            Some(*id)
+        } else {None}
+    }
+
+    pub fn get_propositions_recursively(&self) -> Vec<usize> {
         match self {
             Phi::True => Vec::new(),
             Phi::False => Vec::new(),
             Phi::Proposition(id) => vec![*id],
-            Phi::Not(formula) => formula.get_propositions(),
+            Phi::Not(formula) => formula.get_propositions_recursively(),
             Phi::Or(formula1, formula2) => {
-                let mut prop1 = formula1.get_propositions();
-                let mut prop2 = formula2.get_propositions();
+                let mut prop1 = formula1.get_propositions_recursively();
+                let mut prop2 = formula2.get_propositions_recursively();
                 prop1.append(&mut prop2);
                 prop1
             }
             Phi::And(formula1, formula2) => {
-                let mut prop1 = formula1.get_propositions();
-                let mut prop2 = formula2.get_propositions();
+                let mut prop1 = formula1.get_propositions_recursively();
+                let mut prop2 = formula2.get_propositions_recursively();
                 prop1.append(&mut prop2);
                 prop1
             }
-            Phi::DespiteNext { formula, .. } => formula.get_propositions(),
-            Phi::EnforceNext { formula, .. } => formula.get_propositions(),
+            Phi::DespiteNext { formula, .. } => formula.get_propositions_recursively(),
+            Phi::EnforceNext { formula, .. } => formula.get_propositions_recursively(),
             Phi::DespiteUntil { pre, until, .. } => {
-                let mut prop1 = pre.get_propositions();
-                let mut prop2 = until.get_propositions();
+                let mut prop1 = pre.get_propositions_recursively();
+                let mut prop2 = until.get_propositions_recursively();
                 prop1.append(&mut prop2);
                 prop1
             }
             Phi::EnforceUntil { pre, until, .. } => {
-                let mut prop1 = pre.get_propositions();
-                let mut prop2 = until.get_propositions();
+                let mut prop1 = pre.get_propositions_recursively();
+                let mut prop2 = until.get_propositions_recursively();
                 prop1.append(&mut prop2);
                 prop1
             }
-            Phi::DespiteEventually { formula, .. } => formula.get_propositions(),
-            Phi::EnforceEventually { formula, .. } => formula.get_propositions(),
-            Phi::DespiteInvariant { formula, .. } => formula.get_propositions(),
-            Phi::EnforceInvariant { formula, .. } => formula.get_propositions(),
+            Phi::DespiteEventually { formula, .. } => formula.get_propositions_recursively(),
+            Phi::EnforceEventually { formula, .. } => formula.get_propositions_recursively(),
+            Phi::DespiteInvariant { formula, .. } => formula.get_propositions_recursively(),
+            Phi::EnforceInvariant { formula, .. } => formula.get_propositions_recursively(),
         }
     }
 
