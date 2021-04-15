@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use joinery::prelude::*;
 
 use crate::atl::Phi;
-use crate::gamestructure::GameStructure;
+use crate::game_structure::GameStructure;
 
 /// The GamePhi struct pairs an ATL formula with its game structure, allowing us to print
 /// the formula using the names of players and labels that is defined by the game structure.

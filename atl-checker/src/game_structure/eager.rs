@@ -2,7 +2,7 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
 use crate::atl::{number, ATLExpressionParser};
-use crate::gamestructure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
+use crate::game_structure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
 use pom::parser::Parser;
 use std::str::{self};
 

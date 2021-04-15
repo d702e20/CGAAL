@@ -1,4 +1,4 @@
-use crate::atl_cgs_edg::{Edge, NegationEdge, Vertex};
+use crate::edg::{Edge, NegationEdge, Vertex};
 
 pub mod bfs;
 pub mod dfs;

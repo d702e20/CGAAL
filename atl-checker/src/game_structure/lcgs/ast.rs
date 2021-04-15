@@ -2,8 +2,8 @@ use core::fmt;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
-use crate::gamestructure::lcgs::ast::BinaryOpKind::*;
-use crate::gamestructure::lcgs::ir::symbol_table::Owner;
+use crate::game_structure::lcgs::ast::BinaryOpKind::*;
+use crate::game_structure::lcgs::ir::symbol_table::Owner;
 
 /// The root of a LCGS program.
 #[derive(Debug, Eq, PartialEq)]

@@ -21,12 +21,12 @@ use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSea
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
-use atl_checker::atl_cgs_edg::{ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex};
-use atl_checker::gamestructure::lcgs::ast::DeclKind;
-use atl_checker::gamestructure::lcgs::ir::intermediate::IntermediateLCGS;
-use atl_checker::gamestructure::lcgs::ir::symbol_table::Owner;
-use atl_checker::gamestructure::lcgs::parse::parse_lcgs;
-use atl_checker::gamestructure::{EagerGameStructure, GameStructure};
+use atl_checker::edg::{ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex};
+use atl_checker::game_structure::lcgs::ast::DeclKind;
+use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
+use atl_checker::game_structure::lcgs::parse::parse_lcgs;
+use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 

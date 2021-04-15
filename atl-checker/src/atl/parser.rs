@@ -5,7 +5,7 @@ use pom::parser::{end, Parser};
 use pom::parser::{list, one_of, seq, sym};
 
 use super::Phi;
-use crate::gamestructure::{Player, Proposition};
+use crate::game_structure::{Player, Proposition};
 
 /// Parse an ATL formula
 pub fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
@@ -268,9 +268,9 @@ mod test {
         until, ATLExpressionParser,
     };
     use crate::atl::{parse_phi, Phi};
-    use crate::gamestructure::lcgs::ir::intermediate::IntermediateLCGS;
-    use crate::gamestructure::lcgs::parse::parse_lcgs;
-    use crate::gamestructure::{Player, Proposition};
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::game_structure::lcgs::parse::parse_lcgs;
+    use crate::game_structure::{Player, Proposition};
 
     struct TestModel;
 

@@ -6,7 +6,7 @@ use joinery::prelude::*;
 
 use crate::atl::game_formula::GamePhi;
 pub use crate::atl::parser::*;
-use crate::gamestructure::{GameStructure, Player, Proposition};
+use crate::game_structure::{GameStructure, Player, Proposition};
 
 pub mod game_formula;
 pub mod parser;

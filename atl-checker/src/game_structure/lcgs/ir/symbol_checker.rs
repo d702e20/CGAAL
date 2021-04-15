@@ -1,7 +1,7 @@
-use crate::gamestructure::lcgs::ast::{
+use crate::game_structure::lcgs::ast::{
     BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind,
 };
-use crate::gamestructure::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use crate::game_structure::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 
 #[derive(Debug)]
 pub struct SymbolError {

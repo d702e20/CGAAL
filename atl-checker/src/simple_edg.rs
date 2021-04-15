@@ -50,7 +50,7 @@ macro_rules! simple_edg {
     // Defines struct and enum
     [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
         #[allow(unused_imports)]
-        use crate::atl_cgs_edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
+        use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
         #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
         #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
