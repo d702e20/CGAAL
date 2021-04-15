@@ -1,30 +1,25 @@
-use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
-use std::fmt::Display;
-use std::hash::{Hash, Hasher};
 use std::thread;
 
-use crate::com::{Broker, BrokerManager, ChannelBroker};
-use crate::common::{
-    Edge, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
+use crate::algorithms::certain_zero::com::{Broker, BrokerManager, ChannelBroker};
+use crate::algorithms::certain_zero::common::{
+    Message, MsgToken, Token, VertexAssignment, WorkerId,
 };
-use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
+use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
+use crate::atl::atl_cgs_edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use std::cmp::max;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
 use std::thread::sleep;
 use std::time::Duration;
 use tracing::{span, trace, Level};
 
+pub mod com;
+pub mod common;
+pub mod search_strategy;
+
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
-
-pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
-
-pub trait ExtendedDependencyGraph<V: Vertex> {
-    /// Return out going edges from `vertex`.
-    /// This will be cached on each worker.
-    fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
-}
-
 pub fn distributed_certain_zero<
     G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
     V: Vertex + Send + Sync + 'static,
@@ -764,16 +759,76 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use std::collections::hash_map::RandomState;
-    use std::collections::HashSet;
-    use std::fmt::Display;
     use test_env_log::test;
 
-    use core::fmt::Formatter;
-
-    use crate::common::{Edge, HyperEdge, NegationEdge, VertexAssignment};
-    use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
-    use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
+    /// Defines an assertion which test the assignment of a vertex in an EDG using the
+    /// distributed certain zero algorithm.
+    /// This macro is intended to be used in conjunction with the `simple_edg` macro.
+    ///
+    /// # Example
+    /// Simple usage:
+    /// ```
+    /// simple_edg![
+    ///     A => .> B;
+    ///     B => -> {};
+    /// ];
+    ///
+    /// edg_assert!(A, FALSE);
+    /// edg_assert!(B, TRUE);
+    /// ```
+    /// Note that TRUE/FALSE must be capitalized.
+    ///
+    /// # Worker count
+    /// You can set the worker count by supplying a third argument to the marco. The default
+    /// number of workers are 3.
+    /// ```
+    /// edg_assert!(A, FALSE, 5);
+    /// ```
+    ///
+    /// # Custom names
+    /// By default the macro assumes that the EDG and vertices are defined by the struct `SimpleEDG`
+    /// and the enum `SimpleVertex` as is also default in the `simple_edg` macro.
+    /// This can be changed by adding `[EDG_NAME, VERTEX_NAME]` in the start of the
+    /// macro's arguments, where `EDG_NAME` is the desired name of the example, and `VERTEX_NAME` is
+    /// the desired name of the vertex enum. This allows us to have multiple hardcoded EDGs in the
+    /// same scope.
+    /// ```
+    /// simple_edg![
+    ///     [MyEDG1, MyVertex1]
+    ///     A, B, C, D ::
+    ///     A => -> {B} .> {D};
+    ///     B => -> {D, C};
+    ///     C => ;
+    ///     D => -> {C};
+    /// ];
+    ///
+    /// edg_assert!([MyEDG1, MyVertex1] A, TRUE);
+    /// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
+    /// ```
+    #[allow(unused_macros)]
+    macro_rules! edg_assert {
+        // Standard use, no names or worker count given
+        ( $v:ident, $assign:ident ) => {
+            edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 3)
+        };
+        // With worker count given
+        ( $v:ident, $assign:ident, $wc:expr ) => {
+            edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, $wc)
+        };
+        // With custom names given
+        ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident ) => {
+            edg_assert!([$edg_name, $vertex_name] $v, $assign, 3)
+        };
+        // With custom names and worker count
+        ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
+            assert_eq!(
+                crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder),
+                crate::algorithms::certain_zero::common::VertexAssignment::$assign,
+                "Vertex {}",
+                stringify!($v)
+            );
+        };
+    }
 
     #[test]
     fn test_dcz_empty_hyper_edge() {

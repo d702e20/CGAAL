@@ -1,5 +1,4 @@
-use crate::common::Edge;
-use crate::edg::{ExtendedDependencyGraph, Vertex};
+use crate::atl::atl_cgs_edg::{Edge, ExtendedDependencyGraph, Vertex};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -212,7 +211,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
 #[cfg(test)]
 mod test {
-    use crate::solve_set::minimum_solve_set;
+    use crate::algorithms::solve_set::minimum_solve_set;
     /// Defines a test of the solve distance algorithm.
     /// Meant to be used in conjunction with `simple_edg`.
     ///

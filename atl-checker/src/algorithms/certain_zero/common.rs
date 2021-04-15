@@ -1,4 +1,4 @@
-use crate::atl::dependencygraph::PartialMove;
+use crate::atl::atl_cgs_edg::Edge;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -27,25 +27,6 @@ impl Display for VertexAssignment {
             VertexAssignment::TRUE => write!(f, "true"),
         }
     }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub pmove: Option<PartialMove>,
-    pub targets: Vec<V>,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub target: V,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
-    HYPER(HyperEdge<V>),
-    NEGATION(NegationEdge<V>),
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {

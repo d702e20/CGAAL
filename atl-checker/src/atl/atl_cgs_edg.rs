@@ -1,12 +1,38 @@
-use crate::common::{Edge, HyperEdge, NegationEdge};
-use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::HashSet;
+use std::fmt::{Debug, Display, Formatter};
+use std::hash::Hash;
 use std::sync::Arc;
 
 use crate::atl::common::{Player, State};
 use crate::atl::formula::Phi;
 use crate::atl::gamestructure::GameStructure;
-use std::fmt::{Display, Formatter};
+
+pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
+
+pub trait ExtendedDependencyGraph<V: Vertex> {
+    /// Return out going edges from `vertex`.
+    /// This will be cached on each worker.
+    fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
+    pub source: V,
+    pub pmove: Option<PartialMove>,
+    pub targets: Vec<V>,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
+    pub source: V,
+    pub target: V,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
+    HYPER(HyperEdge<V>),
+    NEGATION(NegationEdge<V>),
+}
 
 #[derive(Clone, Debug)]
 pub struct ATLDependencyGraph<G: GameStructure> {
@@ -37,7 +63,7 @@ impl Display for ATLVertex {
             } => {
                 write!(f, "state={} pmove=[", state)?;
                 for (i, choice) in partial_move.iter().enumerate() {
-                    choice.fmt(f)?;
+                    std::fmt::Display::fmt(&choice, f)?;
                     if i < partial_move.len() - 1 {
                         f.write_str(", ")?;
                     }
@@ -655,13 +681,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
 #[cfg(test)]
 mod test {
-    use crate::atl::common::DynVec;
-    use crate::atl::dependencygraph::{
-        DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
-    };
-    use crate::atl::gamestructure::EagerGameStructure;
     use std::collections::HashSet;
     use std::sync::Arc;
+
+    use crate::atl::atl_cgs_edg::{
+        DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
+    };
+    use crate::atl::common::DynVec;
+    use crate::atl::gamestructure::EagerGameStructure;
 
     #[test]
     fn partial_move_iterator_01() {

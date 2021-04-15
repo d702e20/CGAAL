@@ -49,10 +49,8 @@ macro_rules! simple_edg {
     };
     // Defines struct and enum
     [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
-        use std::collections::HashSet;
         #[allow(unused_imports)]
-        use crate::common::{Edge, HyperEdge, NegationEdge};
-        use crate::edg::{ExtendedDependencyGraph, Vertex};
+        use crate::atl::atl_cgs_edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
         #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
         #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
@@ -92,74 +90,5 @@ macro_rules! simple_edg {
                 successors
             }),*
         }
-    };
-}
-
-/// Defines an assertion which test the assignment of a vertex in an EDG using the
-/// distributed certain zero algorithm.
-/// This macro is intended to be used in conjunction with the `simple_edg` macro.
-///
-/// # Example
-/// Simple usage:
-/// ```
-/// simple_edg![
-///     A => .> B;
-///     B => -> {};
-/// ];
-///
-/// edg_assert!(A, FALSE);
-/// edg_assert!(B, TRUE);
-/// ```
-/// Note that TRUE/FALSE must be capitalized.
-///
-/// # Worker count
-/// You can set the worker count by supplying a third argument to the marco. The default
-/// number of workers are 3.
-/// ```
-/// edg_assert!(A, FALSE, 5);
-/// ```
-///
-/// # Custom names
-/// By default the macro assumes that the EDG and vertices are defined by the struct `SimpleEDG`
-/// and the enum `SimpleVertex` as is also default in the `simple_edg` macro.
-/// This can be changed by adding `[EDG_NAME, VERTEX_NAME]` in the start of the
-/// macro's arguments, where `EDG_NAME` is the desired name of the example, and `VERTEX_NAME` is
-/// the desired name of the vertex enum. This allows us to have multiple hardcoded EDGs in the
-/// same scope.
-/// ```
-/// simple_edg![
-///     [MyEDG1, MyVertex1]
-///     A, B, C, D ::
-///     A => -> {B} .> {D};
-///     B => -> {D, C};
-///     C => ;
-///     D => -> {C};
-/// ];
-///
-/// edg_assert!([MyEDG1, MyVertex1] A, TRUE);
-/// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
-/// ```
-#[allow(unused_macros)]
-macro_rules! edg_assert {
-    // Standard use, no names or worker count given
-    ( $v:ident, $assign:ident ) => {
-        edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 3)
-    };
-    // With worker count given
-    ( $v:ident, $assign:ident, $wc:expr ) => {
-        edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, $wc)
-    };
-    // With custom names given
-    ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident ) => {
-        edg_assert!([$edg_name, $vertex_name] $v, $assign, 3)
-    };
-    // With custom names and worker count
-    ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
-        assert_eq!(
-            distributed_certain_zero($edg_name, $vertex_name::$v, $wc, BreadthFirstSearchBuilder),
-            crate::common::VertexAssignment::$assign,
-            "Vertex {}",
-            stringify!($v)
-        );
     };
 }
