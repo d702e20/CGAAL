@@ -66,14 +66,23 @@ impl SearchStrategyOption {
         edg: G,
         v0: V,
         worker_count: u64,
+        prioritise_back_propagation: bool,
     ) -> VertexAssignment {
         match self {
-            SearchStrategyOption::BFS => {
-                distributed_certain_zero(edg, v0, worker_count, BreadthFirstSearchBuilder)
-            }
-            SearchStrategyOption::DFS => {
-                distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
-            }
+            SearchStrategyOption::BFS => distributed_certain_zero(
+                edg,
+                v0,
+                worker_count,
+                BreadthFirstSearchBuilder,
+                prioritise_back_propagation,
+            ),
+            SearchStrategyOption::DFS => distributed_certain_zero(
+                edg,
+                v0,
+                worker_count,
+                DepthFirstSearchBuilder,
+                prioritise_back_propagation,
+            ),
         }
     }
 }
@@ -141,6 +150,8 @@ fn main_inner() -> Result<(), String> {
             let formula_path = solver_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&solver_args)?;
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
+            let prioritise_back_propagation =
+                !solver_args.is_present("no_prioritised_back_propagation");
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(
@@ -148,10 +159,12 @@ fn main_inner() -> Result<(), String> {
                 v0: ATLVertex,
                 threads: u64,
                 ss: SearchStrategyOption,
+                prioritise_back_propagation: bool,
             ) where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = ss.distributed_certain_zero(graph, v0, threads);
+                let result =
+                    ss.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation);
                 println!("Result: {}", result);
             }
 
@@ -175,7 +188,13 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    check_model(graph, v0, threads, search_strategy);
+                    check_model(
+                        graph,
+                        v0,
+                        threads,
+                        search_strategy,
+                        prioritise_back_propagation,
+                    );
                 },
                 |game_structure, formula| {
                     println!(
@@ -188,7 +207,13 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    check_model(graph, v0, threads, search_strategy);
+                    check_model(
+                        graph,
+                        v0,
+                        threads,
+                        search_strategy,
+                        prioritise_back_propagation,
+                    );
                 },
             )?
         }
