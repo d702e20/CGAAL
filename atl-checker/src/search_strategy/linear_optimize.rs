@@ -5,7 +5,7 @@ use std::collections::{HashSet, VecDeque, HashMap};
 use crate::lcgs::ir::intermediate::IntermediateLCGS;
 use crate::atl::dependencygraph::ATLVertex;
 use crate::atl::formula::Phi;
-use crate::lcgs::ast::{DeclKind, BinaryOpKind, Expr, ExprKind};
+use crate::lcgs::ast::{DeclKind, BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::parse::label_decl;
 
 struct Point {
@@ -115,11 +115,11 @@ fn expression_is_linear(expr: &Expr) -> bool {
     if let ExprKind::BinaryOp(operator, operand1, operand2) = &expr.kind {
         match operator {
             BinaryOpKind::Division | BinaryOpKind::Multiplication => {
-                if let ExprKind::OwnedIdent(ud) = &operand1.kind {
+                if let ExprKind::OwnedIdent(id) = &operand1.kind {
                     if operand1 == operand2 {
                         false
                     } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
-                } else { true }
+                } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
             }
             BinaryOpKind::Addition | BinaryOpKind::Subtraction => { expression_is_linear(operand1) && expression_is_linear(operand2) }
             _ => { true }
@@ -196,6 +196,24 @@ mod test {
 
         let outer_operator = Addition;
         let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+        let outer_operand2 = Box::from(Expr { kind: Number(5) });
+
+        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        assert_eq!(expression_is_linear(&expression), false)
+    }
+
+    #[test]
+    fn expression_is_linear_test_polynomial1() {
+        let inner_operator = Multiplication;
+        let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let inner_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+
+        let middle_operator = Multiplication;
+        let middle_operand1 = Box::from(Expr { kind: Number(5) });
+        let middle_operand2 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+
+        let outer_operator = Addition;
+        let outer_operand1 = Box::from(Expr { kind: BinaryOp(middle_operator, middle_operand1, middle_operand2) });
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
