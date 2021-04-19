@@ -32,7 +32,13 @@ macro_rules! bench_json {
 
                     let v0 = ATLVertex::FULL { state: 0, formula };
 
-                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    distributed_certain_zero(
+                        graph,
+                        v0,
+                        num_cpus::get() as u64,
+                        BreadthFirstSearchBuilder,
+                        false,
+                    );
                 })
             });
         }
@@ -71,7 +77,7 @@ macro_rules! bench_lcgs {
                         v0,
                         num_cpus::get() as u64,
                         BreadthFirstSearchBuilder,
-                        true,
+                        false,
                     );
                 });
             });
@@ -111,7 +117,7 @@ macro_rules! bench_lcgs_threads {
                                 v0,
                                 core_count,
                                 BreadthFirstSearchBuilder,
-                                true,
+                                false,
                             );
                         });
                     },
