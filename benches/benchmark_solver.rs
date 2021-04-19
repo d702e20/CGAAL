@@ -32,7 +32,13 @@ macro_rules! bench_json {
 
                     let v0 = ATLVertex::FULL { state: 0, formula };
 
-                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    distributed_certain_zero(
+                        graph,
+                        v0,
+                        num_cpus::get() as u64,
+                        BreadthFirstSearchBuilder,
+                        true,
+                    );
                 })
             });
         }
