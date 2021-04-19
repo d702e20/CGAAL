@@ -2,11 +2,13 @@ use crate::common::Edge;
 use crate::edg::Vertex;
 use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use std::collections::{HashSet, VecDeque, HashMap};
-use crate::lcgs::ir::intermediate::IntermediateLCGS;
+use crate::lcgs::ir::intermediate::{IntermediateLCGS, State};
 use crate::atl::dependencygraph::ATLVertex;
 use crate::atl::formula::Phi;
 use crate::lcgs::ast::{DeclKind, BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::parse::label_decl;
+use crate::lcgs::ast::BinaryOpKind::{Addition, Subtraction, Multiplication, Division, Equality, Inequality, GreaterThan, LessThan, GreaterOrEqual, LessOrEqual, Implication, Xor, Or, And};
+use std::env::var;
 
 struct Point {
     x: i32,
@@ -15,10 +17,17 @@ struct Point {
 
 #[derive(Debug)]
 struct LinearExpression {
-    x: i32,
-    constant: i32,
-    operation: BinaryOpKind,
+    pub x: Identifier,
+    pub constant: i32,
+    pub operation: BinaryOpKind,
 }
+
+/*#[derive(Debug, Default)]
+enum LinearExpressionComponent {
+    Op(BinaryOpKind),
+    Number(i32),
+    Variable(Identifier)
+}*/
 
 /// Search strategy using ideas from linear programming to order the order in which to visit next
 /// vertices, based on distance from the vertex to a region that borders the line between true/false
@@ -34,6 +43,17 @@ impl LinearOptimizeSearch {
             queue: VecDeque::new(),
             game,
         }
+    }
+}
+
+/// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
+pub struct LinearOptimizeSearchBuilder {
+    pub game: IntermediateLCGS
+}
+
+impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
+    fn build(&self) -> LinearOptimizeSearch {
+        LinearOptimizeSearch::new(self.game.clone())
     }
 }
 
@@ -64,29 +84,56 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 
 impl LinearOptimizeSearch {
     fn distance_to_acceptance_border(&self, edge: &Edge<ATLVertex>) -> i32 {
-        match &edge {
+        let distance = match &edge {
             Edge::HYPER(hyperedge) => {
                 // For every target, we want to see how close we get to acceptance border
+                let mut distances: Vec<i32> = Vec::new();
                 for target in &hyperedge.targets {
+                    // Find the linear expression from the targets formula
+                    let linear_expression = self.check_if_formula_is_linear(target);
 
-                    // Find the propositions we are interested in
-                    let linear_expression = self.extract_single_linear_expression(target);
+                    // get state of variables
+                    let state = self.game.state_from_index(target.state());
+
+                    // get distance from this state, to acceptance
+                    if linear_expression.is_some(){
+                        let res = minimum_distance(state, linear_expression.unwrap());
+                        // add to vec of results
+                        distances.push(res)
+                    } else {return 100000};
+
+
                 }
-                hyperedge.targets.clone()
+                // TODO remove
+                distances.push(3);
+
+                // Find average distance between targets, and return this
+                let avg_distance = distances.iter().sum::<i32>() as f32 / distances.len() as f32;
+                avg_distance
             }
+            // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
-                let state = self.game.state_from_index(edge.target.state());
-                vec![edge.target.clone()]
+                let linear_expression = self.check_if_formula_is_linear(&edge.target);
+                if linear_expression.is_some() {
+                    let state = self.game.state_from_index(edge.target.state());
+                    minimum_distance(state, linear_expression.unwrap());
+                    // TODO remove
+                    1.0
+                } else {return 100000}
             }
         };
-
-        // find average distance all targets to accept region
-        manhattan_distance(Point { x: 1, y: 1 }, Point { x: 1, y: 1 })
+        distance as i32
     }
 
-    fn extract_single_linear_expression(&self, vertex: &ATLVertex) -> LinearExpression {
+    fn check_if_formula_is_linear(&self, vertex: &ATLVertex) -> Option<ExprKind> {
+        // If outmost Phi is a proposition, return this
         let propositions_index = vertex.formula().get_proposition();
 
+        if propositions_index.is_none() {
+            return {None}
+        }
+
+        // Check if it was a proposition
         if propositions_index.is_some() {
             // Make sure it is a Label
             if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index.unwrap()).kind {
@@ -94,13 +141,22 @@ impl LinearOptimizeSearch {
                 // The actual expression of the label (the condition)
                 let cond = &label.condition;
 
-                if expression_is_linear(cond) {}
-            }
-        }
+                println!("{:?}", cond);
 
-        let linear_expression = LinearExpression { x: 1, constant: 2, operation: BinaryOpKind::Addition };
-        linear_expression
+                // Expression has to be linear
+                if expression_is_linear(cond) {
+                    let expr = &cond.kind;
+                    return {Some(expr.clone())}
+                } else { return None }
+            } else {None}
+        } else { return None }
     }
+}
+
+//https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+// TODO
+fn minimum_distance(state: State, expr: ExprKind) -> i32 {
+    3
 }
 
 fn print_type_of<T>(_: &T) {
@@ -127,20 +183,9 @@ fn expression_is_linear(expr: &Expr) -> bool {
     } else { true }
 }
 
-/// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
-pub struct LinearOptimizeSearchBuilder {
-    pub game: IntermediateLCGS
-}
-
-impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
-    fn build(&self) -> LinearOptimizeSearch {
-        LinearOptimizeSearch::new(self.game.clone())
-    }
-}
-
 mod test {
-    use crate::search_strategy::linear_optimize::{manhattan_distance, Point, expression_is_linear};
-    use crate::lcgs::ast::Expr;
+    use crate::search_strategy::linear_optimize::{manhattan_distance, Point, expression_is_linear, LinearExpression};
+    use crate::lcgs::ast::{Expr, BinaryOpKind};
     use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
     use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
     use crate::lcgs::ast::Identifier::{Resolved, Simple};
@@ -230,6 +275,11 @@ mod test {
 6. Profit
  */
 
+/* TODO for reals
+1. Skriv extract_single_linear_expression
+2. Skriv minimum_distance
+*/
+
 
 /*
 notes
@@ -239,3 +289,55 @@ Kan tænke over less than or equal.
 stop hvis det ikke er muligt
  */
 
+/*
+fn extract_single_linear_expression(&self, vertex: &ATLVertex) -> Option<Expr> {
+        // If outmost Phi is a proposition, return this
+        let propositions_index = vertex.formula().get_proposition();
+
+        // Check if it was a proposition
+        if propositions_index.is_some() {
+            // Make sure it is a Label
+            if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index.unwrap()).kind {
+
+                // The actual expression of the label (the condition)
+                let cond = &label.condition;
+
+                println!("{:?}", cond);
+
+                // Expression has to be linear
+                if expression_is_linear(cond) {
+                    // TODO currently only allows very simple expressions - such as x < 5, y = 1
+                    if let ExprKind::BinaryOp(operator, operand1, operand2) = &cond.kind {
+                        let variable:Option<Identifier> = match &operand1.kind {
+                            ExprKind::OwnedIdent(id) => Some(**id),
+                            _ => None
+                        };
+                        let constant:Option<i32> = match operand2.kind {
+                            ExprKind::Number(number) => Some(number),
+                            _ => None
+                        };
+                        let operator: BinaryOpKind = match operator {
+                            BinaryOpKind::Addition => Addition,
+                            BinaryOpKind::Multiplication => Multiplication,
+                            BinaryOpKind::Subtraction => Subtraction,
+                            BinaryOpKind::Division => Division,
+                            BinaryOpKind::Equality => Equality,
+                            BinaryOpKind::Inequality => Inequality,
+                            BinaryOpKind::GreaterThan => GreaterThan,
+                            BinaryOpKind::LessThan => LessThan,
+                            BinaryOpKind::GreaterOrEqual => GreaterOrEqual,
+                            BinaryOpKind::LessOrEqual => LessOrEqual,
+                            BinaryOpKind::And => And,
+                            BinaryOpKind::Or => Or,
+                            BinaryOpKind::Xor => Xor,
+                            BinaryOpKind::Implication => Implication,
+                        };
+                        let linearexpression:(Option<Identifier>, Option<i32>, BinaryOpKind) = (variable,constant,operator);
+                        return Some(linearexpression)
+                    }
+                }
+            }
+        }
+        None
+    }
+ */
