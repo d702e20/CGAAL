@@ -9,8 +9,10 @@ use crate::lcgs::ast::{DeclKind, BinaryOpKind, Expr, ExprKind, Identifier};
 use crate::lcgs::parse::label_decl;
 use crate::lcgs::ast::BinaryOpKind::{Addition, Subtraction, Multiplication, Division, Equality, Inequality, GreaterThan, LessThan, GreaterOrEqual, LessOrEqual, Implication, Xor, Or, And};
 use std::env::var;
+use minilp;
+use minilp::{Problem, OptimizationDirection, ComparisonOp, Error, Solution};
 
-struct Point {
+struct MyPoint {
     x: i32,
     y: i32,
 }
@@ -90,19 +92,17 @@ impl LinearOptimizeSearch {
                 let mut distances: Vec<i32> = Vec::new();
                 for target in &hyperedge.targets {
                     // Find the linear expression from the targets formula
-                    let linear_expression = self.check_if_formula_is_linear(target);
+                    let linear_expression = self.get_simple_linear_formula(target);
 
                     // get state of variables
                     let state = self.game.state_from_index(target.state());
 
                     // get distance from this state, to acceptance
-                    if linear_expression.is_some(){
-                        let res = minimum_distance(state, linear_expression.unwrap());
+                    if linear_expression.is_some() {
+                        let res = minimum_distance_1d(state, linear_expression.unwrap());
                         // add to vec of results
                         distances.push(res)
-                    } else {return 100000};
-
-
+                    } else { return 100000; };
                 }
                 // TODO remove
                 distances.push(3);
@@ -113,24 +113,24 @@ impl LinearOptimizeSearch {
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
-                let linear_expression = self.check_if_formula_is_linear(&edge.target);
+                let linear_expression = self.get_simple_linear_formula(&edge.target);
                 if linear_expression.is_some() {
                     let state = self.game.state_from_index(edge.target.state());
-                    minimum_distance(state, linear_expression.unwrap());
+                    minimum_distance_1d(state, linear_expression.unwrap());
                     // TODO remove
                     1.0
-                } else {return 100000}
+                } else { return 100000; }
             }
         };
         distance as i32
     }
 
-    fn check_if_formula_is_linear(&self, vertex: &ATLVertex) -> Option<ExprKind> {
+    fn get_simple_linear_formula(&self, vertex: &ATLVertex) -> Option<ExprKind> {
         // If outmost Phi is a proposition, return this
         let propositions_index = vertex.formula().get_proposition();
 
         if propositions_index.is_none() {
-            return {None}
+            return { None };
         }
 
         // Check if it was a proposition
@@ -141,34 +141,79 @@ impl LinearOptimizeSearch {
                 // The actual expression of the label (the condition)
                 let cond = &label.condition;
 
-                println!("{:?}", cond);
-
                 // Expression has to be linear
                 if cond.is_linear() {
                     let expr = &cond.kind;
-                    return {Some(expr.clone())}
-                } else { return None }
-            } else {None}
-        } else { return None }
+                    Some(expr.clone())
+                } else { None }
+            } else { None }
+        } else { None }
     }
 }
 
-//https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+
 // TODO
-fn minimum_distance(state: State, expr: ExprKind) -> i32 {
+fn minimum_distance_1d(state: State, expr: ExprKind) -> i32 {
+    let distance = match &expr {
+        ExprKind::BinaryOp(operator, operand1, operand2) => {
+            if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                if let ExprKind::Number(number) = operand2.kind {
+                    let mut problem = Problem::new(OptimizationDirection::Minimize);
+                    // TODO find rangen på vores variabel
+                    let range_of_id:(f64,f64) = (1.0,3.0);
+                    let x = problem.add_var(1.0,(range_of_id.0, range_of_id.1));
+                    // TODO support for more operators - different crate?
+                    match operator {
+                        Addition => {}
+                        Multiplication => {}
+                        Subtraction => {}
+                        Division => {}
+                        Equality => {problem.add_constraint(&[(x,1.0)], ComparisonOp::Eq, number as f64);}
+                        Inequality => {}
+                        GreaterThan => {problem.add_constraint(&[(x,1.0)], ComparisonOp::Ge, number as f64);}
+                        LessThan => {problem.add_constraint(&[(x,1.0)], ComparisonOp::Le, number as f64);}
+                        GreaterOrEqual => {}
+                        LessOrEqual => {}
+                        And => {}
+                        Or => {}
+                        Xor => {}
+                        Implication => {}
+                    }
+                    let solution = problem.solve();
+                    match solution {
+                        Ok(sol) => {
+                            println!("{}",sol.objective());
+                            println!("{}",sol[x]);
+                            // todo fix
+                            let value_of_x = 5;
+                            let distance = f64::abs((5 as f64 - sol[x]));
+                            println!("{}", distance);
+                            return distance as i32
+                        }
+                        Err(e) => { return 10000}
+                    }
+
+                }
+            } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
+                if let ExprKind::Number(number) = operand1.kind {
+
+                }
+            }
+        }
+        _ => {}
+    };
+
+    println!("{}",state);
+    println!("{:?}", expr);
     3
 }
 
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
-}
-
-fn manhattan_distance(point1: Point, point2: Point) -> i32 {
+fn manhattan_distance(point1: MyPoint, point2: MyPoint) -> i32 {
     i32::abs((point1.x - point2.x) + (point1.y - point2.y))
 }
 
 mod test {
-    use crate::search_strategy::linear_optimize::{manhattan_distance, Point, LinearExpression};
+    use crate::search_strategy::linear_optimize::{manhattan_distance, MyPoint, LinearExpression};
     use crate::lcgs::ast::{Expr, BinaryOpKind};
     use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
     use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
@@ -177,7 +222,7 @@ mod test {
 
     #[test]
     fn manhattan_distance_test() {
-        assert_eq!(manhattan_distance(Point { x: 0, y: 0 }, Point { x: 6, y: 6 }), 12);
+        assert_eq!(manhattan_distance(MyPoint { x: 0, y: 0 }, MyPoint { x: 6, y: 6 }), 12);
     }
 
     #[test]
@@ -272,7 +317,7 @@ Kan tænke over less than or equal.
 
 stop hvis det ikke er muligt
  */
-
+//https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
 /*
 fn extract_single_linear_expression(&self, vertex: &ATLVertex) -> Option<Expr> {
         // If outmost Phi is a proposition, return this
