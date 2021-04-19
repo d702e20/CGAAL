@@ -104,6 +104,17 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
     fn queue_back_propagation(&mut self, edge: Edge<V>) {
         self.queue(edge);
     }
+
+    fn on_interest(&mut self, vertex: &V) {
+        let dependency = self
+            .dependencies
+            .entry(vertex.clone())
+            .or_insert(DependencyData {
+                queue: Default::default(),
+                rank: 0,
+            });
+        dependency.rank += 1;
+    }
 }
 
 /// A SearchStrategyBuilder for building the DependencyHeuristicSearch strategy.
