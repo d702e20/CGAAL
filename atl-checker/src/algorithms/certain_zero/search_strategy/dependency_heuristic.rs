@@ -118,10 +118,10 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
 }
 
 /// A SearchStrategyBuilder for building the DependencyHeuristicSearch strategy.
-pub struct DenpdencyHeuristicSearchBuilder;
+pub struct DependencyHeuristicSearchBuilder;
 
 impl<V: Vertex> SearchStrategyBuilder<V, DependencyHeuristicSearch<V>>
-    for DenpdencyHeuristicSearchBuilder
+    for DependencyHeuristicSearchBuilder
 {
     fn build(&self) -> DependencyHeuristicSearch<V> {
         DependencyHeuristicSearch::new()
