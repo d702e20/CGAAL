@@ -1,10 +1,10 @@
-use crate::common::Edge;
-use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+
+use crate::edg::{Edge, ExtendedDependencyGraph, Vertex};
 
 // The graph can be rendered using the `dot` command graphviz, specifically like this `dot -Tpng graph.dot -O -Nfontname=noto`
 

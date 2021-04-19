@@ -1,10 +1,10 @@
-use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use atl_checker::atl::formula::Phi;
-use atl_checker::atl::gamestructure::EagerGameStructure;
-use atl_checker::edg::distributed_certain_zero;
-use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
-use atl_checker::lcgs::parse::parse_lcgs;
-use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::distributed_certain_zero;
+use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::atl::Phi;
+use atl_checker::edg::{ATLDependencyGraph, ATLVertex};
+use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::game_structure::lcgs::parse::parse_lcgs;
+use atl_checker::game_structure::EagerGameStructure;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::fs::File;
 use std::io::Read;

@@ -3,12 +3,10 @@ mod args;
 #[no_link]
 extern crate git_version;
 extern crate num_cpus;
-#[macro_use]
-extern crate tracing;
 
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{stdout, Read, Write};
+use std::io::{Read, Write};
 use std::process::exit;
 use std::sync::Arc;
 
@@ -17,21 +15,20 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::args::CommonArgs;
+use atl_checker::algorithms::certain_zero::common::VertexAssignment;
+use atl_checker::algorithms::certain_zero::distributed_certain_zero;
+use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
-use atl_checker::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use atl_checker::atl::formula::{ATLExpressionParser, Phi};
-use atl_checker::atl::gamestructure::{EagerGameStructure, GameStructure};
-use atl_checker::common::VertexAssignment;
-use atl_checker::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
-use atl_checker::lcgs::ast::DeclKind;
-use atl_checker::lcgs::ir::intermediate::IntermediateLCGS;
-use atl_checker::lcgs::ir::symbol_table::Owner;
-use atl_checker::lcgs::parse::parse_lcgs;
+use atl_checker::atl::{ATLExpressionParser, Phi};
+use atl_checker::edg::{ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex};
+use atl_checker::game_structure::lcgs::ast::DeclKind;
+use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
+use atl_checker::game_structure::lcgs::parse::parse_lcgs;
+use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
-use atl_checker::search_strategy::bfs::BreadthFirstSearchBuilder;
-use atl_checker::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::solve_set::minimum_solve_set;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -227,7 +224,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0, output_arg);
+                    analyse_and_save(&graph, v0, output_arg)
                 },
                 |game_structure, formula| {
                     let v0 = ATLVertex::FULL {
@@ -235,9 +232,9 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0, output_arg);
+                    analyse_and_save(&graph, v0, output_arg)
                 },
-            )?
+            )??
         }
         #[cfg(feature = "graph-printer")]
         ("graph", Some(graph_args)) => {
@@ -253,6 +250,7 @@ fn main_inner() -> Result<(), String> {
                     v0: ATLVertex,
                     output: Option<&str>,
                 ) {
+                    use std::io::stdout;
                     let output: Box<dyn Write> = match output {
                         Some(path) => {
                             let file = File::create(path).unwrap_or_else(|err| {
@@ -326,7 +324,7 @@ fn load_formula<A: ATLExpressionParser>(path: &str, format: FormulaFormat, expr_
             exit(1);
         }),
         FormulaFormat::ATL => {
-            let result = atl_checker::atl::formula::parse_phi(expr_parser, &raw_phi);
+            let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
