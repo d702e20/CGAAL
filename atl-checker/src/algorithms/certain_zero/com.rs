@@ -1,4 +1,4 @@
-use crate::common::{Message, VertexAssignment, WorkerId};
+use crate::algorithms::certain_zero::common::{Message, VertexAssignment, WorkerId};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use std::error::Error;
 use std::hash::Hash;
@@ -74,9 +74,8 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
 
     fn terminate(&self) {
         for to in 0..self.workers.len() {
-            // Ignore send error, because the error means the worker have already terminated
-            #[warn(unused_must_use)]
-            self.workers
+            let _err = self
+                .workers
                 .get(to as usize)
                 .expect("receiver id out of bounds")
                 .send(Message::TERMINATE);
