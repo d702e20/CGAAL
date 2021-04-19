@@ -172,6 +172,24 @@ pub struct Expr {
     pub kind: ExprKind,
 }
 
+impl Expr {
+    pub fn is_linear(&self) -> bool {
+        if let ExprKind::BinaryOp(operator, operand1, operand2) = &self.kind {
+            match operator {
+                BinaryOpKind::Division | BinaryOpKind::Multiplication => {
+                    if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                        if operand1 == operand2 {
+                            false
+                        } else { operand1.is_linear() && operand2.is_linear() }
+                    } else { operand1.is_linear() && operand2.is_linear() }
+                }
+                BinaryOpKind::Addition | BinaryOpKind::Subtraction => { operand1.is_linear() && operand2.is_linear() }
+                _ => { true }
+            }
+        } else { true }
+    }
+}
+
 /// Every kind of expression
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ExprKind {

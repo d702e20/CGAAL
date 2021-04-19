@@ -144,7 +144,7 @@ impl LinearOptimizeSearch {
                 println!("{:?}", cond);
 
                 // Expression has to be linear
-                if expression_is_linear(cond) {
+                if cond.is_linear() {
                     let expr = &cond.kind;
                     return {Some(expr.clone())}
                 } else { return None }
@@ -167,24 +167,8 @@ fn manhattan_distance(point1: Point, point2: Point) -> i32 {
     i32::abs((point1.x - point2.x) + (point1.y - point2.y))
 }
 
-fn expression_is_linear(expr: &Expr) -> bool {
-    if let ExprKind::BinaryOp(operator, operand1, operand2) = &expr.kind {
-        match operator {
-            BinaryOpKind::Division | BinaryOpKind::Multiplication => {
-                if let ExprKind::OwnedIdent(id) = &operand1.kind {
-                    if operand1 == operand2 {
-                        false
-                    } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
-                } else { expression_is_linear(operand1) && expression_is_linear(operand2) }
-            }
-            BinaryOpKind::Addition | BinaryOpKind::Subtraction => { expression_is_linear(operand1) && expression_is_linear(operand2) }
-            _ => { true }
-        }
-    } else { true }
-}
-
 mod test {
-    use crate::search_strategy::linear_optimize::{manhattan_distance, Point, expression_is_linear, LinearExpression};
+    use crate::search_strategy::linear_optimize::{manhattan_distance, Point, LinearExpression};
     use crate::lcgs::ast::{Expr, BinaryOpKind};
     use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
     use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
@@ -202,7 +186,7 @@ mod test {
         let operand1 = Box::from(Expr { kind: Number(1) });
         let operand2 = Box::from(Expr { kind: Number(1) });
         let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
-        assert_eq!(expression_is_linear(&expression), true)
+        assert_eq!(expression.is_linear(), true)
     }
 
     #[test]
@@ -216,7 +200,7 @@ mod test {
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
-        assert_eq!(expression_is_linear(&expression), true)
+        assert_eq!(expression.is_linear(), true)
     }
 
     #[test]
@@ -230,7 +214,7 @@ mod test {
         let outer_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
-        assert_eq!(expression_is_linear(&expression), true)
+        assert_eq!(expression.is_linear(), true)
     }
 
     #[test]
@@ -244,7 +228,7 @@ mod test {
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
-        assert_eq!(expression_is_linear(&expression), false)
+        assert_eq!(expression.is_linear(), false)
     }
 
     #[test]
@@ -262,7 +246,7 @@ mod test {
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
-        assert_eq!(expression_is_linear(&expression), false)
+        assert_eq!(expression.is_linear(), false)
     }
 }
 
