@@ -37,7 +37,7 @@ macro_rules! bench_json {
                         v0,
                         num_cpus::get() as u64,
                         DepthFirstSearchBuilder,
-                        true,
+                        false,
                     );
                 })
             });
@@ -77,7 +77,7 @@ macro_rules! bench_lcgs {
                         v0,
                         num_cpus::get() as u64,
                         DepthFirstSearchBuilder,
-                        true,
+                        false,
                     );
                 });
             });
@@ -117,7 +117,7 @@ macro_rules! bench_lcgs_threads {
                                 v0,
                                 core_count,
                                 DepthFirstSearchBuilder,
-                                true,
+                                false,
                             );
                         });
                     },
