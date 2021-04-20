@@ -211,8 +211,7 @@ impl<
         let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
         let _enter = span.enter();
         trace!("worker start");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker start");
+        emit_count!("worker start");
 
         // Alg 1, Line 2
         // The owner of v0 starts by exploring it
@@ -250,14 +249,12 @@ impl<
                 Ok(opt_msg) => match opt_msg {
                     Some(msg) => match msg {
                         Message::TERMINATE => {
-                            #[cfg(feature = "use-counts")]
-                            eprintln!("worker received_termination");
+                            emit_count!("worker received_termination");
 
                             self.running = false;
                         }
                         _ => {
-                            #[cfg(feature = "use-counts")]
-                            eprintln!("worker receive_message");
+                            emit_count!("worker receive_message");
 
                             self.msg_queue.push_back(msg)
                         }
@@ -281,8 +278,7 @@ impl<
     ///
     /// If this worker is not the leader, it will upgrade the token, if needed, and forward it.
     fn handle_incoming_token(&mut self, token: MsgToken) {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker handle_token");
+        emit_count!("worker handle_token");
         if self.is_leader() {
             // The token has returned to the leader
             self.token_in_circulation = false;
@@ -294,6 +290,7 @@ impl<
                     deepest_component: _,
                 } => {
                     trace!("Late termination");
+                    emit_count!("worker late_termination");
                     self.broker.return_result(VertexAssignment::FALSE)
                 }
                 // No one has seen safe tasks, but some workers have unsafe negation edges.
@@ -306,14 +303,14 @@ impl<
                         depth = deepest_component,
                         "sending release component message"
                     );
-                    #[cfg(feature = "use-counts")]
-                    eprintln!("worker send_release_token");
+                    emit_count!("worker send_release_token");
                     self.broker.release(deepest_component);
                 }
                 // Some workers still have safe tasks, so we can't terminate yet
                 _ => {
                     // no-op, other workers are busy
-                    trace!("leader received Token::Dirty")
+                    trace!("leader received Token::Dirty");
+                    emit_count!("worker received_dirty_token")
                 }
             }
         } else {
@@ -340,8 +337,7 @@ impl<
         };
 
         debug!(?token, "starting token ring round");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker initiate_token_circulation");
+        emit_count!("worker initiate_token_circulation");
         self.broker.send(
             (self.id + 1) % self.worker_count,
             Message::TOKEN(MsgToken {
@@ -408,8 +404,7 @@ impl<
             depth = self.unsafe_neg_edges.len(),
             "releasing previously unsafe negation edges"
         );
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker release_negation_edges");
+        emit_count!("worker release_negation_edges");
 
         assert!(
             self.unsafe_neg_edges.len() <= depth,
@@ -431,8 +426,7 @@ impl<
     /// Mark the given worker as being interested in the assignment of the given vertex.
     /// When the certain assignment of the vertex is found, the worker will be notified.
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker mark_interest");
+        emit_count!("worker mark_interest");
         if let Some(set) = self.interests.get_mut(vertex) {
             trace!(is_initialized = true, ?vertex, "mark vertex interest");
             set.insert(worker);
@@ -450,8 +444,7 @@ impl<
     /// to that worker instead of evaluating the edges ourself.
     fn explore(&mut self, vertex: &V) {
         trace!(?vertex, "exploring vertex");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker explore");
+        emit_count!("worker explore_vertex");
         // Line 2
         self.assignment
             .insert(vertex.clone(), VertexAssignment::UNDECIDED);
@@ -484,8 +477,7 @@ impl<
 
     fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
         trace!(?edge, "processing hyper-edge");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker processing_hyper-edge");
+        emit_count!("worker processing_hyper_edge");
 
         self.dirty = true;
 
@@ -538,6 +530,7 @@ impl<
 
     /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
+        emit_count!("worker add_dependency");
         // Update the depth
         let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
         let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
@@ -557,14 +550,14 @@ impl<
 
     /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
     fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
+        emit_count!("worker remove_dependency");
         if let Some(dependencies) = self.depends.get_mut(vertex) {
             dependencies.remove(&dependency);
         }
     }
 
     fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker processing negation edge");
+        emit_count!("worker processing_negation_edge");
         self.dirty = true;
         match self.assignment.get(&edge.target) {
             // UNEXPLORED
@@ -607,6 +600,7 @@ impl<
     /// release negation is called. If the negation edges later becomes safe, it does
     /// not have to be removed from the negation queue.
     fn queue_unsafe_negation(&mut self, edge: NegationEdge<V>) {
+        emit_count!("worker queue_unsafe_negation");
         let len = self.unsafe_neg_edges.len();
         let mut depth: usize = 0;
         if let Some(n) = self.depth.get(&edge.source) {
@@ -637,8 +631,7 @@ impl<
             "got request for vertex assignment"
         );
         debug_assert!(self.is_owner(vertex));
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker process_request");
+        emit_count!("worker process_request");
         if let Some(assignment) = self.assignment.get(&vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             if assignment.is_certain() {
@@ -672,6 +665,7 @@ impl<
 
     /// Process an answer by applying the given assignment
     fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
+        emit_count!("worker process_answer");
         self.dirty = true;
         trace!(?vertex, ?assigned, "received final assignment");
         self.final_assign(vertex, assigned);
@@ -681,8 +675,7 @@ impl<
     /// workers are notified of the assignment.
     fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
         debug!(?assignment, ?vertex, "final assigned");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker final_assign");
+        emit_count!("worker final_assign");
 
         // Line 2
         if *vertex == self.v0 {
@@ -729,6 +722,7 @@ impl<
 
     /// Helper function for deleting edges from a vertex.
     fn delete_edge(&mut self, edge: Edge<V>) {
+        emit_count!("worker delete_edge");
         let source = edge.source();
 
         // Remove edge from source
@@ -781,8 +775,7 @@ impl<
                 known_vertex = false,
                 "loaded successors from EDG"
             );
-            #[cfg(feature = "use-counts")]
-            eprintln!("worker succ generated");
+            emit_count!("worker successor_generated");
             successors
         }
     }

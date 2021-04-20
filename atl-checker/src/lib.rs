@@ -7,6 +7,8 @@ extern crate tracing;
 
 #[macro_use]
 mod simple_edg;
+#[macro_use]
+mod emit_count;
 pub mod algorithms;
 pub mod analyse;
 pub mod atl;
