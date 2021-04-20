@@ -5,7 +5,7 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::edg::{Edge, NegationEdge, Vertex};
 
 /// Helper struct for DependencyHeuristicSearch that contains information about a source vertex.
-#[derive(Eq, PartialEq, Hash, Default)]
+#[derive(Eq, PartialEq, Hash)]
 struct DependencyData<V: Vertex> {
     /// The queue edges that have this vertex as the source vertex
     queue: VecDeque<Edge<V>>,
@@ -13,9 +13,19 @@ struct DependencyData<V: Vertex> {
     rank: u32,
 }
 
+impl<V: Vertex> DependencyData<V> {
+    fn new() -> Self {
+        DependencyData {
+            queue: VecDeque::new(),
+            rank: 0,
+        }
+    }
+}
+
 /// Dependency-heuristic search strategy prioritises edges, where the source that has the most
 /// dependencies. It is inspired by PageRank and the idea, that the more edges point to the source,
 /// the more important the assignment of the source must be.
+#[derive(Default)]
 pub struct DependencyHeuristicSearch<V: Vertex> {
     /// Map from source vertex to its data. A source vertex is not queued unless it has at least
     /// one queue edge
@@ -28,7 +38,7 @@ impl<V: Vertex> DependencyHeuristicSearch<V> {
     pub fn new() -> DependencyHeuristicSearch<V> {
         DependencyHeuristicSearch {
             dependencies: Default::default(),
-            priority_queue: PriorityQueue::new(),
+            priority_queue: PriorityQueue::default(),
         }
     }
 }
@@ -39,10 +49,7 @@ impl<V: Vertex> DependencyHeuristicSearch<V> {
         let dependency = self
             .dependencies
             .entry(edge.source().clone())
-            .or_insert(DependencyData {
-                queue: Default::default(),
-                rank: 0,
-            });
+            .or_insert(DependencyData::new());
         dependency.queue.push_back(edge.clone());
         self.priority_queue
             .push(edge.source().clone(), dependency.rank);
@@ -69,24 +76,18 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
             match &edge {
                 Edge::HYPER(edge) => {
                     for target in &edge.targets {
-                        let dependency =
-                            self.dependencies
-                                .entry(target.clone())
-                                .or_insert(DependencyData {
-                                    queue: Default::default(),
-                                    rank: 0,
-                                });
+                        let dependency = self
+                            .dependencies
+                            .entry(target.clone())
+                            .or_insert(DependencyData::new());
                         dependency.rank += 1;
                     }
                 }
                 Edge::NEGATION(edge) => {
-                    let dependency =
-                        self.dependencies
-                            .entry(edge.target.clone())
-                            .or_insert(DependencyData {
-                                queue: Default::default(),
-                                rank: 0,
-                            });
+                    let dependency = self
+                        .dependencies
+                        .entry(edge.target.clone())
+                        .or_insert(DependencyData::new());
                     dependency.rank += 1;
                 }
             }
@@ -109,10 +110,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
         let dependency = self
             .dependencies
             .entry(vertex.clone())
-            .or_insert(DependencyData {
-                queue: Default::default(),
-                rank: 0,
-            });
+            .or_insert(DependencyData::new());
         dependency.rank += 1;
     }
 }
