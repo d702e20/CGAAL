@@ -172,12 +172,13 @@ pub struct Expr {
     pub kind: ExprKind,
 }
 
+// TODO FIX, does not work
 impl Expr {
     pub fn is_linear(&self) -> bool {
         if let ExprKind::BinaryOp(operator, operand1, operand2) = &self.kind {
             match operator {
                 BinaryOpKind::Division | BinaryOpKind::Multiplication => {
-                    if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                    if let ExprKind::OwnedIdent(..) = &operand1.kind {
                         if operand1 == operand2 {
                             false
                         } else { operand1.is_linear() && operand2.is_linear() }

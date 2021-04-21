@@ -11,6 +11,7 @@ use crate::lcgs::ast::BinaryOpKind::{Addition, Subtraction, Multiplication, Divi
 use std::env::var;
 use minilp;
 use minilp::{Problem, OptimizationDirection, ComparisonOp, Error, Solution};
+use crate::lcgs::ir::symbol_table::SymbolIdentifier;
 
 struct MyPoint {
     x: i32,
@@ -19,17 +20,10 @@ struct MyPoint {
 
 #[derive(Debug)]
 struct LinearExpression {
-    pub x: Identifier,
+    pub symbol: SymbolIdentifier,
     pub constant: i32,
     pub operation: BinaryOpKind,
 }
-
-/*#[derive(Debug, Default)]
-enum LinearExpressionComponent {
-    Op(BinaryOpKind),
-    Number(i32),
-    Variable(Identifier)
-}*/
 
 /// Search strategy using ideas from linear programming to order the order in which to visit next
 /// vertices, based on distance from the vertex to a region that borders the line between true/false
@@ -99,7 +93,7 @@ impl LinearOptimizeSearch {
 
                     // get distance from this state, to acceptance
                     if linear_expression.is_some() {
-                        let res = minimum_distance_1d(state, linear_expression.unwrap());
+                        let res = self.minimum_distance_1d(state, linear_expression.unwrap());
                         // add to vec of results
                         distances.push(res)
                     } else { return 100000; };
@@ -116,7 +110,7 @@ impl LinearOptimizeSearch {
                 let linear_expression = self.get_simple_linear_formula(&edge.target);
                 if linear_expression.is_some() {
                     let state = self.game.state_from_index(edge.target.state());
-                    minimum_distance_1d(state, linear_expression.unwrap());
+                    self.minimum_distance_1d(state, linear_expression.unwrap());
                     // TODO remove
                     1.0
                 } else { return 100000; }
@@ -129,14 +123,10 @@ impl LinearOptimizeSearch {
         // If outmost Phi is a proposition, return this
         let propositions_index = vertex.formula().get_proposition();
 
-        if propositions_index.is_none() {
-            return { None };
-        }
-
         // Check if it was a proposition
-        if propositions_index.is_some() {
+        if let Some(propositions_index) = propositions_index {
             // Make sure it is a Label
-            if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index.unwrap()).kind {
+            if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index).kind {
 
                 // The actual expression of the label (the condition)
                 let cond = &label.condition;
@@ -144,68 +134,121 @@ impl LinearOptimizeSearch {
                 // Expression has to be linear
                 if cond.is_linear() {
                     let expr = &cond.kind;
-                    Some(expr.clone())
-                } else { None }
-            } else { None }
-        } else { None }
-    }
-}
-
-
-// TODO
-fn minimum_distance_1d(state: State, expr: ExprKind) -> i32 {
-    let distance = match &expr {
-        ExprKind::BinaryOp(operator, operand1, operand2) => {
-            if let ExprKind::OwnedIdent(id) = &operand1.kind {
-                if let ExprKind::Number(number) = operand2.kind {
-                    let mut problem = Problem::new(OptimizationDirection::Minimize);
-                    // TODO find rangen på vores variabel
-                    let range_of_id:(f64,f64) = (1.0,3.0);
-                    let x = problem.add_var(1.0,(range_of_id.0, range_of_id.1));
-                    // TODO support for more operators - different crate?
-                    match operator {
-                        Addition => {}
-                        Multiplication => {}
-                        Subtraction => {}
-                        Division => {}
-                        Equality => {problem.add_constraint(&[(x,1.0)], ComparisonOp::Eq, number as f64);}
-                        Inequality => {}
-                        GreaterThan => {problem.add_constraint(&[(x,1.0)], ComparisonOp::Ge, number as f64);}
-                        LessThan => {problem.add_constraint(&[(x,1.0)], ComparisonOp::Le, number as f64);}
-                        GreaterOrEqual => {}
-                        LessOrEqual => {}
-                        And => {}
-                        Or => {}
-                        Xor => {}
-                        Implication => {}
-                    }
-                    let solution = problem.solve();
-                    match solution {
-                        Ok(sol) => {
-                            println!("{}",sol.objective());
-                            println!("{}",sol[x]);
-                            // todo fix
-                            let value_of_x = 5;
-                            let distance = f64::abs((5 as f64 - sol[x]));
-                            println!("{}", distance);
-                            return distance as i32
-                        }
-                        Err(e) => { return 10000}
-                    }
-
-                }
-            } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
-                if let ExprKind::Number(number) = operand1.kind {
-
+                    return Some(expr.clone());
                 }
             }
         }
-        _ => {}
-    };
+        None
+    }
 
-    println!("{}",state);
-    println!("{:?}", expr);
-    3
+    // TODO
+    fn minimum_distance_1d(&self, state: State, expr: ExprKind) -> i32 {
+        let lin_exp = linexp(expr);
+        println!("{:?}", lin_exp);
+
+        if let Some(lin_exp) = lin_exp {
+            let mut problem = Problem::new(OptimizationDirection::Minimize);
+            // TODO find rangen på vores variabel
+            let symb = self.game.get_decl(&lin_exp.symbol).unwrap();
+            if let DeclKind::StateVar(var) = &symb.kind {
+                let range_of_id: (f64, f64) = (*var.ir_range.start() as f64, *var.ir_range.end() as f64);
+                println!("{:?}", range_of_id);
+                let x = problem.add_var(1.0, (range_of_id.0, range_of_id.1));
+                // TODO support for more operators - different crate?
+                match lin_exp.operation {
+                    Addition => {}
+                    Multiplication => {}
+                    Subtraction => {}
+                    Division => {}
+                    Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, lin_exp.constant as f64); }
+                    Inequality => {}
+                    GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, lin_exp.constant as f64); }
+                    LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, lin_exp.constant as f64); }
+                    GreaterOrEqual => {}
+                    LessOrEqual => {}
+                    And => {}
+                    Or => {}
+                    Xor => {}
+                    Implication => {}
+                }
+
+                let solution = problem.solve();
+                match solution {
+                    Ok(sol) => {
+                        match state.0.get(&lin_exp.symbol) {
+                            Some(&v) => {
+                                let distance = f64::abs((v as f64 - sol[x]));
+                                println!("distance from solution: {}", distance);
+                                return { distance as i32 };
+                            }
+                            _ => {
+                                println!("did not find value for symbol: {}", &lin_exp.symbol);
+                                1000
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("not solvable, returning distance 1000 with error: {}", e);
+                        1000
+                    }
+                }
+            } else { 1000 }
+        } else { 1000 }
+    }
+}
+
+fn linexp(expr: ExprKind) -> Option<LinearExpression> {
+    match &expr {
+        ExprKind::BinaryOp(operator, operand1, operand2) => {
+            if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                if let Identifier::Resolved { owner, name } = *id.clone() {
+                    let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                    if let ExprKind::Number(number) = operand2.kind {
+                        match operator {
+                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition }) }
+                            Multiplication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Multiplication }) }
+                            Subtraction => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Subtraction }) }
+                            Division => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Division }) }
+                            Equality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Equality }) }
+                            Inequality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Inequality }) }
+                            GreaterThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterThan }) }
+                            LessThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessThan }) }
+                            GreaterOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterOrEqual }) }
+                            LessOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessOrEqual }) }
+                            And => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: And }) }
+                            Or => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Or }) }
+                            Xor => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Xor }) }
+                            Implication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Implication }) }
+                        }
+                    } else { return None; }
+                } else { return None; }
+                // 2nd case
+            } else if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                if let Identifier::Resolved { owner, name } = *id.clone() {
+                    let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                    if let ExprKind::Number(number) = operand2.kind {
+                        match operator {
+                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition }) }
+                            Multiplication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Multiplication }) }
+                            Subtraction => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Subtraction }) }
+                            Division => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Division }) }
+                            Equality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Equality }) }
+                            Inequality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Inequality }) }
+                            GreaterThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterThan }) }
+                            LessThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessThan }) }
+                            GreaterOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterOrEqual }) }
+                            LessOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessOrEqual }) }
+                            And => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: And }) }
+                            Or => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Or }) }
+                            Xor => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Xor }) }
+                            Implication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Implication }) }
+                        }
+                    } else { return None; }
+                } else { return None; }
+            } else { return None; }
+        }
+        _ => return None
+    }
 }
 
 fn manhattan_distance(point1: MyPoint, point2: MyPoint) -> i32 {
@@ -213,7 +256,7 @@ fn manhattan_distance(point1: MyPoint, point2: MyPoint) -> i32 {
 }
 
 mod test {
-    use crate::search_strategy::linear_optimize::{manhattan_distance, MyPoint, LinearExpression};
+    use crate::search_strategy::linear_optimize::{manhattan_distance, MyPoint};
     use crate::lcgs::ast::{Expr, BinaryOpKind};
     use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
     use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
@@ -293,6 +336,20 @@ mod test {
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
         assert_eq!(expression.is_linear(), false)
     }
+
+    #[test]
+    fn expression_is_linear_test_polynomial2() {
+        let inner_operator = Multiplication;
+        let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let inner_operand2 = Box::from(Expr { kind: Number(5) });
+
+        let outer_operator = Multiplication;
+        let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+        let outer_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+
+        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        assert_eq!(expression.is_linear(), false)
+    }
 }
 
 /* TODO
@@ -338,7 +395,7 @@ fn extract_single_linear_expression(&self, vertex: &ATLVertex) -> Option<Expr> {
                     // TODO currently only allows very simple expressions - such as x < 5, y = 1
                     if let ExprKind::BinaryOp(operator, operand1, operand2) = &cond.kind {
                         let variable:Option<Identifier> = match &operand1.kind {
-                            ExprKind::OwnedIdent(id) => Some(**id),
+                            ExprKind::OwnedIdent(id) => Some(*id.clone(),
                             _ => None
                         };
                         let constant:Option<i32> = match operand2.kind {
@@ -370,3 +427,68 @@ fn extract_single_linear_expression(&self, vertex: &ATLVertex) -> Option<Expr> {
         None
     }
  */
+
+
+
+/*fn minimum_distance_1d(state: State, expr: ExprKind) -> i32 {
+    let distance = match &expr {
+        ExprKind::BinaryOp(operator, operand1, operand2) => {
+            if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                if let ExprKind::Number(number) = operand2.kind {
+
+                    let mut problem = Problem::new(OptimizationDirection::Minimize);
+                    // TODO find rangen på vores variabel
+
+                    let value: i32;
+                    let range_of_id: (f64, f64) = (0.0,0.0);
+                    if let Identifier::Resolved { owner, name } = *id.clone() {
+                        let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                        match state.0.get(&symbol_of_id) {
+                            Some(&v) => value = v,
+                            _ => println!("ERROR"),
+                        };
+
+                    }
+                    let x = problem.add_var(1.0, (range_of_id.0, range_of_id.1));
+                    // TODO support for more operators - different crate?
+                    match operator {
+                        Addition => {}
+                        Multiplication => {}
+                        Subtraction => {}
+                        Division => {}
+                        Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, number as f64); }
+                        Inequality => {}
+                        GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, number as f64); }
+                        LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, number as f64); }
+                        GreaterOrEqual => {}
+                        LessOrEqual => {}
+                        And => {}
+                        Or => {}
+                        Xor => {}
+                        Implication => {}
+                    }
+                    let solution = problem.solve();
+                    match solution {
+                        Ok(sol) => {
+                            println!("{}", sol.objective());
+                            println!("{}", sol[x]);
+                            // todo fix
+                            let value_of_x = 5;
+                            let distance = f64::abs((5 as f64 - sol[x]));
+                            println!("{}", distance);
+                            return distance as i32;
+                        }
+                        Err(e) => { return 10000; }
+                    }
+                }
+            } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
+                if let ExprKind::Number(number) = operand1.kind {}
+            }
+        }
+        _ => {}
+    };
+
+    println!("{}", state);
+    println!("{:?}", expr);
+    3
+}*/
