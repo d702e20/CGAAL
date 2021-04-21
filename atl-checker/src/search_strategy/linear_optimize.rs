@@ -68,7 +68,9 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
             let distance = self.distance_to_acceptance_border(&edge);
 
             // Add edge and distance to evaluated_edges
-            evaluated_edges.push((edge, distance))
+            if let Some(dist) = distance {
+                evaluated_edges.push((edge, dist))
+            } else { evaluated_edges.push((edge, 1000.0)) }
         };
 
         // Sort evaluated_edges based on their distance
@@ -86,7 +88,7 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 }
 
 impl LinearOptimizeSearch {
-    fn distance_to_acceptance_border(&self, edge: &Edge<ATLVertex>) -> f32 {
+    fn distance_to_acceptance_border(&self, edge: &Edge<ATLVertex>) -> Option<f32> {
         match &edge {
             Edge::HYPER(hyperedge) => {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
@@ -105,19 +107,21 @@ impl LinearOptimizeSearch {
                         let distance = self.minimum_distance_1d(state, linear_expression.unwrap());
 
                         // add to vec of results
-                        distances.push(distance)
+                        if let Some(dist) = distance{
+                            distances.push(dist)
+                        }
                     }
                 }
 
                 // TODO perhaps fix more elegantly
                 // If no targets were able to satisfy formula, or something went wrong, return large number
                 if { distances.is_empty() } {
-                    return 1000.0;
+                    return None
                 }
 
                 // Find average distance between targets, and return this
                 let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
-                avg_distance
+                Some(avg_distance)
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
@@ -126,7 +130,7 @@ impl LinearOptimizeSearch {
                     let state = self.game.state_from_index(edge.target.state());
                     let distance = self.minimum_distance_1d(state, expr);
                     distance
-                } else { 100000.0 }
+                } else { None }
             }
         }
     }
@@ -152,7 +156,7 @@ impl LinearOptimizeSearch {
     }
 
 
-    fn minimum_distance_1d(&self, state: State, lin_expr: LinearExpression) -> f32 {
+    fn minimum_distance_1d(&self, state: State, lin_expr: LinearExpression) -> Option<f32> {
         // Get the declaration from the symbol in LinearExpression, has to be a StateVar
         // (i.e a variable in an LCGS program)
         let symb = self.game.get_decl(&lin_expr.symbol).unwrap();
@@ -190,17 +194,17 @@ impl LinearOptimizeSearch {
                         // The value of our variable in this state we are checking, in "x < 5", this would be "x"
                         Some(&v) => {
                             // Find distance from the current value, to the solution
-                            return { f64::abs((v as f64 - solution[x])) } as f32;
+                            return Some({ f64::abs((v as f64 - solution[x])) } as f32);
                         }
-                        _ => { 10.0 }
+                        _ => {None}
                     }
                 }
                 Err(e) => {
-                    println!("not solvable, returning distance 1000 with error: {}", e);
-                    1000.0
+                    println!("not solvable: {}", e);
+                    None
                 }
             }
-        } else { 1000.0 }
+        } else { None }
     }
 }
 
