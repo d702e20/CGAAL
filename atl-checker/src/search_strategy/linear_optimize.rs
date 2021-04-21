@@ -58,146 +58,153 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
         self.queue.pop_front()
     }
 
-    fn queue_new_edges(&mut self, mut edge: Vec<Edge<ATLVertex>>) {
-        let mut evaluated_edge: VecDeque<(Edge<ATLVertex>, i32)> = VecDeque::new();
+    fn queue_new_edges(&mut self, mut edges: Vec<Edge<ATLVertex>>) {
+        let mut evaluated_edges: Vec<(Edge<ATLVertex>, f32)> = Vec::new();
 
-        for edge in edge {
+        // For all edges from this vertex,
+        // if edge is a HyperEdge, return average distance from state to accept region between all targets,
+        // if Negation edge, just return the distance from its target
+        for edge in edges {
             let distance = self.distance_to_acceptance_border(&edge);
 
-            // Add edge and distance to evaluated edge
-            evaluated_edge.push_back((edge, distance))
+            // Add edge and distance to evaluated_edges
+            evaluated_edges.push((edge, distance))
         };
 
-        // Sort evaluated_edge based on distance
-        evaluated_edge.make_contiguous().sort_by_key(|key| key.1);
+        // Sort evaluated_edges based on their distance
+        evaluated_edges.sort_by(|x, y| x.1.partial_cmp(&y.1).unwrap());
+        // Vecdeque version, works only with i32 because of sort
+        //evaluated_edges.make_contiguous().sort_by_key(|key| key.1);
 
-        // Add all evaluated_edge to queue
-        for edge in evaluated_edge.iter() {
+        // Add all evaluated_edges to the queue
+        for edge in evaluated_edges.iter() {
             self.queue.push_back(edge.0.clone());
         }
+
+        // TODO, could also sort the entire queue here
     }
 }
 
 impl LinearOptimizeSearch {
-    fn distance_to_acceptance_border(&self, edge: &Edge<ATLVertex>) -> i32 {
-        let distance = match &edge {
+    fn distance_to_acceptance_border(&self, edge: &Edge<ATLVertex>) -> f32 {
+        match &edge {
             Edge::HYPER(hyperedge) => {
-                // For every target, we want to see how close we get to acceptance border
-                let mut distances: Vec<i32> = Vec::new();
+                // For every target of the hyperedge, we want to see how close we are to acceptance border
+                let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
-                    // Find the linear expression from the targets formula
+                    // TODO only allows very simple expressions, such as x < 5, should allow more
+                    // Find the linear expression from the targets formula, if any
+                    // Polynomials and such not allowed, returns None in such cases
                     let linear_expression = self.get_simple_linear_formula(target);
 
-                    // get state of variables
-                    let state = self.game.state_from_index(target.state());
-
-                    // get distance from this state, to acceptance
                     if linear_expression.is_some() {
-                        let res = self.minimum_distance_1d(state, linear_expression.unwrap());
+                        // get the State in the target
+                        let state = self.game.state_from_index(target.state());
+
+                        // Distance from the state, to fulfilling the linear expression
+                        let distance = self.minimum_distance_1d(state, linear_expression.unwrap());
+
                         // add to vec of results
-                        distances.push(res)
-                    } else { return 100000; };
+                        distances.push(distance)
+                    }
                 }
-                // TODO remove
-                distances.push(3);
+
+                // TODO perhaps fix more elegantly
+                // If no targets were able to satisfy formula, or something went wrong, return large number
+                if { distances.is_empty() } {
+                    return 1000.0;
+                }
 
                 // Find average distance between targets, and return this
-                let avg_distance = distances.iter().sum::<i32>() as f32 / distances.len() as f32;
+                let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
                 avg_distance
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
                 let linear_expression = self.get_simple_linear_formula(&edge.target);
-                if linear_expression.is_some() {
+                if let Some(expr) = linear_expression {
                     let state = self.game.state_from_index(edge.target.state());
-                    self.minimum_distance_1d(state, linear_expression.unwrap());
-                    // TODO remove
-                    1.0
-                } else { return 100000; }
+                    let distance = self.minimum_distance_1d(state, expr);
+                    distance
+                } else { 100000.0 }
             }
-        };
-        distance as i32
+        }
     }
 
-    fn get_simple_linear_formula(&self, vertex: &ATLVertex) -> Option<ExprKind> {
-        // If outmost Phi is a proposition, return this
+    fn get_simple_linear_formula(&self, vertex: &ATLVertex) -> Option<LinearExpression> {
+        // TODO only allows outmost Phi in formula is a proposition, should allow for more advanced formulae
+        // If outmost Phi is a proposition, get this
         let propositions_index = vertex.formula().get_proposition();
 
         // Check if it was a proposition
         if let Some(propositions_index) = propositions_index {
+
             // Make sure it is a Label
             if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index).kind {
-
-                // The actual expression of the label (the condition)
-                let cond = &label.condition;
-
                 // Expression has to be linear
-                if cond.is_linear() {
-                    let expr = &cond.kind;
-                    return Some(expr.clone());
+                if label.condition.is_linear() {
+                    // Return the constructed Linear Expression from this condition
+                    return extracted_linear_expression(label.condition.kind.clone());
                 }
             }
         }
         None
     }
 
-    // TODO
-    fn minimum_distance_1d(&self, state: State, expr: ExprKind) -> i32 {
-        let lin_exp = linexp(expr);
-        println!("{:?}", lin_exp);
 
-        if let Some(lin_exp) = lin_exp {
+    fn minimum_distance_1d(&self, state: State, lin_expr: LinearExpression) -> f32 {
+        // Get the declaration from the symbol in LinearExpression, has to be a StateVar
+        // (i.e a variable in an LCGS program)
+        let symb = self.game.get_decl(&lin_expr.symbol).unwrap();
+        if let DeclKind::StateVar(var) = &symb.kind {
+
+            // The range is used for linear programming
+            let range_of_var: (f64, f64) = (*var.ir_range.start() as f64, *var.ir_range.end() as f64);
+
+            // Construct the linear programming problem, using minilp rust crate
+            // TODO maximize or minimize?
             let mut problem = Problem::new(OptimizationDirection::Minimize);
-            // TODO find rangen på vores variabel
-            let symb = self.game.get_decl(&lin_exp.symbol).unwrap();
-            if let DeclKind::StateVar(var) = &symb.kind {
-                let range_of_id: (f64, f64) = (*var.ir_range.start() as f64, *var.ir_range.end() as f64);
-                println!("{:?}", range_of_id);
-                let x = problem.add_var(1.0, (range_of_id.0, range_of_id.1));
-                // TODO support for more operators - different crate?
-                match lin_exp.operation {
-                    Addition => {}
-                    Multiplication => {}
-                    Subtraction => {}
-                    Division => {}
-                    Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, lin_exp.constant as f64); }
-                    Inequality => {}
-                    GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, lin_exp.constant as f64); }
-                    LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, lin_exp.constant as f64); }
-                    GreaterOrEqual => {}
-                    LessOrEqual => {}
-                    And => {}
-                    Or => {}
-                    Xor => {}
-                    Implication => {}
-                }
+            let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
+            // TODO support for more operators?
+            match lin_expr.operation {
+                Addition => {}
+                Multiplication => {}
+                Subtraction => {}
+                Division => {}
+                Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, lin_expr.constant as f64); }
+                Inequality => {}
+                GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, lin_expr.constant as f64); }
+                LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, lin_expr.constant as f64); }
+                GreaterOrEqual => {}
+                LessOrEqual => {}
+                And => {}
+                Or => {}
+                Xor => {}
+                Implication => {}
+            }
 
-                let solution = problem.solve();
-                match solution {
-                    Ok(sol) => {
-                        match state.0.get(&lin_exp.symbol) {
-                            Some(&v) => {
-                                let distance = f64::abs((v as f64 - sol[x]));
-                                println!("distance from solution: {}", distance);
-                                return { distance as i32 };
-                            }
-                            _ => {
-                                println!("did not find value for symbol: {}", &lin_exp.symbol);
-                                1000
-                            }
+            match problem.solve() {
+                Ok(solution) => {
+                    // Now we know that we can in fact solve the linear programming problem, i.e we can satisfy the formula
+                    match state.0.get(&lin_expr.symbol) {
+                        // The value of our variable in this state we are checking, in "x < 5", this would be "x"
+                        Some(&v) => {
+                            // Find distance from the current value, to the solution
+                            return { f64::abs((v as f64 - solution[x])) } as f32;
                         }
-                    }
-                    Err(e) => {
-                        println!("not solvable, returning distance 1000 with error: {}", e);
-                        1000
+                        _ => { 10.0 }
                     }
                 }
-            } else { 1000 }
-        } else { 1000 }
+                Err(e) => {
+                    println!("not solvable, returning distance 1000 with error: {}", e);
+                    1000.0
+                }
+            }
+        } else { 1000.0 }
     }
 }
 
-fn linexp(expr: ExprKind) -> Option<LinearExpression> {
+fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
     match &expr {
         ExprKind::BinaryOp(operator, operand1, operand2) => {
             if let ExprKind::OwnedIdent(id) = &operand1.kind {
