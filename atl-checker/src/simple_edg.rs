@@ -49,14 +49,16 @@ macro_rules! simple_edg {
     };
     // Defines struct and enum
     [ [ $edg_name:ident, $vertex_name:ident ] $( $v:ident => $( -> { $( $t:ident ),* } )* $( .> $n:ident )* );*; ] => {
-        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        #[allow(unused_imports)]
+        use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
+        #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         struct $edg_name;
-        #[derive(Hash, Clone, Eq, PartialEq, Debug)]
+        #[derive(Hash, Copy, Clone, Eq, PartialEq, Debug)]
         enum $vertex_name {
             $( $v ),*
         }
-        impl Display for $vertex_name {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        impl std::fmt::Display for $vertex_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{:?}", self)
             }
         }
@@ -65,7 +67,7 @@ macro_rules! simple_edg {
             fn succ(
                 &self,
                 vertex: &$vertex_name,
-            ) -> HashSet<Edges<$vertex_name>> {
+            ) -> Vec<Edge<$vertex_name>> {
                 simple_edg![@match vertex_name=$vertex_name, vertex $( $v => $( -> { $( $t ),* } )* $( .> $n )* );*;]
             }
         }
@@ -75,86 +77,18 @@ macro_rules! simple_edg {
         match $vertex {
             $($vertex_name::$v => {
                 #[allow(unused_mut)]
-                let mut successors = HashSet::new();
-                $(successors.insert(Edges::HYPER(HyperEdge {
+                let mut successors = vec![];
+                $(successors.push(Edge::HYPER(HyperEdge {
                     source: $vertex_name::$v,
+                    pmove: None,
                     targets: vec![$($vertex_name::$t),*],
                 }));)*
-                $(successors.insert(Edges::NEGATION(NegationEdge {
+                $(successors.push(Edge::NEGATION(NegationEdge {
                     source: $vertex_name::$v,
                     target: $vertex_name::$n,
                 }));)*
                 successors
             }),*
         }
-    };
-}
-
-/// Defines an assertion which test the assignment of a vertex in an EDG using the
-/// distributed certain zero algorithm.
-/// This macro is intended to be used in conjunction with the `simple_edg` macro.
-///
-/// # Example
-/// Simple usage:
-/// ```
-/// simple_edg![
-///     A => .> B;
-///     B => -> {};
-/// ];
-///
-/// edg_assert!(A, FALSE);
-/// edg_assert!(B, TRUE);
-/// ```
-/// Note that TRUE/FALSE must be capitalized.
-///
-/// # Worker count
-/// You can set the worker count by supplying a third argument to the marco. The default
-/// number of workers are 3.
-/// ```
-/// edg_assert!(A, FALSE, 5);
-/// ```
-///
-/// # Custom names
-/// By default the macro assumes that the EDG and vertices are defined by the struct `SimpleEDG`
-/// and the enum `SimpleVertex` as is also default in the `simple_edg` macro.
-/// This can be changed by adding `[EDG_NAME, VERTEX_NAME]` in the start of the
-/// macro's arguments, where `EDG_NAME` is the desired name of the example, and `VERTEX_NAME` is
-/// the desired name of the vertex enum. This allows us to have multiple hardcoded EDGs in the
-/// same scope.
-/// ```
-/// simple_edg![
-///     [MyEDG1, MyVertex1]
-///     A, B, C, D ::
-///     A => -> {B} .> {D};
-///     B => -> {D, C};
-///     C => ;
-///     D => -> {C};
-/// ];
-///
-/// edg_assert!([MyEDG1, MyVertex1] A, TRUE);
-/// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
-/// ```
-#[allow(unused_macros)]
-macro_rules! edg_assert {
-    // Standard use, no names or worker count given
-    ( $v:ident, $assign:ident ) => {
-        edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 3)
-    };
-    // With worker count given
-    ( $v:ident, $assign:ident, $wc:expr ) => {
-        edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, $wc)
-    };
-    // With custom names given
-    ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident ) => {
-        edg_assert!([$edg_name, $vertex_name] $v, $assign, 3)
-    };
-    // With custom names and worker count
-    ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
-        assert_eq!(
-            distributed_certain_zero($edg_name, $vertex_name::$v, $wc),
-            crate::common::VertexAssignment::$assign,
-            "Vertex {}",
-            stringify!($v)
-        );
     };
 }

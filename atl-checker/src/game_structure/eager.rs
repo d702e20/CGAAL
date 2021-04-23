@@ -1,9 +1,8 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-use crate::atl::common::{transition_lookup, DynVec, Player, Proposition, State};
-use crate::atl::formula::{number, ATLExpressionParser};
-use crate::atl::gamestructure::GameStructure;
+use crate::atl::{number, ATLExpressionParser};
+use crate::game_structure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
 use pom::parser::Parser;
 use std::str::{self};
 
@@ -21,6 +20,7 @@ pub struct EagerGameStructure {
 
 impl EagerGameStructure {
     /// Returns the number of moves `player` can take when the game is in `state`.
+    #[allow(dead_code)]
     pub fn available_moves(&self, state: State, player: Player) -> usize {
         *self
             .moves
@@ -63,6 +63,22 @@ impl GameStructure for EagerGameStructure {
             .get(state)
             .unwrap_or_else(|| panic!("Requested move for non-existent state {}", state))
             .clone()
+    }
+
+    fn state_name(&self, state: State) -> String {
+        state.to_string()
+    }
+
+    fn label_name(&self, proposition: Proposition) -> String {
+        proposition.to_string()
+    }
+
+    fn player_name(&self, player: Player) -> String {
+        player.to_string()
+    }
+
+    fn action_name(&self, _state: usize, _player: usize, action: usize) -> String {
+        action.to_string()
     }
 }
 

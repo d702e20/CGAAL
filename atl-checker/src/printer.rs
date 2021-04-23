@@ -1,10 +1,10 @@
-use crate::common::Edges;
-use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+
+use crate::edg::{Edge, ExtendedDependencyGraph, Vertex};
 
 // The graph can be rendered using the `dot` command graphviz, specifically like this `dot -Tpng graph.dot -O -Nfontname=noto`
 
@@ -46,7 +46,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
             let hyper_id = hash_name(&edge);
 
             match edge {
-                Edges::HYPER(hyper) => {
+                Edge::HYPER(hyper) => {
                     print_vertex(&hyper.source, &mut output)?;
 
                     if hyper.targets.is_empty() {
@@ -103,7 +103,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                         }
                     }
                 }
-                Edges::NEGATION(neg) => {
+                Edge::NEGATION(neg) => {
                     print_vertex(&neg.source, &mut output)?;
 
                     output.write_all(

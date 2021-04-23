@@ -1,6 +1,6 @@
+use crate::edg::Edge;
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Equal, Greater, Less};
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -61,28 +61,10 @@ impl Display for VertexAssignment {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub targets: Vec<V>,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub target: V,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Edges<V: Hash + Eq + PartialEq + Clone> {
-    HYPER(HyperEdge<V>),
-    NEGATION(NegationEdge<V>),
-}
-
-impl<V: Hash + Eq + PartialEq + Clone> Edges<V> {
+impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns true if this is a hyper edge
     pub fn is_hyper(&self) -> bool {
-        matches!(self, Edges::HYPER(_))
+        matches!(self, Edge::HYPER(_))
     }
 
     /// Returns true if this is a negation edge
@@ -93,8 +75,16 @@ impl<V: Hash + Eq + PartialEq + Clone> Edges<V> {
     /// Returns the source vertex of this edge
     pub fn source(&self) -> &V {
         match self {
-            Edges::HYPER(e) => &e.source,
-            Edges::NEGATION(e) => &e.source,
+            Edge::HYPER(e) => &e.source,
+            Edge::NEGATION(e) => &e.source,
+        }
+    }
+
+    /// Returns the targets vertices of this edge
+    pub fn targets(&self) -> Vec<&V> {
+        match self {
+            Edge::HYPER(e) => e.targets.iter().collect(),
+            Edge::NEGATION(e) => vec![&e.target],
         }
     }
 }

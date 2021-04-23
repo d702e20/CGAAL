@@ -1,16 +1,15 @@
 use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
-use crate::atl::common;
-use crate::atl::common::Proposition;
-use crate::atl::formula::{identifier, ATLExpressionParser};
-use crate::atl::gamestructure::GameStructure;
-use crate::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
-use crate::lcgs::ir::error::Error;
-use crate::lcgs::ir::eval::Evaluator;
-use crate::lcgs::ir::relabeling::Relabeler;
-use crate::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
-use crate::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use crate::atl::{identifier, ATLExpressionParser};
+use crate::game_structure;
+use crate::game_structure::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
+use crate::game_structure::lcgs::ir::error::Error;
+use crate::game_structure::lcgs::ir::eval::Evaluator;
+use crate::game_structure::lcgs::ir::relabeling::Relabeler;
+use crate::game_structure::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
+use crate::game_structure::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
+use crate::game_structure::{Action, GameStructure, Proposition};
 use pom::parser::{sym, Parser};
 use std::fmt::{Display, Formatter};
 
@@ -131,7 +130,11 @@ impl IntermediateLCGS {
     }
 
     /// Returns a list of the moves available to the given player in the given state.
-    pub(crate) fn available_actions(&self, state: &State, player: usize) -> Vec<SymbolIdentifier> {
+    pub(crate) fn available_actions(
+        &self,
+        state: &State,
+        player: game_structure::Player,
+    ) -> Vec<SymbolIdentifier> {
         self.players[player]
             .actions
             .iter()
@@ -412,11 +415,15 @@ pub struct State(pub HashMap<SymbolIdentifier, i32>);
 
 impl Display for State {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{{")?;
-        for (symb_id, val) in self.0.iter() {
-            writeln!(f, "\t{}: {}", symb_id, val)?;
+        write!(f, "{{")?;
+        let len = self.0.len();
+        for (i, (symb_id, val)) in self.0.iter().enumerate() {
+            write!(f, "{}:{}", symb_id, val)?;
+            if i < len - 1 {
+                write!(f, ",")?;
+            }
         }
-        writeln!(f, "}}")
+        write!(f, "}}")
     }
 }
 
@@ -426,7 +433,7 @@ impl GameStructure for IntermediateLCGS {
     }
 
     /// Returns the set of labels/propositions available in the given state.
-    fn labels(&self, state: usize) -> HashSet<usize> {
+    fn labels(&self, state: game_structure::State) -> HashSet<Proposition> {
         let state = self.state_from_index(state);
         let mut res = HashSet::new();
 
@@ -446,7 +453,7 @@ impl GameStructure for IntermediateLCGS {
     }
 
     /// Returns the next state given a current state and an action for each player.
-    fn transitions(&self, state: usize, choices: Vec<usize>) -> usize {
+    fn transitions(&self, state: game_structure::State, choices: Vec<usize>) -> usize {
         let mut state = self.state_from_index(state);
         // To evaluate the next state we assign the actions to either 1 or 0 depending
         // on whether or not the action was taken
@@ -488,7 +495,7 @@ impl GameStructure for IntermediateLCGS {
     }
 
     /// Returns the number of moves available to each player in the given state.
-    fn move_count(&self, state: usize) -> Vec<usize> {
+    fn move_count(&self, state: game_structure::State) -> Vec<usize> {
         let state = self.state_from_index(state);
         self.players
             .iter()
@@ -496,10 +503,33 @@ impl GameStructure for IntermediateLCGS {
             .map(|(i, _player)| self.available_actions(&state, i).len())
             .collect()
     }
+
+    fn state_name(&self, state: game_structure::State) -> String {
+        self.state_from_index(state).to_string()
+    }
+
+    fn label_name(&self, proposition: Proposition) -> String {
+        self.labels.get(proposition).unwrap().to_string()
+    }
+
+    fn player_name(&self, player: game_structure::Player) -> String {
+        self.players.get(player).unwrap().name.to_string()
+    }
+
+    fn action_name(
+        &self,
+        state: game_structure::State,
+        player: game_structure::Player,
+        action: Action,
+    ) -> String {
+        let state = self.state_from_index(state);
+        let actions = self.available_actions(&state, player);
+        actions.get(action).unwrap().to_string()
+    }
 }
 
 impl ATLExpressionParser for IntermediateLCGS {
-    fn player_parser(&self) -> Parser<u8, common::Player> {
+    fn player_parser(&self) -> Parser<u8, game_structure::Player> {
         // In ATL, players are referred to using their name, i.e. an identifier
         identifier().convert(move |name| {
             // We check if a declaration with the given name exists,
@@ -558,12 +588,12 @@ impl ATLExpressionParser for IntermediateLCGS {
 
 #[cfg(test)]
 mod test {
-    use crate::atl::gamestructure::GameStructure;
-    use crate::lcgs::ast::DeclKind;
-    use crate::lcgs::ir::intermediate::{IntermediateLCGS, State};
-    use crate::lcgs::ir::symbol_table::Owner;
-    use crate::lcgs::ir::symbol_table::SymbolIdentifier;
-    use crate::lcgs::parse::parse_lcgs;
+    use crate::game_structure::lcgs::ast::DeclKind;
+    use crate::game_structure::lcgs::ir::intermediate::{IntermediateLCGS, State};
+    use crate::game_structure::lcgs::ir::symbol_table::Owner;
+    use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
+    use crate::game_structure::lcgs::parse::parse_lcgs;
+    use crate::game_structure::GameStructure;
     use std::collections::HashMap;
 
     #[test]

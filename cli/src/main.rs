@@ -1,18 +1,12 @@
+mod args;
+
 #[no_link]
 extern crate git_version;
-#[macro_use]
-extern crate lazy_static;
 extern crate num_cpus;
-#[macro_use]
-extern crate serde;
-#[macro_use]
-extern crate tracing;
 
-use std::collections::hash_map::RandomState;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{stdout, Read, Write};
+use std::io::{Read, Write};
 use std::process::exit;
 use std::sync::Arc;
 
@@ -20,27 +14,21 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use crate::atl::dependencygraph::{ATLDependencyGraph, ATLVertex};
-use crate::atl::formula::{ATLExpressionParser, Phi};
-use crate::atl::gamestructure::{EagerGameStructure, GameStructure};
-use crate::common::Edges;
-use crate::edg::{distributed_certain_zero, Vertex};
-use crate::lcgs::ast::DeclKind;
-use crate::lcgs::ir::intermediate::IntermediateLCGS;
-use crate::lcgs::ir::symbol_table::Owner;
-use crate::lcgs::parse::parse_lcgs;
+use crate::args::CommonArgs;
+use atl_checker::algorithms::certain_zero::common::VertexAssignment;
+use atl_checker::algorithms::certain_zero::distributed_certain_zero;
+use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::analyse::analyse;
+use atl_checker::atl::{ATLExpressionParser, Phi};
+use atl_checker::edg::{ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex};
+use atl_checker::game_structure::lcgs::ast::DeclKind;
+use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
+use atl_checker::game_structure::lcgs::parse::parse_lcgs;
+use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
-use crate::printer::print_graph;
-
-#[macro_use]
-mod simple_edg;
-mod atl;
-mod com;
-mod common;
-mod edg;
-mod lcgs;
-#[cfg(feature = "graph-printer")]
-mod printer;
+use atl_checker::printer::print_graph;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -59,6 +47,35 @@ enum FormulaFormat {
 enum ModelType {
     JSON,
     LCGS,
+}
+
+/// Valid search strategies options
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum SearchStrategyOption {
+    BFS,
+    DFS,
+}
+
+impl SearchStrategyOption {
+    /// Run the distributed certain zero algorithm using the given search strategy
+    pub fn distributed_certain_zero<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    >(
+        &self,
+        edg: G,
+        v0: V,
+        worker_count: u64,
+    ) -> VertexAssignment {
+        match self {
+            SearchStrategyOption::BFS => {
+                distributed_certain_zero(edg, v0, worker_count, BreadthFirstSearchBuilder)
+            }
+            SearchStrategyOption::DFS => {
+                distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
+            }
+        }
+    }
 }
 
 #[tracing::instrument]
@@ -123,13 +140,18 @@ fn main_inner() -> Result<(), String> {
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&solver_args)?;
+            let search_strategy = get_search_strategy_from_args(&solver_args)?;
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
-            fn check_model<G>(graph: ATLDependencyGraph<G>, v0: ATLVertex, threads: u64)
-            where
+            fn check_model<G>(
+                graph: ATLDependencyGraph<G>,
+                v0: ATLVertex,
+                threads: u64,
+                ss: SearchStrategyOption,
+            ) where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = distributed_certain_zero(graph, v0, threads);
+                let result = ss.distributed_certain_zero(graph, v0, threads);
                 println!("Result: {}", result);
             }
 
@@ -143,25 +165,79 @@ fn main_inner() -> Result<(), String> {
                 input_model_path,
                 formula_path,
                 formula_format,
-                |graph, formula, raw_phi| {
-                    println!("Checking the formula: {}", formula);
-                    let v0 = ATLVertex::FULL { state: 0, formula };
-                    println!("Solving: {}", raw_phi);
-                    check_model(graph, v0, threads);
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
+                    check_model(graph, v0, threads, search_strategy);
                 },
-                |graph, formula, raw_phi| {
-                    println!("Checking the formula: {}", formula);
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let arc = Arc::from(formula);
+                    let graph = ATLDependencyGraph { game_structure };
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
-                        formula,
+                        formula: arc,
                     };
-                    println!("Solving: {}", raw_phi);
-                    check_model(graph, v0, threads);
+                    check_model(graph, v0, threads, search_strategy);
                 },
             )?
         }
+        ("analyse", Some(analyse_args)) => {
+            let input_model_path = analyse_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(&analyse_args)?;
+            let formula_path = analyse_args.value_of("formula").unwrap();
+            let formula_format = get_formula_format_from_args(&analyse_args)?;
+
+            let output_arg = analyse_args.value_of("output").unwrap();
+
+            fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(
+                edg: &G,
+                root: ATLVertex,
+                output_path: &str,
+            ) -> Result<(), String> {
+                let data = analyse(edg, root);
+                let json = serde_json::to_string_pretty(&data).expect("Failed to serialize data");
+                let mut file = File::create(output_path)
+                    .map_err(|err| format!("Failed to create output file.\n{}", err))?;
+                file.write_all(json.as_bytes())
+                    .map_err(|err| format!("Failed to write to output file.\n{}", err))
+            }
+
+            load(
+                model_type,
+                input_model_path,
+                formula_path,
+                formula_format,
+                |game_structure, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
+                    analyse_and_save(&graph, v0, output_arg)
+                },
+                |game_structure, formula| {
+                    let v0 = ATLVertex::FULL {
+                        state: game_structure.initial_state_index(),
+                        formula: Arc::from(formula),
+                    };
+                    let graph = ATLDependencyGraph { game_structure };
+                    analyse_and_save(&graph, v0, output_arg)
+                },
+            )??
+        }
+        #[cfg(feature = "graph-printer")]
         ("graph", Some(graph_args)) => {
-            #[cfg(feature = "graph-printer")]
             {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
                 let model_type = get_model_type_from_args(&graph_args)?;
@@ -174,6 +250,7 @@ fn main_inner() -> Result<(), String> {
                     v0: ATLVertex,
                     output: Option<&str>,
                 ) {
+                    use std::io::stdout;
                     let output: Box<dyn Write> = match output {
                         Some(path) => {
                             let file = File::create(path).unwrap_or_else(|err| {
@@ -193,17 +270,29 @@ fn main_inner() -> Result<(), String> {
                     input_model_path,
                     formula_path,
                     formula_format,
-                    |graph, formula, raw_phi| {
-                        let v0 = ATLVertex::FULL { state: 0, formula };
-                        println!("Printing graph for: {}", raw_phi);
+                    |game_structure, formula| {
+                        println!(
+                            "Printing graph for: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                        let v0 = ATLVertex::FULL {
+                            state: 0,
+                            formula: Arc::from(formula),
+                        };
+                        let graph = ATLDependencyGraph { game_structure };
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
-                    |graph, formula, raw_phi| {
+                    |game_structure, formula| {
+                        println!(
+                            "Printing graph for: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                        let arc = Arc::from(formula);
+                        let graph = ATLDependencyGraph { game_structure };
                         let v0 = ATLVertex::FULL {
                             state: graph.game_structure.initial_state_index(),
-                            formula,
+                            formula: arc,
                         };
-                        println!("Printing graph for: {}", raw_phi);
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
                 )?
@@ -217,11 +306,7 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula<A: ATLExpressionParser>(
-    path: &str,
-    format: FormulaFormat,
-    expr_parser: &A,
-) -> (String, Arc<Phi>) {
+fn load_formula<A: ATLExpressionParser>(path: &str, format: FormulaFormat, expr_parser: &A) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -233,23 +318,19 @@ fn load_formula<A: ATLExpressionParser>(
         exit(1);
     });
 
-    let phi = match format {
+    match format {
         FormulaFormat::JSON => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
         FormulaFormat::ATL => {
-            let result = atl::formula::parse_phi(expr_parser, &raw_phi);
-            Arc::new(result.unwrap_or_else(|err| {
+            let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
+            result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
-            }))
+            })
         }
-    };
-
-    raw_phi = raw_phi.trim().to_string();
-
-    (raw_phi, phi)
+    }
 }
 
 /// Determine the model type (either "json" or "lcgs") by reading the the
@@ -274,14 +355,34 @@ fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
 }
 
 /// Determine the formula format (either "json" or "atl") by reading the
-/// --formula_format argument. If none is given, we default to ATL
+/// --formula_format argument. If none is given, we try to infer it from the file extension
 fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, String> {
     match args.value_of("formula_format") {
         Some("json") => Ok(FormulaFormat::JSON),
         Some("atl") => Ok(FormulaFormat::ATL),
-        // Default value in case user did not give one
-        None => Ok(FormulaFormat::ATL),
+        None => {
+            // Infer format from file extension
+            let formula_path = args.value_of("formula").unwrap();
+            if formula_path.ends_with(".atl") {
+                Ok(FormulaFormat::ATL)
+            } else if formula_path.ends_with(".json") {
+                Ok(FormulaFormat::JSON)
+            } else {
+                Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
+            }
+        },
         Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
+    }
+}
+
+/// Determine the search strategy by reading the --search-strategy argument. Default is BFS.
+fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOption, String> {
+    match args.value_of("search_strategy") {
+        Some("bfs") => Ok(SearchStrategyOption::BFS),
+        Some("dfs") => Ok(SearchStrategyOption::DFS),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" or \"dfs\" [default is \"bfs\"]", other)),
+        // Default value
+        None => Ok(SearchStrategyOption::BFS)
     }
 }
 
@@ -295,8 +396,8 @@ fn load<R, J, L>(
     handle_lcgs: L,
 ) -> Result<R, String>
 where
-    J: FnOnce(ATLDependencyGraph<EagerGameStructure>, Arc<Phi>, String) -> R,
-    L: FnOnce(ATLDependencyGraph<IntermediateLCGS>, Arc<Phi>, String) -> R,
+    J: FnOnce(EagerGameStructure, Phi) -> R,
+    L: FnOnce(IntermediateLCGS, Phi) -> R,
 {
     // Open the input model file
     let mut file = File::open(game_structure_path)
@@ -312,10 +413,9 @@ where
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
-            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
-            let graph = ATLDependencyGraph { game_structure };
+            let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_json(graph, phi, raw_phi))
+            Ok(handle_json(game_structure, phi))
         }
         ModelType::LCGS => {
             let lcgs = parse_lcgs(&content)
@@ -324,61 +424,20 @@ where
             let game_structure = IntermediateLCGS::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
-            let (raw_phi, phi) = load_formula(formula_path, formula_format, &game_structure);
-            let graph = ATLDependencyGraph { game_structure };
+            let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_lcgs(graph, phi, raw_phi))
+            Ok(handle_lcgs(game_structure, phi))
         }
     }
 }
 
 /// Define and parse command line arguments
 fn parse_arguments() -> ArgMatches<'static> {
-    fn build_common_arguments<'a>(builder: clap::App<'a, 'a>) -> App<'a, 'a> {
-        builder
-            .arg(
-                Arg::with_name("input_model")
-                    .short("m")
-                    .long("model")
-                    .env("INPUT_MODEL")
-                    .required(true)
-                    .help("The input file to generate model from"),
-            )
-            .arg(
-                Arg::with_name("model_type")
-                    .short("t")
-                    .long("model-type")
-                    .env("MODEL_TYPE")
-                    .help("The type of input file given {{lcgs, json}}"),
-            )
-            .arg(
-                Arg::with_name("formula_format")
-                    .short("y")
-                    .long("formula-format")
-                    .env("FORMULA_FORMAT")
-                    .help("The format of ATL formula file given {{json, text}}"),
-            )
-            .arg(
-                Arg::with_name("formula")
-                    .short("f")
-                    .long("formula")
-                    .env("FORMULA")
-                    .required(true)
-                    .help("The formula to check for"),
-            )
-            .arg(
-                Arg::with_name("output")
-                    .short("o")
-                    .long("output")
-                    .env("OUTPUT")
-                    .help("The path to write output to"),
-            )
-    }
-
     let version_text = format!("{} ({})", VERSION, GIT_VERSION);
-    let app = App::new(PKG_NAME)
+    let string = AUTHORS.replace(":", "\n");
+    let mut app = App::new(PKG_NAME)
         .version(version_text.as_str())
-        .author(AUTHORS)
+        .author(string.as_str())
         .arg(
             Arg::with_name("log_filter")
                 .short("l")
@@ -387,32 +446,52 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .default_value("warn")
                 .help("Comma separated list of filter directives"),
         )
-        .subcommand(build_common_arguments(
-            SubCommand::with_name("solver").arg(
-                Arg::with_name("threads")
-                    .short("r")
-                    .long("threads")
-                    .env("THREADS")
-                    .help("Number of threads to run solver on"),
-            ),
-        ))
         .subcommand(
-            SubCommand::with_name("index").arg(
-                Arg::with_name("input_model")
-                    .short("m")
-                    .long("model")
-                    .env("INPUT_MODEL")
-                    .required(true)
-                    .help("The input file to generate model from"),
-            ),
+            SubCommand::with_name("solver")
+                .about("Checks satisfiability of an ATL query on a CGS")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg()
+                .add_search_strategy_arg()
+                .arg(
+                    Arg::with_name("threads")
+                        .short("r")
+                        .long("threads")
+                        .env("THREADS")
+                        .help("Number of threads to run solver on"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("index")
+                .about("Prints indexes of LCGS declarations")
+                .add_input_model_arg(),
+        )
+        .subcommand(
+            SubCommand::with_name("analyse")
+                .about("Analyses a EDG generated from an ATL query and a CGS")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg()
+                .add_output_arg(true),
         );
 
     if cfg!(feature = "graph-printer") {
-        app.subcommand(build_common_arguments(SubCommand::with_name("graph")))
-            .get_matches()
-    } else {
-        app.get_matches()
+        app = app.subcommand(
+            SubCommand::with_name("graph")
+                .about(
+                    "Outputs a Graphviz DOT graph of the EDG generated from an ATL query and a CGS",
+                )
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg()
+                .add_output_arg(false),
+        );
     }
+
+    app.get_matches()
 }
 
 fn setup_tracing(args: &ArgMatches) -> Result<(), String> {
