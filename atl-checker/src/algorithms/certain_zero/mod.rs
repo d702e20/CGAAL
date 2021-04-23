@@ -56,20 +56,18 @@ pub fn distributed_certain_zero<
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
 
     // All assignments is received and collected to a single hashmap
-    let mut assignment_table = HashMap::<V, VertexAssignment>::new();
+    let mut combined = HashMap::<V, VertexAssignment>::new();
     for _ in 0..worker_count {
         let assignments = manager_broker
             .receive_assignment()
             .expect("Error receiving the assignment table");
 
-        for (k, v) in assignments {
-            assignment_table.insert(
-                k.clone(),
-                match assignment_table.get(&k) {
-                    Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
-                    None => v.clone(),
-                },
-            );
+        for (vertex, v) in assignments {
+            let new_ass = match combined.get(&vertex) {
+                Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
+                None => v,
+            };
+            combined.insert(vertex, new_ass);
         }
     }
 
