@@ -83,7 +83,8 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
             self.queue.push_back(edge.0.clone());
         }
 
-        // TODO, could also sort the entire queue here
+        // TODO, could also sort the entire queue here, if we add the distances to the queue
+        // without, and doing this linear optimize everytime we add queues, there is only a ~2 sec gain
     }
 }
 
@@ -107,16 +108,15 @@ impl LinearOptimizeSearch {
                         let distance = self.minimum_distance_1d(state, linear_expression.unwrap());
 
                         // add to vec of results
-                        if let Some(dist) = distance{
+                        if let Some(dist) = distance {
                             distances.push(dist)
                         }
                     }
                 }
 
-                // TODO perhaps fix more elegantly
                 // If no targets were able to satisfy formula, or something went wrong, return large number
                 if { distances.is_empty() } {
-                    return None
+                    return None;
                 }
 
                 // Find average distance between targets, and return this
@@ -171,20 +171,20 @@ impl LinearOptimizeSearch {
             let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
             // TODO support for more operators?
             match lin_expr.operation {
-                Addition => {}
-                Multiplication => {}
-                Subtraction => {}
-                Division => {}
+                Addition => { return None; }
+                Multiplication => { return None; }
+                Subtraction => { return None; }
+                Division => { return None; }
                 Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, lin_expr.constant as f64); }
-                Inequality => {}
+                Inequality => { return None; }
                 GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, lin_expr.constant as f64); }
                 LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, lin_expr.constant as f64); }
-                GreaterOrEqual => {}
-                LessOrEqual => {}
-                And => {}
-                Or => {}
-                Xor => {}
-                Implication => {}
+                GreaterOrEqual => { return None; }
+                LessOrEqual => { return None; }
+                And => { return None; }
+                Or => { return None; }
+                Xor => { return None; }
+                Implication => { return None; }
             }
 
             match problem.solve() {
@@ -196,7 +196,7 @@ impl LinearOptimizeSearch {
                             // Find distance from the current value, to the solution
                             return Some({ f64::abs((v as f64 - solution[x])) } as f32);
                         }
-                        _ => {None}
+                        _ => { None }
                     }
                 }
                 Err(e) => {
@@ -267,12 +267,17 @@ fn manhattan_distance(point1: MyPoint, point2: MyPoint) -> i32 {
 }
 
 mod test {
-    use crate::search_strategy::linear_optimize::{manhattan_distance, MyPoint};
+    use crate::search_strategy::linear_optimize::{manhattan_distance, MyPoint, LinearOptimizeSearch, LinearExpression};
     use crate::lcgs::ast::{Expr, BinaryOpKind};
     use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
     use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
     use crate::lcgs::ast::Identifier::{Resolved, Simple};
     use crate::lcgs::ast::DeclKind::Player;
+    use crate::lcgs::ir::intermediate::{State, IntermediateLCGS};
+    use crate::lcgs::ir::symbol_table::{SymbolIdentifier, Owner};
+    use std::collections::HashMap;
+    use crate::lcgs::parse::parse_lcgs;
+    use crate::atl::gamestructure::GameStructure;
 
     #[test]
     fn manhattan_distance_test() {
@@ -280,6 +285,7 @@ mod test {
     }
 
     #[test]
+    // 1 + 1
     fn expression_is_linear_test_two_numbers() {
         let operator = Addition;
         let operand1 = Box::from(Expr { kind: Number(1) });
@@ -289,6 +295,37 @@ mod test {
     }
 
     #[test]
+    // 1 * 1
+    fn expression_is_linear_test_two_numbers1() {
+        let operator = Multiplication;
+        let operand1 = Box::from(Expr { kind: Number(1) });
+        let operand2 = Box::from(Expr { kind: Number(1) });
+        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        assert_eq!(expression.is_linear(), true)
+    }
+
+    #[test]
+    // x * x
+    fn expression_is_linear_test_two_variables() {
+        let operator = Multiplication;
+        let operand1 = Box::from(Expr { kind: Number(1) });
+        let operand2 = Box::from(Expr { kind: Number(1) });
+        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        assert_eq!(expression.is_linear(), false)
+    }
+
+    #[test]
+    // x + x
+    fn expression_is_linear_test_two_variables1() {
+        let operator = Addition;
+        let operand1 = Box::from(Expr { kind: Number(1) });
+        let operand2 = Box::from(Expr { kind: Number(1) });
+        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        assert_eq!(expression.is_linear(), true)
+    }
+
+    #[test]
+    // 5 + x * 3
     fn expression_is_linear_test_simple_linear() {
         let inner_operator = Multiplication;
         let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
@@ -303,6 +340,7 @@ mod test {
     }
 
     #[test]
+    // x + 3 * 3
     fn expression_is_linear_test_linear_same_constants_in_mult() {
         let inner_operator = Multiplication;
         let inner_operand1 = Box::from(Expr { kind: Number(3) });
@@ -317,6 +355,7 @@ mod test {
     }
 
     #[test]
+    // 5 + x * x
     fn expression_is_linear_test_polynomial() {
         let inner_operator = Multiplication;
         let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
@@ -331,6 +370,7 @@ mod test {
     }
 
     #[test]
+    // 5 * x * x
     fn expression_is_linear_test_polynomial1() {
         let inner_operator = Multiplication;
         let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
@@ -349,6 +389,7 @@ mod test {
     }
 
     #[test]
+    // x * x * 5
     fn expression_is_linear_test_polynomial2() {
         let inner_operator = Multiplication;
         let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
@@ -360,6 +401,90 @@ mod test {
 
         let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
         assert_eq!(expression.is_linear(), false)
+    }
+
+    // TODO write more tests
+    #[test]
+    fn minimum_distance_1d_test_lessthan() {
+        // Are the expected labels present
+        let input = "
+        x : [0 .. 9] init 0;
+        x' = x;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let initial = lcgs.initial_state();
+
+        let lin_exp = LinearExpression {
+            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            constant: 5,
+            operation: BinaryOpKind::LessThan,
+        };
+
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let expected = 0.0;
+        assert_eq!(solution.unwrap(), expected);
+    }
+
+    #[test]
+    fn minimum_distance_1d_test_equality() {
+        // Are the expected labels present
+        let input = "
+        x : [0 .. 9] init 0;
+        x' = x;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let initial = lcgs.initial_state();
+
+        let lin_exp = LinearExpression {
+            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            constant: 5,
+            operation: BinaryOpKind::Equality,
+        };
+
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let expected = 5.0;
+        assert_eq!(solution.unwrap(), expected);
+    }
+
+    #[test]
+    fn minimum_distance_1d_test_greaterthan() {
+        // Are the expected labels present
+        let input = "
+        x : [0 .. 9] init 0;
+        x' = x;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let initial = lcgs.initial_state();
+
+        let lin_exp = LinearExpression {
+            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            constant: 5,
+            operation: BinaryOpKind::GreaterThan,
+        };
+
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let expected = 5.0;
+        assert_eq!(solution.unwrap(), expected);
+    }
+
+    #[test]
+    fn minimum_distance_1d_test_nonexisting_operation() {
+        // Are the expected labels present
+        let input = "
+        x : [0 .. 9] init 0;
+        x' = x;
+        ";
+        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let initial = lcgs.initial_state();
+
+        let lin_exp = LinearExpression {
+            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            constant: 5,
+            operation: BinaryOpKind::Implication,
+        };
+
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        assert!(solution.is_none());
     }
 }
 
