@@ -4,33 +4,8 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use crate::atl::Phi;
+use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use crate::game_structure::{GameStructure, Player, State};
-
-pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
-
-pub trait ExtendedDependencyGraph<V: Vertex> {
-    /// Return out going edges from `vertex`.
-    /// This will be cached on each worker.
-    fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub targets: Vec<V>,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub target: V,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
-    HYPER(HyperEdge<V>),
-    NEGATION(NegationEdge<V>),
-}
 
 #[derive(Clone, Debug)]
 pub struct ATLDependencyGraph<G: GameStructure> {
@@ -666,7 +641,9 @@ mod test {
     use std::collections::HashSet;
     use std::sync::Arc;
 
-    use crate::edg::{DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator};
+    use crate::edg::atlcgsedg::{
+        DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
+    };
     use crate::game_structure::{DynVec, EagerGameStructure};
 
     #[test]
