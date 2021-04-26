@@ -104,7 +104,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                         .iter()
                         .map(|e| {
                             // Or-formula have multiple hyper-edges with one target
-                            if let Edge::HYPER(e) = e {
+                            if let Edge::Hyper(e) = e {
                                 phi_stats(mssa, &e.targets.get(0).unwrap())
                             } else {
                                 unreachable!()
@@ -115,7 +115,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                 Phi::And(..) => data.push(VertexData::And {
                     stats: phi_stats(mssa, v),
                     // And-formulae only have one hyper-edge with multiple targets
-                    target_stats: if let Edge::HYPER(e) = edg.succ(v).iter().next().unwrap() {
+                    target_stats: if let Edge::Hyper(e) = edg.succ(v).iter().next().unwrap() {
                         e.targets.iter().map(|t| phi_stats(mssa, t)).collect()
                     } else {
                         unreachable!()
@@ -125,7 +125,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                     player_count: players.len() as u32,
                     stats: phi_stats(mssa, v),
                     // And-formulae only have one hyper-edge with multiple targets
-                    target_stats: if let Edge::HYPER(e) = edg.succ(v).iter().next().unwrap() {
+                    target_stats: if let Edge::Hyper(e) = edg.succ(v).iter().next().unwrap() {
                         e.targets.iter().map(|t| phi_stats(mssa, t)).collect()
                     } else {
                         unreachable!()
@@ -247,7 +247,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                     .iter()
                     .map(|e| {
                         // Partial vertices have multiple hyper-edges with one target
-                        if let Edge::HYPER(e) = e {
+                        if let Edge::Hyper(e) = e {
                             phi_stats(mssa, &e.targets.get(0).unwrap())
                         } else {
                             unreachable!()

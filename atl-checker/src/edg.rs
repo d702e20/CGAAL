@@ -30,8 +30,8 @@ pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
-    HYPER(HyperEdge<V>),
-    NEGATION(NegationEdge<V>),
+    Hyper(HyperEdge<V>),
+    Negation(NegationEdge<V>),
 }
 
 #[derive(Clone, Debug)]
@@ -344,7 +344,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
                 Phi::True => {
                     // Hyper edge with no targets
-                    vec![Edge::HYPER(HyperEdge {
+                    vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         pmove: None,
                         targets: vec![],
@@ -357,7 +357,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(prop) {
-                        vec![Edge::HYPER(HyperEdge {
+                        vec![Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![],
@@ -367,7 +367,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     }
                 }
                 Phi::Not(phi) => {
-                    vec![Edge::NEGATION(NegationEdge {
+                    vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
                             state: *state,
@@ -377,7 +377,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 }
                 Phi::Or(left, right) => {
                     vec![
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![ATLVertex::FULL {
@@ -385,7 +385,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                 formula: left.clone(),
                             }],
                         }),
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![ATLVertex::FULL {
@@ -396,7 +396,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     ]
                 }
                 Phi::And(left, right) => {
-                    vec![Edge::HYPER(HyperEdge {
+                    vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         pmove: None,
                         targets: vec![
@@ -422,7 +422,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                             })
                             .collect();
 
-                    vec![Edge::HYPER(HyperEdge {
+                    vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         pmove: None,
                         targets,
@@ -439,7 +439,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                         formula: formula.clone(),
                                     })
                                     .collect();
-                            Edge::HYPER(HyperEdge {
+                            Edge::Hyper(HyperEdge {
                                 source: vert.clone(),
                                 pmove: Some(pmove),
                                 targets,
@@ -478,7 +478,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![ATLVertex::FULL {
@@ -487,7 +487,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                             }],
                         }),
                         // Other branches where pre is satisfied
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets,
@@ -503,7 +503,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![ATLVertex::FULL {
@@ -535,7 +535,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                     );
                                 let targets: Vec<ATLVertex> =
                                     std::iter::once(pre.clone()).chain(delta).collect();
-                                Edge::HYPER(HyperEdge {
+                                Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
                                     pmove: Some(pmove),
                                     targets,
@@ -566,7 +566,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![ATLVertex::FULL {
@@ -574,7 +574,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                 formula: subformula.clone(),
                             }],
                         }),
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets,
@@ -589,7 +589,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             pmove: None,
                             targets: vec![ATLVertex::FULL {
@@ -612,7 +612,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                             formula: formula.clone(),
                                         })
                                         .collect();
-                                Edge::HYPER(HyperEdge {
+                                Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
                                     pmove: Some(pmove),
                                     targets,
@@ -627,7 +627,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    vec![Edge::NEGATION(NegationEdge {
+                    vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
                             state: *state,
@@ -644,7 +644,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    vec![Edge::NEGATION(NegationEdge {
+                    vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
                         target: ATLVertex::FULL {
                             state: *state,
@@ -668,7 +668,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         state,
                         formula: formula.clone(),
                     }];
-                    Edge::HYPER(HyperEdge {
+                    Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         pmove: Some(partial_move.clone()),
                         targets,

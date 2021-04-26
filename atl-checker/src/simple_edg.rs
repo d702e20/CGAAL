@@ -78,12 +78,12 @@ macro_rules! simple_edg {
             $($vertex_name::$v => {
                 #[allow(unused_mut)]
                 let mut successors = vec![];
-                $(successors.push(Edge::HYPER(HyperEdge {
+                $(successors.push(Edge::Hyper(HyperEdge {
                     source: $vertex_name::$v,
                     pmove: None,
                     targets: vec![$($vertex_name::$t),*],
                 }));)*
-                $(successors.push(Edge::NEGATION(NegationEdge {
+                $(successors.push(Edge::Negation(NegationEdge {
                     source: $vertex_name::$v,
                     target: $vertex_name::$n,
                 }));)*
