@@ -28,6 +28,7 @@ pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
     HYPER(HyperEdge<V>),
     NEGATION(NegationEdge<V>),
