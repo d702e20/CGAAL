@@ -39,15 +39,15 @@ pub trait GameStructure {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(untagged)]
 pub enum DynVec {
-    NEST(Vec<Arc<DynVec>>),
-    BASE(State),
+    Nest(Vec<Arc<DynVec>>),
+    Base(State),
 }
 
 /// Indexes into a DynVec.
 /// The length of `choices` must match the depth of `transitions`.
 pub(crate) fn transition_lookup(choices: &[usize], transitions: &DynVec) -> State {
     match transitions {
-        DynVec::NEST(v) => {
+        DynVec::Nest(v) => {
             if choices.is_empty() {
                 panic!("Fewer choices given than number of players in transitions");
             }
@@ -57,6 +57,6 @@ pub(crate) fn transition_lookup(choices: &[usize], transitions: &DynVec) -> Stat
 
             transition_lookup(&choices[1..choices.len()], h)
         }
-        DynVec::BASE(state) => *state,
+        DynVec::Base(state) => *state,
     }
 }
