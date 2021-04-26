@@ -48,24 +48,24 @@ impl Player {
 /// An [IntermediateLCGS] is created from processing an AST and checking the validity of the
 /// declarations.
 #[derive(Clone, Debug)]
-pub struct IntermediateLCGS {
+pub struct IntermediateLcgs {
     symbols: HashMap<SymbolIdentifier, Decl>,
     labels: Vec<SymbolIdentifier>,
     vars: Vec<SymbolIdentifier>,
     players: Vec<Player>,
 }
 
-impl IntermediateLCGS {
+impl IntermediateLcgs {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(root: Root) -> Result<IntermediateLCGS, Error> {
+    pub fn create(root: Root) -> Result<IntermediateLcgs, Error> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
         let (players, labels, vars) = register_decls(&mut symbols, root)?;
         check_and_optimize_decls(&symbols)?;
 
-        let ilcgs = IntermediateLCGS {
+        let ilcgs = IntermediateLcgs {
             symbols: symbols.solidify(),
             labels,
             vars,
@@ -427,7 +427,7 @@ impl Display for State {
     }
 }
 
-impl GameStructure for IntermediateLCGS {
+impl GameStructure for IntermediateLcgs {
     fn max_player(&self) -> usize {
         self.players.len()
     }
@@ -528,7 +528,7 @@ impl GameStructure for IntermediateLCGS {
     }
 }
 
-impl ATLExpressionParser for IntermediateLCGS {
+impl ATLExpressionParser for IntermediateLcgs {
     fn player_parser(&self) -> Parser<u8, game_structure::Player> {
         // In ATL, players are referred to using their name, i.e. an identifier
         identifier().convert(move |name| {
@@ -589,7 +589,7 @@ impl ATLExpressionParser for IntermediateLCGS {
 #[cfg(test)]
 mod test {
     use crate::game_structure::lcgs::ast::DeclKind;
-    use crate::game_structure::lcgs::ir::intermediate::{IntermediateLCGS, State};
+    use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
     use crate::game_structure::lcgs::ir::symbol_table::Owner;
     use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
     use crate::game_structure::lcgs::parse::parse_lcgs;
@@ -614,7 +614,7 @@ mod test {
             [shoot] health > 0;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 12);
         assert!(lcgs.symbols.get(&":global.max_health".into()).is_some());
         assert!(lcgs.symbols.get(&":global.alice".into()).is_some());
@@ -637,7 +637,7 @@ mod test {
         foo : [1 .. 10] init 1;
         foo' = foo;
         ";
-        let lcgs1 = IntermediateLCGS::create(parse_lcgs(input1).unwrap()).unwrap();
+        let lcgs1 = IntermediateLcgs::create(parse_lcgs(input1).unwrap()).unwrap();
         assert_eq!(lcgs1.symbols.len(), 1);
         assert!(lcgs1.symbols.get(&":global.foo".into()).is_some());
 
@@ -645,7 +645,7 @@ mod test {
         let input2 = "
         label foo = foo > 0;
         ";
-        let lcgs2 = IntermediateLCGS::create(parse_lcgs(input2).unwrap());
+        let lcgs2 = IntermediateLcgs::create(parse_lcgs(input2).unwrap());
         assert!(lcgs2.is_err());
     }
 
@@ -667,7 +667,7 @@ mod test {
             [shoot] health > 0 && enemy.health > 0;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 12);
         assert!(lcgs.symbols.get(&":global.max_health".into()).is_some());
         assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
@@ -697,7 +697,7 @@ mod test {
             label prop = 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 9);
         assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
         assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
@@ -724,7 +724,7 @@ mod test {
             [act] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(lcgs.symbols.len(), 9);
         assert!(lcgs.symbols.get(&":global.anna".into()).is_some());
         assert!(lcgs.symbols.get(&":global.bob".into()).is_some());
@@ -747,7 +747,7 @@ mod test {
         bar : [0 .. 5] init 0;
         bar' = bar;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let index = 23;
         let state = lcgs.state_from_index(index);
         let index2 = lcgs.index_of_state(&state);
@@ -766,7 +766,7 @@ mod test {
         yum : [100 .. 102] init 100;
         yum' = yum;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let indexes = [12, 55, 126, 78, 99];
         for i in &indexes {
             let state = lcgs.state_from_index(*i);
@@ -785,7 +785,7 @@ mod test {
         bar : [-5 .. -3] init -3;
         bar' = bar;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let index = 14;
         let state = lcgs.state_from_index(index);
         let index2 = lcgs.index_of_state(&state);
@@ -814,7 +814,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let indexes = [12, 55, 126, 78, 99, 150, 555, 992, 1001, 733];
         for i in &indexes {
             let state = lcgs.state_from_index(*i);
@@ -835,7 +835,7 @@ mod test {
         ";
 
         // Index to state to index
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let indexes = [12_340, 1_987_158, 3_000_000_000];
         for i in &indexes {
             let state = lcgs.state_from_index(*i);
@@ -859,12 +859,12 @@ mod test {
         const t = -5;
         ";
         let pp = parse_lcgs(input);
-        let lcgs = IntermediateLCGS::create(pp.unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(pp.unwrap()).unwrap();
         assert!(lcgs.symbols.get(&":global.t".into()).is_some());
     }
 
     /// Helper function to get the index of a label with the given symbol name
-    fn get_label_index(lcgs: &IntermediateLCGS, symbol_name: &str) -> usize {
+    fn get_label_index(lcgs: &IntermediateLcgs, symbol_name: &str) -> usize {
         let symbol = lcgs.symbols.get(&symbol_name.into()).unwrap();
         if let DeclKind::Label(label) = &symbol.kind {
             label.index
@@ -883,7 +883,7 @@ mod test {
         bar' = bar;
         label cool = foo;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(23);
         assert!(labels.contains(&0usize));
         assert_eq!(get_label_index(&lcgs, ":global.cool"), 0usize);
@@ -901,7 +901,7 @@ mod test {
         label great = bar == 0;
         label awesome = foo > bar;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(46);
         assert!(labels.contains(&0usize));
         assert_eq!(get_label_index(&lcgs, ":global.cool"), 0usize);
@@ -926,7 +926,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let labels = lcgs.labels(5);
         assert!(!labels.contains(&0usize));
         assert_eq!(get_label_index(&lcgs, ":global.no"), 0usize);
@@ -953,7 +953,7 @@ mod test {
             [move] foo > 0;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let move_count = lcgs.move_count(4);
         assert_eq!(move_count[0], 1);
         assert_eq!(move_count[1], 2);
@@ -970,7 +970,7 @@ mod test {
             [swap] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let next_state = lcgs.transitions(0, vec![0]);
         assert_eq!(1, next_state);
         let next_next_state = lcgs.transitions(next_state, vec![0]);
@@ -989,7 +989,7 @@ mod test {
             [set_foo] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(0, lcgs.transitions(0, vec![0]));
         assert_eq!(1, lcgs.transitions(0, vec![1]));
         assert_eq!(0, lcgs.transitions(1, vec![0]));
@@ -1010,7 +1010,7 @@ mod test {
             [available_action] 1; 
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let init_state = lcgs.initial_state_index();
         assert_eq!(0, init_state);
         assert_eq!(0, lcgs.transitions(init_state, vec![0]));
@@ -1025,7 +1025,7 @@ mod test {
         bar : [0 .. 1] init 1;
         bar' = bar;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(2, lcgs.initial_state_index());
     }
 
@@ -1039,12 +1039,12 @@ mod test {
         bar : [1 .. 6] init 1;
         bar' = bar;
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(1, lcgs.initial_state_index());
     }
 
     /// Helper function to get the index of a player with the given name
-    fn get_player_index(lcgs: &IntermediateLCGS, player_name: &str) -> usize {
+    fn get_player_index(lcgs: &IntermediateLcgs, player_name: &str) -> usize {
         let symbol = lcgs
             .symbols
             .get(&Owner::Global.symbol_id(player_name))
@@ -1067,7 +1067,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(input).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         assert_eq!(get_player_index(&lcgs, "p1"), 0usize);
         assert_eq!(get_player_index(&lcgs, "p2"), 1usize);
         assert_eq!(get_player_index(&lcgs, "p3"), 2usize);
