@@ -199,9 +199,7 @@ fn despite_invariant<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi>
 
 /// Parses a proposition using the given [ATLExpressionParser].
 fn proposition<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    expr_parser
-        .proposition_parser()
-        .map(|id| Phi::Proposition(id))
+    expr_parser.proposition_parser().map(Phi::Proposition)
 }
 
 /// Parses a negated ATL formula
