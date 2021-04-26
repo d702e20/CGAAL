@@ -18,6 +18,12 @@ impl<V: Vertex> Default for DepthFirstSearch<V> {
     }
 }
 
+impl<V: Vertex> Default for DepthFirstSearch<V> {
+    fn default() -> Self {
+        DepthFirstSearch::new()
+    }
+}
+
 impl<V: Vertex> SearchStrategy<V> for DepthFirstSearch<V> {
     fn next(&mut self) -> Option<Edge<V>> {
         self.stack.pop()
