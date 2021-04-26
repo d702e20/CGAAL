@@ -21,7 +21,7 @@ use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSea
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
-use atl_checker::edg::{ATLDependencyGraph, ATLVertex, ExtendedDependencyGraph, Vertex};
+use atl_checker::edg::{AtlDependencyGraph, AtlVertex, ExtendedDependencyGraph, Vertex};
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
@@ -144,8 +144,8 @@ fn main_inner() -> Result<(), String> {
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(
-                graph: ATLDependencyGraph<G>,
-                v0: ATLVertex,
+                graph: AtlDependencyGraph<G>,
+                v0: AtlVertex,
                 threads: u64,
                 ss: SearchStrategyOption,
             ) where
@@ -170,11 +170,11 @@ fn main_inner() -> Result<(), String> {
                         "Checking the formula: {}",
                         formula.in_context_of(&game_structure)
                     );
-                    let v0 = ATLVertex::FULL {
+                    let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
-                    let graph = ATLDependencyGraph { game_structure };
+                    let graph = AtlDependencyGraph { game_structure };
                     check_model(graph, v0, threads, search_strategy);
                 },
                 |game_structure, formula| {
@@ -183,8 +183,8 @@ fn main_inner() -> Result<(), String> {
                         formula.in_context_of(&game_structure)
                     );
                     let arc = Arc::from(formula);
-                    let graph = ATLDependencyGraph { game_structure };
-                    let v0 = ATLVertex::FULL {
+                    let graph = AtlDependencyGraph { game_structure };
+                    let v0 = AtlVertex::Full {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
@@ -200,9 +200,9 @@ fn main_inner() -> Result<(), String> {
 
             let output_arg = analyse_args.value_of("output").unwrap();
 
-            fn analyse_and_save<G: ExtendedDependencyGraph<ATLVertex>>(
+            fn analyse_and_save<G: ExtendedDependencyGraph<AtlVertex>>(
                 edg: &G,
-                root: ATLVertex,
+                root: AtlVertex,
                 output_path: &str,
             ) -> Result<(), String> {
                 let data = analyse(edg, root);
@@ -219,19 +219,19 @@ fn main_inner() -> Result<(), String> {
                 formula_path,
                 formula_format,
                 |game_structure, formula| {
-                    let v0 = ATLVertex::FULL {
+                    let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
-                    let graph = ATLDependencyGraph { game_structure };
+                    let graph = AtlDependencyGraph { game_structure };
                     analyse_and_save(&graph, v0, output_arg)
                 },
                 |game_structure, formula| {
-                    let v0 = ATLVertex::FULL {
+                    let v0 = AtlVertex::Full {
                         state: game_structure.initial_state_index(),
                         formula: Arc::from(formula),
                     };
-                    let graph = ATLDependencyGraph { game_structure };
+                    let graph = AtlDependencyGraph { game_structure };
                     analyse_and_save(&graph, v0, output_arg)
                 },
             )??
@@ -246,8 +246,8 @@ fn main_inner() -> Result<(), String> {
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
-                    graph: ATLDependencyGraph<G>,
-                    v0: ATLVertex,
+                    graph: AtlDependencyGraph<G>,
+                    v0: AtlVertex,
                     output: Option<&str>,
                 ) {
                     use std::io::stdout;
@@ -275,11 +275,11 @@ fn main_inner() -> Result<(), String> {
                             "Printing graph for: {}",
                             formula.in_context_of(&game_structure)
                         );
-                        let v0 = ATLVertex::FULL {
+                        let v0 = AtlVertex::Full {
                             state: 0,
                             formula: Arc::from(formula),
                         };
-                        let graph = ATLDependencyGraph { game_structure };
+                        let graph = AtlDependencyGraph { game_structure };
                         print_model(graph, v0, graph_args.value_of("output"));
                     },
                     |game_structure, formula| {
@@ -288,8 +288,8 @@ fn main_inner() -> Result<(), String> {
                             formula.in_context_of(&game_structure)
                         );
                         let arc = Arc::from(formula);
-                        let graph = ATLDependencyGraph { game_structure };
-                        let v0 = ATLVertex::FULL {
+                        let graph = AtlDependencyGraph { game_structure };
+                        let v0 = AtlVertex::Full {
                             state: graph.game_structure.initial_state_index(),
                             formula: arc,
                         };
