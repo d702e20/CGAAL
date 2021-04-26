@@ -779,31 +779,31 @@ mod test {
     #[test]
     fn delta_iterator_01() {
         // player 0
-        let transitions = DynVec::NEST(vec![
+        let transitions = DynVec::Nest(vec![
             // player 1
-            Arc::new(DynVec::NEST(vec![
+            Arc::new(DynVec::Nest(vec![
                 // Player 2
-                Arc::new(DynVec::NEST(vec![
+                Arc::new(DynVec::Nest(vec![
                     // player 3
-                    Arc::new(DynVec::NEST(vec![
+                    Arc::new(DynVec::Nest(vec![
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(1))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(1))])),
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(2))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(2))])),
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(3))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(3))])),
                     ])),
                 ])),
                 // Player 2
-                Arc::new(DynVec::NEST(vec![
+                Arc::new(DynVec::Nest(vec![
                     // player 3
-                    Arc::new(DynVec::NEST(vec![
+                    Arc::new(DynVec::Nest(vec![
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(4))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(4))])),
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(5))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(5))])),
                         // Player 4
-                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(1))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(1))])),
                     ])),
                 ])),
             ])),
