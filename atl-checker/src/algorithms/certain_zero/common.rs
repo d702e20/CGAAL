@@ -32,7 +32,7 @@ impl Display for VertexAssignment {
 impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns true if this is a hyper edge
     pub fn is_hyper(&self) -> bool {
-        matches!(self, Edge::HYPER(_))
+        matches!(self, Edge::Hyper(_))
     }
 
     /// Returns true if this is a negation edge
@@ -43,16 +43,16 @@ impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns the source vertex of this edge
     pub fn source(&self) -> &V {
         match self {
-            Edge::HYPER(e) => &e.source,
-            Edge::NEGATION(e) => &e.source,
+            Edge::Hyper(e) => &e.source,
+            Edge::Negation(e) => &e.source,
         }
     }
 
     /// Returns the targets vertices of this edge
     pub fn targets(&self) -> Vec<&V> {
         match self {
-            Edge::HYPER(e) => e.targets.iter().collect(),
-            Edge::NEGATION(e) => vec![&e.target],
+            Edge::Hyper(e) => e.targets.iter().collect(),
+            Edge::Negation(e) => vec![&e.target],
         }
     }
 }

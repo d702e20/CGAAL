@@ -110,7 +110,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
         for edge in edges {
             match edge {
-                Edge::HYPER(hyper) => {
+                Edge::Hyper(hyper) => {
                     // In the world of hyper-edges, we can short circuit when we find one edge,
                     // where the target is assigned false. So this is the inverse of before:
                     // We hope to find the edges that makes the assignment false with the fewest
@@ -154,7 +154,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                         }
                     }
                 }
-                Edge::NEGATION(negation) => {
+                Edge::Negation(negation) => {
                     // When target is true, source if false, and vice versa. But the set of
                     // vertices that need to be checked remain the same
                     match find_solve_set_rec(edg, negation.target, assignments) {
