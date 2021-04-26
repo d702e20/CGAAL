@@ -24,7 +24,7 @@ use atl_checker::atl::{ATLExpressionParser, Phi};
 use atl_checker::edg::atlcgsedg::{ATLDependencyGraph, ATLVertex};
 use atl_checker::edg::{ExtendedDependencyGraph, Vertex};
 use atl_checker::game_structure::lcgs::ast::DeclKind;
-use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::{EagerGameStructure, GameStructure};
@@ -125,7 +125,7 @@ fn main_inner() -> Result<(), String> {
             let lcgs = parse_lcgs(&content)
                 .map_err(|err| format!("Failed to parse the LCGS program.\n{}", err))?;
 
-            let ir = IntermediateLCGS::create(lcgs)
+            let ir = IntermediateLcgs::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
             println!("Players:");
@@ -423,7 +423,7 @@ fn load<R, J, L>(
 ) -> Result<R, String>
 where
     J: FnOnce(EagerGameStructure, Phi) -> R,
-    L: FnOnce(IntermediateLCGS, Phi) -> R,
+    L: FnOnce(IntermediateLcgs, Phi) -> R,
 {
     // Open the input model file
     let mut file = File::open(game_structure_path)
@@ -447,7 +447,7 @@ where
             let lcgs = parse_lcgs(&content)
                 .map_err(|err| format!("Failed to parse the LCGS program.\n{}", err))?;
 
-            let game_structure = IntermediateLCGS::create(lcgs)
+            let game_structure = IntermediateLcgs::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
             let phi = load_formula(formula_path, formula_format, &game_structure);
