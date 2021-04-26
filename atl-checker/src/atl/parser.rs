@@ -268,7 +268,7 @@ mod test {
         until, ATLExpressionParser,
     };
     use crate::atl::{parse_phi, Phi};
-    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
     use crate::game_structure::lcgs::parse::parse_lcgs;
     use crate::game_structure::{Player, Proposition};
 
@@ -750,7 +750,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>>";
         let phi = enforce_players(&lcgs).parse(&atl_formula.as_bytes());
@@ -767,7 +767,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>> F true";
         let phi = parse_phi(&lcgs, &atl_formula);
@@ -790,7 +790,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<>> F test";
         let phi = parse_phi(&lcgs, &atl_formula);
@@ -814,7 +814,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>> F p1.test";
         let phi = parse_phi(&lcgs, &atl_formula);

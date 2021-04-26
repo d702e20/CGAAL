@@ -387,10 +387,10 @@ impl<
     /// Process an edge by delegating depending on edge type
     fn process_edge(&mut self, edge: Edge<V>) {
         match edge {
-            Edge::HYPER(e) => {
+            Edge::Hyper(e) => {
                 self.process_hyper_edge(e);
             }
-            Edge::NEGATION(e) => {
+            Edge::Negation(e) => {
                 self.process_negation_edge(e);
             }
         }
@@ -517,7 +517,7 @@ impl<
 
         // Line 4
         if any_target {
-            self.delete_edge(Edge::HYPER(edge));
+            self.delete_edge(Edge::Hyper(edge));
             return;
         }
 
@@ -528,12 +528,12 @@ impl<
                 Some(VertexAssignment::UNDECIDED) => {
                     // UNDECIDED
                     // Line 7
-                    self.add_depend(target, Edge::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::Hyper(edge.clone()));
                 }
                 None => {
                     // UNEXPLORED
                     // Line 7
-                    self.add_depend(target, Edge::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::Hyper(edge.clone()));
                     // Line 8
                     self.explore(target);
                 }
@@ -581,7 +581,7 @@ impl<
                 // UNEXPLORED
                 // Line 6
                 trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
-                self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
+                self.add_depend(&edge.target, Edge::Negation(edge.clone()));
                 self.queue_unsafe_negation(edge.clone());
                 self.explore(&edge.target);
             }
@@ -596,7 +596,7 @@ impl<
                         // must be from another branch of the EDG. Hence, we add this edge as an
                         // unsafe dependency
                         trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                        self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
+                        self.add_depend(&edge.target, Edge::Negation(edge.clone()));
                         self.queue_unsafe_negation(edge.clone())
                     }
                 }
@@ -606,7 +606,7 @@ impl<
                 }
                 VertexAssignment::TRUE => {
                     trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
-                    self.delete_edge(Edge::NEGATION(edge))
+                    self.delete_edge(Edge::Negation(edge))
                 }
             },
         }
@@ -760,16 +760,16 @@ impl<
 
         match edge {
             // Line 4-6
-            Edge::HYPER(ref edge) => {
+            Edge::Hyper(ref edge) => {
                 debug!(source = ?edge, targets = ?edge.targets, "remove hyper-edge as dependency");
                 for target in &edge.targets {
-                    self.remove_depend(target, Edge::HYPER(edge.clone()))
+                    self.remove_depend(target, Edge::Hyper(edge.clone()))
                 }
             }
             // Line 7-8
-            Edge::NEGATION(ref edge) => {
+            Edge::Negation(ref edge) => {
                 debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
-                self.remove_depend(&edge.target, Edge::NEGATION(edge.clone()))
+                self.remove_depend(&edge.target, Edge::Negation(edge.clone()))
             }
         }
     }
