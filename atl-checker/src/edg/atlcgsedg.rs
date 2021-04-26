@@ -8,28 +8,28 @@ use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex}
 use crate::game_structure::{GameStructure, Player, State};
 
 #[derive(Clone, Debug)]
-pub struct ATLDependencyGraph<G: GameStructure> {
+pub struct AtlDependencyGraph<G: GameStructure> {
     pub game_structure: G,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
-pub enum ATLVertex {
-    FULL {
+pub enum AtlVertex {
+    Full {
         state: State,
         formula: Arc<Phi>,
     },
-    PARTIAL {
+    Partial {
         state: State,
         partial_move: PartialMove,
         formula: Arc<Phi>,
     },
 }
 
-impl Display for ATLVertex {
+impl Display for AtlVertex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ATLVertex::FULL { state, formula } => write!(f, "state={} formula={}", state, formula),
-            ATLVertex::PARTIAL {
+            AtlVertex::Full { state, formula } => write!(f, "state={} formula={}", state, formula),
+            AtlVertex::Partial {
                 state,
                 partial_move,
                 formula,
@@ -47,37 +47,37 @@ impl Display for ATLVertex {
     }
 }
 
-impl ATLVertex {
+impl AtlVertex {
     pub fn state(&self) -> State {
         match self {
-            ATLVertex::FULL { state, .. } => *state,
-            ATLVertex::PARTIAL { state, .. } => *state,
+            AtlVertex::Full { state, .. } => *state,
+            AtlVertex::Partial { state, .. } => *state,
         }
     }
 
     pub fn formula(&self) -> Arc<Phi> {
         match self {
-            ATLVertex::FULL { formula, .. } => formula.clone(),
-            ATLVertex::PARTIAL { formula, .. } => formula.clone(),
+            AtlVertex::Full { formula, .. } => formula.clone(),
+            AtlVertex::Partial { formula, .. } => formula.clone(),
         }
     }
 }
 
-impl Vertex for ATLVertex {}
+impl Vertex for AtlVertex {}
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum PartialMoveChoice {
     /// Range from 0 to given number
-    RANGE(usize),
+    Range(usize),
     /// Chosen move for player
-    SPECIFIC(usize),
+    Specific(usize),
 }
 
 impl Display for PartialMoveChoice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PartialMoveChoice::RANGE(max) => write!(f, "(0..{})", max - 1),
-            PartialMoveChoice::SPECIFIC(choice) => write!(f, "{}", choice),
+            PartialMoveChoice::Range(max) => write!(f, "(0..{})", max - 1),
+            PartialMoveChoice::Specific(choice) => write!(f, "{}", choice),
         }
     }
 }
@@ -112,8 +112,8 @@ impl<'a> PartialMoveIterator<'a> {
             .partial_move
             .iter()
             .map(|case| match case {
-                PartialMoveChoice::RANGE(_) => 0,
-                PartialMoveChoice::SPECIFIC(n) => *n,
+                PartialMoveChoice::Range(_) => 0,
+                PartialMoveChoice::Specific(n) => *n,
             })
             .collect();
     }
@@ -129,8 +129,8 @@ impl<'a> PartialMoveIterator<'a> {
             // The next player's move has rolled over or doesn't exist.
             // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
             match self.partial_move[player] {
-                PartialMoveChoice::SPECIFIC(_) => false,
-                PartialMoveChoice::RANGE(n) => {
+                PartialMoveChoice::Specific(_) => false,
+                PartialMoveChoice::Range(n) => {
                     let current = &mut self.current;
                     // Increase move index and return true if it's valid
                     current[player] += 1;
@@ -186,9 +186,9 @@ impl PmovesIterator {
         let mut position = Vec::with_capacity(moves.len());
         for (i, mov) in moves.iter().enumerate() {
             position.push(if players.contains(&i) {
-                PartialMoveChoice::SPECIFIC(0)
+                PartialMoveChoice::Specific(0)
             } else {
-                PartialMoveChoice::RANGE(*mov)
+                PartialMoveChoice::Range(*mov)
             })
         }
 
@@ -219,19 +219,19 @@ impl Iterator for PmovesIterator {
             }
 
             match self.position[roll_over_pos] {
-                PartialMoveChoice::RANGE(_) => {
+                PartialMoveChoice::Range(_) => {
                     roll_over_pos += 1;
                     continue;
                 }
-                PartialMoveChoice::SPECIFIC(value) => {
+                PartialMoveChoice::Specific(value) => {
                     let new_value = value + 1;
 
                     if new_value >= self.moves[roll_over_pos] {
                         // Rolled over
-                        self.position[roll_over_pos] = PartialMoveChoice::SPECIFIC(0);
+                        self.position[roll_over_pos] = PartialMoveChoice::Specific(0);
                         roll_over_pos += 1;
                     } else {
-                        self.position[roll_over_pos] = PartialMoveChoice::SPECIFIC(new_value);
+                        self.position[roll_over_pos] = PartialMoveChoice::Specific(new_value);
                         break;
                     }
                 }
@@ -291,7 +291,7 @@ impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
     }
 }
 
-impl<G: GameStructure> ATLDependencyGraph<G> {
+impl<G: GameStructure> AtlDependencyGraph<G> {
     #[allow(dead_code)]
     fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
         let max_players = self.game_structure.max_player();
@@ -307,14 +307,14 @@ impl<G: GameStructure> ATLDependencyGraph<G> {
     }
 }
 
-impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
+impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph<G> {
     /// Produce the edges of the given vertex
     /// Where possible, the smallest edge will be the first in the produced vector,
     /// and similarly, the smallest target will be the first in the edges' vector of targets.
     /// This is mostly relevant for the Until formulae
-    fn succ(&self, vert: &ATLVertex) -> Vec<Edge<ATLVertex>> {
+    fn succ(&self, vert: &AtlVertex) -> Vec<Edge<AtlVertex>> {
         match vert {
-            ATLVertex::FULL { state, formula } => match formula.as_ref() {
+            AtlVertex::Full { state, formula } => match formula.as_ref() {
                 Phi::True => {
                     // Hyper edge with no targets
                     vec![Edge::Hyper(HyperEdge {
@@ -340,7 +340,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 Phi::Not(phi) => {
                     vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             formula: phi.clone(),
                         },
@@ -350,14 +350,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     vec![
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: left.clone(),
                             }],
                         }),
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: right.clone(),
                             }],
@@ -368,11 +368,11 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         targets: vec![
-                            ATLVertex::FULL {
+                            AtlVertex::Full {
                                 state: *state,
                                 formula: left.clone(),
                             },
-                            ATLVertex::FULL {
+                            AtlVertex::Full {
                                 state: *state,
                                 formula: right.clone(),
                             },
@@ -381,9 +381,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 }
                 Phi::DespiteNext { players, formula } => {
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> =
+                    let targets: Vec<AtlVertex> =
                         PmovesIterator::new(moves, players.iter().copied().collect())
-                            .map(|pmove| ATLVertex::PARTIAL {
+                            .map(|pmove| AtlVertex::Partial {
                                 state: *state,
                                 partial_move: pmove,
                                 formula: formula.clone(),
@@ -399,9 +399,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let moves = self.game_structure.move_count(*state);
                     PmovesIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
-                            let targets: Vec<ATLVertex> =
+                            let targets: Vec<AtlVertex> =
                                 DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                    .map(|state| ATLVertex::FULL {
+                                    .map(|state| AtlVertex::Full {
                                         state,
                                         formula: formula.clone(),
                                     })
@@ -411,7 +411,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                 targets,
                             })
                         })
-                        .collect::<Vec<Edge<ATLVertex>>>()
+                        .collect::<Vec<Edge<AtlVertex>>>()
                 }
                 Phi::DespiteUntil {
                     players,
@@ -420,7 +420,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 } => {
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
-                    let pre = ATLVertex::FULL {
+                    let pre = AtlVertex::Full {
                         state: *state,
                         formula: pre.clone(),
                     };
@@ -428,10 +428,10 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     // Together with the `pre` target is all the possible moves by other players,
                     // but it is important that `pre` is the first target
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> = std::iter::once(pre)
+                    let targets: Vec<AtlVertex> = std::iter::once(pre)
                         .chain(
                             PmovesIterator::new(moves, players.iter().cloned().collect()).map(
-                                |pmove| ATLVertex::PARTIAL {
+                                |pmove| AtlVertex::Partial {
                                     state: *state,
                                     partial_move: pmove,
                                     formula: vert.formula(),
@@ -446,7 +446,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
                             }],
@@ -469,7 +469,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
                             }],
@@ -478,7 +478,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
-                    let pre = ATLVertex::FULL {
+                    let pre = AtlVertex::Full {
                         state: *state,
                         formula: pre.clone(),
                     };
@@ -491,12 +491,12 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                 // but it is important that `pre` is the first target
                                 let delta =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove).map(
-                                        |state| ATLVertex::FULL {
+                                        |state| AtlVertex::Full {
                                             state,
                                             formula: formula.clone(),
                                         },
                                     );
-                                let targets: Vec<ATLVertex> =
+                                let targets: Vec<AtlVertex> =
                                     std::iter::once(pre.clone()).chain(delta).collect();
                                 Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
@@ -515,9 +515,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     // Partial targets with same formula
                     // "Is the formula satisfied in the next state instead?"
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> =
+                    let targets: Vec<AtlVertex> =
                         PmovesIterator::new(moves, players.iter().cloned().collect())
-                            .map(|pmove| ATLVertex::PARTIAL {
+                            .map(|pmove| AtlVertex::Partial {
                                 state: *state,
                                 partial_move: pmove,
                                 formula: formula.clone(),
@@ -530,7 +530,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
                             }],
@@ -551,7 +551,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
                             }],
@@ -564,9 +564,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     edges.extend(
                         PmovesIterator::new(moves, players.iter().copied().collect()).map(
                             |pmove| {
-                                let targets: Vec<ATLVertex> =
+                                let targets: Vec<AtlVertex> =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                        .map(|state| ATLVertex::FULL {
+                                        .map(|state| AtlVertex::Full {
                                             state,
                                             formula: formula.clone(),
                                         })
@@ -587,7 +587,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 } => {
                     vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point domain
                             formula: Arc::new(Phi::EnforceUntil {
@@ -604,7 +604,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 } => {
                     vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point
                             formula: Arc::new(Phi::DespiteUntil {
@@ -616,13 +616,13 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     })]
                 }
             },
-            ATLVertex::PARTIAL {
+            AtlVertex::Partial {
                 state,
                 partial_move,
                 formula,
             } => DeltaIterator::new(&self.game_structure, *state, partial_move)
                 .map(|state| {
-                    let targets = vec![ATLVertex::FULL {
+                    let targets = vec![AtlVertex::Full {
                         state,
                         formula: formula.clone(),
                     }];
@@ -631,7 +631,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         targets,
                     })
                 })
-                .collect::<Vec<Edge<ATLVertex>>>(),
+                .collect::<Vec<Edge<AtlVertex>>>(),
         }
     }
 }
@@ -649,9 +649,9 @@ mod test {
     #[test]
     fn partial_move_iterator_01() {
         let partial_move = vec![
-            PartialMoveChoice::RANGE(2),
-            PartialMoveChoice::SPECIFIC(1),
-            PartialMoveChoice::RANGE(2),
+            PartialMoveChoice::Range(2),
+            PartialMoveChoice::Specific(1),
+            PartialMoveChoice::Range(2),
         ];
 
         let mut iter = PartialMoveIterator::new(&partial_move);
@@ -673,33 +673,33 @@ mod test {
         assert_eq!(
             &iter.next(),
             &Some(vec![
-                PartialMoveChoice::SPECIFIC(0),
-                PartialMoveChoice::RANGE(3),
-                PartialMoveChoice::SPECIFIC(0)
+                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Range(3),
+                PartialMoveChoice::Specific(0)
             ])
         );
         assert_eq!(
             &iter.next(),
             &Some(vec![
-                PartialMoveChoice::SPECIFIC(1),
-                PartialMoveChoice::RANGE(3),
-                PartialMoveChoice::SPECIFIC(0)
+                PartialMoveChoice::Specific(1),
+                PartialMoveChoice::Range(3),
+                PartialMoveChoice::Specific(0)
             ])
         );
         assert_eq!(
             &iter.next(),
             &Some(vec![
-                PartialMoveChoice::SPECIFIC(0),
-                PartialMoveChoice::RANGE(3),
-                PartialMoveChoice::SPECIFIC(1)
+                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Range(3),
+                PartialMoveChoice::Specific(1)
             ])
         );
         assert_eq!(
             &iter.next(),
             &Some(vec![
-                PartialMoveChoice::SPECIFIC(1),
-                PartialMoveChoice::RANGE(3),
-                PartialMoveChoice::SPECIFIC(1)
+                PartialMoveChoice::Specific(1),
+                PartialMoveChoice::Range(3),
+                PartialMoveChoice::Specific(1)
             ])
         );
     }
@@ -711,19 +711,19 @@ mod test {
         let mut iter = PmovesIterator::new(vec![2, 3, 3], players);
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
-        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
-        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[0], PartialMoveChoice::Range(2));
+        assert_eq!(value[1], PartialMoveChoice::Range(3));
+        assert_eq!(value[2], PartialMoveChoice::Specific(0));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
-        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
-        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[0], PartialMoveChoice::Range(2));
+        assert_eq!(value[1], PartialMoveChoice::Range(3));
+        assert_eq!(value[2], PartialMoveChoice::Specific(1));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
-        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
-        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[0], PartialMoveChoice::Range(2));
+        assert_eq!(value[1], PartialMoveChoice::Range(3));
+        assert_eq!(value[2], PartialMoveChoice::Specific(2));
 
         let value = iter.next();
         assert_eq!(value, None);
@@ -738,40 +738,40 @@ mod test {
         let mut iter = PmovesIterator::new(vec![3, 3], players);
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[0], PartialMoveChoice::Specific(0));
+        assert_eq!(value[1], PartialMoveChoice::Specific(0));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[0], PartialMoveChoice::Specific(1));
+        assert_eq!(value[1], PartialMoveChoice::Specific(0));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[0], PartialMoveChoice::Specific(2));
+        assert_eq!(value[1], PartialMoveChoice::Specific(0));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[0], PartialMoveChoice::Specific(0));
+        assert_eq!(value[1], PartialMoveChoice::Specific(1));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[0], PartialMoveChoice::Specific(1));
+        assert_eq!(value[1], PartialMoveChoice::Specific(1));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[0], PartialMoveChoice::Specific(2));
+        assert_eq!(value[1], PartialMoveChoice::Specific(1));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[0], PartialMoveChoice::Specific(0));
+        assert_eq!(value[1], PartialMoveChoice::Specific(2));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[0], PartialMoveChoice::Specific(1));
+        assert_eq!(value[1], PartialMoveChoice::Specific(2));
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
-        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[0], PartialMoveChoice::Specific(2));
+        assert_eq!(value[1], PartialMoveChoice::Specific(2));
 
         assert_eq!(iter.next(), None);
     }
@@ -816,11 +816,11 @@ mod test {
         };
         let state = 0;
         let partial_move = vec![
-            PartialMoveChoice::SPECIFIC(0), // player 0
-            PartialMoveChoice::RANGE(2),    // player 1
-            PartialMoveChoice::SPECIFIC(0), // player 2
-            PartialMoveChoice::RANGE(3),    // player 3
-            PartialMoveChoice::SPECIFIC(0), // player 4
+            PartialMoveChoice::Specific(0), // player 0
+            PartialMoveChoice::Range(2),    // player 1
+            PartialMoveChoice::Specific(0), // player 2
+            PartialMoveChoice::Range(3),    // player 3
+            PartialMoveChoice::Specific(0), // player 4
         ];
         let mut iter = DeltaIterator::new(&game_structure, state, &partial_move);
 

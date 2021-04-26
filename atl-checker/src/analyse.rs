@@ -1,7 +1,6 @@
 use crate::algorithms::solve_set::{minimum_solve_set, SolveSetAssignment};
 use crate::atl::Phi;
-use crate::edg::atlcgsedg::ATLVertex;
-use crate::edg::{Edge, ExtendedDependencyGraph};
+use crate::edg::{AtlVertex, Edge, ExtendedDependencyGraph};
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -84,12 +83,12 @@ pub struct PhiStats {
 
 /// Analyses the vertices of an EDG starting from the given root, and returns a Vec of data
 /// describing each vertex with different data depending of the vertex' ATL formula.
-pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> Vec<VertexData> {
+pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) -> Vec<VertexData> {
     let mss = minimum_solve_set(edg, root);
     let mut data = vec![];
     for (v, mssa) in &mss {
         match v {
-            ATLVertex::FULL { formula, .. } => match formula.as_ref() {
+            AtlVertex::Full { formula, .. } => match formula.as_ref() {
                 Phi::Proposition(..) => data.push(VertexData::Proposition {
                     // Propositions are assigned 1 in certain zero iff they have a positive signed
                     // solve set
@@ -241,7 +240,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                 }
                 _ => {}
             },
-            ATLVertex::PARTIAL { .. } => data.push(VertexData::Partial {
+            AtlVertex::Partial { .. } => data.push(VertexData::Partial {
                 stats: phi_stats(mssa, v),
                 target_stats: edg
                     .succ(v)
@@ -262,7 +261,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
 }
 
 /// Returns statistics about a given vertex
-fn phi_stats(mssa: &SolveSetAssignment<ATLVertex>, v: &ATLVertex) -> PhiStats {
+fn phi_stats(mssa: &SolveSetAssignment<AtlVertex>, v: &AtlVertex) -> PhiStats {
     let phi = v.formula();
     PhiStats {
         solve_set_size: mssa.len() as u32,
