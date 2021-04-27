@@ -194,9 +194,9 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                 "We should not be recalculating certain answers"
             );
             if solve_set.len() > prev_assign.len() {
-                assignments.insert(vertex.clone(), solve_set.clone());
+                assignments.insert(vertex, solve_set.clone());
             } else {
-                assignments.insert(vertex.clone(), prev_assign);
+                assignments.insert(vertex, prev_assign);
             }
         } else {
             // No uncertainty in this solve set, just update
@@ -205,7 +205,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
         solve_set
     } else {
-        prev_assignment.unwrap().clone()
+        prev_assignment.unwrap()
     }
 }
 
