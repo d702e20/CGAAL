@@ -12,6 +12,8 @@ use std::env::var;
 use minilp;
 use minilp::{Problem, OptimizationDirection, ComparisonOp, Error, Solution};
 use crate::lcgs::ir::symbol_table::SymbolIdentifier;
+use priority_queue::PriorityQueue;
+use std::cmp::Reverse;
 
 struct MyPoint {
     x: i32,
@@ -29,15 +31,17 @@ struct LinearExpression {
 /// vertices, based on distance from the vertex to a region that borders the line between true/false
 /// in the formula
 pub struct LinearOptimizeSearch {
-    queue: VecDeque<Edge<ATLVertex>>,
+    queue: PriorityQueue<Edge<ATLVertex>, i32>,
     game: IntermediateLCGS,
+    sort: i32,
 }
 
 impl LinearOptimizeSearch {
     pub fn new(game: IntermediateLCGS) -> LinearOptimizeSearch {
         LinearOptimizeSearch {
-            queue: VecDeque::new(),
+            queue: PriorityQueue::new(),
             game,
+            sort: 0,
         }
     }
 }
@@ -55,12 +59,14 @@ impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSe
 
 impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
     fn next(&mut self) -> Option<Edge<ATLVertex>> {
-        self.queue.pop_front()
+        let edge = self.queue.pop();
+        if edge.is_some() {
+            Some(edge.unwrap().0)
+        } else { None }
     }
 
     fn queue_new_edges(&mut self, mut edges: Vec<Edge<ATLVertex>>) {
-        let mut evaluated_edges: Vec<(Edge<ATLVertex>, f32)> = Vec::new();
-
+        // TODO dont do this if formula not linear
         // For all edges from this vertex,
         // if edge is a HyperEdge, return average distance from state to accept region between all targets,
         // if Negation edge, just return the distance from its target
@@ -69,22 +75,13 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 
             // Add edge and distance to evaluated_edges
             if let Some(dist) = distance {
-                evaluated_edges.push((edge, dist))
-            } else { evaluated_edges.push((edge, 1000.0)) }
+                self.queue.push(edge, -dist as i32);
+                //evaluated_edges.push((edge, dist))
+            } else {
+                // Todo default value should be average?
+                self.queue.push(edge, 0);
+            }
         };
-
-        // Sort evaluated_edges based on their distance
-        evaluated_edges.sort_by(|x, y| x.1.partial_cmp(&y.1).unwrap());
-        // Vecdeque version, works only with i32 because of sort
-        //evaluated_edges.make_contiguous().sort_by_key(|key| key.1);
-
-        // Add all evaluated_edges to the queue
-        for edge in evaluated_edges.iter() {
-            self.queue.push_back(edge.0.clone());
-        }
-
-        // TODO, could also sort the entire queue here, if we add the distances to the queue
-        // without, and doing this linear optimize everytime we add queues, there is only a ~2 sec gain
     }
 }
 
@@ -100,17 +97,19 @@ impl LinearOptimizeSearch {
                     // Polynomials and such not allowed, returns None in such cases
                     let linear_expression = self.get_simple_linear_formula(target);
 
-                    if linear_expression.is_some() {
+                    if let Some(expr) = linear_expression {
                         // get the State in the target
                         let state = self.game.state_from_index(target.state());
 
                         // Distance from the state, to fulfilling the linear expression
-                        let distance = self.minimum_distance_1d(state, linear_expression.unwrap());
+                        let distance = self.minimum_distance_1d(state, expr);
 
                         // add to vec of results
                         if let Some(dist) = distance {
                             distances.push(dist)
                         }
+                    } else {
+                        return None;
                     }
                 }
 
@@ -121,7 +120,7 @@ impl LinearOptimizeSearch {
 
                 // Find average distance between targets, and return this
                 let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
-                Some(avg_distance)
+                return Some(avg_distance);
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
@@ -130,7 +129,9 @@ impl LinearOptimizeSearch {
                     let state = self.game.state_from_index(edge.target.state());
                     let distance = self.minimum_distance_1d(state, expr);
                     distance
-                } else { None }
+                } else {
+                    None
+                }
             }
         }
     }
@@ -138,11 +139,16 @@ impl LinearOptimizeSearch {
     fn get_simple_linear_formula(&self, vertex: &ATLVertex) -> Option<LinearExpression> {
         // TODO only allows outmost Phi in formula is a proposition, should allow for more advanced formulae
         // If outmost Phi is a proposition, get this
-        let propositions_index = vertex.formula().get_proposition();
+        let mut proposition_index = vertex.formula().get_proposition();
 
+        if proposition_index.is_none() {
+            let propositions = vertex.formula().get_propositions_recursively();
+            if propositions.len() == 1 {
+                proposition_index = propositions.get(0).cloned();
+            }
+        }
         // Check if it was a proposition
-        if let Some(propositions_index) = propositions_index {
-
+        if let Some(propositions_index) = proposition_index {
             // Make sure it is a Label
             if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index).kind {
                 // Expression has to be linear
@@ -496,3 +502,5 @@ mod test {
 5. ???
 6. Profit
 */
+// TOdo priority queue
+// todo ændre rækkefølge af targets
