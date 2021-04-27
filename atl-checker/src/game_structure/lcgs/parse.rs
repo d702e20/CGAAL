@@ -9,12 +9,14 @@ use std::vec::Drain;
 
 use pom::parser::*;
 
-use crate::lcgs::ast::DeclKind::{Const, Label, StateVar, Template, Transition};
-use crate::lcgs::ast::ExprKind::{BinaryOp, Max, Min, Number, OwnedIdent, TernaryIf, UnaryOp};
-use crate::lcgs::ast::UnaryOpKind::{Negation, Not};
-use crate::lcgs::ast::*;
-use crate::lcgs::precedence::Associativity::RightToLeft;
-use crate::lcgs::precedence::{precedence, Precedence};
+use crate::game_structure::lcgs::ast::DeclKind::{Const, Label, StateVar, Template, Transition};
+use crate::game_structure::lcgs::ast::ExprKind::{
+    BinaryOp, Max, Min, Number, OwnedIdent, TernaryIf, UnaryOp,
+};
+use crate::game_structure::lcgs::ast::UnaryOpKind::{Negation, Not};
+use crate::game_structure::lcgs::ast::*;
+use crate::game_structure::lcgs::precedence::Associativity::RightToLeft;
+use crate::game_structure::lcgs::precedence::{precedence, Precedence};
 
 use self::pom::set::Set;
 use self::pom::Error;
@@ -212,10 +214,10 @@ pub(crate) fn expr<'a>() -> Parser<'a, u8, Expr> {
 fn ternary_expr<'a>() -> Parser<'a, u8, Expr> {
     (binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr())
-    .map(|((cond, then), els)| Expr {
-        kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
-    })
-    .name("ternary expression")
+        .map(|((cond, then), els)| Expr {
+            kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
+        })
+        .name("ternary expression")
 }
 
 /// Parser that parses an expression consisting of binary operators and primary expressions
@@ -389,8 +391,8 @@ fn root<'a>() -> Parser<'a, u8, Root> {
     });
     let any_decl = simple_decl.with_semi()
         | template_decl().map(|td| Decl {
-            kind: Template(Box::new(td)),
-        });
+        kind: Template(Box::new(td)),
+    });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
 }
@@ -413,7 +415,7 @@ pub fn parse_lcgs(input: &str) -> pom::Result<Root> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lcgs::ast::BinaryOpKind::*;
+    use crate::game_structure::lcgs::ast::BinaryOpKind::*;
 
     use super::*;
 
@@ -1294,15 +1296,11 @@ mod tests {
     fn test_template_decl_01() {
         // Simple template decl
         let input = br#"template shooter
-
             health : [0 .. 9] init 9;
             health' = health - 1;
-
             label alive = health;
-
             [shoot_right] 1;
             [shoot_left] 1;
-
         endtemplate"#;
         let parser = template_decl();
         println!("{:?}", parser.parse(input));
@@ -1314,19 +1312,13 @@ mod tests {
         // Simple root
         let input = br#"
         const max_health = 1;
-
         player p1 = shooter [target1=p2];
         player p2 = shooter [target1=p1];
-
         template shooter
-
             health : [0 .. max_health] init max_health;
             health' = health - 1;
-
             label alive = health;
-
             [wait] 1;
-
         endtemplate
         "#;
         let parser = root();

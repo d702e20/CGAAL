@@ -1,19 +1,24 @@
-use crate::common::Edge;
-use crate::edg::Vertex;
-use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
-use std::collections::{HashSet, VecDeque, HashMap};
-use crate::lcgs::ir::intermediate::{IntermediateLCGS, State};
-use crate::atl::dependencygraph::ATLVertex;
-use crate::atl::formula::Phi;
-use crate::lcgs::ast::{DeclKind, BinaryOpKind, Expr, ExprKind, Identifier};
-use crate::lcgs::parse::label_decl;
-use crate::lcgs::ast::BinaryOpKind::{Addition, Subtraction, Multiplication, Division, Equality, Inequality, GreaterThan, LessThan, GreaterOrEqual, LessOrEqual, Implication, Xor, Or, And};
-use std::env::var;
-use minilp;
-use minilp::{Problem, OptimizationDirection, ComparisonOp, Error, Solution};
-use crate::lcgs::ir::symbol_table::SymbolIdentifier;
+use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
+use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identifier};
+use crate::game_structure::lcgs::ir::intermediate::{IntermediateLCGS, State};
+use crate::edg::{Edge, ATLVertex};
+use crate::algorithms::certain_zero::search_strategy::{SearchStrategyBuilder, SearchStrategy};
+use minilp::{Problem, OptimizationDirection, ComparisonOp};
 use priority_queue::PriorityQueue;
-use std::cmp::Reverse;
+use BinaryOpKind::{Addition,
+                   Multiplication,
+                   Subtraction,
+                   Division,
+                   Equality, // Also serves as bi-implication
+                   Inequality,
+                   GreaterThan,
+                   LessThan,
+                   GreaterOrEqual,
+                   LessOrEqual,
+                   And,
+                   Or,
+                   Xor,
+                   Implication,};
 
 #[derive(Debug)]
 struct LinearExpression {
@@ -217,7 +222,7 @@ fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                     let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
                     if let ExprKind::Number(number) = operand2.kind {
                         match operator {
-                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition }) }
+                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition.clone() }) }
                             Multiplication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Multiplication }) }
                             Subtraction => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Subtraction }) }
                             Division => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Division }) }
@@ -264,17 +269,14 @@ fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
 }
 
 mod test {
-    use crate::search_strategy::linear_optimize::{LinearOptimizeSearch, LinearExpression};
-    use crate::lcgs::ast::{Expr, BinaryOpKind};
-    use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
-    use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
-    use crate::lcgs::ast::Identifier::{Resolved, Simple};
-    use crate::lcgs::ast::DeclKind::Player;
-    use crate::lcgs::ir::intermediate::{State, IntermediateLCGS};
-    use crate::lcgs::ir::symbol_table::{SymbolIdentifier, Owner};
-    use std::collections::HashMap;
-    use crate::lcgs::parse::parse_lcgs;
-    use crate::atl::gamestructure::GameStructure;
+    use crate::game_structure::lcgs::ast::BinaryOpKind::{Addition, Multiplication};
+    use crate::game_structure::lcgs::ast::{Expr, BinaryOpKind};
+    use crate::game_structure::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent};
+    use crate::game_structure::lcgs::ast::Identifier::Simple;
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::game_structure::lcgs::ir::symbol_table::{SymbolIdentifier, Owner};
+    use crate::algorithms::certain_zero::search_strategy::linear_optimize::{LinearExpression, LinearOptimizeSearch};
+    use crate::game_structure::lcgs::parse::parse_lcgs;
 
     #[test]
     // 1 + 1

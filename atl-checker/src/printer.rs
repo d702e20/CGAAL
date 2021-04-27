@@ -1,10 +1,10 @@
-use crate::common::Edge;
-use crate::edg::{ExtendedDependencyGraph, Vertex};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+
+use crate::edg::{Edge, ExtendedDependencyGraph, Vertex};
 
 // The graph can be rendered using the `dot` command graphviz, specifically like this `dot -Tpng graph.dot -O -Nfontname=noto`
 
@@ -58,7 +58,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 hash_name(&hyper.source),
                                 empty_id
                             )
-                            .as_bytes(),
+                                .as_bytes(),
                         )?;
                     } else if hyper.targets.len() == 1 {
                         let target = hyper.targets.get(0).unwrap();
@@ -69,7 +69,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 hash_name(&hyper.source),
                                 hash_name(&target)
                             )
-                            .as_bytes(),
+                                .as_bytes(),
                         )?;
 
                         if !visited.contains(&target) {
@@ -88,7 +88,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 hash_name(&hyper.source),
                                 hyper_id
                             )
-                            .as_bytes(),
+                                .as_bytes(),
                         )?;
                         for target in hyper.targets {
                             output.write_all(
@@ -112,7 +112,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                             hash_name(&neg.source),
                             hash_name(&neg.target)
                         )
-                        .as_bytes(),
+                            .as_bytes(),
                     )?;
 
                     if !visited.contains(&neg.target) {

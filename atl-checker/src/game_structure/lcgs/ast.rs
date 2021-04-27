@@ -2,8 +2,8 @@ use core::fmt;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
-use crate::lcgs::ast::BinaryOpKind::*;
-use crate::lcgs::ir::symbol_table::Owner;
+use crate::game_structure::lcgs::ast::BinaryOpKind::*;
+use crate::game_structure::lcgs::ir::symbol_table::Owner;
 
 /// The root of a LCGS program.
 #[derive(Debug, Eq, PartialEq)]
@@ -172,25 +172,6 @@ pub struct Expr {
     pub kind: ExprKind,
 }
 
-// TODO FIX, does not work
-impl Expr {
-    pub fn is_linear(&self) -> bool {
-        if let ExprKind::BinaryOp(operator, operand1, operand2) = &self.kind {
-            match operator {
-                BinaryOpKind::Division | BinaryOpKind::Multiplication => {
-                    if let ExprKind::OwnedIdent(..) = &operand1.kind {
-                        if operand1 == operand2 {
-                            false
-                        } else { operand1.is_linear() && operand2.is_linear() }
-                    } else { operand1.is_linear() && operand2.is_linear() }
-                }
-                BinaryOpKind::Addition | BinaryOpKind::Subtraction => { operand1.is_linear() && operand2.is_linear() }
-                _ => { true }
-            }
-        } else { true }
-    }
-}
-
 /// Every kind of expression
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ExprKind {
@@ -256,6 +237,25 @@ impl BinaryOpKind {
             BinaryOpKind::Xor => |e1, e2| ((e1 == 0 && e2 != 0) || e1 != 0 && e2 == 0) as i32,
             BinaryOpKind::Implication => |e1, e2| (e1 == 0 || e2 != 0) as i32,
         }
+    }
+}
+
+// TODO FIX, does not work
+impl Expr {
+    pub fn is_linear(&self) -> bool {
+        if let ExprKind::BinaryOp(operator, operand1, operand2) = &self.kind {
+            match operator {
+                BinaryOpKind::Division | BinaryOpKind::Multiplication => {
+                    if let ExprKind::OwnedIdent(..) = &operand1.kind {
+                        if operand1 == operand2 {
+                            false
+                        } else { operand1.is_linear() && operand2.is_linear() }
+                    } else { operand1.is_linear() && operand2.is_linear() }
+                }
+                BinaryOpKind::Addition | BinaryOpKind::Subtraction => { operand1.is_linear() && operand2.is_linear() }
+                _ => { true }
+            }
+        } else { true }
     }
 }
 

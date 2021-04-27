@@ -1,21 +1,10 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::hash::{Hash, Hasher};
-use std::thread;
+use std::collections::HashSet;
+use std::fmt::{Debug, Display, Formatter};
+use std::hash::Hash;
+use std::sync::Arc;
 
-use crate::com::{Broker, BrokerManager, ChannelBroker};
-use crate::common::{
-    Edge, HyperEdge, Message, MsgToken, NegationEdge, Token, VertexAssignment, WorkerId,
-};
-use crate::search_strategy::{SearchStrategy, SearchStrategyBuilder};
-use std::cmp::max;
-use std::thread::sleep;
-use std::time::Duration;
-use tracing::{span, trace, Level};
-
-// Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
+use crate::atl::Phi;
+use crate::game_structure::{GameStructure, Player, State};
 
 pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
 
@@ -25,983 +14,874 @@ pub trait ExtendedDependencyGraph<V: Vertex> {
     fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
 }
 
-pub fn distributed_certain_zero<
-    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-    V: Vertex + Send + Sync + 'static,
-    S: SearchStrategy<V> + Send + 'static,
-    SB: SearchStrategyBuilder<V, S>,
->(
-    edg: G,
-    v0: V,
-    worker_count: u64,
-    ss_builder: SB,
-) -> VertexAssignment {
-    trace!(?v0, worker_count, "starting distributed_certain_zero");
-
-    let (mut brokers, manager_broker) = ChannelBroker::new(worker_count);
-
-    for i in (0..worker_count).rev() {
-        let mut worker = Worker::new(
-            i,
-            worker_count,
-            v0.clone(),
-            brokers.pop().unwrap(),
-            edg.clone(),
-            ss_builder.build(),
-        );
-        thread::spawn(move || {
-            trace!("worker thread start");
-            worker.run();
-        });
-    }
-
-    let assignment = manager_broker
-        .receive_result()
-        .expect("Error receiving final assigment on termination");
-    trace!(v0_assignment = ?assignment, "Found assignment of v0");
-    assignment
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
+    pub source: V,
+    pub pmove: Option<PartialMove>,
+    pub targets: Vec<V>,
 }
 
-#[derive(Debug)]
-struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S: SearchStrategy<V>>
-{
-    id: WorkerId,
-    /// Number of workers working on solving the query. This is used as part of the static allocation scheme, see `crate::Worker::vertex_owner`.
-    worker_count: u64,
-    /// The vertex that the worker is attempting to find the assignment of.
-    v0: V,
-    /// When this flags becomes false, the worker will end its loop and terminate
-    running: bool,
-    /// Greatest known assignment for vertices.
-    /// Order is as follow UNEXPLORED/None < UNDECIDED < {TRUE, FALSE}. Once a vertex has been assigned TRUE or FALSE it will never change assignment.
-    assignment: HashMap<V, VertexAssignment>,
-    depends: HashMap<V, HashSet<Edge<V>>>,
-    /// Map of workers that need to be sent a message once the final assignment of a vertex is known.
-    interests: HashMap<V, HashSet<WorkerId>>,
-    /// Greatest number of negation edges in any path from v0 to the given vertex.
-    /// Example: If there exists a path from v0 to a vertex, which contains two negation edges, then depth will be two (or more if there is a path with more negation edges).
-    depth: HashMap<V, u32>,
-    msg_queue: VecDeque<Message<V>>,
-    unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
-    /// Search strategy. Defines in which order edges are processed
-    strategy: S,
-    /// Used to communicate with other workers
-    broker: B,
-    /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
-    /// The first time succ is called on a vertex the call goes to the ExtendedDependencyGraph implementation, and the result is saved in successors.
-    /// In all subsequent calls the vertex edges will be taken from the HashMap. This allows for modification of the output of the succ function.
-    successors: HashMap<V, HashSet<Edge<V>>>,
-    edg: G,
-    /// Used on the leader as a gate to avoid starting a round of the token ring if one is already in progress.
-    token_in_circulation: bool,
-    /// A flag to keep track of whether or not this worker has seen safe work since last time it
-    /// saw the termination token
-    dirty: bool,
-    /// This flag indicates that there are only unsafe negation edges, backpropagations, and
-    /// message left as tasks. We know this is the case when the first unsafe negation edges
-    /// are released, because at that point no workers must have had any safe work left.
-    only_unsafe_left: bool,
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
+    pub source: V,
+    pub target: V,
 }
 
-impl<
-        B: Broker<V> + Debug,
-        G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
-        V: Vertex,
-        S: SearchStrategy<V>,
-    > Worker<B, G, V, S>
-{
-    /// Determines which worker instance is responsible for computing the value of the vertex.
-    /// Vertices are allocated to workers using a static allocation scheme. Dynamic addition and removal of workers isn't supported with this method.
-    fn vertex_owner(&self, vertex: &V) -> WorkerId {
-        // Static allocation of vertices to workers
-        let mut hasher = DefaultHasher::new();
-        vertex.hash::<DefaultHasher>(&mut hasher);
-        let hash = hasher.finish();
-        hash % self.worker_count
-    }
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
+    HYPER(HyperEdge<V>),
+    NEGATION(NegationEdge<V>),
+}
 
-    /// Determines if `self` is responsible for computing the value of `vertex`
-    #[inline]
-    fn is_owner(&self, vertex: &V) -> bool {
-        self.vertex_owner(vertex) == self.id
-    }
+#[derive(Clone, Debug)]
+pub struct ATLDependencyGraph<G: GameStructure> {
+    pub game_structure: G,
+}
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G, strategy: S) -> Self {
-        trace!(
-            worker_id = id,
-            worker_count,
-            ?v0,
-            "new distributed_certain_zero worker"
-        );
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
+pub enum ATLVertex {
+    FULL {
+        state: State,
+        formula: Arc<Phi>,
+    },
+    PARTIAL {
+        state: State,
+        partial_move: PartialMove,
+        formula: Arc<Phi>,
+    },
+}
 
-        Self {
-            id,
-            worker_count,
-            v0,
-            running: true,
-            assignment: HashMap::new(),
-            depends: HashMap::<V, HashSet<Edge<V>>>::new(),
-            interests: HashMap::<V, HashSet<WorkerId>>::new(),
-            msg_queue: VecDeque::new(),
-            unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
-            strategy,
-            depth: HashMap::<V, u32>::new(),
-            broker,
-            successors: HashMap::<V, HashSet<Edge<V>>>::new(),
-            edg,
-            token_in_circulation: false,
-            dirty: false,
-            only_unsafe_left: false,
-        }
-    }
-
-    fn has_seen_dirty_work(&self) -> bool {
-        self.dirty || !self.msg_queue.is_empty()
-    }
-
-    fn has_unsafe_negation_edges(&self) -> bool {
-        !self.unsafe_neg_edges.is_empty()
-    }
-
-    /// Is this worker the leader of the token ring
-    fn is_leader(&self) -> bool {
-        self.id == 0
-    }
-
-    fn get_depth_of_deepest_component(&self) -> usize {
-        self.unsafe_neg_edges.len()
-    }
-
-    /// Determine the token value of this worker, and forward either the local token value or
-    /// the received token depending on which is greater. This function should never be called
-    /// by the leader.
-    fn update_and_forward_token(&self, msg: MsgToken) {
-        let local_token_value = if self.has_seen_dirty_work() {
-            Token::Dirty
-        } else if self.has_unsafe_negation_edges() {
-            Token::HaveNegations
-        } else {
-            Token::Clean
-        };
-
-        let successor = (self.id + 1) % self.worker_count;
-        let token = MsgToken {
-            token: max(msg.token, local_token_value),
-            deepest_component: max(msg.deepest_component, self.get_depth_of_deepest_component()),
-        };
-
-        self.broker.send(successor, Message::TOKEN(token))
-    }
-
-    pub fn run(&mut self) {
-        let span = span!(Level::DEBUG, "worker run", worker_id = self.id);
-        let _enter = span.enter();
-        trace!("worker start");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker start");
-
-        // Alg 1, Line 2
-        // The owner of v0 starts by exploring it
-        if self.is_owner(&self.v0.clone()) {
-            trace!(worker_id = self.id, "exploring v0");
-            self.explore(&self.v0.clone());
-            self.dirty = true;
-        }
-
-        while self.running {
-            // Receive incoming tasks and terminate if requested
-            self.recv_all_and_fill_queues();
-
-            if self.process_task() {
-                continue; // We did a task
-            }
-
-            if self.is_leader() && !self.token_in_circulation {
-                // We are out of safe tasks so consider termination
-                self.initiate_potential_termination();
-            } else {
-                // Idle
-                sleep(Duration::from_millis(1))
-            }
-        }
-    }
-
-    /// Receive all messages from the broker and put them into the right queues. This function
-    /// will return a VertexAssignment, if the worker has been signaled to terminate. The
-    /// assignment is then the assignment of the root.
-    fn recv_all_and_fill_queues(&mut self) {
-        // Pump all messages from broker to msg queue. Terminate messages are handled immediately.
-        loop {
-            match self.broker.receive() {
-                Ok(opt_msg) => match opt_msg {
-                    Some(msg) => match msg {
-                        Message::TERMINATE => {
-                            #[cfg(feature = "use-counts")]
-                            eprintln!("worker received_termination");
-
-                            self.running = false;
-                        }
-                        _ => {
-                            #[cfg(feature = "use-counts")]
-                            eprintln!("worker receive_message");
-
-                            self.msg_queue.push_back(msg)
-                        }
-                    },
-                    None => break,
-                },
-                Err(err) => panic!(
-                    "worker encountered error while trying to retrieve message: {}",
-                    err
-                ),
-            }
-        }
-    }
-
-    /// Handle an incoming token.
-    ///
-    /// If this worker is the leader, it will decide the state of
-    /// the algorithm. Termination begins if no worker has seen safe work since last
-    /// synchronization. If some workers have unsafe negation edges, the negation edges of the
-    /// deepest component will be released instead.
-    ///
-    /// If this worker is not the leader, it will upgrade the token, if needed, and forward it.
-    fn handle_incoming_token(&mut self, token: MsgToken) {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker handle_token");
-        if self.is_leader() {
-            // The token has returned to the leader
-            self.token_in_circulation = false;
-            match token {
-                // The token made it all the way without getting dirty
-                // That means there are no more tasks and we can terminate
-                MsgToken {
-                    token: Token::Clean,
-                    deepest_component: _,
-                } => {
-                    trace!("Late termination");
-                    self.broker.return_result(VertexAssignment::FALSE)
-                }
-                // No one has seen safe tasks, but some workers have unsafe negation edges.
-                MsgToken {
-                    token: Token::HaveNegations,
-                    deepest_component,
-                } => {
-                    // Tell everyone to release negation edges of deepest component
-                    trace!(
-                        depth = deepest_component,
-                        "sending release component message"
-                    );
-                    #[cfg(feature = "use-counts")]
-                    eprintln!("worker send_release_token");
-                    self.broker.release(deepest_component);
-                }
-                // Some workers still have safe tasks, so we can't terminate yet
-                _ => {
-                    // no-op, other workers are busy
-                    trace!("leader received Token::Dirty")
-                }
-            }
-        } else {
-            self.update_and_forward_token(token);
-            self.dirty = false;
-        }
-    }
-
-    /// Initiate a synchronization with the other workers to determine if it is time to
-    /// terminate. Only the leader can initiate termination and the token can't be in
-    /// circulation already.
-    fn initiate_potential_termination(&mut self) {
-        debug_assert!(self.is_leader(), "Only the leader can initiate termination");
-        debug_assert!(
-            !self.token_in_circulation,
-            "Token is already in circulation"
-        );
-
-        // What token to send
-        let token = if self.has_unsafe_negation_edges() {
-            Token::HaveNegations
-        } else {
-            Token::Clean
-        };
-
-        debug!(?token, "starting token ring round");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker initiate_token_circulation");
-        self.broker.send(
-            (self.id + 1) % self.worker_count,
-            Message::TOKEN(MsgToken {
-                token,
-                deepest_component: self.get_depth_of_deepest_component(),
-            }),
-        );
-
-        self.token_in_circulation = true;
-        self.dirty = false;
-    }
-
-    /// Process the next task. This returns true if any task was processed.
-    fn process_task(&mut self) -> bool {
-        if let Some(msg) = self.msg_queue.pop_front() {
-            let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
-            match msg {
-                // Alg 1, Line 8
-                Message::REQUEST {
-                    vertex,
-                    depth,
-                    worker_id,
-                } => self.process_request(&vertex, worker_id, depth),
-                // Alg 1, Line 9
-                Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment),
-                Message::RELEASE(depth) => {
-                    self.release_negations(depth);
-                }
-                Message::TOKEN(msg_token) => {
-                    self.handle_incoming_token(msg_token);
-                }
-                _ => unreachable!(),
-            }
-            return true;
-        } else if let Some(edge) = self.strategy.next() {
-            match edge {
-                Edge::HYPER(e) => {
-                    self.process_hyper_edge(e);
-                }
-                Edge::NEGATION(e) => {
-                    self.process_negation_edge(e);
-                }
-            }
-            return true;
-        }
-        // No tasks
-        false
-    }
-
-    /// Releasing the edges from the unsafe queue to the safe negation
-    fn release_negations(&mut self, depth: usize) {
-        self.dirty = true;
-        self.only_unsafe_left = true;
-        trace!(
-            depth = self.unsafe_neg_edges.len(),
-            "releasing previously unsafe negation edges"
-        );
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker release_negation_edges");
-
-        assert!(
-            self.unsafe_neg_edges.len() <= depth,
-            "Attempted to release more than one component"
-        );
-
-        if self.unsafe_neg_edges.len() < depth {
-            // If the worker does not have any negation edges with the given depth, then do nothing
-            return;
-        }
-
-        if let Some(edges) = self.unsafe_neg_edges.pop() {
-            // Queue all edges in the negation channel that have the given depth
-            trace!("releasing negation edges");
-            self.strategy.queue_released_edges(edges);
-        }
-    }
-
-    /// Mark the given worker as being interested in the assignment of the given vertex.
-    /// When the certain assignment of the vertex is found, the worker will be notified.
-    fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker mark_interest");
-        if let Some(set) = self.interests.get_mut(vertex) {
-            trace!(is_initialized = true, ?vertex, "mark vertex interest");
-            set.insert(worker);
-        } else {
-            trace!(is_initialized = false, ?vertex, "mark vertex interest");
-            let mut set = HashSet::new();
-            set.insert(worker);
-            self.interests.insert(vertex.clone(), set);
-        }
-    }
-
-    /// Explore a vertex by finding the outgoing edges of the vertex. In the process, the vertex
-    /// will be assigned UNDECIDED. If the vertex has no edges, the vertex is immediately
-    /// assigned false. If the vertex is owned by another worker, we send a request
-    /// to that worker instead of evaluating the edges ourself.
-    fn explore(&mut self, vertex: &V) {
-        trace!(?vertex, "exploring vertex");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker explore");
-        // Line 2
-        self.assignment
-            .insert(vertex.clone(), VertexAssignment::UNDECIDED);
-
-        // Line 3
-        if self.is_owner(vertex) {
-            let successors = self.succ(vertex); // Line 4
-            if successors.is_empty() {
-                // Line 4
-                // The vertex has no outgoing edges, so we assign it false
-                self.final_assign(vertex, VertexAssignment::FALSE);
-            } else {
-                // Line 5
-                // Queue the new edges
-                self.strategy.queue_new_edges(successors);
-            }
-        } else {
-            // Line 7
-            // The vertex is owned by another worker, so we send a request
-            self.broker.send(
-                self.vertex_owner(vertex),
-                Message::REQUEST {
-                    vertex: vertex.clone(),
-                    depth: *self.depth.get(vertex).unwrap_or(&0),
-                    worker_id: self.id,
-                },
-            );
-        }
-    }
-
-    fn process_hyper_edge(&mut self, edge: HyperEdge<V>) {
-        trace!(?edge, "processing hyper-edge");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker processing_hyper-edge");
-
-        self.dirty = true;
-
-        // Line 3, condition (in case of targets is empty, the default value is true)
-        let all_final = edge.targets.iter().all(|target| {
-            self.assignment
-                .get(target)
-                .map_or(false, |f| matches!(f, VertexAssignment::TRUE))
-        });
-
-        // Line 3
-        if all_final {
-            self.final_assign(&edge.source, VertexAssignment::TRUE);
-            return;
-        }
-
-        // Line 4, condition
-        let any_target = edge.targets.iter().any(|target| {
-            self.assignment
-                .get(target)
-                .map_or(false, |f| matches!(f, VertexAssignment::FALSE))
-        });
-
-        // Line 4
-        if any_target {
-            self.delete_edge(Edge::HYPER(edge));
-            return;
-        }
-
-        // Line 5-8
-        for target in &edge.targets {
-            // Line 5 condition
-            match self.assignment.get(&target) {
-                Some(VertexAssignment::UNDECIDED) => {
-                    // UNDECIDED
-                    // Line 7
-                    self.add_depend(target, Edge::HYPER(edge.clone()));
-                }
-                None => {
-                    // UNEXPLORED
-                    // Line 7
-                    self.add_depend(target, Edge::HYPER(edge.clone()));
-                    // Line 8
-                    self.explore(target);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
-        // Update the depth
-        let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
-        let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
-        let new_vertex_depth = if dependency.is_negation() {
-            max(old_vertex_depth, source_depth + 1)
-        } else {
-            max(old_vertex_depth, source_depth)
-        };
-        self.depth.insert(vertex.clone(), new_vertex_depth);
-
-        // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-        self.depends
-            .entry(vertex.clone())
-            .or_default()
-            .insert(dependency);
-    }
-
-    /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
-        if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.remove(&dependency);
-        }
-    }
-
-    fn process_negation_edge(&mut self, edge: NegationEdge<V>) {
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker processing negation edge");
-        self.dirty = true;
-        match self.assignment.get(&edge.target) {
-            // UNEXPLORED
-            None => {
-                // UNEXPLORED
-                // Line 6
-                trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
-                self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
-                self.queue_unsafe_negation(edge.clone());
-                self.explore(&edge.target);
-            }
-            Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => {
-                    if self.only_unsafe_left {
-                        // This is a released negation edge
-                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing released negation edge");
-                        self.final_assign(&edge.source, VertexAssignment::TRUE)
-                    } else {
-                        // We haven't released any negation edges yet, so the undecided assignment
-                        // must be from another branch of the EDG. Hence, we add this edge as an
-                        // unsafe dependency
-                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                        self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
-                        self.queue_unsafe_negation(edge.clone())
+impl Display for ATLVertex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ATLVertex::FULL { state, formula } => write!(f, "state={} formula={}", state, formula),
+            ATLVertex::PARTIAL {
+                state,
+                partial_move,
+                formula,
+            } => {
+                write!(f, "state={} pmove=[", state)?;
+                for (i, choice) in partial_move.iter().enumerate() {
+                    std::fmt::Display::fmt(&choice, f)?;
+                    if i < partial_move.len() - 1 {
+                        f.write_str(", ")?;
                     }
                 }
-                VertexAssignment::FALSE => {
-                    trace!(?edge, assignment = ?VertexAssignment::FALSE, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                write!(f, "] formula={}", formula)
+            }
+        }
+    }
+}
+
+impl ATLVertex {
+    pub fn state(&self) -> State {
+        match self {
+            ATLVertex::FULL { state, .. } => *state,
+            ATLVertex::PARTIAL { state, .. } => *state,
+        }
+    }
+
+    pub fn formula(&self) -> Arc<Phi> {
+        match self {
+            ATLVertex::FULL { formula, .. } => formula.clone(),
+            ATLVertex::PARTIAL { formula, .. } => formula.clone(),
+        }
+    }
+}
+
+impl Vertex for ATLVertex {}
+
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+pub enum PartialMoveChoice {
+    /// Range from 0 to given number
+    RANGE(usize),
+    /// Chosen move for player
+    SPECIFIC(usize),
+}
+
+impl Display for PartialMoveChoice {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartialMoveChoice::RANGE(max) => write!(f, "(0..{})", max - 1),
+            PartialMoveChoice::SPECIFIC(choice) => write!(f, "{}", choice),
+        }
+    }
+}
+
+pub type PartialMove = Vec<PartialMoveChoice>;
+
+/// An iterator that produces all move vectors in a partial move.
+/// Example: The partial move {1, 2},{1},{1, 2} results in 111, 112, 211, and 212.
+struct PartialMoveIterator<'a> {
+    partial_move: &'a PartialMove,
+    initialized: bool,
+    current: Vec<usize>,
+}
+
+impl<'a> PartialMoveIterator<'a> {
+    /// Create a new PartialMoveIterator
+    fn new(partial_move: &'a PartialMove) -> PartialMoveIterator {
+        PartialMoveIterator {
+            partial_move,
+            initialized: false,
+            current: vec![],
+        }
+    }
+
+    /// Initializes the partial move iterator. This should be called exactly once
+    /// before any call to make_next. This function creates the first move vector in a partial
+    /// move. All partial move always contain at least one move vector.
+    fn make_first(&mut self) {
+        self.initialized = true;
+        // Create the first move vector from matching on the partial move
+        self.current = self
+            .partial_move
+            .iter()
+            .map(|case| match case {
+                PartialMoveChoice::RANGE(_) => 0,
+                PartialMoveChoice::SPECIFIC(n) => *n,
+            })
+            .collect();
+    }
+
+    /// Updates self.current to the next move vector. This function returns false if a new
+    /// move vector could not be created (due to exceeding the ranges in the partial move).
+    fn make_next(&mut self, player: Player) -> bool {
+        if player >= self.partial_move.len() {
+            false
+
+            // Call this function recursively, where we check the next player
+        } else if !self.make_next(player + 1) {
+            // The next player's move has rolled over or doesn't exist.
+            // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
+            match self.partial_move[player] {
+                PartialMoveChoice::SPECIFIC(_) => false,
+                PartialMoveChoice::RANGE(n) => {
+                    let current = &mut self.current;
+                    // Increase move index and return true if it's valid
+                    current[player] += 1;
+                    if current[player] < n {
+                        true
+                    } else {
+                        // We have rolled over (self.next[player] >= n).
+                        // Reset this player's move index and return false to indicate it
+                        // was not possible to create a valid next move at this depth
+                        current[player] = 0;
+                        false
+                    }
                 }
-                VertexAssignment::TRUE => {
-                    trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
-                    self.delete_edge(Edge::NEGATION(edge))
+            }
+        } else {
+            true
+        }
+    }
+}
+
+/// Allows the PartialMoveIterator to be iterated over.
+impl<'a> Iterator for PartialMoveIterator<'a> {
+    type Item = Vec<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.initialized {
+            self.make_first();
+            Some(self.current.clone())
+        } else if self.make_next(0) {
+            Some(self.current.clone())
+        } else {
+            None
+        }
+    }
+}
+
+pub struct PmovesIterator {
+    moves: Vec<usize>,
+    position: PartialMove,
+    completed: bool,
+}
+
+impl PmovesIterator {
+    /// Iterates over all partial moves variants that results from a number of players
+    /// making a combination of specific choices.
+    ///
+    /// # Arguments
+    ///
+    /// * `moves` number of moves for each player.
+    /// * `players` set of players who has to make a specific move.
+    ///
+    pub fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
+        let mut position = Vec::with_capacity(moves.len());
+        for (i, mov) in moves.iter().enumerate() {
+            position.push(if players.contains(&i) {
+                PartialMoveChoice::SPECIFIC(0)
+            } else {
+                PartialMoveChoice::RANGE(*mov)
+            })
+        }
+
+        Self {
+            moves,
+            position,
+            completed: false,
+        }
+    }
+}
+
+impl Iterator for PmovesIterator {
+    type Item = PartialMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.completed {
+            return None;
+        }
+
+        let current = self.position.clone();
+
+        let mut roll_over_pos = 0;
+        loop {
+            // If all digits have rolled over we reached the end
+            if roll_over_pos >= self.moves.len() {
+                self.completed = true;
+                break;
+            }
+
+            match self.position[roll_over_pos] {
+                PartialMoveChoice::RANGE(_) => {
+                    roll_over_pos += 1;
+                    continue;
+                }
+                PartialMoveChoice::SPECIFIC(value) => {
+                    let new_value = value + 1;
+
+                    if new_value >= self.moves[roll_over_pos] {
+                        // Rolled over
+                        self.position[roll_over_pos] = PartialMoveChoice::SPECIFIC(0);
+                        roll_over_pos += 1;
+                    } else {
+                        self.position[roll_over_pos] = PartialMoveChoice::SPECIFIC(new_value);
+                        break;
+                    }
+                }
+            }
+        }
+
+        Some(current)
+    }
+}
+
+/// An iterator that produces all resulting states from taking a partial move at a state.
+/// The iterator will make sure the same state is not produced multiple times.
+struct DeltaIterator<'a, G: GameStructure> {
+    game_structure: &'a G,
+    state: State,
+    moves: PartialMoveIterator<'a>,
+    /// Contains the states, that have already been produced once, so we can avoid producing
+    /// them again
+    known: HashSet<State>,
+}
+
+impl<'a, G: GameStructure> DeltaIterator<'a, G> {
+    /// Create a new DeltaIterator
+    fn new(game_structure: &'a G, state: State, moves: &'a PartialMove) -> Self {
+        let known = HashSet::new();
+        let moves = PartialMoveIterator::new(&moves);
+
+        Self {
+            game_structure,
+            state,
+            moves,
+            known,
+        }
+    }
+}
+
+impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
+    type Item = State;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // Get the next move vector from the partial move
+            let mov = self.moves.next();
+            if let Some(mov) = mov {
+                let res = self.game_structure.transitions(self.state, mov);
+                // Have we already produced this resulting state before?
+                if self.known.contains(&res) {
+                    continue;
+                } else {
+                    self.known.insert(res);
+                    return Some(res);
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+impl<G: GameStructure> ATLDependencyGraph<G> {
+    #[allow(dead_code)]
+    fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
+        let max_players = self.game_structure.max_player();
+        let mut inv_players =
+            HashSet::with_capacity((self.game_structure.max_player()) - players.len());
+        // Iterate over all players and only add the ones not in players
+        for player in 0usize..max_players {
+            if players.contains(&player) {
+                inv_players.insert(player);
+            }
+        }
+        inv_players
+    }
+}
+
+impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
+    /// Produce the edges of the given vertex
+    /// Where possible, the smallest edge will be the first in the produced vector,
+    /// and similarly, the smallest target will be the first in the edges' vector of targets.
+    /// This is mostly relevant for the Until formulae
+    fn succ(&self, vert: &ATLVertex) -> Vec<Edge<ATLVertex>> {
+        match vert {
+            ATLVertex::FULL { state, formula } => match formula.as_ref() {
+                Phi::True => {
+                    // Hyper edge with no targets
+                    vec![Edge::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        pmove: None,
+                        targets: vec![],
+                    })]
+                }
+                Phi::False => {
+                    // No edges
+                    vec![]
+                }
+                Phi::Proposition(prop) => {
+                    let props = self.game_structure.labels(vert.state());
+                    if props.contains(prop) {
+                        vec![Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![],
+                        })]
+                    } else {
+                        vec![]
+                    }
+                }
+                Phi::Not(phi) => {
+                    vec![Edge::NEGATION(NegationEdge {
+                        source: vert.clone(),
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            formula: phi.clone(),
+                        },
+                    })]
+                }
+                Phi::Or(left, right) => {
+                    vec![
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: left.clone(),
+                            }],
+                        }),
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: right.clone(),
+                            }],
+                        }),
+                    ]
+                }
+                Phi::And(left, right) => {
+                    vec![Edge::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        pmove: None,
+                        targets: vec![
+                            ATLVertex::FULL {
+                                state: *state,
+                                formula: left.clone(),
+                            },
+                            ATLVertex::FULL {
+                                state: *state,
+                                formula: right.clone(),
+                            },
+                        ],
+                    })]
+                }
+                Phi::DespiteNext { players, formula } => {
+                    let moves = self.game_structure.move_count(*state);
+                    let targets: Vec<ATLVertex> =
+                        PmovesIterator::new(moves, players.iter().copied().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: formula.clone(),
+                            })
+                            .collect();
+
+                    vec![Edge::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        pmove: None,
+                        targets,
+                    })]
+                }
+                Phi::EnforceNext { players, formula } => {
+                    let moves = self.game_structure.move_count(*state);
+                    PmovesIterator::new(moves, players.iter().copied().collect())
+                        .map(|pmove| {
+                            let targets: Vec<ATLVertex> =
+                                DeltaIterator::new(&self.game_structure, *state, &pmove)
+                                    .map(|state| ATLVertex::FULL {
+                                        state,
+                                        formula: formula.clone(),
+                                    })
+                                    .collect();
+                            Edge::HYPER(HyperEdge {
+                                source: vert.clone(),
+                                pmove: Some(pmove),
+                                targets,
+                            })
+                        })
+                        .collect::<Vec<Edge<ATLVertex>>>()
+                }
+                Phi::DespiteUntil {
+                    players,
+                    pre,
+                    until,
+                } => {
+                    // `pre`-target
+                    // "Is `pre` formula satisfied now?"
+                    let pre = ATLVertex::FULL {
+                        state: *state,
+                        formula: pre.clone(),
+                    };
+
+                    // Together with the `pre` target is all the possible moves by other players,
+                    // but it is important that `pre` is the first target
+                    let moves = self.game_structure.move_count(*state);
+                    let targets: Vec<ATLVertex> = std::iter::once(pre)
+                        .chain(
+                            PmovesIterator::new(moves, players.iter().cloned().collect()).map(
+                                |pmove| ATLVertex::PARTIAL {
+                                    state: *state,
+                                    partial_move: pmove,
+                                    formula: vert.formula(),
+                                },
+                            ),
+                        )
+                        .collect();
+
+                    vec![
+                        // `until`-formula branch
+                        // "Is the `until` formula satisfied now?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: until.clone(),
+                            }],
+                        }),
+                        // Other branches where pre is satisfied
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets,
+                        }),
+                    ]
+                }
+                Phi::EnforceUntil {
+                    players,
+                    pre,
+                    until,
+                } => {
+                    let mut edges = vec![
+                        // `until`-formula branch
+                        // "Is the `until` formula satisfied now?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: until.clone(),
+                            }],
+                        }),
+                    ];
+
+                    // `pre`-target
+                    // "Is `pre` formula satisfied now?"
+                    let pre = ATLVertex::FULL {
+                        state: *state,
+                        formula: pre.clone(),
+                    };
+
+                    let moves = self.game_structure.move_count(*state);
+                    edges.extend(
+                        PmovesIterator::new(moves, players.iter().copied().collect()).map(
+                            |pmove| {
+                                // Together with the `pre` target is all the possible moves by other players,
+                                // but it is important that `pre` is the first target
+                                let delta =
+                                    DeltaIterator::new(&self.game_structure, *state, &pmove).map(
+                                        |state| ATLVertex::FULL {
+                                            state,
+                                            formula: formula.clone(),
+                                        },
+                                    );
+                                let targets: Vec<ATLVertex> =
+                                    std::iter::once(pre.clone()).chain(delta).collect();
+                                Edge::HYPER(HyperEdge {
+                                    source: vert.clone(),
+                                    pmove: Some(pmove),
+                                    targets,
+                                })
+                            },
+                        ),
+                    );
+
+                    edges
+                }
+                Phi::DespiteEventually {
+                    players,
+                    formula: subformula,
+                } => {
+                    // Partial targets with same formula
+                    // "Is the formula satisfied in the next state instead?"
+                    let moves = self.game_structure.move_count(*state);
+                    let targets: Vec<ATLVertex> =
+                        PmovesIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| ATLVertex::PARTIAL {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: formula.clone(),
+                            })
+                            .collect();
+
+                    vec![
+                        // sub-formula target
+                        // "Is the sub formula satisfied in current state?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: subformula.clone(),
+                            }],
+                        }),
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets,
+                        }),
+                    ]
+                }
+                Phi::EnforceEventually {
+                    players,
+                    formula: subformula,
+                } => {
+                    let mut edges = vec![
+                        // sub-formula target
+                        // "Is the sub formula satisfied in current state?"
+                        // This must be the first edge
+                        Edge::HYPER(HyperEdge {
+                            source: vert.clone(),
+                            pmove: None,
+                            targets: vec![ATLVertex::FULL {
+                                state: *state,
+                                formula: subformula.clone(),
+                            }],
+                        }),
+                    ];
+
+                    // Successor states with same formula
+                    // "Is the formula satisfied in the next state instead?"
+                    let moves = self.game_structure.move_count(*state);
+                    edges.extend(
+                        PmovesIterator::new(moves, players.iter().copied().collect()).map(
+                            |pmove| {
+                                let targets: Vec<ATLVertex> =
+                                    DeltaIterator::new(&self.game_structure, *state, &pmove)
+                                        .map(|state| ATLVertex::FULL {
+                                            state,
+                                            formula: formula.clone(),
+                                        })
+                                        .collect();
+                                Edge::HYPER(HyperEdge {
+                                    source: vert.clone(),
+                                    pmove: Some(pmove),
+                                    targets,
+                                })
+                            },
+                        ),
+                    );
+
+                    edges
+                }
+                Phi::DespiteInvariant {
+                    players,
+                    formula: subformula,
+                } => {
+                    vec![Edge::NEGATION(NegationEdge {
+                        source: vert.clone(),
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            // Modified formula, switching to minimum-fixed point domain
+                            formula: Arc::new(Phi::EnforceUntil {
+                                players: players.clone(),
+                                pre: Arc::new(Phi::True),
+                                until: Arc::new(Phi::Not(subformula.clone())),
+                            }),
+                        },
+                    })]
+                }
+                Phi::EnforceInvariant {
+                    players,
+                    formula: subformula,
+                } => {
+                    vec![Edge::NEGATION(NegationEdge {
+                        source: vert.clone(),
+                        target: ATLVertex::FULL {
+                            state: *state,
+                            // Modified formula, switching to minimum-fixed point
+                            formula: Arc::new(Phi::DespiteUntil {
+                                players: players.clone(),
+                                pre: Arc::new(Phi::True),
+                                until: Arc::new(Phi::Not(subformula.clone())),
+                            }),
+                        },
+                    })]
                 }
             },
-        }
-    }
-
-    /// Queue unsafe negation, which will be queued to negation channel whenever
-    /// release negation is called. If the negation edges later becomes safe, it does
-    /// not have to be removed from the negation queue.
-    fn queue_unsafe_negation(&mut self, edge: NegationEdge<V>) {
-        let len = self.unsafe_neg_edges.len();
-        let mut depth: usize = 0;
-        if let Some(n) = self.depth.get(&edge.source) {
-            depth = *n as usize;
-        }
-
-        if len <= depth {
-            for _ in len..(depth + 1) {
-                self.unsafe_neg_edges.push(Vec::new());
-            }
-        }
-
-        self.unsafe_neg_edges
-            .get_mut(depth as usize)
-            .unwrap()
-            .push(edge);
-    }
-
-    /// Process a request from another worker. We either answer immediately if we know the
-    /// assignment of the requested vertex, or we explore it and mark the other as being
-    /// interested in the assignment of the vertex.
-    fn process_request(&mut self, vertex: &V, requester: WorkerId, depth: u32) {
-        self.dirty = true;
-        trace!(
-            ?vertex,
-            ?requester,
-            depth,
-            "got request for vertex assignment"
-        );
-        debug_assert!(self.is_owner(vertex));
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker process_request");
-        if let Some(assignment) = self.assignment.get(&vertex) {
-            // Final assignment of `vertex` is already known, reply immediately
-            if assignment.is_certain() {
-                self.broker.send(
-                    requester,
-                    Message::ANSWER {
-                        vertex: vertex.clone(),
-                        assignment: *assignment,
-                    },
-                );
-            } else {
-                // update depth
-                let local_depth = *self.depth.get(vertex).unwrap_or(&0);
-                self.depth.insert(vertex.clone(), max(local_depth, depth));
-                self.mark_interest(vertex, requester);
-            }
-        } else {
-            // Final assignment of `vertex` is not yet known
-
-            // update depth
-            let local_depth = *self.depth.get(vertex).unwrap_or(&0);
-            self.depth.insert(vertex.clone(), max(local_depth, depth));
-            self.mark_interest(vertex, requester);
-
-            if self.assignment.get(&vertex).is_none() {
-                // UNEXPLORED
-                self.explore(&vertex);
-            }
-        }
-    }
-
-    /// Process an answer by applying the given assignment
-    fn process_answer(&mut self, vertex: &V, assigned: VertexAssignment) {
-        self.dirty = true;
-        trace!(?vertex, ?assigned, "received final assignment");
-        self.final_assign(vertex, assigned);
-    }
-
-    /// Set the assignment of the given vertex. Dependent edges are requeued and interested
-    /// workers are notified of the assignment.
-    fn final_assign(&mut self, vertex: &V, assignment: VertexAssignment) {
-        debug!(?assignment, ?vertex, "final assigned");
-        #[cfg(feature = "use-counts")]
-        eprintln!("worker final_assign");
-
-        // Line 2
-        if *vertex == self.v0 {
-            // We found the result of the query
-            self.broker.return_result(assignment);
-            return;
-        }
-
-        // Line 3
-        let prev_assignment = self.assignment.insert(vertex.clone(), assignment);
-        let changed_assignment = prev_assignment != Some(assignment);
-
-        // There are a few cases, where we redundantly assign a vertex to what it already is:
-        // - An unsafe negation edge, turned out to be safe, and now it has been release
-        // - We request the assignment of a vertex multiple times and we get two answers due to
-        //   race conditions
-        if changed_assignment {
-            // Line 4 - Notify other workers interested in this assignment
-            if let Some(interested) = self.interests.get(&vertex) {
-                for worker_id in interested {
-                    self.broker.send(
-                        *worker_id,
-                        Message::ANSWER {
-                            vertex: vertex.clone(),
-                            assignment,
-                        },
-                    )
-                }
-            }
-
-            // Line 5 - Requeue edges that depend on this assignment
-            if let Some(depends) = self.depends.get(&vertex) {
-                for edge in depends.clone() {
-                    trace!(?edge, "requeueing edge because target got assignment");
-                    self.strategy.queue_back_propagation(edge)
-                }
-            }
-        }
-    }
-
-    /// Helper function for deleting edges from a vertex.
-    fn delete_edge(&mut self, edge: Edge<V>) {
-        let source = edge.source();
-
-        // Remove edge from source
-        self.successors.get_mut(source).unwrap().remove(&edge);
-
-        match self.successors.get(source) {
-            None => panic!("successors should have been filled, or at least have a empty vector"),
-            Some(successors) => {
-                // Line 3
-                if successors.is_empty() {
-                    trace!(
-                        ?source,
-                        assignment = ?VertexAssignment::FALSE,
-                        "no more successors, final assignment is FALSE"
-                    );
-                    self.final_assign(source, VertexAssignment::FALSE);
-                }
-            }
-        }
-
-        match edge {
-            // Line 4-6
-            Edge::HYPER(ref edge) => {
-                debug!(source = ?edge, targets = ?edge.targets, "remove hyper-edge as dependency");
-                for target in &edge.targets {
-                    self.remove_depend(target, Edge::HYPER(edge.clone()))
-                }
-            }
-            // Line 7-8
-            Edge::NEGATION(ref edge) => {
-                debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
-                self.remove_depend(&edge.target, Edge::NEGATION(edge.clone()))
-            }
-        }
-    }
-
-    /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
-    /// See documentation for the `successors` field.
-    fn succ(&mut self, vertex: &V) -> Vec<Edge<V>> {
-        if let Some(_successors) = self.successors.get(vertex) {
-            panic!("Used cached successors instead")
-        } else {
-            // Setup the successors list the first time it is requested
-            let successors = self.edg.succ(vertex);
-            let successor_set = successors.iter().cloned().collect();
-            self.successors.insert(vertex.clone(), successor_set);
-            debug!(
-                ?vertex,
-                ?successors,
-                known_vertex = false,
-                "loaded successors from EDG"
-            );
-            #[cfg(feature = "use-counts")]
-            eprintln!("worker succ generated");
-            successors
+            ATLVertex::PARTIAL {
+                state,
+                partial_move,
+                formula,
+            } => DeltaIterator::new(&self.game_structure, *state, partial_move)
+                .map(|state| {
+                    let targets = vec![ATLVertex::FULL {
+                        state,
+                        formula: formula.clone(),
+                    }];
+                    Edge::HYPER(HyperEdge {
+                        source: vert.clone(),
+                        pmove: Some(partial_move.clone()),
+                        targets,
+                    })
+                })
+                .collect::<Vec<Edge<ATLVertex>>>(),
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::collections::hash_map::RandomState;
     use std::collections::HashSet;
-    use std::fmt::Display;
-    use test_env_log::test;
+    use std::sync::Arc;
 
-    use core::fmt::Formatter;
-
-    use crate::common::{Edge, HyperEdge, NegationEdge, VertexAssignment};
-    use crate::edg::{distributed_certain_zero, ExtendedDependencyGraph, Vertex};
-    use crate::search_strategy::bfs::BreadthFirstSearchBuilder;
+    use crate::edg::{DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator};
+    use crate::game_structure::{DynVec, EagerGameStructure};
 
     #[test]
-    fn test_dcz_empty_hyper_edge() {
-        simple_edg![
-            A => -> {};
+    fn partial_move_iterator_01() {
+        let partial_move = vec![
+            PartialMoveChoice::RANGE(2),
+            PartialMoveChoice::SPECIFIC(1),
+            PartialMoveChoice::RANGE(2),
         ];
-        edg_assert!(A, TRUE);
+
+        let mut iter = PartialMoveIterator::new(&partial_move);
+        assert_eq!(iter.next(), Some(vec![0, 1, 0]));
+        assert_eq!(iter.next(), Some(vec![0, 1, 1]));
+        assert_eq!(iter.next(), Some(vec![1, 1, 0]));
+        assert_eq!(iter.next(), Some(vec![1, 1, 1]));
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
-    fn test_dcz_no_successors() {
-        simple_edg![
-            A => ;
-        ];
-        edg_assert!(A, FALSE);
+    fn vars_iterator_01() {
+        let moves = vec![2, 3, 2];
+        let mut players = HashSet::new();
+        players.insert(0);
+        players.insert(2);
+        let mut iter = PmovesIterator::new(moves, players);
+
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(0),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(0)
+            ])
+        );
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(1),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(0)
+            ])
+        );
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(0),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(1)
+            ])
+        );
+        assert_eq!(
+            &iter.next(),
+            &Some(vec![
+                PartialMoveChoice::SPECIFIC(1),
+                PartialMoveChoice::RANGE(3),
+                PartialMoveChoice::SPECIFIC(1)
+            ])
+        );
     }
 
     #[test]
-    fn test_dcz_general_01() {
-        simple_edg![
-            A => -> {B, C} -> {D};
-            B => ;
-            C => .> D;
-            D => -> {};
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, TRUE);
+    fn vars_iterator_02() {
+        let mut players = HashSet::new();
+        players.insert(2);
+        let mut iter = PmovesIterator::new(vec![2, 3, 3], players);
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
+        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
+        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::RANGE(2));
+        assert_eq!(value[1], PartialMoveChoice::RANGE(3));
+        assert_eq!(value[2], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next();
+        assert_eq!(value, None);
     }
 
     #[test]
-    fn test_dcz_general_02() {
-        simple_edg![
-            A => -> {B, C};
-            B => .> E;
-            C => -> {};
-            D => -> {} -> {C};
-            E => .> D;
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-        edg_assert!(E, FALSE);
+    fn vars_iterator_03() {
+        // Both players choose. So we should end up with every move vector
+        let mut players = HashSet::new();
+        players.insert(0);
+        players.insert(1);
+        let mut iter = PmovesIterator::new(vec![3, 3], players);
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(0));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(1));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(0));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(1));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        let value = iter.next().unwrap();
+        assert_eq!(value[0], PartialMoveChoice::SPECIFIC(2));
+        assert_eq!(value[1], PartialMoveChoice::SPECIFIC(2));
+
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
-    fn test_dcz_general_03() {
-        simple_edg![
-            A => -> {B} -> {E};
-            B => -> {C};
-            C => -> {F} -> {H};
-            D => -> {E} -> {C};
-            E => -> {D, F};
-            F => -> {};
-            G => .> A;
-            H => -> {I};
-            I => ;
+    fn delta_iterator_01() {
+        // player 0
+        let transitions = DynVec::NEST(vec![
+            // player 1
+            Arc::new(DynVec::NEST(vec![
+                // Player 2
+                Arc::new(DynVec::NEST(vec![
+                    // player 3
+                    Arc::new(DynVec::NEST(vec![
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(1))])),
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(2))])),
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(3))])),
+                    ])),
+                ])),
+                // Player 2
+                Arc::new(DynVec::NEST(vec![
+                    // player 3
+                    Arc::new(DynVec::NEST(vec![
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(4))])),
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(5))])),
+                        // Player 4
+                        Arc::new(DynVec::NEST(vec![Arc::new(DynVec::BASE(1))])),
+                    ])),
+                ])),
+            ])),
+        ]);
+        let game_structure = EagerGameStructure {
+            player_count: 5,
+            labeling: vec![],
+            transitions: vec![transitions],
+            moves: vec![],
+        };
+        let state = 0;
+        let partial_move = vec![
+            PartialMoveChoice::SPECIFIC(0), // player 0
+            PartialMoveChoice::RANGE(2),    // player 1
+            PartialMoveChoice::SPECIFIC(0), // player 2
+            PartialMoveChoice::RANGE(3),    // player 3
+            PartialMoveChoice::SPECIFIC(0), // player 4
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, TRUE);
-        edg_assert!(G, FALSE);
-        edg_assert!(H, FALSE);
-        edg_assert!(I, FALSE);
-    }
+        let mut iter = DeltaIterator::new(&game_structure, state, &partial_move);
 
-    #[test]
-    fn test_dcz_general_04() {
-        simple_edg![
-            A => -> {B} -> {C};
-            B => -> {D};
-            C => ;
-            D => -> {};
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, TRUE);
-    }
+        let value = iter.next().unwrap();
+        assert_eq!(value, 1);
 
-    #[test]
-    fn test_dcz_general_05() {
-        simple_edg![
-            A => -> {B};
-            B => -> {C};
-            C => -> {B};
-        ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-    }
+        let value = iter.next().unwrap();
+        assert_eq!(value, 2);
 
-    #[test]
-    fn test_dcz_general_06() {
-        simple_edg![
-            A => -> {B} -> {C};
-            B => ;
-            C => ;
-        ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-    }
+        let value = iter.next().unwrap();
+        assert_eq!(value, 3);
 
-    #[test]
-    fn test_dcz_general_07() {
-        simple_edg![
-            A => -> {B};
-            B => -> {A, C};
-            C => -> {D};
-            D => -> {};
-        ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-    }
+        let value = iter.next().unwrap();
+        assert_eq!(value, 4);
 
-    #[test]
-    fn test_dcz_general_08() {
-        simple_edg![
-            A => -> {B, C};
-            B => -> {C} -> {D};
-            C => -> {B};
-            D => -> {C} -> {};
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-    }
+        let value = iter.next().unwrap();
+        assert_eq!(value, 5);
 
-    #[test]
-    fn test_dcz_negation_01() {
-        simple_edg![
-            A => .> B;
-            B => -> {};
-        ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, TRUE);
-    }
+        // repeats state 1 again, but that is suppressed due to deduplication of emitted states
 
-    #[test]
-    fn test_dcz_negation_02() {
-        simple_edg![
-            A => .> B;
-            B => -> {C};
-            C => -> {B} .> D;
-            D => -> {E};
-            E => -> {D};
-        ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, FALSE);
-    }
-
-    #[test]
-    fn test_dcz_negation_03() {
-        simple_edg![
-            A => .> B .> C;
-            B => .> D;
-            C => -> {D};
-            D => ;
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, FALSE);
-    }
-
-    #[test]
-    fn test_dcz_negation_04() {
-        simple_edg![
-            A => .> B;
-            B => -> {B};
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-    }
-
-    #[test]
-    fn test_dcz_negation_05() {
-        simple_edg![
-            A => .> B;
-            B => .> C;
-            C => .> D;
-            D => .> E;
-            E => .> F;
-            F => -> {F};
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, FALSE);
-    }
-
-    #[test]
-    fn test_dcz_negation_to_undecided_01() {
-        // A case where we might explore and find a negation edges to something that is
-        // currently assigned undecided
-        simple_edg![
-            A => .> B .> E;
-            B => -> {C};
-            C => -> {D};
-            D => .> E;
-            E => -> {F};
-            F => -> {G};
-            G => -> {H};
-            H => -> {I};
-            I => -> {J};
-            J => -> {K};
-            K => -> {};
-        ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, TRUE);
-        edg_assert!(G, TRUE);
+        let value = iter.next();
+        assert_eq!(value, None);
     }
 }

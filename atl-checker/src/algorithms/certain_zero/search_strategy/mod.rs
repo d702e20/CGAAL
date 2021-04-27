@@ -1,10 +1,8 @@
+use crate::edg::{Edge, NegationEdge, Vertex};
+
 pub mod bfs;
-pub mod linear_optimize;
 pub mod dfs;
-
-
-use crate::common::{Edge, NegationEdge};
-use crate::edg::Vertex;
+pub mod linear_optimize;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
 /// certain zero algorithm.
