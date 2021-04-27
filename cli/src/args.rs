@@ -78,7 +78,7 @@ impl CommonArgs for App<'_, '_> {
                 .short("s")
                 .long("search-strategy")
                 .env("SEARCH_STRATEGY")
-                .help("The search strategy used {{bfs, dfs}}"),
+                .help("The search strategy used {{bfs, dfs, los}}"),
         )
     }
 }

@@ -189,10 +189,12 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
+                    // Todo
                     let copy: IntermediateLCGS = graph.game_structure.clone();
                     let result =
                         distributed_certain_zero(graph, v0, threads, LinearOptimizeSearchBuilder {game: copy});
                     println!("Result: {}", result);
+                    //check_model(graph, v0, threads, search_strategy);
                 },
             )?
         }
