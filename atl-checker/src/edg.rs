@@ -118,6 +118,7 @@ struct PartialMoveIterator<'a> {
     current: Vec<usize>,
 }
 
+#[allow(clippy::ptr_arg)]
 impl<'a> PartialMoveIterator<'a> {
     /// Create a new PartialMoveIterator
     fn new(partial_move: &'a PartialMove) -> PartialMoveIterator {
@@ -279,6 +280,7 @@ struct DeltaIterator<'a, G: GameStructure> {
     known: HashSet<State>,
 }
 
+#[allow(clippy::ptr_arg)]
 impl<'a, G: GameStructure> DeltaIterator<'a, G> {
     /// Create a new DeltaIterator
     fn new(game_structure: &'a G, state: State, moves: &'a PartialMove) -> Self {
