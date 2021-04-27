@@ -9,7 +9,7 @@ use BinaryOpKind::{Addition,
                    Multiplication,
                    Subtraction,
                    Division,
-                   Equality, // Also serves as bi-implication
+                   Equality,
                    Inequality,
                    GreaterThan,
                    LessThan,
@@ -20,7 +20,6 @@ use BinaryOpKind::{Addition,
                    Xor,
                    Implication,};
 
-#[derive(Debug)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
     pub constant: i32,
@@ -33,7 +32,6 @@ struct LinearExpression {
 pub struct LinearOptimizeSearch {
     queue: PriorityQueue<Edge<ATLVertex>, i32>,
     game: IntermediateLCGS,
-    sort: i32,
 }
 
 impl LinearOptimizeSearch {
@@ -41,7 +39,6 @@ impl LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
-            sort: 0,
         }
     }
 }
@@ -65,7 +62,7 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
         } else { None }
     }
 
-    fn queue_new_edges(&mut self, mut edges: Vec<Edge<ATLVertex>>) {
+    fn queue_new_edges(&mut self, edges: Vec<Edge<ATLVertex>>) {
         // TODO dont do this if formula not linear
         // For all edges from this vertex,
         // if edge is a HyperEdge, return average distance from state to accept region between all targets,
@@ -73,11 +70,11 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
         for edge in edges {
             let distance = self.distance_to_acceptance_border(&edge);
 
-            // Add edge and distance to evaluated_edges
+            // Add edge and distance to queue
             if let Some(dist) = distance {
                 self.queue.push(edge, -dist as i32);
             } else {
-                // Todo default value should be average?
+                // Todo what should default value be?
                 self.queue.push(edge, 0);
             }
         };
@@ -114,13 +111,13 @@ impl LinearOptimizeSearch {
                 }
 
                 // If no targets were able to satisfy formula, or something went wrong, return large number
-                if { distances.is_empty() } {
-                    return None;
+                return if distances.is_empty() {
+                    None
+                } else {
+                    // Find average distance between targets, and return this
+                    let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
+                    Some(avg_distance)
                 }
-
-                // Find average distance between targets, and return this
-                let avg_distance = (distances.iter().sum::<f32>() / distances.len() as f32);
-                return Some(avg_distance);
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
@@ -201,7 +198,7 @@ impl LinearOptimizeSearch {
                         // The value of our variable in this state we are checking, in "x < 5", this would be "x"
                         Some(&v) => {
                             // Find distance from the current value, to the solution
-                            return Some({ f64::abs((v as f64 - solution[x])) } as f32);
+                            return Some({ f64::abs(v as f64 - solution[x]) } as f32);
                         }
                         _ => { None }
                     }
@@ -271,12 +268,12 @@ fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
 mod test {
     use crate::game_structure::lcgs::ast::BinaryOpKind::{Addition, Multiplication};
     use crate::game_structure::lcgs::ast::{Expr, BinaryOpKind};
-    use crate::game_structure::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent};
-    use crate::game_structure::lcgs::ast::Identifier::Simple;
-    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::game_structure::lcgs::ir::symbol_table::{SymbolIdentifier, Owner};
     use crate::algorithms::certain_zero::search_strategy::linear_optimize::{LinearExpression, LinearOptimizeSearch};
+    use crate::game_structure::lcgs::ast::ExprKind::{Number, BinaryOp, OwnedIdent};
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
     use crate::game_structure::lcgs::parse::parse_lcgs;
+    use crate::game_structure::lcgs::ast::Identifier::Simple;
 
     #[test]
     // 1 + 1
