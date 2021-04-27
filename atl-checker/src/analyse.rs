@@ -116,7 +116,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                 Phi::And(..) => data.push(VertexData::And {
                     stats: phi_stats(mssa, v),
                     // And-formulae only have one hyper-edge with multiple targets
-                    target_stats: if let Edge::Hyper(e) = edg.succ(v).iter().next().unwrap() {
+                    target_stats: if let Edge::Hyper(e) = edg.succ(v).get(0) {
                         e.targets.iter().map(|t| phi_stats(mssa, t)).collect()
                     } else {
                         unreachable!()
@@ -126,7 +126,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                     player_count: players.len() as u32,
                     stats: phi_stats(mssa, v),
                     // And-formulae only have one hyper-edge with multiple targets
-                    target_stats: if let Edge::Hyper(e) = edg.succ(v).iter().next().unwrap() {
+                    target_stats: if let Edge::Hyper(e) = edg.succ(v).get(0) {
                         e.targets.iter().map(|t| phi_stats(mssa, t)).collect()
                     } else {
                         unreachable!()
