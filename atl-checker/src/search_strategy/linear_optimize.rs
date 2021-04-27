@@ -15,11 +15,6 @@ use crate::lcgs::ir::symbol_table::SymbolIdentifier;
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
 
-struct MyPoint {
-    x: i32,
-    y: i32,
-}
-
 #[derive(Debug)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
@@ -48,7 +43,7 @@ impl LinearOptimizeSearch {
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
-    pub game: IntermediateLCGS
+    pub game: IntermediateLCGS,
 }
 
 impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
@@ -76,7 +71,6 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
             // Add edge and distance to evaluated_edges
             if let Some(dist) = distance {
                 self.queue.push(edge, -dist as i32);
-                //evaluated_edges.push((edge, dist))
             } else {
                 // Todo default value should be average?
                 self.queue.push(edge, 0);
@@ -93,6 +87,7 @@ impl LinearOptimizeSearch {
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
                     // TODO only allows very simple expressions, such as x < 5, should allow more
+                    // TODO change edge by changing order of targets in the edge, based on distance
                     // Find the linear expression from the targets formula, if any
                     // Polynomials and such not allowed, returns None in such cases
                     let linear_expression = self.get_simple_linear_formula(target);
@@ -119,7 +114,7 @@ impl LinearOptimizeSearch {
                 }
 
                 // Find average distance between targets, and return this
-                let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
+                let avg_distance = (distances.iter().sum::<f32>() / distances.len() as f32);
                 return Some(avg_distance);
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
@@ -137,10 +132,11 @@ impl LinearOptimizeSearch {
     }
 
     fn get_simple_linear_formula(&self, vertex: &ATLVertex) -> Option<LinearExpression> {
-        // TODO only allows outmost Phi in formula is a proposition, should allow for more advanced formulae
         // If outmost Phi is a proposition, get this
         let mut proposition_index = vertex.formula().get_proposition();
 
+        // It could also be that we have "F Phi" and then we recursively visit formula to find propositions
+        // Currently it is MVP and if there is exactly one formula, return this
         if proposition_index.is_none() {
             let propositions = vertex.formula().get_propositions_recursively();
             if propositions.len() == 1 {
@@ -173,7 +169,7 @@ impl LinearOptimizeSearch {
 
             // Construct the linear programming problem, using minilp rust crate
             // TODO maximize or minimize?
-            let mut problem = Problem::new(OptimizationDirection::Minimize);
+            let mut problem = Problem::new(OptimizationDirection::Maximize);
             let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
             // TODO support for more operators?
             match lin_expr.operation {
@@ -205,8 +201,7 @@ impl LinearOptimizeSearch {
                         _ => { None }
                     }
                 }
-                Err(e) => {
-                    println!("not solvable: {}", e);
+                Err(..) => {
                     None
                 }
             }
@@ -268,12 +263,8 @@ fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
     }
 }
 
-fn manhattan_distance(point1: MyPoint, point2: MyPoint) -> i32 {
-    i32::abs((point1.x - point2.x) + (point1.y - point2.y))
-}
-
 mod test {
-    use crate::search_strategy::linear_optimize::{manhattan_distance, MyPoint, LinearOptimizeSearch, LinearExpression};
+    use crate::search_strategy::linear_optimize::{LinearOptimizeSearch, LinearExpression};
     use crate::lcgs::ast::{Expr, BinaryOpKind};
     use crate::lcgs::ast::ExprKind::{BinaryOp, OwnedIdent, Number};
     use crate::lcgs::ast::BinaryOpKind::{Equality, Addition, Multiplication};
@@ -284,11 +275,6 @@ mod test {
     use std::collections::HashMap;
     use crate::lcgs::parse::parse_lcgs;
     use crate::atl::gamestructure::GameStructure;
-
-    #[test]
-    fn manhattan_distance_test() {
-        assert_eq!(manhattan_distance(MyPoint { x: 0, y: 0 }, MyPoint { x: 6, y: 6 }), 12);
-    }
 
     #[test]
     // 1 + 1
@@ -493,14 +479,3 @@ mod test {
         assert!(solution.is_none());
     }
 }
-
-/* TODO
-1. Find linear parts of formula
-2. Distance function, point - cutting point by a linear equation, perhaps https://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
-3. For each target state, check distance (and if it is in a region)
-4. Sort queue by distance (lowest first)
-5. ???
-6. Profit
-*/
-// TOdo priority queue
-// todo ændre rækkefølge af targets
