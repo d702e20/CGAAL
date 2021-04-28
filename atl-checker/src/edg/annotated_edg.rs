@@ -1,11 +1,11 @@
 use crate::edg::Vertex;
 use std::hash::Hash;
 
-trait Annotation: Hash + Eq + PartialEq + Clone {}
+pub trait Annotation: Hash + Eq + PartialEq + Clone {}
 
 pub trait AnnotatedExtendedDependencyGraph<V: Vertex, A: Annotation> {
     /// Returns annotated out-going edges from `vertex`.
-    fn succ(&self, vertex: &V) -> Vec<AnnotatedEdge<V, A>>;
+    fn annotated_succ(&self, vertex: &V) -> Vec<AnnotatedEdge<V, A>>;
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]

@@ -21,7 +21,8 @@ use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSea
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
-use atl_checker::edg::atlcgsedg::{ATLDependencyGraph, ATLVertex};
+use atl_checker::edg::atledg::vertex::ATLVertex;
+use atl_checker::edg::atledg::ATLDependencyGraph;
 use atl_checker::edg::{ExtendedDependencyGraph, Vertex};
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
