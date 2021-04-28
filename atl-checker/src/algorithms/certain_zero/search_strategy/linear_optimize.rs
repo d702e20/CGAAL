@@ -18,7 +18,7 @@ use BinaryOpKind::{Addition,
                    And,
                    Or,
                    Xor,
-                   Implication,};
+                   Implication, };
 
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
@@ -92,75 +92,83 @@ impl LinearOptimizeSearch {
                     // TODO change edge by changing order of targets in the edge, based on distance
                     // Find the linear expression from the targets formula, if any
                     // Polynomials and such not allowed, returns None in such cases
-                    let linear_expression = self.get_simple_linear_formula(target);
+                    let linear_expressions = self.get_linear_expressions_from_atlvertex(target);
 
-                    if let Some(expr) = linear_expression {
+                    if let Some(expressions) = linear_expressions {
                         // get the State in the target
                         let state = self.game.state_from_index(target.state());
-
-                        // Distance from the state, to fulfilling the linear expression
-                        let distance = self.minimum_distance_1d(state, expr);
-
-                        // add to vec of results
-                        if let Some(dist) = distance {
-                            distances.push(dist)
+                        let mut expr_distance: f32 = 0.0;
+                        for linear_expression in &expressions {
+                            // Distance from the state, to fulfilling the linear expression
+                            let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
+                            if let Some(distance) = distance_to_solve_expression {
+                                expr_distance = expr_distance + distance;
+                            }
                         }
-                    } else {
-                        return None;
-                    }
+                        // add to vec of results
+                        if 0.0 < expr_distance {
+                            distances.push(expr_distance / expressions.len() as f32)
+                        }
+                    } else { return None; }
                 }
 
-                // If no targets were able to satisfy formula, or something went wrong, return large number
+                // If no targets were able to satisfy formula, or something went wrong, return None
                 return if distances.is_empty() {
                     None
                 } else {
                     // Find average distance between targets, and return this
                     let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
                     Some(avg_distance)
-                }
+                };
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
-                let linear_expression = self.get_simple_linear_formula(&edge.target);
-                if let Some(expr) = linear_expression {
+                let linear_expressions = self.get_linear_expressions_from_atlvertex(&edge.target);
+                if let Some(expressions) = linear_expressions {
+                    // get the State in the target
                     let state = self.game.state_from_index(edge.target.state());
-                    let distance = self.minimum_distance_1d(state, expr);
-                    distance
-                } else {
-                    None
+                    let mut expr_distance: f32 = 0.0;
+                    for linear_expression in &expressions {
+                        // Distance from the state, to fulfilling the linear expression
+                        let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
+                        if let Some(distance) = distance_to_solve_expression {
+                            expr_distance = expr_distance + distance;
+                        }
+                    }
+                    // add to vec of results
+                    if 0.0 < expr_distance {
+                        return Some(expr_distance / expressions.len() as f32);
+                    }
                 }
+                None
             }
         }
     }
 
-    fn get_simple_linear_formula(&self, vertex: &ATLVertex) -> Option<LinearExpression> {
-        // If outmost Phi is a proposition, get this
-        let mut proposition_index = vertex.formula().get_proposition();
+    fn get_linear_expressions_from_atlvertex(&self, vertex: &ATLVertex) -> Option<Vec<LinearExpression>> {
+        // get propositions from the formula in the vertex
+        let propositions = vertex.formula().get_propositions_recursively();
 
-        // It could also be that we have "F Phi" and then we recursively visit formula to find propositions
-        // Currently it is MVP and if there is exactly one formula, return this
-        if proposition_index.is_none() {
-            let propositions = vertex.formula().get_propositions_recursively();
-            if propositions.len() == 1 {
-                proposition_index = propositions.get(0).cloned();
-            }
-        }
-        // Check if it was a proposition
-        if let Some(propositions_index) = proposition_index {
+        let mut linear_expressions: Vec<LinearExpression> = Vec::new();
+        for proposition_index in propositions.into_iter() {
             // Make sure it is a Label
-            if let DeclKind::Label(label) = &self.game.label_index_to_decl(propositions_index).kind {
+            if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
                 // Expression has to be linear
                 if label.condition.is_linear() {
                     // Return the constructed Linear Expression from this condition
-                    return extracted_linear_expression(label.condition.kind.clone());
+                    if let Some(linear_expression) = extracted_linear_expression(label.condition.kind.clone()) {
+                        linear_expressions.push(linear_expression);
+                    }
                 }
             }
         }
-        None
+        if { !linear_expressions.is_empty() } {
+            Some(linear_expressions)
+        } else { None }
     }
 
 
-    fn minimum_distance_1d(&self, state: State, lin_expr: LinearExpression) -> Option<f32> {
+    fn minimum_distance_1d(&self, state: State, lin_expr: &LinearExpression) -> Option<f32> {
         // Get the declaration from the symbol in LinearExpression, has to be a StateVar
         // (i.e a variable in an LCGS program)
         let symb = self.game.get_decl(&lin_expr.symbol).unwrap();
