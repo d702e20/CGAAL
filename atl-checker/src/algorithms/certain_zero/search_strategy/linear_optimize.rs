@@ -20,18 +20,26 @@ use BinaryOpKind::{Addition,
                    Xor,
                    Implication, };
 
+extern crate lru;
+
+use lru::LruCache;
+
+#[derive(Eq, PartialEq, Hash, Clone)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
     pub constant: i32,
     pub operation: BinaryOpKind,
 }
 
+// TODO implement some cache
+// https://stackoverflow.com/questions/57550004/how-do-i-properly-implement-a-caching-struct-in-rust-for-lazily-computed-values
 /// Search strategy using ideas from linear programming to order the order in which to visit next
 /// vertices, based on distance from the vertex to a region that borders the line between true/false
 /// in the formula
 pub struct LinearOptimizeSearch {
     queue: PriorityQueue<Edge<ATLVertex>, i32>,
     game: IntermediateLCGS,
+    cache: LruCache<(Vec<LinearExpression>, usize), i32>,
 }
 
 impl LinearOptimizeSearch {
@@ -39,6 +47,7 @@ impl LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
+            cache: LruCache::new(1000000),
         }
     }
 }
@@ -72,7 +81,7 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 
             // Add edge and distance to queue
             if let Some(dist) = distance {
-                self.queue.push(edge, -dist as i32);
+                self.queue.push(edge, -dist);
             } else {
                 // Todo what should default value be?
                 self.queue.push(edge, 0);
@@ -82,7 +91,7 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 }
 
 impl LinearOptimizeSearch {
-    fn distance_to_acceptance_border(&self, edge: &Edge<ATLVertex>) -> Option<f32> {
+    fn distance_to_acceptance_border(&mut self, edge: &Edge<ATLVertex>) -> Option<i32> {
         match &edge {
             Edge::HYPER(hyperedge) => {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
@@ -94,20 +103,29 @@ impl LinearOptimizeSearch {
                     // Polynomials and such not allowed, returns None in such cases
                     let linear_expressions = self.get_linear_expressions_from_atlvertex(target);
 
+
                     if let Some(expressions) = linear_expressions {
                         // get the State in the target
                         let state = self.game.state_from_index(target.state());
+
+                        // Check if result is in cache
+                        if let Some(cached_result) = self.cache.get(&(expressions.clone(), target.state())) {
+                            return Some(*cached_result);
+                        }
+
                         let mut expr_distance: f32 = 0.0;
                         for linear_expression in &expressions {
                             // Distance from the state, to fulfilling the linear expression
                             let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
                             if let Some(distance) = distance_to_solve_expression {
+                                //self.saved_results.insert((*linear_expression.clone(), state.clone()),distance as i32);
                                 expr_distance = expr_distance + distance;
                             }
                         }
                         // add to vec of results
                         if 0.0 < expr_distance {
-                            distances.push(expr_distance / expressions.len() as f32)
+                            distances.push(expr_distance / expressions.len() as f32);
+                            self.cache.put((expressions.clone(), target.state()), expr_distance as i32);
                         }
                     } else { return None; }
                 }
@@ -118,7 +136,7 @@ impl LinearOptimizeSearch {
                 } else {
                     // Find average distance between targets, and return this
                     let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
-                    Some(avg_distance)
+                    Some(avg_distance as i32)
                 };
             }
             // Same procedure for negation edges, just no for loop for all targets, as we only have one target
@@ -137,7 +155,7 @@ impl LinearOptimizeSearch {
                     }
                     // add to vec of results
                     if 0.0 < expr_distance {
-                        return Some(expr_distance / expressions.len() as f32);
+                        return Some((expr_distance / expressions.len() as f32) as i32);
                     }
                 }
                 None
@@ -154,6 +172,7 @@ impl LinearOptimizeSearch {
             // Make sure it is a Label
             if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
                 // Expression has to be linear
+                // TODO if it is not linear, should it be penalized?
                 if label.condition.is_linear() {
                     // Return the constructed Linear Expression from this condition
                     if let Some(linear_expression) = extracted_linear_expression(label.condition.kind.clone()) {
@@ -419,7 +438,7 @@ mod test {
             operation: BinaryOpKind::LessThan,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         let expected = 0.0;
         assert_eq!(solution.unwrap(), expected);
     }
@@ -440,7 +459,7 @@ mod test {
             operation: BinaryOpKind::Equality,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         let expected = 5.0;
         assert_eq!(solution.unwrap(), expected);
     }
@@ -461,7 +480,7 @@ mod test {
             operation: BinaryOpKind::GreaterThan,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         let expected = 5.0;
         assert_eq!(solution.unwrap(), expected);
     }
@@ -482,7 +501,7 @@ mod test {
             operation: BinaryOpKind::Implication,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), lin_exp);
+        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         assert!(solution.is_none());
     }
 }

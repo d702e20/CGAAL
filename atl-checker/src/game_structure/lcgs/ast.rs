@@ -201,7 +201,7 @@ impl UnaryOpKind {
 }
 
 /// Binary operators
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum BinaryOpKind {
     Addition,
     Multiplication,
