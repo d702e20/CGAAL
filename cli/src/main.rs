@@ -15,10 +15,9 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::args::CommonArgs;
-use atl_checker::algorithms::certain_zero::common::VertexAssignment;
-use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::ATLVertex;
@@ -68,14 +67,23 @@ impl SearchStrategyOption {
         edg: G,
         v0: V,
         worker_count: u64,
-    ) -> VertexAssignment {
+        find_game_strategy: bool,
+    ) -> CertainZeroResult {
         match self {
-            SearchStrategyOption::BFS => {
-                distributed_certain_zero(edg, v0, worker_count, BreadthFirstSearchBuilder)
-            }
-            SearchStrategyOption::DFS => {
-                distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
-            }
+            SearchStrategyOption::BFS => distributed_certain_zero(
+                edg,
+                v0,
+                worker_count,
+                BreadthFirstSearchBuilder,
+                find_game_strategy,
+            ),
+            SearchStrategyOption::DFS => distributed_certain_zero(
+                edg,
+                v0,
+                worker_count,
+                DepthFirstSearchBuilder,
+                find_game_strategy,
+            ),
         }
     }
 }
@@ -143,6 +151,7 @@ fn main_inner() -> Result<(), String> {
             let formula_path = solver_args.value_of("formula").unwrap();
             let formula_format = get_formula_format_from_args(&solver_args)?;
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
+            let game_strategy_path = solver_args.value_of("game_strategy");
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(
@@ -150,11 +159,13 @@ fn main_inner() -> Result<(), String> {
                 v0: ATLVertex,
                 threads: u64,
                 ss: SearchStrategyOption,
+                game_strategy_path: Option<&str>,
             ) where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = ss.distributed_certain_zero(graph, v0, threads);
-                println!("Result: {}", result);
+                let result =
+                    ss.distributed_certain_zero(graph, v0, threads, game_strategy_path.is_some());
+                println!("Result: {}", &result.assignment);
             }
 
             let threads = match solver_args.value_of("threads") {
@@ -177,7 +188,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    check_model(graph, v0, threads, search_strategy);
+                    check_model(graph, v0, threads, search_strategy, game_strategy_path);
                 },
                 |game_structure, formula| {
                     println!(
@@ -190,7 +201,7 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    check_model(graph, v0, threads, search_strategy);
+                    check_model(graph, v0, threads, search_strategy, game_strategy_path);
                 },
             )?
         }
@@ -456,6 +467,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_arg()
                 .add_formula_format_arg()
                 .add_search_strategy_arg()
+                .add_game_strategy_arg()
                 .arg(
                     Arg::with_name("threads")
                         .short("r")

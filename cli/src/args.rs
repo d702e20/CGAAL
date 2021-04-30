@@ -9,6 +9,7 @@ pub(crate) trait CommonArgs {
     fn add_formula_format_arg(self) -> Self;
     fn add_output_arg(self, required: bool) -> Self;
     fn add_search_strategy_arg(self) -> Self;
+    fn add_game_strategy_arg(self) -> Self;
 }
 
 /// Add the common arguments to clap::App
@@ -79,6 +80,17 @@ impl CommonArgs for App<'_, '_> {
                 .long("search-strategy")
                 .env("SEARCH_STRATEGY")
                 .help("The search strategy used {{bfs, dfs}}"),
+        )
+    }
+
+    /// Adds "--find-strategy" as an argument
+    fn add_game_strategy_arg(self) -> Self {
+        self.arg(
+            Arg::with_name("game_strategy")
+                .short("g")
+                .long("find-strategy")
+                .env("FIND_STRATEGY")
+                .help("Compute game strategy along with result and save at given path"),
         )
     }
 }

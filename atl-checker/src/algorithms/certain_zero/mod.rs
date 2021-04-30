@@ -6,6 +6,8 @@ use crate::algorithms::certain_zero::com::{Broker, BrokerManager, ChannelBroker}
 use crate::algorithms::certain_zero::common::{
     Message, MsgToken, Token, VertexAssignment, WorkerId,
 };
+use crate::algorithms::certain_zero::game_strategy::error::Error;
+use crate::algorithms::certain_zero::game_strategy::CertainZeroGameStrategy;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use std::cmp::max;
@@ -20,6 +22,11 @@ pub mod common;
 pub mod game_strategy;
 pub mod search_strategy;
 
+pub struct CertainZeroResult {
+    pub assignment: VertexAssignment,
+    pub game_strategy: Option<Result<CertainZeroGameStrategy, Error>>,
+}
+
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 pub fn distributed_certain_zero<
     G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
@@ -31,7 +38,8 @@ pub fn distributed_certain_zero<
     v0: V,
     worker_count: u64,
     ss_builder: SB,
-) -> VertexAssignment {
+    _find_game_strategy: bool,
+) -> CertainZeroResult {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
     let (mut brokers, manager_broker) = ChannelBroker::new(worker_count);
@@ -55,7 +63,11 @@ pub fn distributed_certain_zero<
         .receive_result()
         .expect("Error receiving final assigment on termination");
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
-    assignment
+
+    CertainZeroResult {
+        assignment,
+        game_strategy: None,
+    }
 }
 
 #[derive(Debug)]
