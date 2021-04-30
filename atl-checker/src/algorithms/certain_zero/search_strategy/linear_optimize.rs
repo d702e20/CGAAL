@@ -5,6 +5,7 @@ use crate::edg::{Edge, ATLVertex};
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategyBuilder, SearchStrategy};
 use minilp::{Problem, OptimizationDirection, ComparisonOp};
 use priority_queue::PriorityQueue;
+use std::collections::HashMap;
 use BinaryOpKind::{Addition,
                    Multiplication,
                    Subtraction,
@@ -20,10 +21,7 @@ use BinaryOpKind::{Addition,
                    Xor,
                    Implication, };
 
-extern crate lru;
-
-use lru::LruCache;
-
+/// Holds extracted linear expressions from the formula in ATLVertex
 #[derive(Eq, PartialEq, Hash, Clone)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
@@ -31,15 +29,14 @@ struct LinearExpression {
     pub operation: BinaryOpKind,
 }
 
-// TODO implement some cache
-// https://stackoverflow.com/questions/57550004/how-do-i-properly-implement-a-caching-struct-in-rust-for-lazily-computed-values
-/// Search strategy using ideas from linear programming to order the order in which to visit next
-/// vertices, based on distance from the vertex to a region that borders the line between true/false
-/// in the formula
+/// Search strategy using ideas from linear programming to order next vertices,
+/// based on distance from the vertex to a region that borders the line between true/false in the formula.
+/// Has a cache to hold previously computed results, and uses a priority queue with
+/// distances as priority (lowest distance has highest priority)
 pub struct LinearOptimizeSearch {
     queue: PriorityQueue<Edge<ATLVertex>, i32>,
     game: IntermediateLCGS,
-    cache: LruCache<(Vec<LinearExpression>, usize), i32>,
+    cache: HashMap<(Vec<LinearExpression>, usize), i32>,
 }
 
 impl LinearOptimizeSearch {
@@ -47,7 +44,7 @@ impl LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
-            cache: LruCache::new(1000000),
+            cache: HashMap::new(),
         }
     }
 }
@@ -64,6 +61,7 @@ impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSe
 }
 
 impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
+    /// Simply returns the edge with highest priority (i.e lowest distance)
     fn next(&mut self) -> Option<Edge<ATLVertex>> {
         let edge = self.queue.pop();
         if edge.is_some() {
@@ -71,19 +69,17 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
         } else { None }
     }
 
+    /// Takes a Vec of Edges holding ATLVertices, and puts these in the queue,
+    /// based on the calculated distance from its state to acceptance region from formula
     fn queue_new_edges(&mut self, edges: Vec<Edge<ATLVertex>>) {
-        // TODO dont do this if formula not linear
-        // For all edges from this vertex,
-        // if edge is a HyperEdge, return average distance from state to accept region between all targets,
-        // if Negation edge, just return the distance from its target
         for edge in edges {
-            let distance = self.distance_to_acceptance_border(&edge);
+            let distance = self.get_distance_in_edge(&edge);
 
             // Add edge and distance to queue
             if let Some(dist) = distance {
-                self.queue.push(edge, -dist);
+                self.queue.push(edge, -dist as i32);
             } else {
-                // Todo what should default value be?
+                // Todo what should default value be, if cannot be calculated?
                 self.queue.push(edge, 0);
             }
         };
@@ -91,43 +87,17 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 }
 
 impl LinearOptimizeSearch {
-    fn distance_to_acceptance_border(&mut self, edge: &Edge<ATLVertex>) -> Option<i32> {
+    /// if edge is a HyperEdge, return average distance from state to accept region between all targets,
+    /// if Negation edge, just return the distance from its target
+    fn get_distance_in_edge(&mut self, edge: &Edge<ATLVertex>) -> Option<f32> {
         match &edge {
             Edge::HYPER(hyperedge) => {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
-                    // TODO only allows very simple expressions, such as x < 5, should allow more
-                    // TODO change edge by changing order of targets in the edge, based on distance
-                    // Find the linear expression from the targets formula, if any
-                    // Polynomials and such not allowed, returns None in such cases
-                    let linear_expressions = self.get_linear_expressions_from_atlvertex(target);
-
-
-                    if let Some(expressions) = linear_expressions {
-                        // get the State in the target
-                        let state = self.game.state_from_index(target.state());
-
-                        // Check if result is in cache
-                        if let Some(cached_result) = self.cache.get(&(expressions.clone(), target.state())) {
-                            return Some(*cached_result);
-                        }
-
-                        let mut expr_distance: f32 = 0.0;
-                        for linear_expression in &expressions {
-                            // Distance from the state, to fulfilling the linear expression
-                            let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
-                            if let Some(distance) = distance_to_solve_expression {
-                                //self.saved_results.insert((*linear_expression.clone(), state.clone()),distance as i32);
-                                expr_distance = expr_distance + distance;
-                            }
-                        }
-                        // add to vec of results
-                        if 0.0 < expr_distance {
-                            distances.push(expr_distance / expressions.len() as f32);
-                            self.cache.put((expressions.clone(), target.state()), expr_distance as i32);
-                        }
-                    } else { return None; }
+                    if let Some(result) = self.get_distance_in_atlvertex(target) {
+                        distances.push(result)
+                    }
                 }
 
                 // If no targets were able to satisfy formula, or something went wrong, return None
@@ -136,31 +106,48 @@ impl LinearOptimizeSearch {
                 } else {
                     // Find average distance between targets, and return this
                     let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
-                    Some(avg_distance as i32)
+                    Some(avg_distance)
                 };
             }
-            // Same procedure for negation edges, just no for loop for all targets, as we only have one target
+            // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
             Edge::NEGATION(edge) => {
-                let linear_expressions = self.get_linear_expressions_from_atlvertex(&edge.target);
-                if let Some(expressions) = linear_expressions {
-                    // get the State in the target
-                    let state = self.game.state_from_index(edge.target.state());
-                    let mut expr_distance: f32 = 0.0;
-                    for linear_expression in &expressions {
-                        // Distance from the state, to fulfilling the linear expression
-                        let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
-                        if let Some(distance) = distance_to_solve_expression {
-                            expr_distance = expr_distance + distance;
-                        }
-                    }
-                    // add to vec of results
-                    if 0.0 < expr_distance {
-                        return Some((expr_distance / expressions.len() as f32) as i32);
-                    }
-                }
-                None
+                self.get_distance_in_atlvertex(&edge.target)
             }
         }
+    }
+
+    /// helper function to iterate through ATLVertices and find distance
+    fn get_distance_in_atlvertex(&mut self, target: &ATLVertex) -> Option<f32> {
+        // TODO change edge by changing order of targets in the edge, based on distance
+        // Find the linear expression from the targets formula, if any
+        let linear_expressions = self.get_linear_expressions_from_atlvertex(target);
+
+        // Polynomials and such not allowed, returns None in such cases
+        if let Some(expressions) = linear_expressions {
+            // get the State in the target
+            let state = self.game.state_from_index(target.state());
+
+            // Check if result is in cache
+            if let Some(cached_result) = self.cache.get(&(expressions.clone(), target.state())) {
+                return Some(*cached_result as f32);
+            }
+
+            let mut expr_distance: f32 = 0.0;
+            for linear_expression in &expressions {
+                // Distance from the state, to fulfilling the linear expression
+                let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
+                if let Some(distance) = distance_to_solve_expression {
+                    expr_distance = expr_distance + distance;
+                }
+            }
+            // If we got results, add to vec of distances and cache
+            // TODO expand cache with more results?
+            if 0.0 < expr_distance {
+                self.cache.insert((expressions.clone(), target.state()), expr_distance as i32);
+                return Some(expr_distance / expressions.len() as f32);
+            }
+        }
+        None
     }
 
     fn get_linear_expressions_from_atlvertex(&self, vertex: &ATLVertex) -> Option<Vec<LinearExpression>> {
@@ -172,25 +159,25 @@ impl LinearOptimizeSearch {
             // Make sure it is a Label
             if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
                 // Expression has to be linear
-                // TODO if it is not linear, should it be penalized?
+                // Todo combine is_linear with extracted_linear_expression, perhaps also combine with this function
                 if label.condition.is_linear() {
                     // Return the constructed Linear Expression from this condition
-                    if let Some(linear_expression) = extracted_linear_expression(label.condition.kind.clone()) {
+                    if let Some(linear_expression) = extract_linear_expression(label.condition.kind.clone()) {
                         linear_expressions.push(linear_expression);
                     }
                 }
             }
         }
-        if { !linear_expressions.is_empty() } {
+        if !linear_expressions.is_empty() {
             Some(linear_expressions)
         } else { None }
     }
 
-
-    fn minimum_distance_1d(&self, state: State, lin_expr: &LinearExpression) -> Option<f32> {
+    /// Applies linear programming to the linear expression given, and finds distance in the state to the solution
+    fn minimum_distance_1d(&self, state: State, linear_expression: &LinearExpression) -> Option<f32> {
         // Get the declaration from the symbol in LinearExpression, has to be a StateVar
         // (i.e a variable in an LCGS program)
-        let symb = self.game.get_decl(&lin_expr.symbol).unwrap();
+        let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
         if let DeclKind::StateVar(var) = &symb.kind {
 
             // The range is used for linear programming
@@ -201,15 +188,15 @@ impl LinearOptimizeSearch {
             let mut problem = Problem::new(OptimizationDirection::Maximize);
             let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
             // TODO support for more operators?
-            match lin_expr.operation {
+            match linear_expression.operation {
                 Addition => { return None; }
                 Multiplication => { return None; }
                 Subtraction => { return None; }
                 Division => { return None; }
-                Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, lin_expr.constant as f64); }
+                Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, linear_expression.constant as f64); }
                 Inequality => { return None; }
-                GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, lin_expr.constant as f64); }
-                LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, lin_expr.constant as f64); }
+                GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, linear_expression.constant as f64); }
+                LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, linear_expression.constant as f64); }
                 GreaterOrEqual => { return None; }
                 LessOrEqual => { return None; }
                 And => { return None; }
@@ -221,7 +208,7 @@ impl LinearOptimizeSearch {
             match problem.solve() {
                 Ok(solution) => {
                     // Now we know that we can in fact solve the linear programming problem, i.e we can satisfy the formula
-                    match state.0.get(&lin_expr.symbol) {
+                    match state.0.get(&linear_expression.symbol) {
                         // The value of our variable in this state we are checking, in "x < 5", this would be "x"
                         Some(&v) => {
                             // Find distance from the current value, to the solution
@@ -238,7 +225,9 @@ impl LinearOptimizeSearch {
     }
 }
 
-fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
+// Todo combine this with expr.is_linear() in a visitor pattern, is currently very MVP and only extracts x < 5 and such,
+// TODO is next in line to be rewritten
+fn extract_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
     match &expr {
         ExprKind::BinaryOp(operator, operand1, operand2) => {
             if let ExprKind::OwnedIdent(id) = &operand1.kind {
@@ -246,7 +235,7 @@ fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                     let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
                     if let ExprKind::Number(number) = operand2.kind {
                         match operator {
-                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition.clone() }) }
+                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition }) }
                             Multiplication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Multiplication }) }
                             Subtraction => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Subtraction }) }
                             Division => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Division }) }
@@ -288,7 +277,12 @@ fn extracted_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                 } else { return None; }
             } else { return None; }
         }
-        _ => return None
+        ExprKind::Number(_) => { None }
+        ExprKind::OwnedIdent(_) => { None }
+        ExprKind::UnaryOp(_, _) => { None }
+        ExprKind::TernaryIf(_, _, _) => { None }
+        ExprKind::Min(_) => { None }
+        ExprKind::Max(_) => { None }
     }
 }
 

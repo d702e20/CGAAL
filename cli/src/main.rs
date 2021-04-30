@@ -26,11 +26,10 @@ use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
-use atl_checker::game_structure::{EagerGameStructure, GameStructure};
+use atl_checker::game_structure::{EagerGameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
-use atl_checker::algorithms::certain_zero::common::VertexAssignment::UNDECIDED;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
