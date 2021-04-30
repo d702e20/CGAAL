@@ -49,7 +49,7 @@ impl<V: Vertex> DependencyHeuristicSearch<V> {
         let dependency = self
             .dependencies
             .entry(edge.source().clone())
-            .or_insert(DependencyData::new());
+            .or_insert_with(DependencyData::new);
         dependency.queue.push_back(edge.clone());
         self.priority_queue
             .push(edge.source().clone(), dependency.rank);
@@ -79,7 +79,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
                         let dependency = self
                             .dependencies
                             .entry(target.clone())
-                            .or_insert(DependencyData::new());
+                            .or_insert_with(DependencyData::new);
                         dependency.rank += 1;
                     }
                 }
@@ -87,7 +87,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
                     let dependency = self
                         .dependencies
                         .entry(edge.target.clone())
-                        .or_insert(DependencyData::new());
+                        .or_insert_with(DependencyData::new);
                     dependency.rank += 1;
                 }
             }
@@ -110,7 +110,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
         let dependency = self
             .dependencies
             .entry(vertex.clone())
-            .or_insert(DependencyData::new());
+            .or_insert_with(DependencyData::new);
         dependency.rank += 1;
     }
 }
