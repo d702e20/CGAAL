@@ -12,7 +12,7 @@ authors = ["d702e20 <d702e20@cs.aau.dk>",
 edition = "2018"
 
 [features]
-default = ["graph-printer"]
+default = ["graph-printer", "use-counts"]
 graph-printer = []
 use-counts = []
 
