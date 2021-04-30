@@ -39,15 +39,6 @@ macro_rules! bench_json {
     };
 }
 
-/// Reads a formula in JSON format from a file. Exits upon error.
-fn load_formula(path: &str) -> Arc<Phi> {
-    let mut file = File::open(path).expect(&format!("could not open formula path: {}", path));
-    let mut formula = String::new();
-    file.read_to_string(&mut formula)
-        .expect("could not read read formula into string");
-    serde_json::from_str(formula.as_str()).expect("could not parse formula json")
-}
-
 macro_rules! bench_lcgs {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
@@ -59,7 +50,9 @@ macro_rules! bench_lcgs {
                         IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                     let graph = ATLDependencyGraph { game_structure };
 
-                    let formula = load_formula(concat!(model_path_prefix!(), $formula));
+                    let formula =
+                        serde_json::from_str(include_str!(concat!(model_path_prefix!(), $formula)))
+                            .expect(&format!("Could not read formula {}", $formula));
 
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
@@ -98,7 +91,11 @@ macro_rules! bench_lcgs_threads {
                                 IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                             let graph = ATLDependencyGraph { game_structure };
 
-                            let formula = load_formula(concat!(model_path_prefix!(), $formula));
+                            let formula = serde_json::from_str(include_str!(concat!(
+                                model_path_prefix!(),
+                                $formula
+                            )))
+                            .expect(&format!("Could not read formula {}", $formula));
 
                             let v0 = ATLVertex::FULL {
                                 state: graph.game_structure.initial_state_index(),
