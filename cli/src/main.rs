@@ -38,22 +38,22 @@ const GIT_VERSION: &str = git_version!(fallback = "unknown");
 /// The formula types that the system supports
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum FormulaFormat {
-    JSON,
-    ATL,
+    Json,
+    Atl,
 }
 
 /// The model types that the system supports
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum ModelType {
-    JSON,
-    LCGS,
+    Json,
+    Lcgs,
 }
 
 /// Valid search strategies options
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum SearchStrategyOption {
-    BFS,
-    DFS,
+    Bfs,
+    Dfs,
 }
 
 impl SearchStrategyOption {
@@ -68,10 +68,10 @@ impl SearchStrategyOption {
         worker_count: u64,
     ) -> VertexAssignment {
         match self {
-            SearchStrategyOption::BFS => {
+            SearchStrategyOption::Bfs => {
                 distributed_certain_zero(edg, v0, worker_count, BreadthFirstSearchBuilder)
             }
-            SearchStrategyOption::DFS => {
+            SearchStrategyOption::Dfs => {
                 distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
             }
         }
@@ -99,7 +99,7 @@ fn main_inner() -> Result<(), String> {
             let input_model_path = index_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&index_args)?;
 
-            if model_type != ModelType::LCGS {
+            if model_type != ModelType::Lcgs {
                 return Err("The 'index' command is only valid for LCGS models".to_string());
             }
 
@@ -319,11 +319,11 @@ fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_
     });
 
     match format {
-        FormulaFormat::JSON => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
+        FormulaFormat::Json => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
-        FormulaFormat::ATL => {
+        FormulaFormat::Atl => {
             let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
@@ -337,15 +337,15 @@ fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_
 /// --model_type argument or inferring it from the model's path extension.  
 fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     match args.value_of("model_type") {
-        Some("lcgs") => Ok(ModelType::LCGS),
-        Some("json") => Ok(ModelType::JSON),
+        Some("lcgs") => Ok(ModelType::Lcgs),
+        Some("json") => Ok(ModelType::Json),
         None => {
             // Infer model type from file extension
             let model_path = args.value_of("input_model").unwrap();
             if model_path.ends_with(".lcgs") {
-                Ok(ModelType::LCGS)
+                Ok(ModelType::Lcgs)
             } else if model_path.ends_with(".json") {
-                Ok(ModelType::JSON)
+                Ok(ModelType::Json)
             } else {
                 Err("Cannot infer model type from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
             }
@@ -358,15 +358,15 @@ fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
 /// --formula_format argument. If none is given, we try to infer it from the file extension
 fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, String> {
     match args.value_of("formula_format") {
-        Some("json") => Ok(FormulaFormat::JSON),
-        Some("atl") => Ok(FormulaFormat::ATL),
+        Some("json") => Ok(FormulaFormat::Json),
+        Some("atl") => Ok(FormulaFormat::Atl),
         None => {
             // Infer format from file extension
             let formula_path = args.value_of("formula").unwrap();
             if formula_path.ends_with(".atl") {
-                Ok(FormulaFormat::ATL)
+                Ok(FormulaFormat::Atl)
             } else if formula_path.ends_with(".json") {
-                Ok(FormulaFormat::JSON)
+                Ok(FormulaFormat::Json)
             } else {
                 Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
             }
@@ -378,11 +378,11 @@ fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, Stri
 /// Determine the search strategy by reading the --search-strategy argument. Default is BFS.
 fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOption, String> {
     match args.value_of("search_strategy") {
-        Some("bfs") => Ok(SearchStrategyOption::BFS),
-        Some("dfs") => Ok(SearchStrategyOption::DFS),
+        Some("bfs") => Ok(SearchStrategyOption::Bfs),
+        Some("dfs") => Ok(SearchStrategyOption::Dfs),
         Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" or \"dfs\" [default is \"bfs\"]", other)),
         // Default value
-        None => Ok(SearchStrategyOption::BFS)
+        None => Ok(SearchStrategyOption::Bfs)
     }
 }
 
@@ -409,7 +409,7 @@ where
 
     // Depending on which model_type is specified, use the relevant parsing logic
     match model_type {
-        ModelType::JSON => {
+        ModelType::Json => {
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
@@ -417,7 +417,7 @@ where
 
             Ok(handle_json(game_structure, phi))
         }
-        ModelType::LCGS => {
+        ModelType::Lcgs => {
             let lcgs = parse_lcgs(&content)
                 .map_err(|err| format!("Failed to parse the LCGS program.\n{}", err))?;
 

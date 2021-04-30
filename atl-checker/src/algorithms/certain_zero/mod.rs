@@ -186,7 +186,7 @@ impl<
             deepest_component: max(msg.deepest_component, self.get_depth_of_deepest_component()),
         };
 
-        self.broker.send(successor, Message::TOKEN(token))
+        self.broker.send(successor, Message::Token(token))
     }
 
     pub fn run(&mut self) {
@@ -230,7 +230,7 @@ impl<
             match self.broker.receive() {
                 Ok(opt_msg) => match opt_msg {
                     Some(msg) => match msg {
-                        Message::TERMINATE => {
+                        Message::Terminate => {
                             emit_count!("worker received_termination");
 
                             self.running = false;
@@ -273,7 +273,7 @@ impl<
                 } => {
                     trace!("Late termination");
                     emit_count!("worker late_termination");
-                    self.broker.return_result(VertexAssignment::FALSE)
+                    self.broker.return_result(VertexAssignment::False)
                 }
                 // No one has seen safe tasks, but some workers have unsafe negation edges.
                 MsgToken {
@@ -322,7 +322,7 @@ impl<
         emit_count!("worker initiate_token_circulation");
         self.broker.send(
             (self.id + 1) % self.worker_count,
-            Message::TOKEN(MsgToken {
+            Message::Token(MsgToken {
                 token,
                 deepest_component: self.get_depth_of_deepest_component(),
             }),
@@ -338,17 +338,17 @@ impl<
             let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
             match msg {
                 // Alg 1, Line 8
-                Message::REQUEST {
+                Message::Request {
                     vertex,
                     depth,
                     worker_id,
                 } => self.process_request(&vertex, worker_id, depth),
                 // Alg 1, Line 9
-                Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment),
-                Message::RELEASE(depth) => {
+                Message::Answer { vertex, assignment } => self.process_answer(&vertex, assignment),
+                Message::Release(depth) => {
                     self.release_negations(depth);
                 }
-                Message::TOKEN(msg_token) => {
+                Message::Token(msg_token) => {
                     self.handle_incoming_token(msg_token);
                 }
                 _ => unreachable!(),
@@ -420,7 +420,7 @@ impl<
         emit_count!("worker explore_vertex");
         // Line 2
         self.assignment
-            .insert(vertex.clone(), VertexAssignment::UNDECIDED);
+            .insert(vertex.clone(), VertexAssignment::Undecided);
 
         // Line 3
         if self.is_owner(vertex) {
@@ -428,7 +428,7 @@ impl<
             if successors.is_empty() {
                 // Line 4
                 // The vertex has no outgoing edges, so we assign it false
-                self.final_assign(vertex, VertexAssignment::FALSE);
+                self.final_assign(vertex, VertexAssignment::False);
             } else {
                 // Line 5
                 // Queue the new edges
@@ -439,7 +439,7 @@ impl<
             // The vertex is owned by another worker, so we send a request
             self.broker.send(
                 self.vertex_owner(vertex),
-                Message::REQUEST {
+                Message::Request {
                     vertex: vertex.clone(),
                     depth: *self.depth.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
@@ -458,12 +458,12 @@ impl<
         let all_final = edge.targets.iter().all(|target| {
             self.assignment
                 .get(target)
-                .map_or(false, |f| matches!(f, VertexAssignment::TRUE))
+                .map_or(false, |f| matches!(f, VertexAssignment::True))
         });
 
         // Line 3
         if all_final {
-            self.final_assign(&edge.source, VertexAssignment::TRUE);
+            self.final_assign(&edge.source, VertexAssignment::True);
             return;
         }
 
@@ -471,7 +471,7 @@ impl<
         let any_target = edge.targets.iter().any(|target| {
             self.assignment
                 .get(target)
-                .map_or(false, |f| matches!(f, VertexAssignment::FALSE))
+                .map_or(false, |f| matches!(f, VertexAssignment::False))
         });
 
         // Line 4
@@ -484,7 +484,7 @@ impl<
         for target in &edge.targets {
             // Line 5 condition
             match self.assignment.get(&target) {
-                Some(VertexAssignment::UNDECIDED) => {
+                Some(VertexAssignment::Undecided) => {
                     // UNDECIDED
                     // Line 7
                     self.add_depend(target, Edge::Hyper(edge.clone()));
@@ -543,26 +543,26 @@ impl<
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => {
+                VertexAssignment::Undecided => {
                     if self.only_unsafe_left {
                         // This is a released negation edge
-                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing released negation edge");
-                        self.final_assign(&edge.source, VertexAssignment::TRUE)
+                        trace!(?edge, assignment = ?VertexAssignment::Undecided, "processing released negation edge");
+                        self.final_assign(&edge.source, VertexAssignment::True)
                     } else {
                         // We haven't released any negation edges yet, so the undecided assignment
                         // must be from another branch of the EDG. Hence, we add this edge as an
                         // unsafe dependency
-                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
+                        trace!(?edge, assignment = ?VertexAssignment::Undecided, "processing negation edge");
                         self.add_depend(&edge.target, Edge::Negation(edge.clone()));
                         self.queue_unsafe_negation(edge.clone())
                     }
                 }
-                VertexAssignment::FALSE => {
-                    trace!(?edge, assignment = ?VertexAssignment::FALSE, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                VertexAssignment::False => {
+                    trace!(?edge, assignment = ?VertexAssignment::False, "processing negation edge");
+                    self.final_assign(&edge.source, VertexAssignment::True)
                 }
-                VertexAssignment::TRUE => {
-                    trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
+                VertexAssignment::True => {
+                    trace!(?edge, assignment = ?VertexAssignment::True, "processing negation edge");
                     self.delete_edge(Edge::Negation(edge))
                 }
             },
@@ -610,7 +610,7 @@ impl<
             if assignment.is_certain() {
                 self.broker.send(
                     requester,
-                    Message::ANSWER {
+                    Message::Answer {
                         vertex: vertex.clone(),
                         assignment: *assignment,
                     },
@@ -671,7 +671,7 @@ impl<
                 for worker_id in interested {
                     self.broker.send(
                         *worker_id,
-                        Message::ANSWER {
+                        Message::Answer {
                             vertex: vertex.clone(),
                             assignment,
                         },
@@ -704,10 +704,10 @@ impl<
                 if successors.is_empty() {
                     trace!(
                         ?source,
-                        assignment = ?VertexAssignment::FALSE,
+                        assignment = ?VertexAssignment::False,
                         "no more successors, final assignment is FALSE"
                     );
-                    self.final_assign(source, VertexAssignment::FALSE);
+                    self.final_assign(source, VertexAssignment::False);
                 }
             }
         }
@@ -828,7 +828,7 @@ mod test {
         simple_edg![
             A => -> {};
         ];
-        edg_assert!(A, TRUE);
+        edg_assert!(A, True);
     }
 
     #[test]
@@ -836,7 +836,7 @@ mod test {
         simple_edg![
             A => ;
         ];
-        edg_assert!(A, FALSE);
+        edg_assert!(A, False);
     }
 
     #[test]
@@ -847,10 +847,10 @@ mod test {
             C => .> D;
             D => -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -862,11 +862,11 @@ mod test {
             D => -> {} -> {C};
             E => .> D;
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-        edg_assert!(E, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
+        edg_assert!(E, False);
     }
 
     #[test]
@@ -882,15 +882,15 @@ mod test {
             H => -> {I};
             I => ;
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, TRUE);
-        edg_assert!(G, FALSE);
-        edg_assert!(H, FALSE);
-        edg_assert!(I, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
+        edg_assert!(E, True);
+        edg_assert!(F, True);
+        edg_assert!(G, False);
+        edg_assert!(H, False);
+        edg_assert!(I, False);
     }
 
     #[test]
@@ -901,10 +901,10 @@ mod test {
             C => ;
             D => -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, False);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -914,9 +914,9 @@ mod test {
             B => -> {C};
             C => -> {B};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
+        edg_assert!(A, False);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
     }
 
     #[test]
@@ -926,9 +926,9 @@ mod test {
             B => ;
             C => ;
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
+        edg_assert!(A, False);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
     }
 
     #[test]
@@ -939,10 +939,10 @@ mod test {
             C => -> {D};
             D => -> {};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, False);
+        edg_assert!(B, False);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -953,10 +953,10 @@ mod test {
             C => -> {B};
             D => -> {C} -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -965,8 +965,8 @@ mod test {
             A => .> B;
             B => -> {};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, TRUE);
+        edg_assert!(A, False);
+        edg_assert!(B, True);
     }
 
     #[test]
@@ -978,11 +978,11 @@ mod test {
             D => -> {E};
             E => -> {D};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, FALSE);
+        edg_assert!(A, False);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, False);
+        edg_assert!(E, False);
     }
 
     #[test]
@@ -993,10 +993,10 @@ mod test {
             C => -> {D};
             D => ;
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, False);
+        edg_assert!(D, False);
     }
 
     #[test]
@@ -1005,8 +1005,8 @@ mod test {
             A => .> B;
             B => -> {B};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
     }
 
     #[test]
@@ -1019,12 +1019,12 @@ mod test {
             E => .> F;
             F => -> {F};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
+        edg_assert!(C, True);
+        edg_assert!(D, False);
+        edg_assert!(E, True);
+        edg_assert!(F, False);
     }
 
     #[test]
@@ -1044,12 +1044,12 @@ mod test {
             J => -> {K};
             K => -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, TRUE);
-        edg_assert!(G, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
+        edg_assert!(D, False);
+        edg_assert!(E, True);
+        edg_assert!(F, True);
+        edg_assert!(G, True);
     }
 }
