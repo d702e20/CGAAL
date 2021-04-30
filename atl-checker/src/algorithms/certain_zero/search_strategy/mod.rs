@@ -28,7 +28,7 @@ pub trait SearchStrategy<V: Vertex> {
     /// Modify the edges to benefit the search strategy. For instance, this could be a
     /// rearrangement of the targets of the edges which results in better performance.
     fn modify(&mut self, edge: Vec<Edge<V>>) -> Vec<Edge<V>> {
-        return edge;
+        edge
     }
 }
 
