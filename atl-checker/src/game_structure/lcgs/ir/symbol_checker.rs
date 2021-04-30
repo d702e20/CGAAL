@@ -243,7 +243,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the min of that
     /// Then returns a new checked Vec of Expr to find Min of.
-    #[allow(clippy::unnecessary_unwrap)]
+    #[allow(clippy::unnecessary_wraps)]
     fn check_min(&self, ls: &[Expr]) -> Result<Expr, SymbolError> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
@@ -278,7 +278,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the max of that
     /// Then returns a new checked Vec of Expr to find Max of.
-    #[allow(clippy::unnecessary_unwrap)]
+    #[allow(clippy::unnecessary_wraps)]
     fn check_max(&self, ls: &[Expr]) -> Result<Expr, SymbolError> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
