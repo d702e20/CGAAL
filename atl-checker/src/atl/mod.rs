@@ -119,7 +119,7 @@ impl Phi {
     pub fn has_nested_path_qualifiers(&self) -> bool {
         let path_qualifier_count = self.path_qualifier_count();
         return path_qualifier_count > 1
-            || (path_qualifier_count == 1 && !(formula.is_enforce() || formula.is_despite()));
+            || (path_qualifier_count == 1 && !(self.is_enforce() || self.is_despite()));
     }
 
     /// Returns the players of this formula variant, if it contains a path-qualifier.
