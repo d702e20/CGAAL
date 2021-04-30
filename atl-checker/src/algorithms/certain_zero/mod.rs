@@ -17,6 +17,7 @@ use tracing::{span, trace, Level};
 
 pub mod com;
 pub mod common;
+pub mod game_strategy;
 pub mod search_strategy;
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
