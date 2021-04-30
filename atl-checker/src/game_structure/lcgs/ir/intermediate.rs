@@ -462,10 +462,10 @@ impl GameStructure for IntermediateLcgs {
             let moves = self.available_actions(&state, p_index);
             debug_assert!(
                 choices[p_index] < moves.len(),
-                format!(
-                    "Unknown action {} chosen for player {} in state {:?}",
-                    choices[p_index], p_index, state
-                )
+                "Unknown action {} chosen for player {} in state {:?}",
+                choices[p_index],
+                p_index,
+                state
             );
             for (a_index, a_symb_id) in moves.iter().enumerate() {
                 let val = if choices[p_index] == a_index { 1 } else { 0 };
