@@ -26,7 +26,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
             ATLVertex::FULL { state, formula } => match formula.as_ref() {
                 Phi::True => {
                     // Hyper edge with no targets
-                    vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: None,
                         targets: vec![],
@@ -39,7 +39,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                 Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(prop) {
-                        vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![],
@@ -49,7 +49,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     }
                 }
                 Phi::Not(phi) => {
-                    vec![AnnotatedEdge::NEGATION(AnnotatedNegationEdge {
+                    vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
                         annotation: None,
                         target: ATLVertex::FULL {
@@ -60,7 +60,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                 }
                 Phi::Or(left, right) => {
                     vec![
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
@@ -71,7 +71,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                 None,
                             )],
                         }),
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
@@ -85,7 +85,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     ]
                 }
                 Phi::And(left, right) => {
-                    vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: None,
                         targets: vec![
@@ -122,7 +122,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                             })
                             .collect();
 
-                    vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: None,
                         targets,
@@ -144,7 +144,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                         )
                                     })
                                     .collect();
-                            AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                            AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                                 source: vert.clone(),
                                 annotation: Some(pmove),
                                 targets,
@@ -191,7 +191,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
@@ -203,7 +203,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                             )],
                         }),
                         // Other branches where pre is satisfied
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets,
@@ -219,7 +219,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
@@ -262,7 +262,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                     );
                                 let targets: Vec<(ATLVertex, Option<PartialMove>)> =
                                     std::iter::once(pre.clone()).chain(delta).collect();
-                                AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                                AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                                     source: vert.clone(),
                                     annotation: Some(pmove),
                                     targets,
@@ -298,7 +298,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
@@ -309,7 +309,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                 None,
                             )],
                         }),
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets,
@@ -324,7 +324,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
@@ -355,7 +355,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                             )
                                         })
                                         .collect();
-                                AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                                AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                                     source: vert.clone(),
                                     annotation: Some(pmove),
                                     targets,
@@ -370,7 +370,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     players,
                     formula: subformula,
                 } => {
-                    vec![AnnotatedEdge::NEGATION(AnnotatedNegationEdge {
+                    vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
                         annotation: None,
                         target: ATLVertex::FULL {
@@ -388,7 +388,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     players,
                     formula: subformula,
                 } => {
-                    vec![AnnotatedEdge::NEGATION(AnnotatedNegationEdge {
+                    vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
                         annotation: None,
                         target: ATLVertex::FULL {
@@ -416,7 +416,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         },
                         None,
                     )];
-                    AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: Some(mov),
                         targets,

@@ -44,7 +44,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                 let edges = graph.annotated_succ(vertex);
                 // Find the first hyper-edge where all targets are true
                 for edge in edges {
-                    if let AnnotatedEdge::HYPER(edge) = edge {
+                    if let AnnotatedEdge::Hyper(edge) = edge {
                         let all_targets_true = edge.targets.iter().all(|(t, _)| {
                             matches!(assignments.get(t), Some(VertexAssignment::TRUE))
                         });
@@ -61,7 +61,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                 let edges = graph.annotated_succ(vertex);
                 // Find the first hyper-edge where all targets are true
                 for edge in edges {
-                    if let AnnotatedEdge::HYPER(edge) = edge {
+                    if let AnnotatedEdge::Hyper(edge) = edge {
                         let all_targets_true = edge.targets.iter().all(|(t, _)| {
                             matches!(assignments.get(t), Some(VertexAssignment::TRUE))
                         });
@@ -91,7 +91,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
 
                 // Check if subformula is true in this state. We can do this by checking if the
                 // target of the first edge is true
-                if let Some(AnnotatedEdge::HYPER(edge)) = edges_drain.next() {
+                if let Some(AnnotatedEdge::Hyper(edge)) = edges_drain.next() {
                     let all_targets_true = edge
                         .targets
                         .iter()
@@ -105,7 +105,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
 
                 // Find the first hyper-edge where all targets are true
                 for edge in edges_drain {
-                    if let AnnotatedEdge::HYPER(edge) = edge {
+                    if let AnnotatedEdge::Hyper(edge) = edge {
                         let all_targets_true = edge.targets.iter().all(|(t, _)| {
                             matches!(assignments.get(t), Some(VertexAssignment::TRUE))
                         });
