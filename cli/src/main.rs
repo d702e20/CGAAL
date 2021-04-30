@@ -30,6 +30,7 @@ use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use atl_checker::algorithms::certain_zero::common::VertexAssignment::UNDECIDED;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -55,6 +56,7 @@ enum ModelType {
 enum SearchStrategyOption {
     BFS,
     DFS,
+    LOS,
 }
 
 impl SearchStrategyOption {
@@ -75,6 +77,7 @@ impl SearchStrategyOption {
             SearchStrategyOption::DFS => {
                 distributed_certain_zero(edg, v0, worker_count, DepthFirstSearchBuilder)
             }
+            SearchStrategyOption::LOS => panic!("Linear optimization cannot be called generically")
         }
     }
 }
@@ -143,19 +146,6 @@ fn main_inner() -> Result<(), String> {
             let formula_format = get_formula_format_from_args(&solver_args)?;
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
 
-            // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
-            fn check_model<G>(
-                graph: ATLDependencyGraph<G>,
-                v0: ATLVertex,
-                threads: u64,
-                ss: SearchStrategyOption,
-            ) where
-                G: GameStructure + Send + Sync + Clone + Debug + 'static,
-            {
-                let result = ss.distributed_certain_zero(graph, v0, threads);
-                println!("Result: {}", result);
-            }
-
             let threads = match solver_args.value_of("threads") {
                 None => num_cpus::get() as u64,
                 Some(t_arg) => t_arg.parse().unwrap(),
@@ -176,7 +166,16 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    check_model(graph, v0, threads, search_strategy);
+                    let result = match search_strategy {
+                        SearchStrategyOption::LOS => {
+                            return Err("Linear optimization search is not supported for JSON models")
+                        }
+                        _ => {
+                            search_strategy.distributed_certain_zero(graph, v0, threads)
+                        }
+                    };
+                    println!("Result: {}", result);
+                    Ok(())
                 },
                 |game_structure, formula| {
                     println!(
@@ -189,14 +188,19 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    // Todo
-                    let copy: IntermediateLCGS = graph.game_structure.clone();
-                    let result =
-                        distributed_certain_zero(graph, v0, threads, LinearOptimizeSearchBuilder {game: copy});
+                    let result = match search_strategy {
+                        SearchStrategyOption::LOS => {
+                            let copy = graph.game_structure.clone();
+                            distributed_certain_zero(graph, v0, threads, LinearOptimizeSearchBuilder { game: copy })
+                        }
+                        _ => {
+                            search_strategy.distributed_certain_zero(graph, v0, threads)
+                        }
+                    };
                     println!("Result: {}", result);
-                    //check_model(graph, v0, threads, search_strategy);
+                    Ok(())
                 },
-            )?
+            )??
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -376,7 +380,7 @@ fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, Stri
             } else {
                 Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
             }
-        },
+        }
         Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
@@ -386,7 +390,8 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
     match args.value_of("search_strategy") {
         Some("bfs") => Ok(SearchStrategyOption::BFS),
         Some("dfs") => Ok(SearchStrategyOption::DFS),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" or \"dfs\" [default is \"bfs\"]", other)),
+        Some("los") => Ok(SearchStrategyOption::LOS),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\", \"dfs\" or \"los\" [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::BFS)
     }
