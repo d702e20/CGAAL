@@ -64,6 +64,22 @@ pub fn distributed_certain_zero<
         .expect("Error receiving final assigment on termination");
     trace!(v0_assignment = ?assignment, "Found assignment of v0");
 
+    // All assignments is received and collected to a single hashmap
+    let mut combined = HashMap::<V, VertexAssignment>::new();
+    for _ in 0..worker_count {
+        let assignments = manager_broker
+            .receive_assignment()
+            .expect("Error receiving the assignment table");
+
+        for (vertex, v) in assignments {
+            let new_ass = match combined.get(&vertex) {
+                Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
+                None => v,
+            };
+            combined.insert(vertex, new_ass);
+        }
+    }
+
     CertainZeroResult {
         assignment,
         game_strategy: None,
@@ -245,7 +261,8 @@ impl<
                     Some(msg) => match msg {
                         Message::TERMINATE => {
                             emit_count!("worker received_termination");
-
+                            // Send assignments to main thread for collecting
+                            self.broker.return_assignments(self.assignment.clone());
                             self.running = false;
                         }
                         _ => {
