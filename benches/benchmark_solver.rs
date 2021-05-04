@@ -1,5 +1,6 @@
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::atl::Phi;
 use atl_checker::edg::atlcgsedg::{ATLDependencyGraph, ATLVertex};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
@@ -63,7 +64,7 @@ macro_rules! bench_lcgs {
                         graph,
                         v0,
                         num_cpus::get() as u64,
-                        BreadthFirstSearchBuilder,
+                        DependencyHeuristicSearchBuilder,
                         true,
                     );
                 });
@@ -107,7 +108,7 @@ macro_rules! bench_lcgs_threads {
                                 graph,
                                 v0,
                                 core_count,
-                                BreadthFirstSearchBuilder,
+                                DependencyHeuristicSearchBuilder,
                                 true,
                             );
                         });
