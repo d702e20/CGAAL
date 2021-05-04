@@ -26,6 +26,12 @@ pub trait SearchStrategy<V: Vertex> {
         self.queue_new_edges(vec![edge])
     }
 
+    /// Modify the edges to benefit the search strategy. For instance, this could be a
+    /// rearrangement of the targets of the edges which results in better performance.
+    fn modify(&mut self, edge: Vec<Edge<V>>) -> Vec<Edge<V>> {
+        edge
+    }
+
     /// Let the strategy know that another worker has showed interest in the given vertex
     fn on_interest(&mut self, _vertex: &V) {}
 }
