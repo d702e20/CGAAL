@@ -30,6 +30,7 @@ pub fn distributed_certain_zero<
     v0: V,
     worker_count: u64,
     ss_builder: SB,
+    prioritise_back_propagation: bool,
 ) -> VertexAssignment {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
@@ -43,6 +44,7 @@ pub fn distributed_certain_zero<
             brokers.pop().unwrap(),
             edg.clone(),
             ss_builder.build(),
+            prioritise_back_propagation,
         );
         thread::spawn(move || {
             trace!("worker thread start");
@@ -78,8 +80,14 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S:
     depth: HashMap<V, u32>,
     msg_queue: VecDeque<Message<V>>,
     unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
+    /// Queue of edges where a target recently received a certain assignment. If `prioritise_back_propagation`
+    /// is false, the edges are instead queued using the given search strategy.
+    back_propagation_queue: VecDeque<Edge<V>>,
     /// Search strategy. Defines in which order edges are processed
     strategy: S,
+    /// If this is false, the `back_propagation_queue` is not used and back-propagation is instead
+    /// handled by the search strategy
+    prioritise_back_propagation: bool,
     /// Used to communicate with other workers
     broker: B,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
@@ -122,7 +130,15 @@ impl<
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G, strategy: S) -> Self {
+    pub fn new(
+        id: WorkerId,
+        worker_count: u64,
+        v0: V,
+        broker: B,
+        edg: G,
+        strategy: S,
+        prioritise_back_propagation: bool,
+    ) -> Self {
         trace!(
             worker_id = id,
             worker_count,
@@ -140,7 +156,9 @@ impl<
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_queue: VecDeque::new(),
             unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            back_propagation_queue: VecDeque::new(),
             strategy,
+            prioritise_back_propagation,
             depth: HashMap::<V, u32>::new(),
             broker,
             successors: HashMap::<V, HashSet<Edge<V>>>::new(),
@@ -334,7 +352,11 @@ impl<
 
     /// Process the next task. This returns true if any task was processed.
     fn process_task(&mut self) -> bool {
-        if let Some(msg) = self.msg_queue.pop_front() {
+        if let Some(edge) = self.back_propagation_queue.pop_front() {
+            // This case is only relevant when we are prioritising back-progation
+            self.process_edge(edge);
+            return true;
+        } else if let Some(msg) = self.msg_queue.pop_front() {
             let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
             match msg {
                 // Alg 1, Line 8
@@ -355,18 +377,23 @@ impl<
             }
             return true;
         } else if let Some(edge) = self.strategy.next() {
-            match edge {
-                Edge::HYPER(e) => {
-                    self.process_hyper_edge(e);
-                }
-                Edge::NEGATION(e) => {
-                    self.process_negation_edge(e);
-                }
-            }
+            self.process_edge(edge);
             return true;
         }
         // No tasks
         false
+    }
+
+    /// Process an edge by delegating depending on edge type
+    fn process_edge(&mut self, edge: Edge<V>) {
+        match edge {
+            Edge::HYPER(e) => {
+                self.process_hyper_edge(e);
+            }
+            Edge::NEGATION(e) => {
+                self.process_negation_edge(e);
+            }
+        }
     }
 
     /// Releasing the edges from the unsafe queue to the safe negation
@@ -696,7 +723,11 @@ impl<
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
                     trace!(?edge, "requeueing edge because target got assignment");
-                    self.strategy.queue_back_propagation(edge)
+                    if self.prioritise_back_propagation {
+                        self.back_propagation_queue.push_back(edge)
+                    } else {
+                        self.strategy.queue_back_propagation(edge)
+                    }
                 }
             }
         }
@@ -806,7 +837,7 @@ mod test {
         // With custom names and worker count
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
             assert_eq!(
-                crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder),
+                crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder, true),
                 crate::algorithms::certain_zero::common::VertexAssignment::$assign,
                 "Vertex {}",
                 stringify!($v)
