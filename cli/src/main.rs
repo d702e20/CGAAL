@@ -18,6 +18,7 @@ use crate::args::CommonArgs;
 use atl_checker::algorithms::certain_zero::common::VertexAssignment;
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
@@ -55,6 +56,7 @@ enum ModelType {
 enum SearchStrategyOption {
     BFS,
     DFS,
+    DHS,
 }
 
 impl SearchStrategyOption {
@@ -82,6 +84,13 @@ impl SearchStrategyOption {
                 v0,
                 worker_count,
                 DepthFirstSearchBuilder,
+                prioritise_back_propagation,
+            ),
+            SearchStrategyOption::DHS => distributed_certain_zero(
+                edg,
+                v0,
+                worker_count,
+                DependencyHeuristicSearchBuilder,
                 prioritise_back_propagation,
             ),
         }
@@ -406,7 +415,8 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
     match args.value_of("search_strategy") {
         Some("bfs") => Ok(SearchStrategyOption::BFS),
         Some("dfs") => Ok(SearchStrategyOption::DFS),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\" or \"dfs\" [default is \"bfs\"]", other)),
+        Some("dhs") => Ok(SearchStrategyOption::DHS),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies: \"bfs\", \"dfs\", \"dhs\" [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::BFS)
     }

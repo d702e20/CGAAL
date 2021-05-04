@@ -1,6 +1,7 @@
 use crate::edg::{Edge, NegationEdge, Vertex};
 
 pub mod bfs;
+pub mod dependency_heuristic;
 pub mod dfs;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
@@ -30,6 +31,9 @@ pub trait SearchStrategy<V: Vertex> {
     fn modify(&mut self, edge: Vec<Edge<V>>) -> Vec<Edge<V>> {
         edge
     }
+
+    /// Let the strategy know that another worker has showed interest in the given vertex
+    fn on_interest(&mut self, _vertex: &V) {}
 }
 
 /// A SearchStrategyBuilder is able to create an instance of a SearchStrategy.

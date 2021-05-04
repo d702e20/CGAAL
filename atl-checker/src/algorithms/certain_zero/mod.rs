@@ -427,6 +427,7 @@ impl<
     /// When the certain assignment of the vertex is found, the worker will be notified.
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         emit_count!("worker mark_interest");
+        self.strategy.on_interest(vertex);
         if let Some(set) = self.interests.get_mut(vertex) {
             trace!(is_initialized = true, ?vertex, "mark vertex interest");
             set.insert(worker);
@@ -541,31 +542,33 @@ impl<
         }
     }
 
-    /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
-        emit_count!("worker add_dependency");
-        // Update the depth
-        let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
-        let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
-        let new_vertex_depth = if dependency.is_negation() {
-            max(old_vertex_depth, source_depth + 1)
-        } else {
-            max(old_vertex_depth, source_depth)
-        };
-        self.depth.insert(vertex.clone(), new_vertex_depth);
-
-        // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-        self.depends
+    /// Mark `vertex` as a prerequisite for finalising the processing of `edge`
+    fn add_depend(&mut self, vertex: &V, edge: Edge<V>) {
+        // Mark `vertex` as a prerequisite for finalising the processing of `edge`
+        let new_dependency = self
+            .depends
             .entry(vertex.clone())
             .or_default()
-            .insert(dependency);
+            .insert(edge.clone());
+
+        if new_dependency {
+            emit_count!("worker add_dependency"); // Update the depth
+            let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
+            let source_depth = *self.depth.get(edge.source()).unwrap_or(&0);
+            let new_vertex_depth = if edge.is_negation() {
+                max(old_vertex_depth, source_depth + 1)
+            } else {
+                max(old_vertex_depth, source_depth)
+            };
+            self.depth.insert(vertex.clone(), new_vertex_depth);
+        }
     }
 
-    /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
+    /// Remove `vertex` as a prerequisite for finalising the processing of `edge`
+    fn remove_depend(&mut self, vertex: &V, edge: Edge<V>) {
         emit_count!("worker remove_dependency");
         if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.remove(&dependency);
+            dependencies.remove(&edge);
         }
     }
 
