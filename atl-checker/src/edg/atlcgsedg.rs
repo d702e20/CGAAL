@@ -4,34 +4,8 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use crate::atl::Phi;
+use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use crate::game_structure::{GameStructure, Player, State};
-
-pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
-
-pub trait ExtendedDependencyGraph<V: Vertex> {
-    /// Return out going edges from `vertex`.
-    /// This will be cached on each worker.
-    fn succ(&self, vertex: &V) -> Vec<Edge<V>>;
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct HyperEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub pmove: Option<PartialMove>,
-    pub targets: Vec<V>,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
-    pub source: V,
-    pub target: V,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
-    Hyper(HyperEdge<V>),
-    Negation(NegationEdge<V>),
-}
 
 #[derive(Clone, Debug)]
 pub struct AtlDependencyGraph<G: GameStructure> {
@@ -347,7 +321,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     // Hyper edge with no targets
                     vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
-                        pmove: None,
                         targets: vec![],
                     })]
                 }
@@ -360,7 +333,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     if props.contains(prop) {
                         vec![Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![],
                         })]
                     } else {
@@ -380,7 +352,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     vec![
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: left.clone(),
@@ -388,7 +359,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         }),
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: right.clone(),
@@ -399,7 +369,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                 Phi::And(left, right) => {
                     vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
-                        pmove: None,
                         targets: vec![
                             AtlVertex::Full {
                                 state: *state,
@@ -425,7 +394,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
 
                     vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
-                        pmove: None,
                         targets,
                     })]
                 }
@@ -442,7 +410,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                                     .collect();
                             Edge::Hyper(HyperEdge {
                                 source: vert.clone(),
-                                pmove: Some(pmove),
                                 targets,
                             })
                         })
@@ -481,7 +448,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
@@ -490,7 +456,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         // Other branches where pre is satisfied
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets,
                         }),
                     ]
@@ -506,7 +471,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
@@ -538,7 +502,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                                     std::iter::once(pre.clone()).chain(delta).collect();
                                 Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
-                                    pmove: Some(pmove),
                                     targets,
                                 })
                             },
@@ -569,7 +532,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
@@ -577,7 +539,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         }),
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets,
                         }),
                     ]
@@ -592,7 +553,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            pmove: None,
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
@@ -615,7 +575,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                                         .collect();
                                 Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
-                                    pmove: Some(pmove),
                                     targets,
                                 })
                             },
@@ -671,7 +630,6 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     }];
                     Edge::Hyper(HyperEdge {
                         source: vert.clone(),
-                        pmove: Some(partial_move.clone()),
                         targets,
                     })
                 })
@@ -685,7 +643,9 @@ mod test {
     use std::collections::HashSet;
     use std::sync::Arc;
 
-    use crate::edg::{DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator};
+    use crate::edg::atlcgsedg::{
+        DeltaIterator, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
+    };
     use crate::game_structure::{DynVec, EagerGameStructure};
 
     #[test]
