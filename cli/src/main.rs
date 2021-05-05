@@ -22,7 +22,8 @@ use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
-use atl_checker::edg::{AtlDependencyGraph, AtlVertex, ExtendedDependencyGraph, Vertex};
+use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
+use atl_checker::edg::{ExtendedDependencyGraph, Vertex};
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
