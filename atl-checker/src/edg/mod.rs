@@ -1,3 +1,4 @@
+use crate::algorithms::game_strategy::error::Error;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 

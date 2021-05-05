@@ -18,6 +18,8 @@ use crate::args::CommonArgs;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
+use atl_checker::algorithms::game_strategy::error::Error;
+use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult, SpecificationProof};
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::ATLVertex;
@@ -59,25 +61,22 @@ enum SearchStrategyOption {
 
 impl SearchStrategyOption {
     /// Run the distributed certain zero algorithm using the given search strategy
-    pub fn distributed_certain_zero<
-        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-        V: Vertex + Send + Sync + 'static,
-    >(
+    pub fn model_check<G: GameStructure + Send + Sync + Clone + Debug + 'static>(
         &self,
-        edg: G,
-        v0: V,
+        edg: ATLDependencyGraph<G>,
+        v0: ATLVertex,
         worker_count: u64,
         find_game_strategy: bool,
-    ) -> CertainZeroResult {
+    ) -> ModelCheckResult {
         match self {
-            SearchStrategyOption::BFS => distributed_certain_zero(
+            SearchStrategyOption::BFS => model_check(
                 edg,
                 v0,
                 worker_count,
                 BreadthFirstSearchBuilder,
                 find_game_strategy,
             ),
-            SearchStrategyOption::DFS => distributed_certain_zero(
+            SearchStrategyOption::DFS => model_check(
                 edg,
                 v0,
                 worker_count,
@@ -160,12 +159,35 @@ fn main_inner() -> Result<(), String> {
                 threads: u64,
                 ss: SearchStrategyOption,
                 game_strategy_path: Option<&str>,
-            ) where
+            ) -> Result<(), String>
+            where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result =
-                    ss.distributed_certain_zero(graph, v0, threads, game_strategy_path.is_some());
-                println!("Result: {}", &result.assignment);
+                let result = ss.model_check(graph, v0, threads, game_strategy_path.is_some());
+                println!("Result: {}", &result.satisfied);
+
+                if let Some(game_strategy_path) = game_strategy_path {
+                    let proof_res = result.proof.unwrap();
+                    match proof_res {
+                        Ok(proof) => match proof {
+                            SpecificationProof::Strategy(strategy) => {
+                                let mut file = File::create(game_strategy_path).map_err(|err| {
+                                    format!("Failed to create strategy output file.\n{}", err)
+                                })?;
+                                write!(file, "{:?}", strategy);
+                                println!("Proving strategy was save to {}", game_strategy_path);
+                            }
+                            SpecificationProof::NoStrategyNeeded => {
+                                println!("No game strategy was computed since a strategy is not needed to prove the given query.")
+                            }
+                        },
+                        Err(err) => {
+                            println!("Game strategy was not computed due to error: {}", err)
+                        }
+                    }
+                }
+
+                Ok(())
             }
 
             let threads = match solver_args.value_of("threads") {
