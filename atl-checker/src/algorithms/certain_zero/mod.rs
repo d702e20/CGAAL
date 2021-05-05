@@ -400,6 +400,7 @@ impl<
     /// When the certain assignment of the vertex is found, the worker will be notified.
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         emit_count!("worker mark_interest");
+        self.strategy.on_interest(vertex);
         if let Some(set) = self.interests.get_mut(vertex) {
             trace!(is_initialized = true, ?vertex, "mark vertex interest");
             set.insert(worker);
@@ -424,7 +425,20 @@ impl<
 
         // Line 3
         if self.is_owner(vertex) {
-            let successors = self.succ(vertex); // Line 4
+            let successors = self.strategy.modify(self.edg.succ(vertex)); // Line 4
+
+            debug!(
+                ?vertex,
+                ?successors,
+                known_vertex = false,
+                "loaded successors from EDG"
+            );
+            emit_count!("worker successor_generated");
+
+            // Cache successors
+            let successor_set = successors.iter().cloned().collect();
+            self.successors.insert(vertex.clone(), successor_set);
+
             if successors.is_empty() {
                 // Line 4
                 // The vertex has no outgoing edges, so we assign it false
@@ -501,31 +515,33 @@ impl<
         }
     }
 
-    /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
-        emit_count!("worker add_dependency");
-        // Update the depth
-        let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
-        let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
-        let new_vertex_depth = if dependency.is_negation() {
-            max(old_vertex_depth, source_depth + 1)
-        } else {
-            max(old_vertex_depth, source_depth)
-        };
-        self.depth.insert(vertex.clone(), new_vertex_depth);
-
-        // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-        self.depends
+    /// Mark `vertex` as a prerequisite for finalising the processing of `edge`
+    fn add_depend(&mut self, vertex: &V, edge: Edge<V>) {
+        // Mark `vertex` as a prerequisite for finalising the processing of `edge`
+        let new_dependency = self
+            .depends
             .entry(vertex.clone())
             .or_default()
-            .insert(dependency);
+            .insert(edge.clone());
+
+        if new_dependency {
+            emit_count!("worker add_dependency"); // Update the depth
+            let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
+            let source_depth = *self.depth.get(edge.source()).unwrap_or(&0);
+            let new_vertex_depth = if edge.is_negation() {
+                max(old_vertex_depth, source_depth + 1)
+            } else {
+                max(old_vertex_depth, source_depth)
+            };
+            self.depth.insert(vertex.clone(), new_vertex_depth);
+        }
     }
 
-    /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
+    /// Remove `vertex` as a prerequisite for finalising the processing of `edge`
+    fn remove_depend(&mut self, vertex: &V, edge: Edge<V>) {
         emit_count!("worker remove_dependency");
         if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.remove(&dependency);
+            dependencies.remove(&edge);
         }
     }
 
@@ -697,19 +713,19 @@ impl<
         // Remove edge from source
         self.successors.get_mut(source).unwrap().remove(&edge);
 
-        match self.successors.get(source) {
-            None => panic!("successors should have been filled, or at least have a empty vector"),
-            Some(successors) => {
-                // Line 3
-                if successors.is_empty() {
-                    trace!(
-                        ?source,
-                        assignment = ?VertexAssignment::False,
-                        "no more successors, final assignment is FALSE"
-                    );
-                    self.final_assign(source, VertexAssignment::False);
-                }
-            }
+
+        if self
+            .successors
+            .get(source)
+            .expect("successors should have been filled, or at least have a empty vector")
+            .is_empty()
+        {
+            trace!(
+                ?source,
+                assignment = ?VertexAssignment::False,
+                "no more successors, final assignment is FALSE"
+            );
+            self.final_assign(source, VertexAssignment::False);
         }
 
         match edge {
@@ -725,27 +741,6 @@ impl<
                 debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
                 self.remove_depend(&edge.target, Edge::Negation(edge.clone()))
             }
-        }
-    }
-
-    /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
-    /// See documentation for the `successors` field.
-    fn succ(&mut self, vertex: &V) -> Vec<Edge<V>> {
-        if let Some(_successors) = self.successors.get(vertex) {
-            panic!("Used cached successors instead")
-        } else {
-            // Setup the successors list the first time it is requested
-            let successors = self.edg.succ(vertex);
-            let successor_set = successors.iter().cloned().collect();
-            self.successors.insert(vertex.clone(), successor_set);
-            debug!(
-                ?vertex,
-                ?successors,
-                known_vertex = false,
-                "loaded successors from EDG"
-            );
-            emit_count!("worker successor_generated");
-            successors
         }
     }
 }
