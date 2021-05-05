@@ -116,8 +116,6 @@ macro_rules! bench_lcgs_threads {
     };
 }
 
-// define benchmark cases, adhere to naming scheme of "$model_$formula_(single/threads)"
-
 // STATIC THREAD COUNT
 bench_lcgs!(
     mexican_standoff_3p_3hp_lcgs_survive,
