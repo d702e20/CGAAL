@@ -86,7 +86,7 @@ impl SearchStrategyOption {
                 DepthFirstSearchBuilder,
                 prioritise_back_propagation,
             ),
-            SearchStrategyOption::DHS => distributed_certain_zero(
+            SearchStrategyOption::Dhs => distributed_certain_zero(
                 edg,
                 v0,
                 worker_count,
@@ -415,7 +415,7 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
     match args.value_of("search_strategy") {
         Some("bfs") => Ok(SearchStrategyOption::Bfs),
         Some("dfs") => Ok(SearchStrategyOption::Dfs),
-        Some("dhs") => Ok(SearchStrategyOption::DHS),
+        Some("dhs") => Ok(SearchStrategyOption::Dhs),
         Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies: \"bfs\", \"dfs\", \"dhs\" [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
