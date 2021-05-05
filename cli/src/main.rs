@@ -56,7 +56,7 @@ enum ModelType {
 enum SearchStrategyOption {
     Bfs,
     Dfs,
-    DHS,
+    Dhs,
 }
 
 impl SearchStrategyOption {
