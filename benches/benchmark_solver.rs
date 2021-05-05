@@ -131,70 +131,239 @@ bench_lcgs!(
     "mexican_standoff/can_p1_guarantee_to_survive_FALSE.json"
 );
 
-// gossiping girls
-bench_lcgs!(
-    gossipping_girls_circular_all_ensure_p1_omniscient_before_10_steps,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
-);
-
-// matching pennies
-bench_lcgs!(
-    matching_pennies_can_odd_win_round_eventually,
-    "matching_pennies/matching_pennies_game.lcgs",
-    "matching_pennies/can_odd_win_round_eventually_FALSE.json"
-);
-
-bench_lcgs!(
-    matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum,
-    "matching_pennies/matching_pennies_game.lcgs",
-    "matching_pennies/can_they_guarantee_that_odd_always_has_larger_sum_TRUE.json"
-);
-
-// peterson
-bench_lcgs!(
-    peterson_3_ensure_mutual_exclusion,
-    "peterson/3/peterson_03.lcgs",
-    "peterson/3/ensure_mutual_exclusion_TRUE_03.json"
-);
-
-// robot grid
-bench_lcgs!(
-    robot_grid_can_r1_and_r2_swap_with_help_from_r3,
-    "robot_grid/robot_grid_N3.lcgs",
-    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
-);
-
-bench_lcgs!(
-    robot_grid_exist_path_to_targets_with_no_crashes,
-    "robot_grid/robot_grid_N3.lcgs",
-    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
-);
-
-// rock paper scissors
-bench_lcgs!(
-    rock_paper_scissors_p1_always_wins,
-    "rock_paper_scissors/rock_paper_scissors.lcgs",
-    "rock_paper_scissors/p1_always_wins_FALSE.json"
-);
-
-bench_lcgs!(
-    rock_paper_scissors_p1_can_win_eventually,
-    "rock_paper_scissors/rock_paper_scissors.lcgs",
-    "rock_paper_scissors/p1_can_win_eventually_FALSE.json"
-);
-
 // tic tac toe
 bench_lcgs!(
-    tic_tac_toe_can_cross_guarantee_tie,
+    ttt1,
+    "tic_tac_toe/tic_tac_toe.lcgs",
+    "tic_tac_toe/can_cross_avoid_lose_TRUE.json"
+);
+
+bench_lcgs!(
+    ttt2,
     "tic_tac_toe/tic_tac_toe.lcgs",
     "tic_tac_toe/can_cross_guarantee_tie_TRUE.json"
 );
 
 bench_lcgs!(
-    tic_tac_toe_can_nought_avoid_lose,
+    ttt3,
+    "tic_tac_toe/tic_tac_toe.lcgs",
+    "tic_tac_toe/can_cross_guarantee_win_FALSE.json"
+);
+
+bench_lcgs!(
+    ttt4,
     "tic_tac_toe/tic_tac_toe.lcgs",
     "tic_tac_toe/can_nought_avoid_lose_TRUE.json"
+);
+
+bench_lcgs!(
+    ttt5,
+    "tic_tac_toe/tic_tac_toe.lcgs",
+    "tic_tac_toe/can_nought_guarantee_win_FALSE.json"
+);
+
+// robot grid
+bench_lcgs!(
+    rc1,
+    "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    rc2,
+    "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    rc3,
+    "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+// peterson
+bench_lcgs!(
+    pa1_3proc,
+    "peterson/3/peterson_03.lcgs",
+    "peterson/p0_eventually_get_access_if_requested_TRUE.json"
+);
+
+bench_lcgs!(
+    pa2_3proc,
+    "peterson/3/peterson_03.lcgs",
+    "peterson/p0_eventually_reach_CS_TRUE.json"
+);
+
+bench_lcgs!(
+    pa3_3proc,
+    "peterson/3/peterson_03.lcgs",
+    "peterson/3/ensure_mutual_exclusion_TRUE_03.json"
+);
+
+bench_lcgs!(
+    pa4_3proc,
+    "peterson/3/peterson_03.lcgs",
+    "peterson/3/multiple_in_CS_FALSE_03.json"
+);
+
+bench_lcgs!(
+    pa5_3proc,
+    "peterson/3/peterson_03.lcgs",
+    "peterson/3/never_reach_deadlock_TRUE_03.json"
+);
+
+bench_lcgs!(
+    pa1_4proc,
+    "peterson/4/peterson_04.lcgs",
+    "peterson/p0_eventually_get_access_if_requested_TRUE.json"
+);
+
+bench_lcgs!(
+    pa2_4proc,
+    "peterson/4/peterson_04.lcgs",
+    "peterson/p0_eventually_reach_CS_TRUE.json"
+);
+
+bench_lcgs!(
+    pa3_4proc,
+    "peterson/4/peterson_04.lcgs",
+    "peterson/4/ensure_mutual_exclusion_TRUE_04.json"
+);
+
+bench_lcgs!(
+    pa4_4proc,
+    "peterson/4/peterson_04.lcgs",
+    "peterson/4/multiple_in_CS_FALSE_04.json"
+);
+
+bench_lcgs!(
+    pa5_4proc,
+    "peterson/4/peterson_04.lcgs",
+    "peterson/4/never_reach_deadlock_TRUE_04.json"
+);
+
+bench_lcgs!(
+    //takes ~15s for one run
+    pa1_9proc,
+    "peterson/9/peterson_09.lcgs",
+    "peterson/p0_eventually_get_access_if_requested_TRUE.json"
+);
+
+// gossiping girls
+bench_lcgs!(
+    gg1_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omicient_before_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg2_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omicient_before_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg3_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg4_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg5_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
+);
+
+bench_lcgs!(
+    gg6_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/girl_one_gurantee_to_become_omicient_before_10_steps_FALSE.json"
+);
+
+bench_lcgs!(
+    gg7_circular,
+    "gossipping_girls/gossipping_girls_circular.lcgs",
+    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+);
+
+bench_lcgs!(
+    gg1_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omicient_before_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg2_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omicient_before_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg3_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg4_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+);
+
+bench_lcgs!(
+    gg5_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
+);
+
+bench_lcgs!(
+    gg6_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/girl_one_gurantee_to_become_omicient_before_10_steps_FALSE.json"
+);
+
+bench_lcgs!(
+    gg7_total,
+    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+);
+
+// rock paper scissors
+bench_lcgs!(
+    rps1,
+    "rock_paper_scissors/rock_paper_scissors.lcgs",
+    "rock_paper_scissors/p1_always_wins_FALSE.json"
+);
+
+bench_lcgs!(
+    rps2,
+    "rock_paper_scissors/rock_paper_scissors.lcgs",
+    "rock_paper_scissors/p1_can_win_eventually_FALSE.json"
+);
+
+// matching pennies
+bench_lcgs!(
+    mp1,
+    "matching_pennies/matching_pennies_game.lcgs",
+    "matching_pennies/can_odd_win_round_eventually_FALSE.json"
+);
+
+bench_lcgs!(
+    mp2,
+    "matching_pennies/matching_pennies_game.lcgs",
+    "matching_pennies/can_they_guarantee_that_odd_always_has_larger_sum_TRUE.json"
+);
+
+bench_lcgs!(
+    mp3,
+    "matching_pennies/matching_pennies_game.lcgs",
+    "matching_pennies/can_they_win_simultaneously_FALSE.json"
 );
 
 // MULTIPLE THREAD COUNT
@@ -240,13 +409,13 @@ bench_lcgs_threads!(
 
 // robot grid
 bench_lcgs_threads!(
-    robot_grid_can_r1_and_r2_swap_with_help_from_r3_threads,
+    robot_grid_3x3_can_r1_and_r2_swap_with_help_from_r3_threads,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    robot_grid_exist_path_to_targets_with_no_crashes_threads,
+    robot_grid_3x3_exist_path_to_targets_with_no_crashes_threads,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
@@ -280,33 +449,51 @@ bench_lcgs_threads!(
 // groups take a name as first argument, all subsequent arguments are benchmarks for this group
 criterion_group!(
     static_thread_benches,
-    //mexican_standoff_5p_1hp_lcgs_survive,
     mexican_standoff_3p_3hp_lcgs_survive,
-    gossipping_girls_circular_all_ensure_p1_omniscient_before_10_steps,
-    matching_pennies_can_odd_win_round_eventually,
-    matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum,
-    peterson_3_ensure_mutual_exclusion,
-    //robot_grid_can_r1_and_r2_swap_with_help_from_r3, // a single run takes ~500s @ 1 thread
-    //robot_grid_exist_path_to_targets_with_no_crashes, // a single run takes ~500s @ 1 thread
-    rock_paper_scissors_p1_always_wins,
-    rock_paper_scissors_p1_can_win_eventually,
-    tic_tac_toe_can_cross_guarantee_tie,
-    tic_tac_toe_can_nought_avoid_lose,
+    mexican_standoff_5p_1hp_lcgs_survive,
+    ttt1,
+    ttt2,
+    ttt3,
+    ttt4,
+    ttt5,
+    //rc1,
+    //rc2,
+    //rc3, //rc benches takes 215s total
+    pa1_3proc,
+    pa2_3proc,
+    pa3_3proc,
+    pa4_3proc,
+    pa5_3proc,
+    pa1_4proc,
+    pa2_4proc,
+    pa3_4proc,
+    pa4_4proc,
+    pa5_4proc,
+    gg1_circular,
+    gg2_circular,
+    gg3_circular,
+    gg4_circular,
+    gg5_circular,
+    gg6_circular,
+    gg7_circular,
+    /*
+    gg1_total,
+    gg2_total,
+    gg3_total,
+    gg4_total,
+    gg5_total,
+    gg6_total,
+    gg7_total, // gg_total benches takes avg 69s a piece (nice)
+    */
+    rps1,
+    rps2,
+    mp1,
+    mp2,
+    mp3,
 );
 
 criterion_group!(
     multi_thread_benches,
-    //mexican_standoff_5p_1hp_lcgs_survive_threads,
-    mexican_standoff_3p_3hp_lcgs_survive_threads,
-    gossipping_girls_circular_all_ensure_p1_omniscient_before_10_steps_threads,
     matching_pennies_can_odd_win_round_eventually_threads,
-    matching_pennies_can_they_guarantee_that_odd_always_has_larger_sum_threads,
-    peterson_3_ensure_mutual_exclusion_threads,
-    //robot_grid_can_r1_and_r2_swap_with_help_from_r3_threads, // a single run takes ~500s @ 1 thread
-    //robot_grid_exist_path_to_targets_with_no_crashes_threads, // a single run takes ~500s @ 1 thread
-    rock_paper_scissors_p1_always_wins_threads,
-    rock_paper_scissors_p1_can_win_eventually_threads,
-    tic_tac_toe_can_cross_guarantee_tie_threads,
-    tic_tac_toe_can_nought_avoid_lose_threads,
 );
 criterion_main!(static_thread_benches); // choose which group to bench
