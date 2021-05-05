@@ -18,7 +18,7 @@ pub trait SearchStrategy<V: Vertex> {
     /// Queue a set of previously unsafe negation edges
     fn queue_released_edges(&mut self, edges: Vec<NegationEdge<V>>) {
         let mut edges = edges;
-        self.queue_new_edges(edges.drain(..).map(Edge::NEGATION).collect())
+        self.queue_new_edges(edges.drain(..).map(Edge::Negation).collect())
     }
 
     /// Requeue an edge because one of its targets was assigned a certain value
