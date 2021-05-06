@@ -1,7 +1,7 @@
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::atl::Phi;
-use atl_checker::edg::{AtlDependencyGraph, AtlVertex};
+use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
@@ -25,12 +25,12 @@ macro_rules! bench_json {
                 b.iter(|| {
                     let game_structure: EagerGameStructure =
                         serde_json::from_str(include_str!(concat!("json/", $model))).unwrap();
-                    let graph = ATLDependencyGraph { game_structure };
+                    let graph = AtlDependencyGraph { game_structure };
 
                     let formula: Arc<Phi> =
                         serde_json::from_str(include_str!(concat!("json/", $formula))).unwrap();
 
-                    let v0 = ATLVertex::FULL { state: 0, formula };
+                    let v0 = AtlVertex::Full { state: 0, formula };
 
                     distributed_certain_zero(graph, v0, num_cpus::get() as u64);
                 })
@@ -47,14 +47,14 @@ macro_rules! bench_lcgs {
                     let lcgs = parse_lcgs(include_str!(concat!(model_path_prefix!(), $model)))
                         .expect(&format!("Could not read model {}", $model));
                     let game_structure =
-                        IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
-                    let graph = ATLDependencyGraph { game_structure };
+                        IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
+                    let graph = AtlDependencyGraph { game_structure };
 
                     let formula =
                         serde_json::from_str(include_str!(concat!(model_path_prefix!(), $formula)))
                             .expect(&format!("Could not read formula {}", $formula));
 
-                    let v0 = ATLVertex::FULL {
+                    let v0 = AtlVertex::Full {
                         state: graph.game_structure.initial_state_index(),
                         formula,
                     };
@@ -89,8 +89,8 @@ macro_rules! bench_lcgs_threads {
                                 parse_lcgs(include_str!(concat!(model_path_prefix!(), $model)))
                                     .expect(&format!("Could not read model {}", $model));
                             let game_structure =
-                                IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
-                            let graph = ATLDependencyGraph { game_structure };
+                                IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
+                            let graph = AtlDependencyGraph { game_structure };
 
                             let formula = serde_json::from_str(include_str!(concat!(
                                 model_path_prefix!(),
@@ -98,7 +98,7 @@ macro_rules! bench_lcgs_threads {
                             )))
                             .expect(&format!("Could not read formula {}", $formula));
 
-                            let v0 = ATLVertex::FULL {
+                            let v0 = AtlVertex::Full {
                                 state: graph.game_structure.initial_state_index(),
                                 formula,
                             };
