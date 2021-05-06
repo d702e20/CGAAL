@@ -103,6 +103,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                                     move_to_pick,
                                 );
                             }
+                            return;
                         }
                     }
                 }
