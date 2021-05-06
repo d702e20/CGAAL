@@ -32,20 +32,20 @@ impl VertexAssignment {
 impl PartialOrd for VertexAssignment {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match self {
-            VertexAssignment::UNDECIDED => match other {
-                VertexAssignment::UNDECIDED => Some(Equal),
-                VertexAssignment::FALSE => Some(Less),
-                VertexAssignment::TRUE => Some(Less),
+            VertexAssignment::Undecided => match other {
+                VertexAssignment::Undecided => Some(Equal),
+                VertexAssignment::False => Some(Less),
+                VertexAssignment::True => Some(Less),
             },
-            VertexAssignment::FALSE => match other {
-                VertexAssignment::UNDECIDED => Some(Greater),
-                VertexAssignment::FALSE => Some(Equal),
-                VertexAssignment::TRUE => None,
+            VertexAssignment::False => match other {
+                VertexAssignment::Undecided => Some(Greater),
+                VertexAssignment::False => Some(Equal),
+                VertexAssignment::True => None,
             },
-            VertexAssignment::TRUE => match other {
-                VertexAssignment::UNDECIDED => Some(Greater),
-                VertexAssignment::FALSE => None,
-                VertexAssignment::TRUE => Some(Equal),
+            VertexAssignment::True => match other {
+                VertexAssignment::Undecided => Some(Greater),
+                VertexAssignment::False => None,
+                VertexAssignment::True => Some(Equal),
             },
         }
     }
