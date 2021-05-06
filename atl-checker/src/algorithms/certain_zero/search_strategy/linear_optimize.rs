@@ -64,10 +64,7 @@ impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSe
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
     /// Simply returns the edge with highest priority (i.e lowest distance)
     fn next(&mut self) -> Option<Edge<AtlVertex>> {
-        let edge = self.queue.pop();
-        if edge.is_some() {
-            Some(edge.unwrap().0)
-        } else { None }
+        self.queue.pop().map(|entry| entry.0)
     }
 
     /// Takes a Vec of Edges holding ATLVertices, and puts these in the queue,
