@@ -1,8 +1,8 @@
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::atl::Phi;
-use atl_checker::edg::{ATLDependencyGraph, ATLVertex};
-use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+use atl_checker::edg::{AtlDependencyGraph, AtlVertex};
+use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
@@ -64,6 +64,7 @@ macro_rules! bench_lcgs {
                         v0,
                         num_cpus::get() as u64,
                         BreadthFirstSearchBuilder,
+                        true,
                     );
                 });
             });
@@ -107,6 +108,7 @@ macro_rules! bench_lcgs_threads {
                                 v0,
                                 core_count,
                                 BreadthFirstSearchBuilder,
+                                true,
                             );
                         });
                     },
