@@ -9,11 +9,18 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+
 // CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
-macro_rules! model_path_prefix {
+macro_rules! lcgs_model_path_prefix {
     () => {
         "../lcgs-examples/"
+    };
+}
+
+macro_rules! json_model_path_prefix {
+    () => {
+        "../json-examples/"
     };
 }
 
@@ -23,16 +30,26 @@ macro_rules! bench_json {
         fn $name(c: &mut Criterion) {
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
-                    let game_structure: EagerGameStructure =
-                        serde_json::from_str(include_str!(concat!("json/", $model))).unwrap();
+                    let game_structure: EagerGameStructure = serde_json::from_str(include_str!(
+                        concat!(json_model_path_prefix!(), $model)
+                    ))
+                    .unwrap();
                     let graph = ATLDependencyGraph { game_structure };
 
-                    let formula: Arc<Phi> =
-                        serde_json::from_str(include_str!(concat!("json/", $formula))).unwrap();
+                    let formula: Arc<Phi> = serde_json::from_str(include_str!(concat!(
+                        json_model_path_prefix!(),
+                        $formula
+                    )))
+                    .unwrap();
 
                     let v0 = ATLVertex::FULL { state: 0, formula };
 
-                    distributed_certain_zero(graph, v0, num_cpus::get() as u64);
+                    distributed_certain_zero(
+                        graph,
+                        v0,
+                        num_cpus::get() as u64,
+                        BreadthFirstSearchBuilder,
+                    );
                 })
             });
         }
@@ -44,15 +61,17 @@ macro_rules! bench_lcgs {
         fn $name(c: &mut Criterion) {
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
-                    let lcgs = parse_lcgs(include_str!(concat!(model_path_prefix!(), $model)))
+                    let lcgs = parse_lcgs(include_str!(concat!(lcgs_model_path_prefix!(), $model)))
                         .expect(&format!("Could not read model {}", $model));
                     let game_structure =
                         IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                     let graph = ATLDependencyGraph { game_structure };
 
-                    let formula =
-                        serde_json::from_str(include_str!(concat!(model_path_prefix!(), $formula)))
-                            .expect(&format!("Could not read formula {}", $formula));
+                    let formula = serde_json::from_str(include_str!(concat!(
+                        lcgs_model_path_prefix!(),
+                        $formula
+                    )))
+                    .expect(&format!("Could not read formula {}", $formula));
 
                     let v0 = ATLVertex::FULL {
                         state: graph.game_structure.initial_state_index(),
@@ -84,15 +103,17 @@ macro_rules! bench_lcgs_threads {
                     &core_count,
                     |b, &core_count| {
                         b.iter(|| {
-                            let lcgs =
-                                parse_lcgs(include_str!(concat!(model_path_prefix!(), $model)))
-                                    .expect(&format!("Could not read model {}", $model));
+                            let lcgs = parse_lcgs(include_str!(concat!(
+                                lcgs_model_path_prefix!(),
+                                $model
+                            )))
+                            .expect(&format!("Could not read model {}", $model));
                             let game_structure =
                                 IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
                             let graph = ATLDependencyGraph { game_structure };
 
                             let formula = serde_json::from_str(include_str!(concat!(
-                                model_path_prefix!(),
+                                lcgs_model_path_prefix!(),
                                 $formula
                             )))
                             .expect(&format!("Could not read formula {}", $formula));
@@ -362,6 +383,13 @@ bench_lcgs!(
     mp3,
     "matching_pennies/matching_pennies_game.lcgs",
     "matching_pennies/can_they_win_simultaneously_FALSE.json"
+);
+
+// RANDOM GENERATED MODELS
+bench_json!(
+    rand_1p_1m_530d,
+    "random_generated/rand_1p_1m_530d/cgs.json",
+    "random_generated/rand_1p_1m_530d/atl/cgs_early_termination_despite_invariant_0.json"
 );
 
 // MULTIPLE THREAD COUNT
@@ -703,4 +731,7 @@ criterion_group!(
     mp2_threads,
     mp3_threads,
 );
-criterion_main!(static_thread_benches); // choose which group to bench
+
+criterion_group!(random_generated_benches, rand_1p_1m_530d);
+
+criterion_main!(random_generated_benches); // choose which group to bench
