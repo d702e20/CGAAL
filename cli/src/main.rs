@@ -163,7 +163,8 @@ fn main_inner() -> Result<(), String> {
             where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result = ss.model_check(graph, v0, threads, game_strategy_path.is_some());
+                let result =
+                    ss.model_check(graph.clone(), v0, threads, game_strategy_path.is_some());
                 println!("Result: {}", &result.satisfied);
 
                 if let Some(game_strategy_path) = game_strategy_path {
@@ -174,7 +175,7 @@ fn main_inner() -> Result<(), String> {
                                 let mut file = File::create(game_strategy_path).map_err(|err| {
                                     format!("Failed to create strategy output file.\n{}", err)
                                 })?;
-                                write!(file, "{:?}", strategy);
+                                write!(file, "{}", strategy.in_context_of(&graph.game_structure));
                                 println!("Proving strategy was save to {}", game_strategy_path);
                             }
                             SpecificationProof::NoStrategyNeeded => {

@@ -3,6 +3,7 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
 use crate::algorithms::game_strategy::enforcing::compute_enforcing_strategy;
 use crate::algorithms::game_strategy::error::Error;
+use crate::algorithms::game_strategy::format::PartialStrategyWithFormatting;
 use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::ATLVertex;
 use crate::edg::atledg::ATLDependencyGraph;
@@ -12,6 +13,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 pub mod enforcing;
 pub mod error;
+pub mod format;
 
 #[derive(Debug)]
 pub struct ModelCheckResult {
@@ -66,6 +68,20 @@ pub struct PartialStrategy {
     /// A partial mapping from States to a partial move, where the given players have made
     /// a specific choice.
     move_to_pick: HashMap<State, PartialMove>,
+}
+
+impl PartialStrategy {
+    /// Pairs a partial strategy with its game structure, allowing us to print
+    /// the strategy using the names of players and moves as defined by the game structure.
+    pub fn in_context_of<'a, G: GameStructure>(
+        &'a self,
+        game: &'a G,
+    ) -> PartialStrategyWithFormatting<'a, G> {
+        PartialStrategyWithFormatting {
+            strategy: self,
+            game,
+        }
+    }
 }
 
 pub fn compute_game_strategy<G: GameStructure>(
