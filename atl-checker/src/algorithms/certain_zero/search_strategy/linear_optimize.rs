@@ -232,20 +232,20 @@ fn extract_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                 if let Identifier::Resolved { owner, name } = *id.clone() {
                     let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
                     if let ExprKind::Number(number) = operand2.kind {
-                        Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() })
-                    } else { return None; }
-                } else { return None; }
+                        return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
+                    }
+                }
                 // 2nd case
-            } else if let ExprKind::OwnedIdent(id) = &operand1.kind {
+            } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
                 if let Identifier::Resolved { owner, name } = *id.clone() {
                     let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
-                    if let ExprKind::Number(number) = operand2.kind {
-                        Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() })
-                    } else { return None; }
-                } else { return None; }
-            } else { return None; }
+                    if let ExprKind::Number(number) = operand1.kind {
+                        return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
+                    }
+                }
+            } None
         }
-        _ => {None}
+        _ => { None }
     }
 }
 
