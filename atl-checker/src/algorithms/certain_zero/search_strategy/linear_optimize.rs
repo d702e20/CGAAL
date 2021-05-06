@@ -1,7 +1,7 @@
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identifier};
-use crate::game_structure::lcgs::ir::intermediate::{IntermediateLCGS, State};
-use crate::edg::{Edge, ATLVertex};
+use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
+use crate::edg::{Edge, Vertex};
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategyBuilder, SearchStrategy};
 use minilp::{Problem, OptimizationDirection, ComparisonOp};
 use priority_queue::PriorityQueue;
@@ -20,8 +20,9 @@ use BinaryOpKind::{Addition,
                    Or,
                    Xor,
                    Implication, };
+use crate::edg::atlcgsedg::AtlVertex;
 
-/// Holds extracted linear expressions from the formula in ATLVertex
+/// Holds extracted linear expressions from the formula in AtlVertex
 #[derive(Eq, PartialEq, Hash, Clone)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
@@ -34,13 +35,13 @@ struct LinearExpression {
 /// Has a cache to hold previously computed results, and uses a priority queue with
 /// distances as priority (lowest distance has highest priority)
 pub struct LinearOptimizeSearch {
-    queue: PriorityQueue<Edge<ATLVertex>, i32>,
-    game: IntermediateLCGS,
+    queue: PriorityQueue<Edge<AtlVertex>, i32>,
+    game: IntermediateLcgs,
     cache: HashMap<(Vec<LinearExpression>, usize), i32>,
 }
 
 impl LinearOptimizeSearch {
-    pub fn new(game: IntermediateLCGS) -> LinearOptimizeSearch {
+    pub fn new(game: IntermediateLcgs) -> LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
@@ -51,18 +52,18 @@ impl LinearOptimizeSearch {
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
-    pub game: IntermediateLCGS,
+    pub game: IntermediateLcgs,
 }
 
-impl SearchStrategyBuilder<ATLVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
+impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
     fn build(&self) -> LinearOptimizeSearch {
         LinearOptimizeSearch::new(self.game.clone())
     }
 }
 
-impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
+impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
     /// Simply returns the edge with highest priority (i.e lowest distance)
-    fn next(&mut self) -> Option<Edge<ATLVertex>> {
+    fn next(&mut self) -> Option<Edge<AtlVertex>> {
         let edge = self.queue.pop();
         if edge.is_some() {
             Some(edge.unwrap().0)
@@ -71,7 +72,7 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 
     /// Takes a Vec of Edges holding ATLVertices, and puts these in the queue,
     /// based on the calculated distance from its state to acceptance region from formula
-    fn queue_new_edges(&mut self, edges: Vec<Edge<ATLVertex>>) {
+    fn queue_new_edges(&mut self, edges: Vec<Edge<AtlVertex>>) {
         for edge in edges {
             let distance = self.get_distance_in_edge(&edge);
 
@@ -89,13 +90,13 @@ impl SearchStrategy<ATLVertex> for LinearOptimizeSearch {
 impl LinearOptimizeSearch {
     /// if edge is a HyperEdge, return average distance from state to accept region between all targets,
     /// if Negation edge, just return the distance from its target
-    fn get_distance_in_edge(&mut self, edge: &Edge<ATLVertex>) -> Option<f32> {
+    fn get_distance_in_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<f32> {
         match &edge {
-            Edge::HYPER(hyperedge) => {
+            Edge::Hyper(hyperedge) => {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
-                    if let Some(result) = self.get_distance_in_atlvertex(target) {
+                    if let Some(result) = self.get_distance_in_AtlVertex(target) {
                         distances.push(result)
                     }
                 }
@@ -110,17 +111,17 @@ impl LinearOptimizeSearch {
                 };
             }
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
-            Edge::NEGATION(edge) => {
-                self.get_distance_in_atlvertex(&edge.target)
+            Edge::Negation(edge) => {
+                self.get_distance_in_AtlVertex(&edge.target)
             }
         }
     }
 
     /// helper function to iterate through ATLVertices and find distance
-    fn get_distance_in_atlvertex(&mut self, target: &ATLVertex) -> Option<f32> {
+    fn get_distance_in_AtlVertex(&mut self, target: &AtlVertex) -> Option<f32> {
         // TODO change edge by changing order of targets in the edge, based on distance
         // Find the linear expression from the targets formula, if any
-        let linear_expressions = self.get_linear_expressions_from_atlvertex(target);
+        let linear_expressions = self.get_linear_expressions_from_AtlVertex(target);
 
         // Polynomials and such not allowed, returns None in such cases
         if let Some(expressions) = linear_expressions {
@@ -150,7 +151,7 @@ impl LinearOptimizeSearch {
         None
     }
 
-    fn get_linear_expressions_from_atlvertex(&self, vertex: &ATLVertex) -> Option<Vec<LinearExpression>> {
+    fn get_linear_expressions_from_AtlVertex(&self, vertex: &AtlVertex) -> Option<Vec<LinearExpression>> {
         // get propositions from the formula in the vertex
         let propositions = vertex.formula().get_propositions_recursively();
 
@@ -292,7 +293,7 @@ mod test {
     use crate::game_structure::lcgs::ir::symbol_table::{SymbolIdentifier, Owner};
     use crate::algorithms::certain_zero::search_strategy::linear_optimize::{LinearExpression, LinearOptimizeSearch};
     use crate::game_structure::lcgs::ast::ExprKind::{Number, BinaryOp, OwnedIdent};
-    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
     use crate::game_structure::lcgs::parse::parse_lcgs;
     use crate::game_structure::lcgs::ast::Identifier::Simple;
 

@@ -36,6 +36,14 @@ impl<V: Hash + Eq + PartialEq + Clone + Debug> SolveSetAssignment<V> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        match self {
+            SolveSetAssignment::BeingCalculated => panic!("Solve set is being calculated"),
+            SolveSetAssignment::True(vertices) => vertices.is_empty(),
+            SolveSetAssignment::False(vertices, _) => vertices.is_empty(),
+        }
+    }
+
     /// Get the number of elements in the solve set, negative if SolveSetAssignment::False.
     /// The sign is an implementation detail, so this function is mainly for debugging.
     #[allow(dead_code)]
@@ -82,6 +90,7 @@ pub fn minimum_solve_set<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
 /// Recursive part of minimum_solve_set algorithm. Here we find the solve set of the given
 /// vertex by exploring all its edges.
+#[allow(clippy::unnecessary_unwrap)]
 fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
     edg: &G,
     vertex: V,
@@ -110,7 +119,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
 
         for edge in edges {
             match edge {
-                Edge::HYPER(hyper) => {
+                Edge::Hyper(hyper) => {
                     // In the world of hyper-edges, we can short circuit when we find one edge,
                     // where the target is assigned false. So this is the inverse of before:
                     // We hope to find the edges that makes the assignment false with the fewest
@@ -154,7 +163,7 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                         }
                     }
                 }
-                Edge::NEGATION(negation) => {
+                Edge::Negation(negation) => {
                     // When target is true, source if false, and vice versa. But the set of
                     // vertices that need to be checked remain the same
                     match find_solve_set_rec(edg, negation.target, assignments) {
@@ -194,18 +203,18 @@ fn find_solve_set_rec<G: ExtendedDependencyGraph<V>, V: Vertex>(
                 "We should not be recalculating certain answers"
             );
             if solve_set.len() > prev_assign.len() {
-                assignments.insert(vertex.clone(), solve_set.clone());
+                assignments.insert(vertex, solve_set.clone());
             } else {
-                assignments.insert(vertex.clone(), prev_assign);
+                assignments.insert(vertex, prev_assign);
             }
         } else {
             // No uncertainty in this solve set, just update
-            assignments.insert(vertex.clone(), solve_set.clone());
+            assignments.insert(vertex, solve_set.clone());
         }
 
         solve_set
     } else {
-        prev_assignment.unwrap().clone()
+        prev_assignment.unwrap()
     }
 }
 

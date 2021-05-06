@@ -1,7 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-use crate::atl::{number, ATLExpressionParser};
+use crate::atl::{number, AtlExpressionParser};
 use crate::game_structure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
 use pom::parser::Parser;
 use std::str::{self};
@@ -82,7 +82,7 @@ impl GameStructure for EagerGameStructure {
     }
 }
 
-impl ATLExpressionParser for EagerGameStructure {
+impl AtlExpressionParser for EagerGameStructure {
     fn player_parser(&self) -> Parser<u8, Player> {
         // In ATL, players are just their index
         number().convert(move |i| {
