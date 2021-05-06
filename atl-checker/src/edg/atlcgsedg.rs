@@ -427,36 +427,32 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         formula: pre.clone(),
                     };
 
-                    // Together with the `pre` target is all the possible moves by other players,
-                    // but it is important that `pre` is the first target
+                    // Together with the `pre` target is all the possible moves by other players
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<AtlVertex> = std::iter::once(pre)
-                        .chain(
-                            PmovesIterator::new(moves, players.iter().cloned().collect()).map(
-                                |pmove| AtlVertex::Partial {
-                                    state: *state,
-                                    partial_move: pmove,
-                                    formula: vert.formula(),
-                                },
-                            ),
-                        )
-                        .collect();
+                    let targets: Vec<AtlVertex> =
+                        PmovesIterator::new(moves, players.iter().cloned().collect())
+                            .map(|pmove| AtlVertex::Partial {
+                                state: *state,
+                                partial_move: pmove,
+                                formula: vert.formula(),
+                            })
+                            .chain(std::iter::once(pre))
+                            .collect();
 
                     vec![
+                        // Other branches where pre is satisfied
+                        Edge::Hyper(HyperEdge {
+                            source: vert.clone(),
+                            targets,
+                        }),
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
-                        // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
                             }],
-                        }),
-                        // Other branches where pre is satisfied
-                        Edge::Hyper(HyperEdge {
-                            source: vert.clone(),
-                            targets,
                         }),
                     ]
                 }
@@ -465,18 +461,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     pre,
                     until,
                 } => {
-                    let mut edges = vec![
-                        // `until`-formula branch
-                        // "Is the `until` formula satisfied now?"
-                        // This must be the first edge
-                        Edge::Hyper(HyperEdge {
-                            source: vert.clone(),
-                            targets: vec![AtlVertex::Full {
-                                state: *state,
-                                formula: until.clone(),
-                            }],
-                        }),
-                    ];
+                    let mut edges = vec![];
 
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
@@ -489,8 +474,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     edges.extend(
                         PmovesIterator::new(moves, players.iter().copied().collect()).map(
                             |pmove| {
-                                // Together with the `pre` target is all the possible moves by other players,
-                                // but it is important that `pre` is the first target
+                                // Together with the `pre` target is all the possible moves by other players
                                 let delta =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove).map(
                                         |state| AtlVertex::Full {
@@ -499,13 +483,25 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                                         },
                                     );
                                 let targets: Vec<AtlVertex> =
-                                    std::iter::once(pre.clone()).chain(delta).collect();
+                                    delta.chain(std::iter::once(pre.clone())).collect();
                                 Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
                                     targets,
                                 })
                             },
                         ),
+                    );
+
+                    edges.push(
+                        // `until`-formula branch
+                        // "Is the `until` formula satisfied now?"
+                        Edge::Hyper(HyperEdge {
+                            source: vert.clone(),
+                            targets: vec![AtlVertex::Full {
+                                state: *state,
+                                formula: until.clone(),
+                            }],
+                        }),
                     );
 
                     edges
@@ -527,19 +523,18 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                             .collect();
 
                     vec![
+                        Edge::Hyper(HyperEdge {
+                            source: vert.clone(),
+                            targets,
+                        }),
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
-                        // This must be the first edge
                         Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
                             }],
-                        }),
-                        Edge::Hyper(HyperEdge {
-                            source: vert.clone(),
-                            targets,
                         }),
                     ]
                 }
@@ -547,18 +542,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    let mut edges = vec![
-                        // sub-formula target
-                        // "Is the sub formula satisfied in current state?"
-                        // This must be the first edge
-                        Edge::Hyper(HyperEdge {
-                            source: vert.clone(),
-                            targets: vec![AtlVertex::Full {
-                                state: *state,
-                                formula: subformula.clone(),
-                            }],
-                        }),
-                    ];
+                    let mut edges = vec![];
 
                     // Successor states with same formula
                     // "Is the formula satisfied in the next state instead?"
@@ -579,6 +563,18 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                                 })
                             },
                         ),
+                    );
+
+                    edges.push(
+                        // sub-formula target
+                        // "Is the sub formula satisfied in current state?"
+                        Edge::Hyper(HyperEdge {
+                            source: vert.clone(),
+                            targets: vec![AtlVertex::Full {
+                                state: *state,
+                                formula: subformula.clone(),
+                            }],
+                        }),
                     );
 
                     edges
