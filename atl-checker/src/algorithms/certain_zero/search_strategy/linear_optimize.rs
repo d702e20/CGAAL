@@ -232,22 +232,7 @@ fn extract_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                 if let Identifier::Resolved { owner, name } = *id.clone() {
                     let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
                     if let ExprKind::Number(number) = operand2.kind {
-                        match operator {
-                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition }) }
-                            Multiplication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Multiplication }) }
-                            Subtraction => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Subtraction }) }
-                            Division => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Division }) }
-                            Equality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Equality }) }
-                            Inequality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Inequality }) }
-                            GreaterThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterThan }) }
-                            LessThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessThan }) }
-                            GreaterOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterOrEqual }) }
-                            LessOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessOrEqual }) }
-                            And => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: And }) }
-                            Or => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Or }) }
-                            Xor => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Xor }) }
-                            Implication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Implication }) }
-                        }
+                        Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() })
                     } else { return None; }
                 } else { return None; }
                 // 2nd case
@@ -255,32 +240,12 @@ fn extract_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                 if let Identifier::Resolved { owner, name } = *id.clone() {
                     let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
                     if let ExprKind::Number(number) = operand2.kind {
-                        match operator {
-                            Addition => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Addition }) }
-                            Multiplication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Multiplication }) }
-                            Subtraction => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Subtraction }) }
-                            Division => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Division }) }
-                            Equality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Equality }) }
-                            Inequality => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Inequality }) }
-                            GreaterThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterThan }) }
-                            LessThan => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessThan }) }
-                            GreaterOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: GreaterOrEqual }) }
-                            LessOrEqual => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: LessOrEqual }) }
-                            And => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: And }) }
-                            Or => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Or }) }
-                            Xor => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Xor }) }
-                            Implication => { Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: Implication }) }
-                        }
+                        Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() })
                     } else { return None; }
                 } else { return None; }
             } else { return None; }
         }
-        ExprKind::Number(_) => { None }
-        ExprKind::OwnedIdent(_) => { None }
-        ExprKind::UnaryOp(_, _) => { None }
-        ExprKind::TernaryIf(_, _, _) => { None }
-        ExprKind::Min(_) => { None }
-        ExprKind::Max(_) => { None }
+        _ => {None}
     }
 }
 
