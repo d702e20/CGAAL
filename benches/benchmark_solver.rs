@@ -1471,6 +1471,440 @@ bench_json!(
     "random_generated/rand_3p_4m_171d/atl/cgs_whole_statespace_enforce_until_2.json"
 );
 
+//rand_4p_4m_3000d
+bench_json!(
+    rand_4p_4m_3000d_term_despite_invariant_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_despite_invariant_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_despite_invariant_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_despite_invariant_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_despite_invariant_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_despite_invariant_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_despite_next_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_despite_next_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_despite_next_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_despite_next_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_despite_next_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_despite_next_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_enforce_invariant_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_enforce_invariant_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_enforce_invariant_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_enforce_invariant_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_enforce_invariant_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_enforce_invariant_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_enforce_next_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_enforce_next_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_enforce_next_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_enforce_next_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_term_enforce_next_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_early_termination_enforce_next_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_eventually_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_eventually_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_eventually_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_eventually_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_eventually_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_eventually_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_invariant_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_invariant_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_invariant_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_invariant_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_invariant_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_invariant_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_next_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_next_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_next_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_next_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_next_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_next_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_until_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_until_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_until_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_until_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_despite_until_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_despite_until_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_eventually_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_eventually_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_eventually_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_eventually_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_eventually_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_eventually_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_invariant_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_invariant_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_invariant_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_invariant_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_invariant_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_invariant_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_next_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_next_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_next_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_next_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_next_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_next_2.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_until_0,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_until_0.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_until_1,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_until_1.json"
+);
+
+bench_json!(
+    rand_4p_4m_3000d_state_enforce_until_2,
+    "random_generated/rand_4p_4m_3000d/cgs.json",
+    "random_generated/rand_4p_4m_3000d/atl/cgs_whole_statespace_enforce_until_2.json"
+);
+
+//rand_5p_5m_3000d
+bench_json!(
+    rand_5p_5m_3000d_term_despite_invariant_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_despite_invariant_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_despite_invariant_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_despite_invariant_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_despite_invariant_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_despite_invariant_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_despite_next_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_despite_next_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_despite_next_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_despite_next_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_despite_next_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_despite_next_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_enforce_invariant_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_enforce_invariant_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_enforce_invariant_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_enforce_invariant_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_enforce_invariant_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_enforce_invariant_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_enforce_next_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_enforce_next_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_enforce_next_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_enforce_next_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_term_enforce_next_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_early_termination_enforce_next_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_eventually_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_eventually_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_eventually_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_eventually_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_eventually_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_eventually_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_invariant_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_invariant_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_invariant_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_invariant_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_invariant_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_invariant_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_next_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_next_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_next_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_next_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_next_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_next_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_until_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_until_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_until_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_until_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_despite_until_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_despite_until_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_eventually_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_eventually_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_eventually_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_eventually_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_eventually_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_eventually_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_invariant_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_invariant_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_invariant_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_invariant_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_invariant_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_invariant_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_next_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_next_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_next_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_next_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_next_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_next_2.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_until_0,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_until_0.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_until_1,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_until_1.json"
+);
+
+bench_json!(
+    rand_5p_5m_3000d_state_enforce_until_2,
+    "random_generated/rand_5p_5m_3000d/cgs.json",
+    "random_generated/rand_5p_5m_3000d/atl/cgs_whole_statespace_enforce_until_2.json"
+);
+
 // MULTIPLE THREAD COUNT
 // mexican
 bench_lcgs_threads!(
@@ -2011,4 +2445,85 @@ criterion_group!(
     rand_3p_4m_171d_state_enforce_until_2,
 );
 
-criterion_main!(rand_3p_4m_171d); // choose which group(s) to bench
+criterion_group!(
+    rand_4p_4m_3000d,
+    rand_4p_4m_3000d_term_despite_invariant_0,
+    rand_4p_4m_3000d_term_despite_invariant_1,
+    rand_4p_4m_3000d_term_despite_invariant_2,
+    rand_4p_4m_3000d_term_despite_next_0,
+    rand_4p_4m_3000d_term_despite_next_1,
+    rand_4p_4m_3000d_term_despite_next_2,
+    rand_4p_4m_3000d_term_enforce_invariant_0,
+    rand_4p_4m_3000d_term_enforce_invariant_1,
+    rand_4p_4m_3000d_term_enforce_invariant_2,
+    rand_4p_4m_3000d_term_enforce_next_0,
+    rand_4p_4m_3000d_term_enforce_next_1,
+    rand_4p_4m_3000d_term_enforce_next_2,
+    rand_4p_4m_3000d_state_despite_eventually_0,
+    rand_4p_4m_3000d_state_despite_eventually_1,
+    rand_4p_4m_3000d_state_despite_eventually_2,
+    rand_4p_4m_3000d_state_despite_invariant_0,
+    rand_4p_4m_3000d_state_despite_invariant_1,
+    rand_4p_4m_3000d_state_despite_invariant_2,
+    rand_4p_4m_3000d_state_despite_next_0,
+    rand_4p_4m_3000d_state_despite_next_1,
+    rand_4p_4m_3000d_state_despite_next_2,
+    rand_4p_4m_3000d_state_despite_until_0,
+    rand_4p_4m_3000d_state_despite_until_1,
+    rand_4p_4m_3000d_state_despite_until_2,
+    rand_4p_4m_3000d_state_enforce_eventually_0,
+    rand_4p_4m_3000d_state_enforce_eventually_1,
+    rand_4p_4m_3000d_state_enforce_eventually_2,
+    rand_4p_4m_3000d_state_enforce_invariant_0,
+    rand_4p_4m_3000d_state_enforce_invariant_1,
+    rand_4p_4m_3000d_state_enforce_invariant_2,
+    rand_4p_4m_3000d_state_enforce_next_0,
+    rand_4p_4m_3000d_state_enforce_next_1,
+    rand_4p_4m_3000d_state_enforce_next_2,
+    rand_4p_4m_3000d_state_enforce_until_0,
+    rand_4p_4m_3000d_state_enforce_until_1,
+    rand_4p_4m_3000d_state_enforce_until_2,
+);
+
+// expensive - first bench takes 6h
+criterion_group!(
+    rand_5p_5m_3000d,
+    rand_5p_5m_3000d_term_despite_invariant_0,
+    rand_5p_5m_3000d_term_despite_invariant_1,
+    rand_5p_5m_3000d_term_despite_invariant_2,
+    rand_5p_5m_3000d_term_despite_next_0,
+    rand_5p_5m_3000d_term_despite_next_1,
+    rand_5p_5m_3000d_term_despite_next_2,
+    rand_5p_5m_3000d_term_enforce_invariant_0,
+    rand_5p_5m_3000d_term_enforce_invariant_1,
+    rand_5p_5m_3000d_term_enforce_invariant_2,
+    rand_5p_5m_3000d_term_enforce_next_0,
+    rand_5p_5m_3000d_term_enforce_next_1,
+    rand_5p_5m_3000d_term_enforce_next_2,
+    rand_5p_5m_3000d_state_despite_eventually_0,
+    rand_5p_5m_3000d_state_despite_eventually_1,
+    rand_5p_5m_3000d_state_despite_eventually_2,
+    rand_5p_5m_3000d_state_despite_invariant_0,
+    rand_5p_5m_3000d_state_despite_invariant_1,
+    rand_5p_5m_3000d_state_despite_invariant_2,
+    rand_5p_5m_3000d_state_despite_next_0,
+    rand_5p_5m_3000d_state_despite_next_1,
+    rand_5p_5m_3000d_state_despite_next_2,
+    rand_5p_5m_3000d_state_despite_until_0,
+    rand_5p_5m_3000d_state_despite_until_1,
+    rand_5p_5m_3000d_state_despite_until_2,
+    rand_5p_5m_3000d_state_enforce_eventually_0,
+    rand_5p_5m_3000d_state_enforce_eventually_1,
+    rand_5p_5m_3000d_state_enforce_eventually_2,
+    rand_5p_5m_3000d_state_enforce_invariant_0,
+    rand_5p_5m_3000d_state_enforce_invariant_1,
+    rand_5p_5m_3000d_state_enforce_invariant_2,
+    rand_5p_5m_3000d_state_enforce_next_0,
+    rand_5p_5m_3000d_state_enforce_next_1,
+    rand_5p_5m_3000d_state_enforce_next_2,
+    rand_5p_5m_3000d_state_enforce_until_0,
+    rand_5p_5m_3000d_state_enforce_until_1,
+    rand_5p_5m_3000d_state_enforce_until_2,
+);
+
+criterion_main!(rand_5p_5m_3000d); // choose which group(s) to bench
