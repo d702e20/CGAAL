@@ -46,7 +46,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
             let hyper_id = hash_name(&edge);
 
             match edge {
-                Edge::HYPER(hyper) => {
+                Edge::Hyper(hyper) => {
                     print_vertex(&hyper.source, &mut output)?;
 
                     if hyper.targets.is_empty() {
@@ -103,7 +103,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                         }
                     }
                 }
-                Edge::NEGATION(neg) => {
+                Edge::Negation(neg) => {
                     print_vertex(&neg.source, &mut output)?;
 
                     output.write_all(
