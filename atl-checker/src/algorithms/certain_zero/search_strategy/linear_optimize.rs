@@ -3,7 +3,7 @@ use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identif
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::edg::{Edge, Vertex};
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategyBuilder, SearchStrategy};
-use minilp::{Problem, OptimizationDirection, ComparisonOp};
+use minilp::{Problem, OptimizationDirection, ComparisonOp, Error, Solution};
 use priority_queue::PriorityQueue;
 use std::collections::HashMap;
 use BinaryOpKind::{Addition,
@@ -21,9 +21,13 @@ use BinaryOpKind::{Addition,
                    Xor,
                    Implication, };
 use crate::edg::atlcgsedg::AtlVertex;
+use crate::atl::{Phi};
+use std::sync::Arc;
+use minilp::OptimizationDirection::{Maximize, Minimize};
+use std::hash::Hash;
 
 /// Holds extracted linear expressions from the formula in AtlVertex
-#[derive(Eq, PartialEq, Hash, Clone)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
     pub constant: i32,
@@ -37,7 +41,13 @@ struct LinearExpression {
 pub struct LinearOptimizeSearch {
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
-    cache: HashMap<(Vec<LinearExpression>, usize), i32>,
+    result_cache: HashMap<(Vec<LinearExpression>, usize), i32>,
+    formula_cache: HashMap<usize, HashMap<SymbolIdentifier, Vec<(Option<usize>, Option<usize>)>>>,
+}
+
+pub enum Ranges{
+    NotRange(usize, usize),
+    Range(usize,usize),
 }
 
 impl LinearOptimizeSearch {
@@ -45,7 +55,8 @@ impl LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
-            cache: HashMap::new(),
+            result_cache: HashMap::new(),
+            formula_cache: HashMap::new(),
         }
     }
 }
@@ -93,7 +104,7 @@ impl LinearOptimizeSearch {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
-                    if let Some(result) = self.get_distance_in_AtlVertex(target) {
+                    if let Some(result) = self.get_distance_in_atl_vertex(target) {
                         distances.push(result)
                     }
                 }
@@ -109,70 +120,191 @@ impl LinearOptimizeSearch {
             }
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
             Edge::Negation(edge) => {
-                self.get_distance_in_AtlVertex(&edge.target)
+                self.get_distance_in_atl_vertex(&edge.target)
             }
         }
     }
 
     /// helper function to iterate through ATLVertices and find distance
-    fn get_distance_in_AtlVertex(&mut self, target: &AtlVertex) -> Option<f32> {
+    fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<f32> {
         // TODO change edge by changing order of targets in the edge, based on distance
         // Find the linear expression from the targets formula, if any
-        let linear_expressions = self.get_linear_expressions_from_AtlVertex(target);
+        //let linear_expressions = Some(vec![]);
+        self.populate_formula_cache(target);
 
-        // Polynomials and such not allowed, returns None in such cases
-        if let Some(expressions) = linear_expressions {
-            // get the State in the target
-            let state = self.game.state_from_index(target.state());
+        let formula = &*target.formula();
 
-            // Check if result is in cache
-            if let Some(cached_result) = self.cache.get(&(expressions.clone(), target.state())) {
-                return Some(*cached_result as f32);
+        let res = self.final_acceptance_formula(formula);
+
+        println!("my final map");
+        println!("{:?}", res);
+
+        let state = self.game.state_from_index(target.state());
+
+
+        // Check if result is in cache
+        /*if let Some(cached_result) = self.result_cache.get(&(expressions.clone(), target.state())) {
+            return Some(*cached_result as f32);
+        }
+
+        let mut expr_distance: f32 = 0.0;
+        for linear_expression in &expressions {
+            // Distance from the state, to fulfilling the linear expression
+            let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
+            if let Some(distance) = distance_to_solve_expression {
+                expr_distance = expr_distance + distance;
             }
+        }
+        // If we got results, add to vec of distances and cache
+        // TODO expand cache with more results?
+        if 0.0 < expr_distance {
+            self.result_cache.insert((expressions.clone(), target.state()), expr_distance as i32);
+            return Some(expr_distance / expressions.len() as f32);
+        }*/
+        None
+    }
 
-            let mut expr_distance: f32 = 0.0;
-            for linear_expression in &expressions {
-                // Distance from the state, to fulfilling the linear expression
-                let distance_to_solve_expression = self.minimum_distance_1d(state.clone(), linear_expression);
-                if let Some(distance) = distance_to_solve_expression {
-                    expr_distance = expr_distance + distance;
+    fn final_acceptance_formula(&self, phi: &Phi) -> &HashMap<SymbolIdentifier, Vec<(Option<usize>, Option<usize>)>> {
+        match phi {
+            Phi::True => {}
+            Phi::False => {}
+            Phi::Proposition(x) => {
+                if let Some(res) = self.formula_cache.get(x) {
+                    return res;
+                } else { panic!() }
+            }
+            Phi::Not(formula) => {
+                let mut new_hashmap: HashMap<SymbolIdentifier, (usize, usize)> = HashMap::new();
+                let formula_hashmap = self.final_acceptance_formula(formula);
+                // for every symbol identifier in here, reverse the ranges
+                let mut new_ranges: Vec<(Option<usize>, Option<usize>)> = vec![];
+                for symbol_range in formula_hashmap {
+                    let mut carry: Option<usize> = None;
+
+
+                    for range in symbol_range.1 {
+                        // if not contains infinity (represented by None), do stuff (1,5) becomes (infinity,0) and (6,infinity)
+                        if let Some(min) = range.0 {
+                            new_ranges.push((None, Some(min)));
+                        }
+                        if let Some(max) = range.1 {
+                            new_ranges.push((Some(max), None));
+                        }
+
+                        // if contains infinity, do stuff, (infinity,0) and (6,infinity) becomes (1,5)
+                        if range.0.is_none() {
+                            if let Some(num) = range.1 {
+                                carry = Some(num)
+                            } else {panic!()}
+                        }
+                        if range.1.is_none() {
+                            if let Some(num) = range.0 {
+                                if let Some(carry) = carry {
+                                    new_ranges.push((Some(carry), Some(num)))
+                                }
+                            }
+                            panic!();
+                        }
+                    }
+                    //new_hashmap.insert(*symbol_range.0.clone(), ())
+                    //println!("{:?}", symbol_range.1[0]);
+                }
+                return formula_hashmap;
+            }
+            Phi::Or(formula1, formula2) => {
+                let res1 = self.final_acceptance_formula(formula1);
+                let res2 = self.final_acceptance_formula(formula2);
+            }
+            Phi::And(formula1, formula2) => {
+                let res1 = self.final_acceptance_formula(formula1);
+                let res2 = self.final_acceptance_formula(formula2);
+            }
+            Phi::DespiteNext { formula, .. } => { return self.final_acceptance_formula(formula); }
+            Phi::EnforceNext { formula, .. } => { return self.final_acceptance_formula(formula); }
+            Phi::DespiteUntil { .. } => {}
+            Phi::EnforceUntil { .. } => {}
+            Phi::DespiteEventually { formula, .. } => { return self.final_acceptance_formula(formula); }
+            Phi::EnforceEventually { formula, .. } => { return self.final_acceptance_formula(formula); }
+            Phi::DespiteInvariant { formula, .. } => { return self.final_acceptance_formula(formula); }
+            Phi::EnforceInvariant { formula, .. } => { return self.final_acceptance_formula(formula); }
+        }
+        panic!();
+    }
+
+
+    fn populate_formula_cache(&mut self, vertex: &AtlVertex) {
+        // get propositions from the formula in the vertex
+        let propositions = vertex.formula().get_propositions_recursively();
+
+        for proposition_index in propositions.into_iter() {
+            if !self.formula_cache.contains_key(&proposition_index) {
+                // Make sure it is a Label
+                if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
+                    // Expression has to be linear
+                    // Todo combine is_linear with extracted_linear_expression, perhaps also combine with this function
+                    if true { //label.condition.is_linear() {
+                        // Return the constructed Linear Expression from this condition
+                        if let Some(linear_expression) = extract_linear_expression(label.condition.kind.clone()) {
+                            if let Some(range) = self.get_linear_range(&linear_expression) {
+                                //println!("range to solve {:?} is {}-{}", &linear_expression, &range.0, &range.1);
+                                let mut res_hash = HashMap::new();
+                                res_hash.insert(linear_expression.symbol, vec![(Some(range.0), Some(range.1))]);
+                                self.formula_cache.insert(proposition_index, res_hash);
+                            }
+                        }
+                    }
                 }
             }
-            // If we got results, add to vec of distances and cache
-            // TODO expand cache with more results?
-            if 0.0 < expr_distance {
-                self.cache.insert((expressions.clone(), target.state()), expr_distance as i32);
-                return Some(expr_distance / expressions.len() as f32);
+        }
+    }
+
+    fn lin_prog(&self, range_of_var: (f64, f64), constant: f64, operation: BinaryOpKind, direction: OptimizationDirection) -> Option<usize> {
+        let mut problem = Problem::new(direction);
+        let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
+        // TODO support for more operators?
+        match operation {
+            Addition => { return None; }
+            Multiplication => { return None; }
+            Subtraction => { return None; }
+            Division => { return None; }
+            Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, constant); }
+            Inequality => { return None; }
+            GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, constant); }
+            LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, constant); }
+            GreaterOrEqual => { return None; }
+            LessOrEqual => { return None; }
+            And => { return None; }
+            Or => { return None; }
+            Xor => { return None; }
+            Implication => { return None; }
+        }
+        match problem.solve() {
+            Ok(solution) => { Some(solution[x] as usize) }
+            Err(_) => { None }
+        }
+    }
+
+    fn get_linear_range(&self, linear_expression: &LinearExpression) -> Option<(usize, usize)> {
+        // Get the declaration from the symbol in LinearExpression, has to be a StateVar
+        // (i.e a variable in an LCGS program)
+        let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
+        if let DeclKind::StateVar(var) = &symb.kind {
+
+            // The range is used for linear programming
+            let range_of_var: (f64, f64) = (*var.ir_range.start() as f64, *var.ir_range.end() as f64);
+
+            if let Some(min) = self.lin_prog(range_of_var, linear_expression.constant as f64, linear_expression.operation.clone(), Minimize) {
+                if let Some(max) = self.lin_prog(range_of_var, linear_expression.constant as f64, linear_expression.operation.clone(), Maximize) {
+                    return Some((min, max));
+                }
             }
         }
         None
     }
 
-    fn get_linear_expressions_from_AtlVertex(&self, vertex: &AtlVertex) -> Option<Vec<LinearExpression>> {
-        // get propositions from the formula in the vertex
-        let propositions = vertex.formula().get_propositions_recursively();
 
-        let mut linear_expressions: Vec<LinearExpression> = Vec::new();
-        for proposition_index in propositions.into_iter() {
-            // Make sure it is a Label
-            if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
-                // Expression has to be linear
-                // Todo combine is_linear with extracted_linear_expression, perhaps also combine with this function
-                if label.condition.is_linear() {
-                    // Return the constructed Linear Expression from this condition
-                    if let Some(linear_expression) = extract_linear_expression(label.condition.kind.clone()) {
-                        linear_expressions.push(linear_expression);
-                    }
-                }
-            }
-        }
-        if !linear_expressions.is_empty() {
-            Some(linear_expressions)
-        } else { None }
-    }
-
-    /// Applies linear programming to the linear expression given, and finds distance in the state to the solution
-    fn minimum_distance_1d(&self, state: State, linear_expression: &LinearExpression) -> Option<f32> {
+    // /// Applies linear programming to the linear expression given, and finds distance in the state to the solution
+    /*fn minimum_distance_1d(&self, state: State, linear_expression: &LinearExpression) -> Option<f32> {
         // Get the declaration from the symbol in LinearExpression, has to be a StateVar
         // (i.e a variable in an LCGS program)
         let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
@@ -220,7 +352,7 @@ impl LinearOptimizeSearch {
                 }
             }
         } else { None }
-    }
+    }*/
 }
 
 // Todo combine this with expr.is_linear() in a visitor pattern, is currently very MVP and only extracts x < 5 and such,
@@ -243,7 +375,8 @@ fn extract_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
                         return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
                     }
                 }
-            } None
+            }
+            None
         }
         _ => { None }
     }
@@ -476,3 +609,88 @@ mod test {
         assert!(solution.is_none());
     }
 }
+
+
+/*fn get_distance_atl_vertex1(&self, vertex: &AtlVertex) -> Option<f32>{
+        let formula = &*vertex.formula().clone();
+
+        // gå ned, find ranges på variable og tag dem med op
+        match formula {
+            Phi::True => {}
+            Phi::False => {}
+            Phi::Proposition(prop) => {
+                let state = self.game.state_from_index(vertex.state());
+                if let DeclKind::Label(label) = &self.game.label_index_to_decl(*prop).kind {
+                    // Expression has to be linear
+                    // Todo combine is_linear with extracted_linear_expression, perhaps also combine with this function
+                    //if label.condition.is_linear() {
+                    // Return the constructed Linear Expression from this condition
+                    if let Some(linear_expression) = extract_linear_expression(label.condition.kind.clone()) {
+                        let res = self.minimum_distance_1d(state, &linear_expression);
+                        if res.is_some(){
+                            print!("asd{:?}",res.unwrap())
+                        }
+                    }
+                    //}
+                }
+            }
+            Phi::Not(_) => {}
+            Phi::Or(_, _) => {}
+            Phi::And(_, _) => {}
+            Phi::DespiteNext { .. } => {}
+            Phi::EnforceNext { .. } => {}
+            Phi::DespiteUntil { .. } => {}
+            Phi::EnforceUntil { .. } => {}
+            Phi::DespiteEventually { .. } => {}
+            Phi::EnforceEventually { .. } => {}
+            Phi::DespiteInvariant { .. } => {}
+            Phi::EnforceInvariant { .. } => {}
+        }
+        //println!("{:?}", formula);
+        Some(5.0)
+    }
+
+    fn linear_program_solution(&self, state: State, linear_expression: &LinearExpression, context: BinaryOpKind) -> Option<f32> {
+        todo!()
+    }
+
+    pub fn get_propositions_recursively(phi: Phi) -> Vec<LinearPhi> {
+        match phi {
+            Phi::True => Vec::new(),
+            Phi::False => Vec::new(),
+            Phi::Proposition(id) => {
+                vec![LinearPhi::Proposition(id)]
+            },
+            Phi::Not(formula) => {
+                let formula = formula.get_propositions_recursively();
+                println!("{:?}",formula);
+                if formula.len() == 1 {
+                    if let LinearPhi::Proposition(p) = formula[0] {
+                        return vec![LinearPhi::Not(p)];
+                    } else {vec![]}
+                } else {vec![]}
+            },
+            Phi::Or(formula1, formula2) => {
+                vec![]
+                //vec![LinearPhi::And(self.get_propositions_recursively(*formula1).unwrap(), self.get_propositions_recursively(*formula2).unwrap())]
+            }
+            Phi::And(formula1, formula2) => {
+                vec![]
+                //vec![LinearPhi::Or(self.get_propositions_recursively(*formula1).unwrap(), self.get_propositions_recursively(*formula2).unwrap())]
+            }
+            Phi::DespiteNext { formula, .. } => formula.get_propositions_recursively(),
+            Phi::EnforceNext { formula, .. } => formula.get_propositions_recursively(),
+            Phi::DespiteUntil { pre, until, .. } => {
+                vec![]
+                //vec![LinearPhi::Or(self.get_propositions_recursively(*pre).unwrap(), self.get_propositions_recursively(*until).unwrap())]
+            }
+            Phi::EnforceUntil { pre, until, .. } => {
+                vec![]
+                //vec![LinearPhi::Or(self.get_propositions_recursively(*pre).unwrap(), self.get_propositions_recursively(*until).unwrap())]
+            }
+            Phi::DespiteEventually { formula, .. } => formula.get_propositions_recursively(),
+            Phi::EnforceEventually { formula, .. } => formula.get_propositions_recursively(),
+            Phi::DespiteInvariant { formula, .. } => formula.get_propositions_recursively(),
+            Phi::EnforceInvariant { formula, .. } => formula.get_propositions_recursively(),
+        }
+    }*/
