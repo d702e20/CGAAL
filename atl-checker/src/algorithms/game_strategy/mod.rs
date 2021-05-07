@@ -9,7 +9,7 @@ use crate::edg::atledg::vertex::ATLVertex;
 use crate::edg::atledg::ATLDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
 use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 
 pub mod enforcing;
 pub mod error;

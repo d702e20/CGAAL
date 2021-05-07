@@ -61,8 +61,9 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                 // Invariants belong to the maximum fixed point domain, so it only has one
                 // negation edge to an EnforceUntil. Let's visit that one instead.
                 let edges = graph.annotated_succ(vertex);
-                if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
+                if let Some(AnnotatedEdge::Negation(_edge)) = edges.get(0) {
                     // TODO compute_despite_strategy_rec(graph, &edge.target, assignments, move_to_pick);
+                    unimplemented!()
                 }
             }
             Phi::EnforceEventually { .. } | Phi::EnforceUntil { .. } => {

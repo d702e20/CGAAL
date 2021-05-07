@@ -17,14 +17,12 @@ use tracing::trace;
 use crate::args::CommonArgs;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
-use atl_checker::algorithms::game_strategy::error::Error;
 use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult, SpecificationProof};
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{ATLExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::ATLVertex;
 use atl_checker::edg::atledg::ATLDependencyGraph;
-use atl_checker::edg::{ExtendedDependencyGraph, Vertex};
+use atl_checker::edg::ExtendedDependencyGraph;
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
@@ -175,7 +173,10 @@ fn main_inner() -> Result<(), String> {
                                 let mut file = File::create(game_strategy_path).map_err(|err| {
                                     format!("Failed to create strategy output file.\n{}", err)
                                 })?;
-                                write!(file, "{}", strategy.in_context_of(&graph.game_structure));
+                                write!(file, "{}", strategy.in_context_of(&graph.game_structure))
+                                    .map_err(|err| {
+                                        format!("Failed to write strategy file. {}", err)
+                                    })?;
                                 println!("Proving strategy was save to {}", game_strategy_path);
                             }
                             SpecificationProof::NoStrategyNeeded => {
@@ -211,7 +212,7 @@ fn main_inner() -> Result<(), String> {
                         formula: Arc::from(formula),
                     };
                     let graph = ATLDependencyGraph { game_structure };
-                    check_model(graph, v0, threads, search_strategy, game_strategy_path);
+                    check_model(graph, v0, threads, search_strategy, game_strategy_path)
                 },
                 |game_structure, formula| {
                     println!(
@@ -224,9 +225,9 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    check_model(graph, v0, threads, search_strategy, game_strategy_path);
+                    check_model(graph, v0, threads, search_strategy, game_strategy_path)
                 },
-            )?
+            )??
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
