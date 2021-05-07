@@ -193,6 +193,7 @@ impl Phi {
         }
     }
 
+    /// Returns the proposition from a formula, if it is one
     pub fn get_proposition(&self) -> Option<usize> {
         if let Phi::Proposition(id) = self {
             Some(*id)
