@@ -1,4 +1,4 @@
-use crate::algorithms::game_strategy::PartialStrategy;
+use crate::algorithms::game_strategy::partial::PartialStrategy;
 use crate::game_structure::GameStructure;
 use joinery::prelude::*;
 use std::fmt::{Display, Formatter};

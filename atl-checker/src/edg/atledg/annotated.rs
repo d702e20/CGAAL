@@ -114,10 +114,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                 (
                                     ATLVertex::PARTIAL {
                                         state: *state,
-                                        partial_move: pmove,
+                                        partial_move: pmove.clone(),
                                         formula: formula.clone(),
                                     },
-                                    None, // The partial move is part of the partial configuration instead
+                                    Some(pmove),
                                 )
                             })
                             .collect();
@@ -177,10 +177,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                     (
                                         ATLVertex::PARTIAL {
                                             state: *state,
-                                            partial_move: pmove,
+                                            partial_move: pmove.clone(),
                                             formula: vert.formula(),
                                         },
-                                        None, // The partial move is part of the partial configuration
+                                        Some(pmove),
                                     )
                                 },
                             ),
@@ -286,10 +286,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                 (
                                     ATLVertex::PARTIAL {
                                         state: *state,
-                                        partial_move: pmove,
+                                        partial_move: pmove.clone(),
                                         formula: formula.clone(),
                                     },
-                                    None, // Partial move is part of partial configuration
+                                    Some(pmove),
                                 )
                             })
                             .collect();
