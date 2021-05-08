@@ -36,7 +36,7 @@ jobs:
           command: test
           args: --all-features
 
-  test:
+  bench:
     name: Test Benches
     runs-on: ubuntu-latest
     steps:
