@@ -2160,8 +2160,9 @@ bench_lcgs_threads!(
 );
 
 // groups take a name as first argument, all subsequent arguments are benchmarks for this group
+// static_thread_case_studies naming is one-to-one with paper shorthand
 criterion_group!(
-    static_thread_benches,
+    static_thread_case_studies,
     mexican_standoff_3p_3hp_lcgs_survive,
     mexican_standoff_5p_1hp_lcgs_survive,
     ttt1,
@@ -2206,7 +2207,7 @@ criterion_group!(
 );
 
 criterion_group!(
-    multi_thread_benches,
+    multi_thread_case_studies,
     mexican_standoff_3p_3hp_lcgs_survive_threads,
     mexican_standoff_5p_1hp_lcgs_survive_threads,
     ttt1_threads,
@@ -2531,4 +2532,12 @@ criterion_group!(
     rand_5p_5m_3000d_state_enforce_until_2,
 );
 
-criterion_main!(rand_1p_1m_530d); // choose which group(s) to bench
+criterion_main!(
+    static_thread_case_studies,
+    rand_1p_1m_530d,
+    rand_2p_1m_546d,
+    rand_3p_1m_400d,
+    rand_3p_3m_405d,
+    rand_3p_4m_171d,
+    rand_4p_4m_3000d
+); // choose which group(s) to bench
