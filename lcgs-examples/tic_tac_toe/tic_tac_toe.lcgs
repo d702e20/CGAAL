@@ -21,47 +21,46 @@ player cross = tictactoe [SHAPE=CROSS];
 // 11 21 31
 
 pos11 : [0..2] init EMPTY;
-pos11' = nought.play11 * NOUGHT + cross.play11 * CROSS;
+pos11' = pos11 + nought.play11 * NOUGHT + cross.play11 * CROSS;
 
 pos12 : [0..2] init EMPTY;
-pos12' = nought.play12 * NOUGHT + cross.play12 * CROSS;
+pos12' = pos12 + nought.play12 * NOUGHT + cross.play12 * CROSS;
 
 pos13 : [0..2] init EMPTY;
-pos13' = nought.play13 * NOUGHT + cross.play13 * CROSS;
+pos13' = pos13 + nought.play13 * NOUGHT + cross.play13 * CROSS;
 
 pos21 : [0..2] init EMPTY;
-pos21' = nought.play21 * NOUGHT + cross.play21 * CROSS;
+pos21' = pos21 + nought.play21 * NOUGHT + cross.play21 * CROSS;
 
 pos22 : [0..2] init EMPTY;
-pos22' = nought.play22 * NOUGHT + cross.play22 * CROSS;
+pos22' = pos22 + nought.play22 * NOUGHT + cross.play22 * CROSS;
 
 pos23 : [0..2] init EMPTY;
-pos23' = nought.play23 * NOUGHT + cross.play23 * CROSS;
+pos23' = pos23 + nought.play23 * NOUGHT + cross.play23 * CROSS;
 
 pos31 : [0..2] init EMPTY;
-pos31' = nought.play31 * NOUGHT + cross.play31 * CROSS;
+pos31' = pos31 + nought.play31 * NOUGHT + cross.play31 * CROSS;
 
 pos32 : [0..2] init EMPTY;
-pos32' = nought.play32 * NOUGHT + cross.play32 * CROSS;
+pos32' = pos32 + nought.play32 * NOUGHT + cross.play32 * CROSS;
 
 pos33 : [0..2] init EMPTY;
-pos33' = nought.play33 * NOUGHT + cross.play33 * CROSS;
+pos33' = pos33 + nought.play33 * NOUGHT + cross.play33 * CROSS;
 
 turn : [1..2] init STARTING_PLAYER;
 turn' = (turn == NOUGHT) * CROSS + (turn == CROSS) * NOUGHT;
 
 board_full : [0..1] init 0;
-board_full' = !(
-    pos11 == EMPTY
-    || pos12 == EMPTY
-    || pos13 == EMPTY
-    || pos21 == EMPTY
-    || pos22 == EMPTY
-    || pos23 == EMPTY
-    || pos31 == EMPTY
-    || pos32 == EMPTY
-    || pos33 == EMPTY
-);
+board_full' = 0 <
+    (pos11 + nought.play11 + cross.play11)
+    * (pos12 + nought.play12 + cross.play12)
+    * (pos13 + nought.play13 + cross.play13)
+    * (pos21 + nought.play21 + cross.play21)
+    * (pos22 + nought.play22 + cross.play22)
+    * (pos23 + nought.play23 + cross.play23)
+    * (pos31 + nought.play31 + cross.play31)
+    * (pos32 + nought.play32 + cross.play32)
+    * (pos33 + nought.play33 + cross.play33);
 
 winner : [0..2] init EMPTY;
 winner' = NOUGHT * (
@@ -116,3 +115,4 @@ endtemplate
 label tie = board_full && winner == EMPTY;
 label nought_wins = winner == NOUGHT;
 label cross_wins = winner == CROSS;
+label game_over = winner != EMPTY || board_full;

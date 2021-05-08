@@ -8,7 +8,7 @@ use super::Phi;
 use crate::game_structure::{Player, Proposition};
 
 /// Parse an ATL formula
-pub fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
+pub fn parse_phi<'a, 'b: 'a, A: AtlExpressionParser>(
     expr_parser: &'b A,
     input: &'a str,
 ) -> Result<Phi, String> {
@@ -21,7 +21,7 @@ pub fn parse_phi<'a, 'b: 'a, A: ATLExpressionParser>(
 /// Allows a CGS model to define custom player and proposition expressions. For instance,
 /// in LCGS we want to be able to write "p2" as a player and "p2.alive" as a proposition, while
 /// in json, players and propositions are numbers.
-pub trait ATLExpressionParser {
+pub trait AtlExpressionParser {
     /// A parser that parses a player name
     fn player_parser(&self) -> Parser<u8, Player>;
     /// A parser that parses a proposition name
@@ -37,7 +37,7 @@ fn ws<'a>() -> Parser<'a, u8, ()> {
 /// Normally we make recursive parsers with the `call(phi)` that wraps a parser with lazy
 /// invocation. But the `call` method does not allow us to pass our converter. So we
 /// make our own lazy parser.
-fn lazy<'a, A: ATLExpressionParser, P: Fn(&'a A) -> Parser<u8, Phi>>(
+fn lazy<'a, A: AtlExpressionParser, P: Fn(&'a A) -> Parser<u8, Phi>>(
     parser: &'a P,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
@@ -45,7 +45,7 @@ fn lazy<'a, A: ATLExpressionParser, P: Fn(&'a A) -> Parser<u8, Phi>>(
 }
 
 /// Parses an ATL formula (without whitespace around it)
-pub(crate) fn phi<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+pub(crate) fn phi<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     // We have to take left-recursion and precedence into account when making parsers.
     // In ATL formulas, only AND and OR is subject to left-recursion, where AND have higher
     // precedence. So we split ATL formulas into layers: phi s (can contain AND),
@@ -56,14 +56,14 @@ pub(crate) fn phi<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 /// Parses an ATL term (Can't contain AND and without whitespace around it)
-fn term<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn term<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     let or = (primary(expr_parser) - ws() - sym(b'|') - ws() + lazy(&term, expr_parser))
         .map(|(lhs, rhs)| Phi::Or(Arc::new(lhs), Arc::new(rhs)));
     or | primary(expr_parser)
 }
 
 /// Parses a primary ATL formula (no ANDs or ORs)
-fn primary<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn primary<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     paren(expr_parser)
         | boolean()
         | proposition(expr_parser)
@@ -79,44 +79,44 @@ fn primary<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 /// Parses an ATL formula in parenthesis
-fn paren<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn paren<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     sym(b'(') * ws() * lazy(&phi, expr_parser) - ws() - sym(b')')
 }
 
 /// Parses an enforce-coalition (path qualifier)
-fn enforce_players<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
+fn enforce_players<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
     seq(b"<<") * ws() * players(expr_parser) - ws() - seq(b">>")
 }
 
 /// Parses a despite-coalition (path qualifier)
-fn despite_players<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
+fn despite_players<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
     seq(b"[[") * ws() * players(expr_parser) - ws() - seq(b"]]")
 }
 
 /// Parses an path formula starting with the NEXT (X) operator
-fn next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn next<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     sym(b'X') * ws() * lazy(&phi, expr_parser)
 }
 
 /// Parses an path formula with the UNTIL operator
-fn until<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, (Phi, Phi)> {
+fn until<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, (Phi, Phi)> {
     sym(b'(') * ws() * lazy(&phi, expr_parser) - ws() - sym(b'U') - ws() + lazy(&phi, expr_parser)
         - ws()
         - sym(b')')
 }
 
 /// Parses an path formula starting with the EVENTUALLY (F/finally) operator
-fn eventually<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn eventually<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     sym(b'F') * ws() * lazy(&phi, expr_parser)
 }
 
 /// Parses an path formula starting with the INVARIANT (G/global) operator
-fn invariant<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn invariant<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     sym(b'G') * ws() * lazy(&phi, expr_parser)
 }
 
 /// Parses an ENFORCE-NEXT ATL formula
-fn enforce_next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn enforce_next<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (enforce_players(expr_parser) - ws() + next(expr_parser)).map(|(players, phi)| {
         Phi::EnforceNext {
             players,
@@ -126,7 +126,7 @@ fn enforce_next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 /// Parses an ENFORCE-UNTIL ATL formula
-fn enforce_until<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn enforce_until<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (enforce_players(expr_parser) - ws() + until(expr_parser)).map(|(players, (l, r))| {
         Phi::EnforceUntil {
             players,
@@ -137,7 +137,7 @@ fn enforce_until<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 /// Parses an ENFORCE-EVENTUALLY ATL formula
-fn enforce_eventually<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn enforce_eventually<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (enforce_players(expr_parser) - ws() + eventually(expr_parser)).map(|(players, phi)| {
         Phi::EnforceEventually {
             players,
@@ -147,7 +147,7 @@ fn enforce_eventually<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi
 }
 
 /// Parses an ENFORCE-INVARIANT ATL formula
-fn enforce_invariant<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn enforce_invariant<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (enforce_players(expr_parser) - ws() + invariant(expr_parser)).map(|(players, phi)| {
         Phi::EnforceInvariant {
             players,
@@ -157,7 +157,7 @@ fn enforce_invariant<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi>
 }
 
 /// Parses an DESPITE-NEXT ATL formula
-fn despite_next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn despite_next<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (despite_players(expr_parser) - ws() + next(expr_parser)).map(|(players, phi)| {
         Phi::DespiteNext {
             players,
@@ -167,7 +167,7 @@ fn despite_next<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 /// Parses an DESPITE-UNTIL ATL formula
-fn despite_until<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn despite_until<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (despite_players(expr_parser) - ws() + until(expr_parser)).map(|(players, (l, r))| {
         Phi::DespiteUntil {
             players,
@@ -178,7 +178,7 @@ fn despite_until<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 }
 
 /// Parses an DESPITE-EVENTUALLY ATL formula
-fn despite_eventually<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn despite_eventually<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (despite_players(expr_parser) - ws() + eventually(expr_parser)).map(|(players, phi)| {
         Phi::DespiteEventually {
             players,
@@ -188,7 +188,7 @@ fn despite_eventually<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi
 }
 
 /// Parses an DESPITE-INVARIANT ATL formula
-fn despite_invariant<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn despite_invariant<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (despite_players(expr_parser) - ws() + invariant(expr_parser)).map(|(players, phi)| {
         Phi::DespiteInvariant {
             players,
@@ -198,14 +198,12 @@ fn despite_invariant<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi>
 }
 
 /// Parses a proposition using the given [ATLExpressionParser].
-fn proposition<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    expr_parser
-        .proposition_parser()
-        .map(|id| Phi::Proposition(id))
+fn proposition<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+    expr_parser.proposition_parser().map(Phi::Proposition)
 }
 
 /// Parses a negated ATL formula
-fn not<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
+fn not<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
     (sym(b'!') * ws() * lazy(&phi, expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
 }
 
@@ -218,7 +216,7 @@ fn boolean<'a>() -> Parser<'a, u8, Phi> {
 }
 
 /// Parses a comma-separated list of players using the given [ATLExpressionParser].
-fn players<A: ATLExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
+fn players<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Vec<usize>> {
     list(expr_parser.player_parser(), ws() * sym(b',') * ws())
 }
 
@@ -265,16 +263,16 @@ mod test {
         boolean, despite_eventually, despite_invariant, despite_next, despite_players,
         despite_until, enforce_eventually, enforce_invariant, enforce_next, enforce_players,
         enforce_until, eventually, invariant, next, not, number, paren, phi, proposition, term,
-        until, ATLExpressionParser,
+        until, AtlExpressionParser,
     };
     use crate::atl::{parse_phi, Phi};
-    use crate::game_structure::lcgs::ir::intermediate::IntermediateLCGS;
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
     use crate::game_structure::lcgs::parse::parse_lcgs;
     use crate::game_structure::{Player, Proposition};
 
     struct TestModel;
 
-    impl ATLExpressionParser for TestModel {
+    impl AtlExpressionParser for TestModel {
         fn player_parser(&self) -> Parser<u8, Player> {
             number()
         }
@@ -750,7 +748,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>>";
         let phi = enforce_players(&lcgs).parse(&atl_formula.as_bytes());
@@ -767,7 +765,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>> F true";
         let phi = parse_phi(&lcgs, &atl_formula);
@@ -790,7 +788,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<>> F test";
         let phi = parse_phi(&lcgs, &atl_formula);
@@ -814,7 +812,7 @@ mod test {
             [wait] 1;
         endtemplate
         ";
-        let lcgs = IntermediateLCGS::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
+        let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>> F p1.test";
         let phi = parse_phi(&lcgs, &atl_formula);
