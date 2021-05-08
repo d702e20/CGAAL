@@ -1,6 +1,6 @@
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identifier};
-use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs};
+use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::edg::{Edge};
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategyBuilder, SearchStrategy};
 use minilp::{Problem, OptimizationDirection, ComparisonOp};
@@ -47,10 +47,9 @@ pub struct LinearOptimizeSearch {
     result_cache: HashMap<(u64, usize), i32>,
     /// Maps propositions (key) to a Hashmap of symbols, and the range the symbol should be within
     /// to satisfy the proposition
-    proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, VecRanges>>,
-    /// Maps the hash of a formula to the final hashmap representing the state of the symbols
-    /// and the ranges they should be within, to satisfy the entire formula Phi
-    phi_cache: HashMap<u64, HashMap<SymbolIdentifier, VecRanges>>,
+    proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, Ranges>>,
+    /// Maps a phi to a phi with ranges
+    phi_cache: HashMap<u64, RangedPhi>,
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
@@ -61,19 +60,20 @@ pub enum Ranges {
     Range(i32, i32),
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+/*#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub enum VecRanges {
     /// The state of the symbol must be within all the ranges in this to satisfy the formula
     AndVec(Vec<Ranges>),
     /// The state of the symbol must be within at least one of the ranges in this to satisfy the formula
     OrVec(Vec<Ranges>),
     HyperVec(Vec<VecRanges>),
-}
+}*/
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum RangedPhi {
-    Or(VecRanges, VecRanges),
-    And(VecRanges, VecRanges),
+    Or(Box<RangedPhi>, Box<RangedPhi>),
+    And(Box<RangedPhi>, Box<RangedPhi>),
+    Prop(HashMap<SymbolIdentifier, Ranges>),
 }
 
 impl LinearOptimizeSearch {
@@ -152,10 +152,6 @@ impl LinearOptimizeSearch {
         }
     }
 
-    fn visit_ranged_phi(&self, ranged_phi: RangedPhi) -> i32 {
-        0
-    }
-
     /// helper function to iterate through ATLVertices and find distance
     fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<f32> {
         // TODO change edge by changing order of targets in the edge, based on distance
@@ -171,88 +167,119 @@ impl LinearOptimizeSearch {
             return Some(*distance as f32);
         }
 
-        // If we have not seen this phi before, find ranges for symbols that would satisfy it and update caches
+        // If we have not seen this phi before, find ranges for symbols that would satisfy it and update caches proposition cache
         if !self.phi_cache.contains_key(&phi_hash) {
             self.populate_formula_cache(target);
-            self.phi_cache.insert(phi_hash, self.final_acceptance_formula(&*target.formula()));
+            self.phi_cache.insert(phi_hash, self.map_phi_to_ranges(&*target.formula()));
         }
 
-        // Now we know the ranges for symbols that would satisfy phi, as we know from either the cache from previously, or just updated it
-        // Get the hashmap that maps the symbols to their ranges to satisfy phi
-        if let Some(map) = self.phi_cache.get(&phi_hash) {
-            // The current state in this vertex
+        // The constructed RangedPhi
+        if let Some(ranged_phi) = self.phi_cache.get(&phi_hash) {
             let state = self.game.state_from_index(target.state());
-            // todo how do proper initialization
-            let mut min_distance_in_state: i32 = 100000000;
-
-            let res = 0;
-            //let res = self.visit_ranged_phi(map);
-            /*
-            // For all mappings, find the minimum distance to satisfy for that specific symbol
-            for symbol_ranges in map {
-                // Get the actual i32 value of the state of the symbol
-                if let Some(state_of_symbol) = state.0.get(symbol_ranges.0) {
-                    // todo how do proper initialization
-                    let mut min_dist_in_symbol: i32 = 100000;
-
-                    // match the type of range the symbol should be within
-                    if let Some(mut dist) = self.find_lowest_distance_in_vecrange(&symbol_ranges.1, min_dist_in_symbol, state_of_symbol) {
-                        min_dist_in_symbol = dist;
-                    }
-                }
-            }*/
-
-            // Todo if we updated the min_distance_in_state, return this, else return None. Also update result_cache
-            return if res != min_distance_in_state {
-                self.result_cache.insert((phi_hash, target.state()), min_distance_in_state);
-                Some(min_distance_in_state as f32)
-            } else {
-                None
-            };
+            let distance = self.visit_ranged_phi(ranged_phi, 10000, &state);
+            self.result_cache.insert((phi_hash, target.state()), distance as i32);
+            return Some(distance);
         }
+
+        println!("Something went wrong, couldnt get distance, properly because expression not linear");
         None
     }
 
-    /// If AndRange, take highest distance found
-    /// If OrRange, take lowest distance found
-    fn find_lowest_distance_in_vecrange(&self, vecrange: &VecRanges, current_lowest_distance: i32, state_of_symbol: &i32) -> Option<i32> {
-        match vecrange {
-            VecRanges::AndVec(ranges) => {
-                let mut result: i32 = 0;
-                for range in ranges {
-                    if let Some(res) = self.find_lowest_distance_in_range(&range, current_lowest_distance, state_of_symbol) {
-                        if result < res {
-                            result = res;
-                        }
-                    }
-                }
-                return Some(result);
+    fn map_phi_to_ranges(&self, phi: &Phi) -> RangedPhi {
+        match phi {
+            Phi::True => { panic!("true not supported") }
+            Phi::False => { panic!("false not supported") }
+            Phi::Proposition(proposition) => {
+                if let Some(symbol_range_map) = self.proposition_cache.get(proposition) {
+                    return RangedPhi::Prop(symbol_range_map.clone());
+                } else { panic!() }
             }
-            VecRanges::OrVec(ranges) => {
-                let mut result: i32 = 100000;
-                for range in ranges {
-                    if let Some(res) = self.find_lowest_distance_in_range(&range, current_lowest_distance, state_of_symbol) {
-                        if res < result {
-                            result = res;
-                        }
-                    }
-                }
-                return Some(result);
+            Phi::Not(formula) => {
+                let symbol_range_map = self.map_phi_to_ranges(formula);
+                // Nut the RangedPhi
+                return self.nut_ranged_phi(&symbol_range_map);
             }
-            VecRanges::HyperVec(ranges) => {
-                let mut result: i32 = 100000;
-                for range in ranges {
-                    if let Some(res) = self.find_lowest_distance_in_vecrange(range, current_lowest_distance, state_of_symbol) {
-                        if res < result {
-                            result = res;
+            Phi::Or(lhs, rhs) => {
+                let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
+                let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
+
+                return RangedPhi::Or(Box::from(lhs_symbol_range_map), Box::from(rhs_symbol_range_map));
+            }
+            Phi::And(lhs, rhs) => {
+                let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
+                let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
+
+                return RangedPhi::And(Box::from(lhs_symbol_range_map), Box::from(rhs_symbol_range_map));
+            }
+            Phi::DespiteNext { formula, .. } => { return self.map_phi_to_ranges(formula); }
+            Phi::EnforceNext { formula, .. } => { return self.map_phi_to_ranges(formula); }
+            Phi::DespiteUntil { .. } => { panic!("Sorry, despite until not supported in los") }
+            Phi::EnforceUntil { .. } => { panic!("Sorry, enforce until not supported in los") }
+            Phi::DespiteEventually { formula, .. } => { return self.map_phi_to_ranges(formula); }
+            Phi::EnforceEventually { formula, .. } => { return self.map_phi_to_ranges(formula); }
+            Phi::DespiteInvariant { formula, .. } => { return self.map_phi_to_ranges(formula); }
+            Phi::EnforceInvariant { formula, .. } => { return self.map_phi_to_ranges(formula); }
+        }
+    }
+
+    fn nut_ranged_phi(&self, rangedphi: &RangedPhi) -> RangedPhi {
+        rangedphi.clone()
+    }
+
+    // todo instead of passing stuff, just get it each time?
+    fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, current_lowest_distance: i32, state: &State) -> f32 {
+        match ranged_phi {
+            RangedPhi::Or(lhs_prop_map, rhs_prop_map) => {
+                let lhs_distance = self.visit_ranged_phi(lhs_prop_map, current_lowest_distance, state);
+                let rhs_distance = self.visit_ranged_phi(rhs_prop_map, current_lowest_distance, state);
+
+                // Todo dirty stuff here
+                return (Ord::min(lhs_distance as i32, rhs_distance as i32)) as f32;
+            }
+            RangedPhi::And(lhs_prop_map, rhs_prop_map) => {
+                let lhs_distance = self.visit_ranged_phi(lhs_prop_map, current_lowest_distance, state);
+                let rhs_distance = self.visit_ranged_phi(rhs_prop_map, current_lowest_distance, state);
+
+                // Todo dirty stuff here
+                return (Ord::max(lhs_distance as i32, rhs_distance as i32)) as f32;
+            }
+            RangedPhi::Prop(prop_map) => {
+                // todo cumulative, instead of max?
+                let mut max_range = 100000;
+                let mut updated = false;
+                for (symbol, range) in prop_map {
+                    if let Some(state_of_symbol) = state.0.get(symbol) {
+                        if let Some(res) = self.find_lowest_distance_in_range(range, current_lowest_distance, state_of_symbol) {
+                            if res < max_range {
+                                max_range = res;
+                                updated = true;
+                            } else { continue; }
                         }
-                    }
+                    } else { panic!("shit, state of symbol not found, shits fucked mate") }
+                }
+                if updated {
+                    println!("yass");
+                    return max_range as f32;
+                } else { panic!("oh noo") }
+            }
+        }
+        5.0
+    }
+
+    fn nuttedrange(&self, ranges: &Vec<Ranges>) -> Vec<Ranges> {
+        let mut result: Vec<Ranges> = vec![];
+        for range in ranges {
+            match range {
+                NotRange(min, max) => {
+                    result.push(Range(*min, *max))
+                }
+                Range(min, max) => {
+                    result.push(NotRange(*min, *max))
                 }
             }
         }
-        None
+        return result;
     }
-
 
     fn find_lowest_distance_in_range(&self, range: &Ranges, current_lowest_distance: i32, state_of_symbol: &i32) -> Option<i32> {
         match range {
@@ -285,123 +312,6 @@ impl LinearOptimizeSearch {
         }
     }
 
-    fn nuttedvecranges(&self, ranges: &VecRanges) -> VecRanges {
-        return match ranges {
-            VecRanges::AndVec(ranges) => {
-                let res = self.nuttedrange(&ranges);
-                VecRanges::AndVec(res)
-            }
-            VecRanges::OrVec(ranges) => {
-                let res = self.nuttedrange(&ranges);
-                VecRanges::OrVec(res)
-            }
-            VecRanges::HyperVec(ranges) => {
-                let mut ress: Vec<VecRanges> = Vec::new();
-                for range in ranges {
-                    let res = self.nuttedvecranges(range);
-                    ress.push(res);
-                }
-                VecRanges::HyperVec(ress)
-            }
-        };
-    }
-
-    fn nuttedrange(&self, ranges: &Vec<Ranges>) -> Vec<Ranges> {
-        let mut result: Vec<Ranges> = vec![];
-        for range in ranges {
-            match range {
-                NotRange(min, max) => {
-                    result.push(Range(*min, *max))
-                }
-                Range(min, max) => {
-                    result.push(NotRange(*min, *max))
-                }
-            }
-        }
-        return result;
-    }
-
-    /// Muy importante function mapping the formula Phi to a map of symbols to ranges the symbols should be within to satisfy the formula
-    fn final_acceptance_formula(&self, phi: &Phi) -> HashMap<SymbolIdentifier, VecRanges> {
-        match phi {
-            Phi::True => {}
-            Phi::False => {}
-            Phi::Proposition(x) => {
-                if let Some(res) = self.proposition_cache.get(x) {
-                    return res.clone();
-                } else { panic!() }
-            }
-            Phi::Not(formula) => {
-                // Get the hashmap from the formula inside the Not
-                let formula_hashmap = self.final_acceptance_formula(formula);
-
-                // Go through all entries and make Range into NotRange and vice versa
-                let mut new_hashmap: HashMap<SymbolIdentifier, VecRanges> = HashMap::new();
-                for (symbol, vecrange) in &formula_hashmap {
-                    let new_vecranges: VecRanges = self.nuttedvecranges(&vecrange);
-                    new_hashmap.insert(symbol.clone(), new_vecranges);
-                }
-                return new_hashmap;
-            }
-            Phi::Or(formula1, formula2) => {
-                let mut new_hashmap: HashMap<SymbolIdentifier, VecRanges> = HashMap::new();
-
-                // Need to combine these into a new OrVec
-                let mut lhs_formula_hashmap = self.final_acceptance_formula(formula1);
-                let mut rhs_formula_hashmap = self.final_acceptance_formula(formula2);
-
-                /*for (symbol, vecrange) in &lhs_formula_hashmap {
-                    let new_symbol_entry: (SymbolIdentifier, VecRanges);
-
-                    // do stuff
-                    for (symbol, lhs_range) in lhs_formula_hashmap {
-                        if let Some(rhs_range) = rhs_formula_hashmap.get_key_value(&symbol) {
-                            // add to new hash map
-
-                            rhs_formula_hashmap.remove(&symbol);
-                            lhs_formula_hashmap.remove(&symbol);
-                        } else {
-                            // Only found in left
-
-                            // add to new hashmap
-
-                            lhs_formula_hashmap.remove(&symbol);
-                        }
-                    }
-                }
-                // Those only found in lhs
-                for (symbol, lhs_range) in lhs_formula_hashmap {
-
-
-                    // add to new hash map
-                }
-
-                // those only found in rhs
-                for (symbol, lhs_range) in rhs_formula_hashmap {
-                    // add to new hash map
-                }
-
-                new_hashmap.insert(symbol.clone(), new_vecranges);*/
-
-                return new_hashmap;
-            }
-
-            Phi::And(formula1, formula2) => {
-                let res1 = self.final_acceptance_formula(formula1);
-                let res2 = self.final_acceptance_formula(formula2);
-            }
-            Phi::DespiteNext { formula, .. } => { return self.final_acceptance_formula(formula); }
-            Phi::EnforceNext { formula, .. } => { return self.final_acceptance_formula(formula); }
-            Phi::DespiteUntil { pre, until, .. } => { panic!("sorry, los does not support untils (yet)") }
-            Phi::EnforceUntil { pre, until, .. } => { panic!("sorry, los does not support untils (yet)") }
-            Phi::DespiteEventually { formula, .. } => { return self.final_acceptance_formula(formula); }
-            Phi::EnforceEventually { formula, .. } => { return self.final_acceptance_formula(formula); }
-            Phi::DespiteInvariant { formula, .. } => { return self.final_acceptance_formula(formula); }
-            Phi::EnforceInvariant { formula, .. } => { return self.final_acceptance_formula(formula); }
-        }
-        panic!("what the fuck did you do");
-    }
-
     fn populate_formula_cache(&mut self, vertex: &AtlVertex) {
         // get propositions from the formula in the vertex
         let propositions = vertex.formula().get_propositions_recursively();
@@ -415,7 +325,7 @@ impl LinearOptimizeSearch {
                         // Return the constructed Linear Expression from this condition
                         if let Some(linear_expression) = extract_linear_expression(label.condition.kind.clone()) {
                             if let Some(range) = self.get_linear_range(&linear_expression) {
-                                let res_hash = [(linear_expression.symbol, VecRanges::OrVec(vec![Ranges::Range(range.0, range.1)]))].iter().cloned().collect();
+                                let res_hash = [(linear_expression.symbol, Ranges::Range(range.0, range.1))].iter().cloned().collect();
                                 self.proposition_cache.insert(proposition_index, res_hash);
                             }
                         }
@@ -726,5 +636,150 @@ mod test {
 }
 
 // Todo list
-// fix translating phi to ranges
-// fix default values/initialization
+// visit_phi and nut phi range
+
+
+/*
+    /// If AndRange, take highest distance found
+    /// If OrRange, take lowest distance found
+    fn find_lowest_distance_in_vecrange(&self, vecrange: &VecRanges, current_lowest_distance: i32, state_of_symbol: &i32) -> Option<i32> {
+        match vecrange {
+            VecRanges::AndVec(ranges) => {
+                let mut result: i32 = 0;
+                for range in ranges {
+                    if let Some(res) = self.find_lowest_distance_in_range(&range, current_lowest_distance, state_of_symbol) {
+                        if result < res {
+                            result = res;
+                        }
+                    }
+                }
+                return Some(result);
+            }
+            VecRanges::OrVec(ranges) => {
+                let mut result: i32 = 100000;
+                for range in ranges {
+                    if let Some(res) = self.find_lowest_distance_in_range(&range, current_lowest_distance, state_of_symbol) {
+                        if res < result {
+                            result = res;
+                        }
+                    }
+                }
+                return Some(result);
+            }
+            VecRanges::HyperVec(ranges) => {
+                let mut result: i32 = 100000;
+                for range in ranges {
+                    if let Some(res) = self.find_lowest_distance_in_vecrange(range, current_lowest_distance, state_of_symbol) {
+                        if res < result {
+                            result = res;
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+    */
+
+/*
+fn nuttedvecranges(&self, ranges: &VecRanges) -> VecRanges {
+    return match ranges {
+        VecRanges::AndVec(ranges) => {
+            let res = self.nuttedrange(&ranges);
+            VecRanges::AndVec(res)
+        }
+        VecRanges::OrVec(ranges) => {
+            let res = self.nuttedrange(&ranges);
+            VecRanges::OrVec(res)
+        }
+        VecRanges::HyperVec(ranges) => {
+            let mut ress: Vec<VecRanges> = Vec::new();
+            for range in ranges {
+                let res = self.nuttedvecranges(range);
+                ress.push(res);
+            }
+            VecRanges::HyperVec(ress)
+        }
+    };
+}*/
+
+// /// Muy importante function mapping the formula Phi to a map of symbols to ranges the symbols should be within to satisfy the formula
+/*fn final_acceptance_formula(&self, phi: &Phi) -> HashMap<SymbolIdentifier, VecRanges> {
+    match phi {
+        Phi::True => {}
+        Phi::False => {}
+        Phi::Proposition(x) => {
+            if let Some(res) = self.proposition_cache.get(x) {
+                return res.clone();
+            } else { panic!() }
+        }
+        Phi::Not(formula) => {
+            // Get the hashmap from the formula inside the Not
+            let formula_hashmap = self.final_acceptance_formula(formula);
+
+            // Go through all entries and make Range into NotRange and vice versa
+            let mut new_hashmap: HashMap<SymbolIdentifier, VecRanges> = HashMap::new();
+            for (symbol, vecrange) in &formula_hashmap {
+                let new_vecranges: VecRanges = self.nuttedvecranges(&vecrange);
+                new_hashmap.insert(symbol.clone(), new_vecranges);
+            }
+            return new_hashmap;
+        }
+        Phi::Or(formula1, formula2) => {
+            let mut new_hashmap: HashMap<SymbolIdentifier, VecRanges> = HashMap::new();
+
+            // Need to combine these into a new OrVec
+            let mut lhs_formula_hashmap = self.final_acceptance_formula(formula1);
+            let mut rhs_formula_hashmap = self.final_acceptance_formula(formula2);
+
+            /*for (symbol, vecrange) in &lhs_formula_hashmap {
+                let new_symbol_entry: (SymbolIdentifier, VecRanges);
+
+                // do stuff
+                for (symbol, lhs_range) in lhs_formula_hashmap {
+                    if let Some(rhs_range) = rhs_formula_hashmap.get_key_value(&symbol) {
+                        // add to new hash map
+
+                        rhs_formula_hashmap.remove(&symbol);
+                        lhs_formula_hashmap.remove(&symbol);
+                    } else {
+                        // Only found in left
+
+                        // add to new hashmap
+
+                        lhs_formula_hashmap.remove(&symbol);
+                    }
+                }
+            }
+            // Those only found in lhs
+            for (symbol, lhs_range) in lhs_formula_hashmap {
+
+
+                // add to new hash map
+            }
+
+            // those only found in rhs
+            for (symbol, lhs_range) in rhs_formula_hashmap {
+                // add to new hash map
+            }
+
+            new_hashmap.insert(symbol.clone(), new_vecranges);*/
+
+            return new_hashmap;
+        }
+
+        Phi::And(formula1, formula2) => {
+            let res1 = self.final_acceptance_formula(formula1);
+            let res2 = self.final_acceptance_formula(formula2);
+        }
+        Phi::DespiteNext { formula, .. } => { return self.final_acceptance_formula(formula); }
+        Phi::EnforceNext { formula, .. } => { return self.final_acceptance_formula(formula); }
+        Phi::DespiteUntil { pre, until, .. } => { panic!("sorry, los does not support untils (yet)") }
+        Phi::EnforceUntil { pre, until, .. } => { panic!("sorry, los does not support untils (yet)") }
+        Phi::DespiteEventually { formula, .. } => { return self.final_acceptance_formula(formula); }
+        Phi::EnforceEventually { formula, .. } => { return self.final_acceptance_formula(formula); }
+        Phi::DespiteInvariant { formula, .. } => { return self.final_acceptance_formula(formula); }
+        Phi::EnforceInvariant { formula, .. } => { return self.final_acceptance_formula(formula); }
+    }
+    panic!("what the fuck did you do");
+}*/
