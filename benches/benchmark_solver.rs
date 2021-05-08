@@ -5,9 +5,7 @@ use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::fs::File;
-use std::io::Read;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::sync::Arc;
 
 const PRIORITISE_BACK_PROPAGATION: bool = true;
