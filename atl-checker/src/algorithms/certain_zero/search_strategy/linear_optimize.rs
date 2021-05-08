@@ -164,7 +164,6 @@ impl LinearOptimizeSearch {
 
         // TODO Should perhaps be removed. If we have seen this phi before, and this state, get the result instantly, not sure if this is possible?
         if let Some(distance) = self.result_cache.get(&(phi_hash, target.state())) {
-            println!("found result in cache");
             return Some(*distance as f32);
         } else {
             // todo could check if my current state is close to something in the cache, and just reuse that result, or perhaps look for more results, and extrapolate
@@ -183,8 +182,6 @@ impl LinearOptimizeSearch {
             self.result_cache.insert((phi_hash, target.state()), distance as i32);
             return Some(distance);
         }
-
-        println!("Something went wrong, couldnt get distance, properly because expression not linear");
         None
     }
 
@@ -280,30 +277,14 @@ impl LinearOptimizeSearch {
                                 updated = true;
                             } else { continue; }
                         }
-                    } else { panic!("shit, state of symbol not found, shits fucked mate") }
+                    }
                 }
                 if updated {
-                    println!("yass");
                     return max_range as f32;
-                } else { panic!("oh noo") }
+                } else { panic!("oh no") }
             }
         }
     }
-
-    /*fn nuttedranges(&self, ranges: &Vec<Ranges>) -> Vec<Ranges> {
-        let mut result: Vec<Ranges> = vec![];
-        for range in ranges {
-            match range {
-                NotRange(min, max) => {
-                    result.push(Range(*min, *max))
-                }
-                Range(min, max) => {
-                    result.push(NotRange(*min, *max))
-                }
-            }
-        }
-        return result;
-    }*/
 
     fn find_lowest_distance_in_range(&self, range: &Ranges, current_lowest_distance: i32, state_of_symbol: &i32) -> Option<i32> {
         match range {
