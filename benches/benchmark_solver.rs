@@ -1,7 +1,7 @@
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::atl::Phi;
-use atl_checker::edg::{AtlDependencyGraph, AtlVertex};
+use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
@@ -9,6 +9,8 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use std::fs::File;
 use std::io::Read;
 use std::sync::Arc;
+
+const PRIORITISE_BACK_PROPAGATION: bool = true;
 
 // CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
@@ -34,7 +36,7 @@ macro_rules! bench_json {
                         concat!(json_model_path_prefix!(), $model)
                     ))
                     .unwrap();
-                    let graph = ATLDependencyGraph { game_structure };
+                    let graph = AtlDependencyGraph { game_structure };
 
                     let formula: Arc<Phi> = serde_json::from_str(include_str!(concat!(
                         json_model_path_prefix!(),
@@ -42,13 +44,14 @@ macro_rules! bench_json {
                     )))
                     .unwrap();
 
-                    let v0 = ATLVertex::FULL { state: 0, formula };
+                    let v0 = AtlVertex::Full { state: 0, formula };
 
                     distributed_certain_zero(
                         graph,
                         v0,
                         num_cpus::get() as u64,
                         BreadthFirstSearchBuilder,
+                        PRIORITISE_BACK_PROPAGATION,
                     );
                 })
             });
@@ -64,8 +67,8 @@ macro_rules! bench_lcgs {
                     let lcgs = parse_lcgs(include_str!(concat!(lcgs_model_path_prefix!(), $model)))
                         .expect(&format!("Could not read model {}", $model));
                     let game_structure =
-                        IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
-                    let graph = ATLDependencyGraph { game_structure };
+                        IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
+                    let graph = AtlDependencyGraph { game_structure };
 
                     let formula = serde_json::from_str(include_str!(concat!(
                         lcgs_model_path_prefix!(),
@@ -73,7 +76,7 @@ macro_rules! bench_lcgs {
                     )))
                     .expect(&format!("Could not read formula {}", $formula));
 
-                    let v0 = ATLVertex::FULL {
+                    let v0 = AtlVertex::Full {
                         state: graph.game_structure.initial_state_index(),
                         formula,
                     };
@@ -83,7 +86,7 @@ macro_rules! bench_lcgs {
                         v0,
                         num_cpus::get() as u64,
                         BreadthFirstSearchBuilder,
-                        true,
+                        PRIORITISE_BACK_PROPAGATION,
                     );
                 });
             });
@@ -110,8 +113,8 @@ macro_rules! bench_lcgs_threads {
                             )))
                             .expect(&format!("Could not read model {}", $model));
                             let game_structure =
-                                IntermediateLCGS::create(lcgs).expect("Could not symbolcheck");
-                            let graph = ATLDependencyGraph { game_structure };
+                                IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
+                            let graph = AtlDependencyGraph { game_structure };
 
                             let formula = serde_json::from_str(include_str!(concat!(
                                 lcgs_model_path_prefix!(),
@@ -119,7 +122,7 @@ macro_rules! bench_lcgs_threads {
                             )))
                             .expect(&format!("Could not read formula {}", $formula));
 
-                            let v0 = ATLVertex::FULL {
+                            let v0 = AtlVertex::Full {
                                 state: graph.game_structure.initial_state_index(),
                                 formula,
                             };
@@ -129,7 +132,7 @@ macro_rules! bench_lcgs_threads {
                                 v0,
                                 core_count,
                                 BreadthFirstSearchBuilder,
-                                true,
+                                PRIORITISE_BACK_PROPAGATION,
                             );
                         });
                     },
@@ -2528,4 +2531,4 @@ criterion_group!(
     rand_5p_5m_3000d_state_enforce_until_2,
 );
 
-criterion_main!(rand_5p_5m_3000d); // choose which group(s) to bench
+criterion_main!(rand_1p_1m_530d); // choose which group(s) to bench
