@@ -17,6 +17,12 @@ impl<V: Vertex> BreadthFirstSearch<V> {
     }
 }
 
+impl<V: Vertex> Default for BreadthFirstSearch<V> {
+    fn default() -> Self {
+        BreadthFirstSearch::new()
+    }
+}
+
 impl<V: Vertex> SearchStrategy<V> for BreadthFirstSearch<V> {
     fn next(&mut self) -> Option<Edge<V>> {
         self.queue.pop_front()

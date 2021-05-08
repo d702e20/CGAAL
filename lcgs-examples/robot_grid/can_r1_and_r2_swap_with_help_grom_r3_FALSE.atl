@@ -1,1 +1,0 @@
-<<r1,r2,r3>> F (r1.at_target & !r1.crashed & r2.at_target & !r2.crashed)
