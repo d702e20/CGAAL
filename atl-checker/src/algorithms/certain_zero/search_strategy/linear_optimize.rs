@@ -27,54 +27,33 @@ use std::hash::{Hash, Hasher};
 use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::{NotRange, Range};
 use std::collections::hash_map::DefaultHasher;
 use std::cmp;
-use crate::algorithms::certain_zero::search_strategy::linear_optimize::RangedPhi::Prop;
 
-/// Holds extracted linear expressions from the formula in AtlVertex
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
-struct LinearExpression {
-    pub symbol: SymbolIdentifier,
-    pub constant: i32,
-    pub operation: BinaryOpKind,
+/// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
+pub struct LinearOptimizeSearchBuilder {
+    pub game: IntermediateLcgs,
+}
+
+impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
+    fn build(&self) -> LinearOptimizeSearch {
+        LinearOptimizeSearch::new(self.game.clone())
+    }
 }
 
 /// Search strategy using ideas from linear programming to order next vertices,
 /// based on distance from the vertex to a region that borders the line between true/false in the formula.
-/// Has a cache to hold previously computed results, and uses a priority queue with
-/// distances as priority (lowest distance has highest priority)
 pub struct LinearOptimizeSearch {
+    /// Priority based on distance, lowest distance highest priority
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
-    /// Maps the hash of a formula and the usize representing a state, to a distance
+    /// Maps the hash of a Phi and usize of state, to a result distance
     result_cache: HashMap<(u64, usize), i32>,
-    /// Maps propositions (key) to a Hashmap of symbols, and the range the symbol should be within
+    /// Maps usize from proposition, to a hashmap mapping symbols to the ranges they need to be within,
     /// to satisfy the proposition
     proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, Ranges>>,
-    /// Maps a phi to a phi with ranges
+    /// Maps hash of a phi to a rangedphi
     phi_cache: HashMap<u64, RangedPhi>,
-}
-
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
-pub enum Ranges {
-    /// Must be the case that the state of the symbol is outside this range to satisfy the propositon
-    NotRange(i32, i32),
-    /// Must be the case that the state of the symbol is inside this range to satisfy the propositon (inclusive)
-    Range(i32, i32),
-}
-
-/*#[derive(Eq, PartialEq, Hash, Clone, Debug)]
-pub enum VecRanges {
-    /// The state of the symbol must be within all the ranges in this to satisfy the formula
-    AndVec(Vec<Ranges>),
-    /// The state of the symbol must be within at least one of the ranges in this to satisfy the formula
-    OrVec(Vec<Ranges>),
-    HyperVec(Vec<VecRanges>),
-}*/
-
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub enum RangedPhi {
-    Or(Box<RangedPhi>, Box<RangedPhi>),
-    And(Box<RangedPhi>, Box<RangedPhi>),
-    Prop(HashMap<SymbolIdentifier, Ranges>),
+    // TODO - add a new cache, to compare distance between states and use this to guestimate distance
+    // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
 }
 
 impl LinearOptimizeSearch {
@@ -89,15 +68,33 @@ impl LinearOptimizeSearch {
     }
 }
 
-/// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
-pub struct LinearOptimizeSearchBuilder {
-    pub game: IntermediateLcgs,
+// TODO perhaps NotRange is not needed, as we only care how close we are to bounds (acceptance region), not which side that we are on
+/// Holds the range for which a symbol should be within, to satisfy a proposition
+#[derive(Clone)]
+pub enum Ranges {
+    /// Must be the case that the state of the symbol is outside this range to satisfy the propositon
+    NotRange(i32, i32),
+    /// Must be the case that the state of the symbol is inside this range to satisfy the propositon (inclusive)
+    Range(i32, i32),
 }
 
-impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
-    fn build(&self) -> LinearOptimizeSearch {
-        LinearOptimizeSearch::new(self.game.clone())
-    }
+/// Used when mapping a Phi to a ranged variant,
+/// where the propositions have been replaced by hashmaps mapping symbols to Ranges
+pub enum RangedPhi {
+    /// Either or should hold
+    Or(Box<RangedPhi>, Box<RangedPhi>),
+    /// Both should hold
+    And(Box<RangedPhi>, Box<RangedPhi>),
+    /// Mapping symbols to ranges
+    Proposition(HashMap<SymbolIdentifier, Ranges>),
+}
+
+/// Holds extracted linear expressions from the formula in AtlVertex
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+struct LinearExpression {
+    pub symbol: SymbolIdentifier,
+    pub constant: i32,
+    pub operation: BinaryOpKind,
 }
 
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
@@ -133,7 +130,7 @@ impl LinearOptimizeSearch {
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
                     if let Some(result) = self.get_distance_in_atl_vertex(target) {
-                        distances.push(result)
+                        distances.push(result as f32)
                     }
                 }
 
@@ -148,56 +145,184 @@ impl LinearOptimizeSearch {
             }
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
             Edge::Negation(edge) => {
-                self.get_distance_in_atl_vertex(&edge.target)
+                if let Some(distance) = self.get_distance_in_atl_vertex(&edge.target) {
+                    Some(distance as f32);
+                }
+                None
             }
         }
     }
 
-    /// helper function to iterate through ATLVertices and find distance
-    fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<f32> {
+    /// Finds the distance in a single atl_vertex
+    fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<i32> {
         // TODO change edge by changing order of targets in the edge, based on distance
 
-        // Hash phi, to see if we have seen it before by checking caches
+        // Hash formula, to see if we have seen it before by checking caches
         let mut hasher = DefaultHasher::new();
         target.formula().hash(&mut hasher);
-        let phi_hash = hasher.finish();
+        let formula = hasher.finish();
 
-        // TODO Should perhaps be removed. If we have seen this phi before, and this state, get the result instantly, not sure if this is possible?
-        if let Some(distance) = self.result_cache.get(&(phi_hash, target.state())) {
-            return Some(*distance as f32);
+        // If we have seen this phi before, and this state, get the result instantly
+        if let Some(distance) = self.result_cache.get(&(formula, target.state())) {
+            return Some(*distance);
         } else {
-            // todo could check if my current state is close to something in the cache, and just reuse that result, or perhaps look for more results, and extrapolate
+            // TODO could check if current state is close to something in the cache, and just reuse that result,
+            // TODO or perhaps look for more results close to this state, and extrapolate (Mathias supervisor suggestion)
         }
 
-        // If we have not seen this phi before, find ranges for symbols that would satisfy it and update caches proposition cache
-        if !self.phi_cache.contains_key(&phi_hash) {
-            self.populate_formula_cache(target);
-            self.phi_cache.insert(phi_hash, self.map_phi_to_ranges(&*target.formula()));
+        // If we have not seen this formula before
+        if !self.phi_cache.contains_key(&formula) {
+            // Find ranges for symbols that would satisfy it and update proposition_cache
+            self.populate_proposition_cache(target);
+            // Now we know the ranges for which the propositions in the formula would be satisfied,
+            // Map the phi to one that holds Ranges, and cache this
+            self.phi_cache.insert(formula, self.map_phi_to_ranges(&*target.formula()));
         }
 
-        // The constructed RangedPhi
-        if let Some(ranged_phi) = self.phi_cache.get(&phi_hash) {
+        // Now we have the mapped phi (called RangedPhi)
+        if let Some(ranged_phi) = self.phi_cache.get(&formula) {
+            // Get current state in vertex
             let state = self.game.state_from_index(target.state());
+            // Find the distance to acceptance region by visting the RangedPhi representing the formula in the vertex
+            // TODO replace 10000 with something
             let distance = self.visit_ranged_phi(ranged_phi, 10000, &state);
-            self.result_cache.insert((phi_hash, target.state()), distance as i32);
+            // Cache the resulting distance from the combination of this formula and state
+            self.result_cache.insert((formula, target.state()), distance);
+            // Return calculated distance
             return Some(distance);
         }
+        // If something went wrong, and we could not find a distance, return None
         None
     }
 
+    /// Finds all propositions in the formula in the vertex, and find Ranges for the symbols in them,
+    /// that would satisfy the propositions, save these Ranges in cache
+    fn populate_proposition_cache(&mut self, vertex: &AtlVertex) {
+        // get all propositions from the formula in the vertex
+        let propositions = vertex.formula().get_propositions_recursively();
+
+        for proposition_index in propositions {
+            // Only find Ranges for propositions that we have not seen before
+            if !self.proposition_cache.contains_key(&proposition_index) {
+                // Make sure it is a Label
+                if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
+                    // TODO, write better .is_linear(), that actually works
+                    // Expression has to be linear
+                    if true { //label.condition.is_linear() {
+                        // TODO, only supports the very simple expressions, would be nice to allow more expressive expressions
+                        // Return the constructed Linear Expression from this condition
+                        if let Some(linear_expression) = self.extract_linear_expression(label.condition.kind.clone()) {
+                            // Find range for the symbol in the linear_expression to be within, to satisfy the given proposition
+                            if let Some(range) = self.range_to_satisfy_proposition(&linear_expression) {
+                                // Maps the symbol to the Range just found
+                                let res_hash = [(linear_expression.symbol, Ranges::Range(range.0, range.1))].iter().cloned().collect();
+                                // Add to proposition_cache
+                                self.proposition_cache.insert(proposition_index, res_hash);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // TODO should be replaced by something better
+    /// Finds a single simple linear expression
+    fn extract_linear_expression(&self, expr: ExprKind) -> Option<LinearExpression> {
+        match &expr {
+            ExprKind::BinaryOp(operator, operand1, operand2) => {
+                // Either we have that operand1 is the owned ident, and operand2 is the constant
+                if let ExprKind::OwnedIdent(id) = &operand1.kind {
+                    if let Identifier::Resolved { owner, name } = *id.clone() {
+                        let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                        if let ExprKind::Number(number) = operand2.kind {
+                            return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
+                        }
+                    }
+                    // Or we have that operand2 is the owned ident, and operand1 is the constant
+                } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
+                    if let Identifier::Resolved { owner, name } = *id.clone() {
+                        let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                        if let ExprKind::Number(number) = operand1.kind {
+                            return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
+                        }
+                    }
+                }
+                // If we have something more fancy than "binary operator - identifier - number" i.e x < 5, y == 10,
+                // Return None
+                None
+            }
+            // Also, return None if it is not a binary operator in the expression
+            _ => { None }
+        }
+    }
+
+    /// Runs the linear programming with both minimize, and maximize direction,
+    /// To find the min and max value the symbol should be, to satisfy the proposition
+    fn range_to_satisfy_proposition(&self, linear_expression: &LinearExpression) -> Option<(i32, i32)> {
+        // Get the declaration from the symbol in LinearExpression, has to be a StateVar
+        // (i.e a variable in an LCGS program)
+        let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
+        if let DeclKind::StateVar(variable) = &symb.kind {
+
+            // The range for the variable is used in the linear programming.
+            // This range is the one declared in the LCGS program
+            let range_of_var: (f64, f64) = (*variable.ir_range.start() as f64, *variable.ir_range.end() as f64);
+
+            // Find both min and max
+            if let Some(min) = self.linear_program_simple_linear_expression(linear_expression, range_of_var, Minimize) {
+                if let Some(max) = self.linear_program_simple_linear_expression(linear_expression, range_of_var, Maximize) {
+                    return Some((min, max));
+                }
+            }
+        }
+        // If we cannot find a min and max solution, return None
+        None
+    }
+
+    // TODO when allowing more expressive expressions, this needs to be updated as well
+    fn linear_program_simple_linear_expression(&self, linearexpression: &LinearExpression, range_of_var: (f64, f64), direction: OptimizationDirection) -> Option<i32> {
+        let mut problem = Problem::new(direction);
+        let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
+        // TODO support for more operators?
+        match linearexpression.operation {
+            Addition => { return None; }
+            Multiplication => { return None; }
+            Subtraction => { return None; }
+            Division => { return None; }
+            Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, linearexpression.constant as f64); }
+            Inequality => { return None; }
+            GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, linearexpression.constant as f64); }
+            LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, linearexpression.constant as f64); }
+            GreaterOrEqual => { return None; }
+            LessOrEqual => { return None; }
+            And => { return None; }
+            Or => { return None; }
+            Xor => { return None; }
+            Implication => { return None; }
+        }
+        match problem.solve() {
+            Ok(solution) => { Some(solution[x] as i32) }
+            Err(_) => { None }
+        }
+    }
+
+    /// Takes a Phi (the formula in the vertex) and maps it to a RangedPhi, using the Ranges that we computed for the propositions
     fn map_phi_to_ranges(&self, phi: &Phi) -> RangedPhi {
         match phi {
+            // TODO find better solution than panics
             Phi::True => { panic!("true not supported") }
             Phi::False => { panic!("false not supported") }
             Phi::Proposition(proposition) => {
+                // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
                 if let Some(symbol_range_map) = self.proposition_cache.get(proposition) {
-                    return RangedPhi::Prop(symbol_range_map.clone());
+                    return RangedPhi::Proposition(symbol_range_map.clone());
                 } else { panic!() }
             }
             Phi::Not(formula) => {
                 let symbol_range_map = self.map_phi_to_ranges(formula);
-                // Nut the RangedPhi
-                return self.nut_ranged_phi(&symbol_range_map);
+                // Return the Notted RangedPhi
+                return self.get_not_ranged_phi(&symbol_range_map);
             }
             Phi::Or(lhs, rhs) => {
                 let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
@@ -222,196 +347,98 @@ impl LinearOptimizeSearch {
         }
     }
 
-    fn nut_ranged_phi(&self, rangedphi: &RangedPhi) -> RangedPhi {
+    // TODO think about if this actually works
+    fn get_not_ranged_phi(&self, rangedphi: &RangedPhi) -> RangedPhi {
         return match rangedphi {
             RangedPhi::Or(lhs, rhs) => {
-                RangedPhi::Or(Box::from(self.nut_ranged_phi(lhs)), Box::from(self.nut_ranged_phi(rhs)))
+                RangedPhi::Or(Box::from(self.get_not_ranged_phi(lhs)), Box::from(self.get_not_ranged_phi(rhs)))
             }
             RangedPhi::And(lhs, rhs) => {
-                RangedPhi::And(Box::from(self.nut_ranged_phi(lhs)), Box::from(self.nut_ranged_phi(rhs)))
+                RangedPhi::And(Box::from(self.get_not_ranged_phi(lhs)), Box::from(self.get_not_ranged_phi(rhs)))
             }
-            RangedPhi::Prop(prop_hash_map) => {
-                let mut nutted_prop_hash_map: HashMap<SymbolIdentifier, Ranges> = HashMap::new();
+            // If proposition, not the Ranges, by converting them to the other kind of Range
+            RangedPhi::Proposition(prop_hash_map) => {
+                let mut notted_prop_hash_map: HashMap<SymbolIdentifier, Ranges> = HashMap::new();
 
                 for (symbol, range) in prop_hash_map {
                     match range {
                         NotRange(min, max) => {
-                            nutted_prop_hash_map.insert(symbol.clone(), Range(*min, *max));
+                            notted_prop_hash_map.insert(symbol.clone(), Range(*min, *max));
                         }
                         Range(min, max) => {
-                            nutted_prop_hash_map.insert(symbol.clone(), NotRange(*min, *max));
+                            notted_prop_hash_map.insert(symbol.clone(), NotRange(*min, *max));
                         }
                     }
                 }
-                Prop(nutted_prop_hash_map)
+                RangedPhi::Proposition(notted_prop_hash_map)
             }
         };
     }
 
-    // todo instead of passing stuff, just get it each time?
-    fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, current_lowest_distance: i32, state: &State) -> f32 {
+    // TODO find better solution than passing current_lowest_distance and dummy value
+    /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
+    fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, current_lowest_distance: i32, state: &State) -> i32 {
         match ranged_phi {
-            RangedPhi::Or(lhs_prop_map, rhs_prop_map) => {
-                let lhs_distance = self.visit_ranged_phi(lhs_prop_map, current_lowest_distance, state);
-                let rhs_distance = self.visit_ranged_phi(rhs_prop_map, current_lowest_distance, state);
+            // If we need to satisfy either of the formulas, just return the lowest distance found between the two
+            RangedPhi::Or(lhs, rhs) => {
+                let lhs_distance = self.visit_ranged_phi(lhs, current_lowest_distance, state);
+                let rhs_distance = self.visit_ranged_phi(rhs, current_lowest_distance, state);
 
-                // Todo dirty stuff here
-                return (Ord::min(lhs_distance as i32, rhs_distance as i32)) as f32;
+                return Ord::min(lhs_distance, rhs_distance);
             }
-            RangedPhi::And(lhs_prop_map, rhs_prop_map) => {
-                let lhs_distance = self.visit_ranged_phi(lhs_prop_map, current_lowest_distance, state);
-                let rhs_distance = self.visit_ranged_phi(rhs_prop_map, current_lowest_distance, state);
+            // If we need to satisfy both of the formulas, just return the largest distance found between the two
+            RangedPhi::And(lhs, rhs) => {
+                let lhs_distance = self.visit_ranged_phi(lhs, current_lowest_distance, state);
+                let rhs_distance = self.visit_ranged_phi(rhs, current_lowest_distance, state);
 
-                // Todo dirty stuff here
-                return (Ord::max(lhs_distance as i32, rhs_distance as i32)) as f32;
+                return Ord::max(lhs_distance, rhs_distance);
             }
-            RangedPhi::Prop(prop_map) => {
-                // todo cumulative, instead of max?
-                let mut max_range = 100000;
-                let mut updated = false;
-                for (symbol, range) in prop_map {
+            // Iterate through all entires in the hashmap mapping symbols to ranges
+            // Find distance for each symbol in the current state, to the closest acceptance region,
+            // Add all distances and return
+            RangedPhi::Proposition(proposition_range) => {
+                let mut cumulative_distance = 0;
+                let mut updated: bool = false;
+
+                for (symbol, range) in proposition_range {
                     if let Some(state_of_symbol) = state.0.get(symbol) {
-                        if let Some(res) = self.find_lowest_distance_in_range(range, current_lowest_distance, state_of_symbol) {
-                            if res < max_range {
-                                max_range = res;
-                                updated = true;
-                            } else { continue; }
-                        }
+                        let res = self.distance_to_range_bound(range, state_of_symbol);
+                        cumulative_distance = cumulative_distance + res;
+                        updated = true;
                     }
                 }
                 if updated {
-                    return max_range as f32;
-                } else { panic!("oh no") }
+                    return cumulative_distance;
+                } else { panic!("Something went wrong") }
             }
         }
     }
 
-    fn find_lowest_distance_in_range(&self, range: &Ranges, current_lowest_distance: i32, state_of_symbol: &i32) -> Option<i32> {
-        match range {
+    // TODO might not need both ranges, as we don't care which side of the acceptance region we are on
+    /// Returns how close we are to min or max in the Range
+    fn distance_to_range_bound(&self, range: &Ranges, state_of_symbol: &i32) -> i32 {
+        return match range {
             NotRange(min, max) => {
-                if state_of_symbol < min || max < state_of_symbol {
-                    let dist_to_min = i32::abs(min - state_of_symbol);
-                    let dist_to_max = i32::abs(max - state_of_symbol);
+                let dist_to_min = i32::abs(min - state_of_symbol);
+                let dist_to_max = i32::abs(max - state_of_symbol);
 
-                    let min_distance = cmp::min(dist_to_min, dist_to_max);
+                let min_distance = cmp::min(dist_to_min, dist_to_max);
 
-                    return if min_distance < current_lowest_distance {
-                        Some(min_distance)
-                    } else { None };
-                }
-                None
+                min_distance
             }
             Range(min, max) => {
-                if min <= state_of_symbol || state_of_symbol <= max {
-                    let dist_to_min = i32::abs(min - state_of_symbol);
-                    let dist_to_max = i32::abs(max - state_of_symbol);
+                let dist_to_min = i32::abs(min - state_of_symbol);
+                let dist_to_max = i32::abs(max - state_of_symbol);
 
-                    let min_distance = cmp::min(dist_to_min, dist_to_max);
+                let min_distance = cmp::min(dist_to_min, dist_to_max);
 
-                    return if min_distance < current_lowest_distance {
-                        Some(min_distance)
-                    } else { None };
-                }
-                None
+                min_distance
             }
-        }
-    }
-
-    fn populate_formula_cache(&mut self, vertex: &AtlVertex) {
-        // get propositions from the formula in the vertex
-        let propositions = vertex.formula().get_propositions_recursively();
-
-        for proposition_index in propositions.into_iter() {
-            if !self.proposition_cache.contains_key(&proposition_index) {
-                // Make sure it is a Label
-                if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
-                    // Expression has to be linear
-                    if true { //label.condition.is_linear() {
-                        // Return the constructed Linear Expression from this condition
-                        if let Some(linear_expression) = extract_linear_expression(label.condition.kind.clone()) {
-                            if let Some(range) = self.get_linear_range(&linear_expression) {
-                                let res_hash = [(linear_expression.symbol, Ranges::Range(range.0, range.1))].iter().cloned().collect();
-                                self.proposition_cache.insert(proposition_index, res_hash);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn lin_prog(&self, range_of_var: (f64, f64), constant: f64, operation: BinaryOpKind, direction: OptimizationDirection) -> Option<i32> {
-        let mut problem = Problem::new(direction);
-        let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
-        // TODO support for more operators?
-        match operation {
-            Addition => { return None; }
-            Multiplication => { return None; }
-            Subtraction => { return None; }
-            Division => { return None; }
-            Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, constant); }
-            Inequality => { return None; }
-            GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, constant); }
-            LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, constant); }
-            GreaterOrEqual => { return None; }
-            LessOrEqual => { return None; }
-            And => { return None; }
-            Or => { return None; }
-            Xor => { return None; }
-            Implication => { return None; }
-        }
-        match problem.solve() {
-            Ok(solution) => { Some(solution[x] as i32) }
-            Err(_) => { None }
-        }
-    }
-
-    fn get_linear_range(&self, linear_expression: &LinearExpression) -> Option<(i32, i32)> {
-        // Get the declaration from the symbol in LinearExpression, has to be a StateVar
-        // (i.e a variable in an LCGS program)
-        let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
-        if let DeclKind::StateVar(var) = &symb.kind {
-
-            // The range is used for linear programming
-            let range_of_var: (f64, f64) = (*var.ir_range.start() as f64, *var.ir_range.end() as f64);
-
-            if let Some(min) = self.lin_prog(range_of_var, linear_expression.constant as f64, linear_expression.operation.clone(), Minimize) {
-                if let Some(max) = self.lin_prog(range_of_var, linear_expression.constant as f64, linear_expression.operation.clone(), Maximize) {
-                    return Some((min, max));
-                }
-            }
-        }
-        None
+        };
     }
 }
 
-// Todo combine this with expr.is_linear() in a visitor pattern, is currently very MVP and only extracts x < 5 and such,
-// TODO is next in line to be rewritten
-fn extract_linear_expression(expr: ExprKind) -> Option<LinearExpression> {
-    match &expr {
-        ExprKind::BinaryOp(operator, operand1, operand2) => {
-            if let ExprKind::OwnedIdent(id) = &operand1.kind {
-                if let Identifier::Resolved { owner, name } = *id.clone() {
-                    let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
-                    if let ExprKind::Number(number) = operand2.kind {
-                        return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
-                    }
-                }
-                // 2nd case
-            } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
-                if let Identifier::Resolved { owner, name } = *id.clone() {
-                    let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
-                    if let ExprKind::Number(number) = operand1.kind {
-                        return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
-                    }
-                }
-            }
-            None
-        }
-        _ => { None }
-    }
-}
-
+// TODO add test cases, very deprecated and basically only tests the non-working .is_linear()
 mod test {
     use crate::game_structure::lcgs::ast::BinaryOpKind::{Addition, Multiplication};
     use crate::game_structure::lcgs::ast::{Expr, BinaryOpKind};
