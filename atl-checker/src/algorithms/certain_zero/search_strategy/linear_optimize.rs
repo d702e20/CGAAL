@@ -43,7 +43,6 @@ pub struct LinearOptimizeSearch {
     proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, Ranges>>,
     /// Maps hash of a phi to a rangedphi
     phi_cache: HashMap<Arc<Phi>, RangedPhi>,
-    stupid_high_number: i32,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
     // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
 }
@@ -56,7 +55,6 @@ impl LinearOptimizeSearch {
             result_cache: HashMap::new(),
             proposition_cache: HashMap::new(),
             phi_cache: HashMap::new(),
-            stupid_high_number: 100000,
         }
     }
 }
@@ -170,12 +168,13 @@ impl LinearOptimizeSearch {
             // Get current state in vertex
             let state = self.game.state_from_index(target.state());
             // Find the distance to acceptance region by visting the RangedPhi representing the formula in the vertex
-            let distance = self.visit_ranged_phi(ranged_phi, self.stupid_high_number, &state);
-            // Cache the resulting distance from the combination of this formula and state
-            self.result_cache
-                .insert((target.formula(), target.state()), distance);
-            // Return calculated distance
-            return Some(distance);
+            if let Some(distance) = self.visit_ranged_phi(ranged_phi, &state) {
+                // Cache the resulting distance from the combination of this formula and state
+                self.result_cache
+                    .insert((target.formula(), target.state()), distance);
+                // Return calculated distance
+                return Some(distance);
+            }
         }
         // If something went wrong, and we could not find a distance, return None
         None
@@ -194,28 +193,20 @@ impl LinearOptimizeSearch {
                 if let DeclKind::Label(label) =
                     &self.game.label_index_to_decl(proposition_index).kind
                 {
-                    // TODO, write better .is_linear(), that actually works and replace if true to call to this
-                    // Expression has to be linear
-                    if true {
-                        //label.condition.is_linear() {
-                        // TODO, only supports the very simple expressions, would be nice to allow more expressive expressions
-                        // Return the constructed Linear Expression from this condition
-                        if let Some(linear_expression) =
-                            self.extract_linear_expression(label.condition.kind.clone())
-                        {
-                            // Find range for the symbol in the linear_expression to be within, to satisfy the given proposition
-                            if let Some(range) =
-                                self.range_to_satisfy_proposition(&linear_expression)
-                            {
-                                // Maps the symbol to the Range just found
-                                let res_hash =
-                                    [(linear_expression.symbol, Ranges::Range(range.0, range.1))]
-                                        .iter()
-                                        .cloned()
-                                        .collect();
-                                // Add to proposition_cache
-                                self.proposition_cache.insert(proposition_index, res_hash);
-                            }
+                    // Return the constructed Linear Expression from this condition
+                    if let Some(linear_expression) =
+                        self.extract_linear_expression(label.condition.kind.clone())
+                    {
+                        // Find range for the symbol in the linear_expression to be within, to satisfy the given proposition
+                        if let Some(range) = self.range_to_satisfy_proposition(&linear_expression) {
+                            // Maps the symbol to the Range just found
+                            let res_hash =
+                                [(linear_expression.symbol, Ranges::Range(range.0, range.1))]
+                                    .iter()
+                                    .cloned()
+                                    .collect();
+                            // Add to proposition_cache
+                            self.proposition_cache.insert(proposition_index, res_hash);
                         }
                     }
                 }
@@ -313,7 +304,6 @@ impl LinearOptimizeSearch {
     ) -> Option<i32> {
         let mut problem = Problem::new(direction);
         let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
-        // TODO support for more operators?
         match linearexpression.operation {
             Addition => {
                 return None;
@@ -454,26 +444,25 @@ impl LinearOptimizeSearch {
     }
 
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
-    fn visit_ranged_phi(
-        &self,
-        ranged_phi: &RangedPhi,
-        current_lowest_distance: i32,
-        state: &State,
-    ) -> i32 {
+    fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, state: &State) -> Option<i32> {
         match ranged_phi {
             // If we need to satisfy either of the formulas, just return the lowest distance found between the two
             RangedPhi::Or(lhs, rhs) => {
-                let lhs_distance = self.visit_ranged_phi(lhs, current_lowest_distance, state);
-                let rhs_distance = self.visit_ranged_phi(rhs, current_lowest_distance, state);
-
-                Ord::min(lhs_distance, rhs_distance)
+                if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
+                    if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
+                        return Some(Ord::min(lhs_distance, rhs_distance));
+                    }
+                }
+                None
             }
             // If we need to satisfy both of the formulas, just return the largest distance found between the two
             RangedPhi::And(lhs, rhs) => {
-                let lhs_distance = self.visit_ranged_phi(lhs, current_lowest_distance, state);
-                let rhs_distance = self.visit_ranged_phi(rhs, current_lowest_distance, state);
-
-                Ord::max(lhs_distance, rhs_distance)
+                if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
+                    if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
+                        return Some(Ord::max(lhs_distance, rhs_distance));
+                    }
+                }
+                None
             }
             // Iterate through all entires in the hashmap mapping symbols to ranges
             // Find distance for each symbol in the current state, to the closest acceptance region,
@@ -488,10 +477,10 @@ impl LinearOptimizeSearch {
                     }
                 }
 
-                cumulative_distance
+                Some(cumulative_distance)
             }
-            RangedPhi::True => 0,
-            RangedPhi::False => self.stupid_high_number,
+            RangedPhi::True => Some(0),
+            RangedPhi::False => None,
         }
     }
 
@@ -510,7 +499,7 @@ impl LinearOptimizeSearch {
     }
 }
 
-// TODO add test cases, very deprecated and basically only tests the non-working .is_linear()
+// TODO add test cases, very deprecated and basically only tests the non-working .is_linear() that is to be replaced
 mod test {
     use crate::algorithms::certain_zero::search_strategy::linear_optimize::{
         LinearExpression, LinearOptimizeSearch,
