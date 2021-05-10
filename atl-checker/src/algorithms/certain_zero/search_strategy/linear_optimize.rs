@@ -13,6 +13,7 @@ use std::cmp;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::option::Option::Some;
 use std::sync::Arc;
 use BinaryOpKind::{
     Addition, And, Division, Equality, GreaterOrEqual, GreaterThan, Implication, Inequality,
@@ -449,8 +450,14 @@ impl LinearOptimizeSearch {
             // If we need to satisfy either of the formulas, just return the lowest distance found between the two
             RangedPhi::Or(lhs, rhs) => {
                 if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
+                    return if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
+                        Some(Ord::min(lhs_distance, rhs_distance))
+                    } else {
+                        Some(lhs_distance)
+                    };
+                } else {
                     if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
-                        return Some(Ord::min(lhs_distance, rhs_distance));
+                        return Some(rhs_distance);
                     }
                 }
                 None
