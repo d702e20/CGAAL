@@ -1,4 +1,4 @@
-use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::{Range};
+use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::Range;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
@@ -13,6 +13,7 @@ use std::cmp;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use BinaryOpKind::{
     Addition, And, Division, Equality, GreaterOrEqual, GreaterThan, Implication, Inequality,
     LessOrEqual, LessThan, Multiplication, Or, Subtraction, Xor,
@@ -36,13 +37,13 @@ pub struct LinearOptimizeSearch {
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
     /// Maps the hash of a Phi and usize of state, to a result distance
-    result_cache: HashMap<(u64, usize), i32>,
+    result_cache: HashMap<(Arc<Phi>, usize), i32>,
     /// Maps usize from proposition, to a hashmap mapping symbols to the ranges they need to be within,
     /// to satisfy the proposition
     proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, Ranges>>,
     /// Maps hash of a phi to a rangedphi
-    phi_cache: HashMap<u64, RangedPhi>,
-    // TODO - add a new cache, to compare distance between states and use this to guestimate distance
+    phi_cache: HashMap<Arc<Phi>, RangedPhi>,
+    // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
     // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
 }
 
@@ -58,7 +59,6 @@ impl LinearOptimizeSearch {
     }
 }
 
-// TODO perhaps NotRange is not needed, as we only care how close we are to bounds (acceptance region), not which side that we are on
 /// Holds the range for which a symbol should be within, to satisfy a proposition
 #[derive(Clone)]
 pub enum Ranges {
@@ -143,15 +143,8 @@ impl LinearOptimizeSearch {
 
     /// Finds the distance in a single atl_vertex
     fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<i32> {
-        // TODO change edge by changing order of targets in the edge, based on distance
-
-        // Hash formula, to see if we have seen it before by checking caches
-        let mut hasher = DefaultHasher::new();
-        target.formula().hash(&mut hasher);
-        let formula = hasher.finish();
-
         // If we have seen this phi before, and this state, get the result instantly
-        if let Some(distance) = self.result_cache.get(&(formula, target.state())) {
+        if let Some(distance) = self.result_cache.get(&(target.formula(), target.state())) {
             return Some(*distance);
         } else {
             // TODO could check if current state is close to something in the cache, and just reuse that result,
@@ -159,17 +152,17 @@ impl LinearOptimizeSearch {
         }
 
         // If we have not seen this formula before
-        if !self.phi_cache.contains_key(&formula) {
+        if !self.phi_cache.contains_key(&target.formula()) {
             // Find ranges for symbols that would satisfy it and update proposition_cache
             self.populate_proposition_cache(target);
             // Now we know the ranges for which the propositions in the formula would be satisfied,
             // Map the phi to one that holds Ranges, and cache this
             self.phi_cache
-                .insert(formula, self.map_phi_to_ranges(&*target.formula()));
+                .insert(target.formula(), self.map_phi_to_ranges(&*target.formula()));
         }
 
         // Now we have the mapped phi (called RangedPhi)
-        if let Some(ranged_phi) = self.phi_cache.get(&formula) {
+        if let Some(ranged_phi) = self.phi_cache.get(&target.formula()) {
             // Get current state in vertex
             let state = self.game.state_from_index(target.state());
             // Find the distance to acceptance region by visting the RangedPhi representing the formula in the vertex
@@ -177,7 +170,7 @@ impl LinearOptimizeSearch {
             let distance = self.visit_ranged_phi(ranged_phi, 10000, &state);
             // Cache the resulting distance from the combination of this formula and state
             self.result_cache
-                .insert((formula, target.state()), distance);
+                .insert((target.formula(), target.state()), distance);
             // Return calculated distance
             return Some(distance);
         }
