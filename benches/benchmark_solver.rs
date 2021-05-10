@@ -2211,9 +2211,9 @@ criterion_group!(
     ttt3_threads,
     ttt4_threads,
     ttt5_threads,
-    //rc1_threads,
-    //rc2_threads,
-    //rc3_threads, //rc benches takes 215s total
+    rc1_threads,
+    rc2_threads,
+    rc3_threads, //rc benches takes 215s total
     pa1_3proc_threads,
     pa2_3proc_threads,
     pa3_3proc_threads,
@@ -2231,7 +2231,6 @@ criterion_group!(
     gg5_circular_threads,
     gg6_circular_threads,
     gg7_circular_threads,
-    /*
     gg1_total_threads,
     gg2_total_threads,
     gg3_total_threads,
@@ -2239,7 +2238,6 @@ criterion_group!(
     gg5_total_threads,
     gg6_total_threads,
     gg7_total_threads, // gg_total benches takes avg 69s a piece (nice)
-    */
     rps1_threads,
     rps2_threads,
     mp1_threads,
