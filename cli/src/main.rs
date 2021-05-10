@@ -29,7 +29,7 @@ use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
-use atl_checker::game_structure::EagerGameStructure;
+use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 
