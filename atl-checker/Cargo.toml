@@ -14,7 +14,7 @@ authors = [
 edition = "2018"
 
 [features]
-default = ["graph-printer", "use-counts"]
+default = ["graph-printer"]
 graph-printer = []
 use-counts = []
 
