@@ -2168,9 +2168,9 @@ criterion_group!(
     ttt3,
     ttt4,
     ttt5,
-    //rc1,
-    //rc2,
-    //rc3, //rc benches takes 215s total
+    rc1,
+    rc2,
+    rc3, //rc benches takes 215s total
     pa1_3proc,
     pa2_3proc,
     pa3_3proc,
@@ -2188,7 +2188,6 @@ criterion_group!(
     gg5_circular,
     gg6_circular,
     gg7_circular,
-    /*
     gg1_total,
     gg2_total,
     gg3_total,
@@ -2196,7 +2195,6 @@ criterion_group!(
     gg5_total,
     gg6_total,
     gg7_total, // gg_total benches takes avg 69s a piece (nice)
-    */
     rps1,
     rps2,
     mp1,
