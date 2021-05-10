@@ -58,7 +58,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 hash_name(&hyper.source),
                                 empty_id
                             )
-                                .as_bytes(),
+                            .as_bytes(),
                         )?;
                     } else if hyper.targets.len() == 1 {
                         let target = hyper.targets.get(0).unwrap();
@@ -69,7 +69,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 hash_name(&hyper.source),
                                 hash_name(&target)
                             )
-                                .as_bytes(),
+                            .as_bytes(),
                         )?;
 
                         if !visited.contains(&target) {
@@ -88,7 +88,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                                 hash_name(&hyper.source),
                                 hyper_id
                             )
-                                .as_bytes(),
+                            .as_bytes(),
                         )?;
                         for target in hyper.targets {
                             output.write_all(
@@ -112,7 +112,7 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                             hash_name(&neg.source),
                             hash_name(&neg.target)
                         )
-                            .as_bytes(),
+                        .as_bytes(),
                     )?;
 
                     if !visited.contains(&neg.target) {

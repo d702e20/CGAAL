@@ -107,11 +107,11 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S:
 }
 
 impl<
-    B: Broker<V> + Debug,
-    G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
-    V: Vertex,
-    S: SearchStrategy<V>,
-> Worker<B, G, V, S>
+        B: Broker<V> + Debug,
+        G: ExtendedDependencyGraph<V> + Send + Sync + Debug,
+        V: Vertex,
+        S: SearchStrategy<V>,
+    > Worker<B, G, V, S>
 {
     /// Determines which worker instance is responsible for computing the value of the vertex.
     /// Vertices are allocated to workers using a static allocation scheme. Dynamic addition and removal of workers isn't supported with this method.

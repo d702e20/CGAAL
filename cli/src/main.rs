@@ -20,6 +20,7 @@ use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
@@ -31,7 +32,7 @@ use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use std::time::Instant;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -189,11 +190,16 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph { game_structure };
                     let result = match search_strategy {
                         SearchStrategyOption::Los => {
-                            return Err("Linear optimization search is not supported for JSON models")
+                            return Err(
+                                "Linear optimization search is not supported for JSON models",
+                            )
                         }
-                        _ => {
-                            search_strategy.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation)
-                        }
+                        _ => search_strategy.distributed_certain_zero(
+                            graph,
+                            v0,
+                            threads,
+                            prioritise_back_propagation,
+                        ),
                     };
                     println!("Result: {}", result);
                     Ok(())
@@ -209,15 +215,26 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
+                    let now = Instant::now();
                     let result = match search_strategy {
                         SearchStrategyOption::Los => {
                             let copy = graph.game_structure.clone();
-                            distributed_certain_zero(graph, v0, threads, LinearOptimizeSearchBuilder { game: copy }, prioritise_back_propagation)
+                            distributed_certain_zero(
+                                graph,
+                                v0,
+                                threads,
+                                LinearOptimizeSearchBuilder { game: copy },
+                                prioritise_back_propagation,
+                            )
                         }
-                        _ => {
-                            search_strategy.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation)
-                        }
+                        _ => search_strategy.distributed_certain_zero(
+                            graph,
+                            v0,
+                            threads,
+                            prioritise_back_propagation,
+                        ),
                     };
+                    println!("{}", now.elapsed().as_millis());
                     println!("Result: {}", result);
                     Ok(())
                 },

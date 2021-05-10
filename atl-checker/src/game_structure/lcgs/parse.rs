@@ -214,10 +214,10 @@ pub(crate) fn expr<'a>() -> Parser<'a, u8, Expr> {
 fn ternary_expr<'a>() -> Parser<'a, u8, Expr> {
     (binary_expr() - ws() - sym(b'?') - ws() + binary_expr() - ws() - sym(b':') - ws()
         + binary_expr())
-        .map(|((cond, then), els)| Expr {
-            kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
-        })
-        .name("ternary expression")
+    .map(|((cond, then), els)| Expr {
+        kind: TernaryIf(Box::new(cond), Box::new(then), Box::new(els)),
+    })
+    .name("ternary expression")
 }
 
 /// Parser that parses an expression consisting of binary operators and primary expressions
@@ -391,8 +391,8 @@ fn root<'a>() -> Parser<'a, u8, Root> {
     });
     let any_decl = simple_decl.with_semi()
         | template_decl().map(|td| Decl {
-        kind: Template(Box::new(td)),
-    });
+            kind: Template(Box::new(td)),
+        });
     let root = ws() * (any_decl - ws()).repeat(0..) - ws() - end();
     root.map(|decls| Root { decls })
 }

@@ -197,7 +197,9 @@ impl Phi {
     pub fn get_proposition(&self) -> Option<usize> {
         if let Phi::Proposition(id) = self {
             Some(*id)
-        } else { None }
+        } else {
+            None
+        }
     }
 
     pub fn get_propositions_recursively(&self) -> Vec<usize> {

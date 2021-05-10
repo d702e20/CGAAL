@@ -1,32 +1,22 @@
-use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
+use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::{NotRange, Range};
+use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
+use crate::atl::Phi;
+use crate::edg::atlcgsedg::AtlVertex;
+use crate::edg::Edge;
 use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identifier};
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
-use crate::edg::{Edge};
-use crate::algorithms::certain_zero::search_strategy::{SearchStrategyBuilder, SearchStrategy};
-use minilp::{Problem, OptimizationDirection, ComparisonOp};
-use priority_queue::PriorityQueue;
-use std::collections::HashMap;
-use BinaryOpKind::{Addition,
-                   Multiplication,
-                   Subtraction,
-                   Division,
-                   Equality,
-                   Inequality,
-                   GreaterThan,
-                   LessThan,
-                   GreaterOrEqual,
-                   LessOrEqual,
-                   And,
-                   Or,
-                   Xor,
-                   Implication, };
-use crate::edg::atlcgsedg::AtlVertex;
-use crate::atl::{Phi};
+use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use minilp::OptimizationDirection::{Maximize, Minimize};
-use std::hash::{Hash, Hasher};
-use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::{NotRange, Range};
-use std::collections::hash_map::DefaultHasher;
+use minilp::{ComparisonOp, OptimizationDirection, Problem};
+use priority_queue::PriorityQueue;
 use std::cmp;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use BinaryOpKind::{
+    Addition, And, Division, Equality, GreaterOrEqual, GreaterThan, Implication, Inequality,
+    LessOrEqual, LessThan, Multiplication, Or, Subtraction, Xor,
+};
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
@@ -116,7 +106,7 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
                 // Todo what should default value be, if cannot be calculated?
                 self.queue.push(edge, 0);
             }
-        };
+        }
     }
 }
 
@@ -176,7 +166,8 @@ impl LinearOptimizeSearch {
             self.populate_proposition_cache(target);
             // Now we know the ranges for which the propositions in the formula would be satisfied,
             // Map the phi to one that holds Ranges, and cache this
-            self.phi_cache.insert(formula, self.map_phi_to_ranges(&*target.formula()));
+            self.phi_cache
+                .insert(formula, self.map_phi_to_ranges(&*target.formula()));
         }
 
         // Now we have the mapped phi (called RangedPhi)
@@ -187,7 +178,8 @@ impl LinearOptimizeSearch {
             // TODO replace 10000 with something
             let distance = self.visit_ranged_phi(ranged_phi, 10000, &state);
             // Cache the resulting distance from the combination of this formula and state
-            self.result_cache.insert((formula, target.state()), distance);
+            self.result_cache
+                .insert((formula, target.state()), distance);
             // Return calculated distance
             return Some(distance);
         }
@@ -205,17 +197,28 @@ impl LinearOptimizeSearch {
             // Only find Ranges for propositions that we have not seen before
             if !self.proposition_cache.contains_key(&proposition_index) {
                 // Make sure it is a Label
-                if let DeclKind::Label(label) = &self.game.label_index_to_decl(proposition_index).kind {
+                if let DeclKind::Label(label) =
+                    &self.game.label_index_to_decl(proposition_index).kind
+                {
                     // TODO, write better .is_linear(), that actually works
                     // Expression has to be linear
-                    if true { //label.condition.is_linear() {
+                    if true {
+                        //label.condition.is_linear() {
                         // TODO, only supports the very simple expressions, would be nice to allow more expressive expressions
                         // Return the constructed Linear Expression from this condition
-                        if let Some(linear_expression) = self.extract_linear_expression(label.condition.kind.clone()) {
+                        if let Some(linear_expression) =
+                            self.extract_linear_expression(label.condition.kind.clone())
+                        {
                             // Find range for the symbol in the linear_expression to be within, to satisfy the given proposition
-                            if let Some(range) = self.range_to_satisfy_proposition(&linear_expression) {
+                            if let Some(range) =
+                                self.range_to_satisfy_proposition(&linear_expression)
+                            {
                                 // Maps the symbol to the Range just found
-                                let res_hash = [(linear_expression.symbol, Ranges::Range(range.0, range.1))].iter().cloned().collect();
+                                let res_hash =
+                                    [(linear_expression.symbol, Ranges::Range(range.0, range.1))]
+                                        .iter()
+                                        .cloned()
+                                        .collect();
                                 // Add to proposition_cache
                                 self.proposition_cache.insert(proposition_index, res_hash);
                             }
@@ -234,17 +237,31 @@ impl LinearOptimizeSearch {
                 // Either we have that operand1 is the owned ident, and operand2 is the constant
                 if let ExprKind::OwnedIdent(id) = &operand1.kind {
                     if let Identifier::Resolved { owner, name } = *id.clone() {
-                        let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                        let symbol_of_id = SymbolIdentifier {
+                            owner: owner.clone(),
+                            name: (name.clone()).parse().unwrap(),
+                        };
                         if let ExprKind::Number(number) = operand2.kind {
-                            return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
+                            return Some(LinearExpression {
+                                symbol: symbol_of_id,
+                                constant: number,
+                                operation: operator.clone(),
+                            });
                         }
                     }
                     // Or we have that operand2 is the owned ident, and operand1 is the constant
                 } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
                     if let Identifier::Resolved { owner, name } = *id.clone() {
-                        let symbol_of_id = SymbolIdentifier { owner: owner.clone(), name: (name.clone()).parse().unwrap() };
+                        let symbol_of_id = SymbolIdentifier {
+                            owner: owner.clone(),
+                            name: (name.clone()).parse().unwrap(),
+                        };
                         if let ExprKind::Number(number) = operand1.kind {
-                            return Some(LinearExpression { symbol: symbol_of_id, constant: number, operation: operator.clone() });
+                            return Some(LinearExpression {
+                                symbol: symbol_of_id,
+                                constant: number,
+                                operation: operator.clone(),
+                            });
                         }
                     }
                 }
@@ -253,25 +270,38 @@ impl LinearOptimizeSearch {
                 None
             }
             // Also, return None if it is not a binary operator in the expression
-            _ => { None }
+            _ => None,
         }
     }
 
     /// Runs the linear programming with both minimize, and maximize direction,
     /// To find the min and max value the symbol should be, to satisfy the proposition
-    fn range_to_satisfy_proposition(&self, linear_expression: &LinearExpression) -> Option<(i32, i32)> {
+    fn range_to_satisfy_proposition(
+        &self,
+        linear_expression: &LinearExpression,
+    ) -> Option<(i32, i32)> {
         // Get the declaration from the symbol in LinearExpression, has to be a StateVar
         // (i.e a variable in an LCGS program)
         let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
         if let DeclKind::StateVar(variable) = &symb.kind {
-
             // The range for the variable is used in the linear programming.
             // This range is the one declared in the LCGS program
-            let range_of_var: (f64, f64) = (*variable.ir_range.start() as f64, *variable.ir_range.end() as f64);
+            let range_of_var: (f64, f64) = (
+                *variable.ir_range.start() as f64,
+                *variable.ir_range.end() as f64,
+            );
 
             // Find both min and max
-            if let Some(min) = self.linear_program_simple_linear_expression(linear_expression, range_of_var, Minimize) {
-                if let Some(max) = self.linear_program_simple_linear_expression(linear_expression, range_of_var, Maximize) {
+            if let Some(min) = self.linear_program_simple_linear_expression(
+                linear_expression,
+                range_of_var,
+                Minimize,
+            ) {
+                if let Some(max) = self.linear_program_simple_linear_expression(
+                    linear_expression,
+                    range_of_var,
+                    Maximize,
+                ) {
                     return Some((min, max));
                 }
             }
@@ -281,29 +311,74 @@ impl LinearOptimizeSearch {
     }
 
     // TODO when allowing more expressive expressions, this needs to be updated as well
-    fn linear_program_simple_linear_expression(&self, linearexpression: &LinearExpression, range_of_var: (f64, f64), direction: OptimizationDirection) -> Option<i32> {
+    fn linear_program_simple_linear_expression(
+        &self,
+        linearexpression: &LinearExpression,
+        range_of_var: (f64, f64),
+        direction: OptimizationDirection,
+    ) -> Option<i32> {
         let mut problem = Problem::new(direction);
         let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
         // TODO support for more operators?
         match linearexpression.operation {
-            Addition => { return None; }
-            Multiplication => { return None; }
-            Subtraction => { return None; }
-            Division => { return None; }
-            Equality => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Eq, linearexpression.constant as f64); }
-            Inequality => { return None; }
-            GreaterThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Ge, linearexpression.constant as f64); }
-            LessThan => { problem.add_constraint(&[(x, 1.0)], ComparisonOp::Le, linearexpression.constant as f64); }
-            GreaterOrEqual => { return None; }
-            LessOrEqual => { return None; }
-            And => { return None; }
-            Or => { return None; }
-            Xor => { return None; }
-            Implication => { return None; }
+            Addition => {
+                return None;
+            }
+            Multiplication => {
+                return None;
+            }
+            Subtraction => {
+                return None;
+            }
+            Division => {
+                return None;
+            }
+            Equality => {
+                problem.add_constraint(
+                    &[(x, 1.0)],
+                    ComparisonOp::Eq,
+                    linearexpression.constant as f64,
+                );
+            }
+            Inequality => {
+                return None;
+            }
+            GreaterThan => {
+                problem.add_constraint(
+                    &[(x, 1.0)],
+                    ComparisonOp::Ge,
+                    linearexpression.constant as f64,
+                );
+            }
+            LessThan => {
+                problem.add_constraint(
+                    &[(x, 1.0)],
+                    ComparisonOp::Le,
+                    linearexpression.constant as f64,
+                );
+            }
+            GreaterOrEqual => {
+                return None;
+            }
+            LessOrEqual => {
+                return None;
+            }
+            And => {
+                return None;
+            }
+            Or => {
+                return None;
+            }
+            Xor => {
+                return None;
+            }
+            Implication => {
+                return None;
+            }
         }
         match problem.solve() {
-            Ok(solution) => { Some(solution[x] as i32) }
-            Err(_) => { None }
+            Ok(solution) => Some(solution[x] as i32),
+            Err(_) => None,
         }
     }
 
@@ -311,13 +386,19 @@ impl LinearOptimizeSearch {
     fn map_phi_to_ranges(&self, phi: &Phi) -> RangedPhi {
         match phi {
             // TODO find better solution than panics
-            Phi::True => { panic!("true not supported") }
-            Phi::False => { panic!("false not supported") }
+            Phi::True => {
+                panic!("true not supported")
+            }
+            Phi::False => {
+                panic!("false not supported")
+            }
             Phi::Proposition(proposition) => {
                 // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
                 if let Some(symbol_range_map) = self.proposition_cache.get(proposition) {
                     return RangedPhi::Proposition(symbol_range_map.clone());
-                } else { panic!() }
+                } else {
+                    panic!()
+                }
             }
             Phi::Not(formula) => {
                 let symbol_range_map = self.map_phi_to_ranges(formula);
@@ -328,34 +409,71 @@ impl LinearOptimizeSearch {
                 let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
                 let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
 
-                return RangedPhi::Or(Box::from(lhs_symbol_range_map), Box::from(rhs_symbol_range_map));
+                return RangedPhi::Or(
+                    Box::from(lhs_symbol_range_map),
+                    Box::from(rhs_symbol_range_map),
+                );
             }
             Phi::And(lhs, rhs) => {
                 let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
                 let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
 
-                return RangedPhi::And(Box::from(lhs_symbol_range_map), Box::from(rhs_symbol_range_map));
+                return RangedPhi::And(
+                    Box::from(lhs_symbol_range_map),
+                    Box::from(rhs_symbol_range_map),
+                );
             }
-            Phi::DespiteNext { formula, .. } => { return self.map_phi_to_ranges(formula); }
-            Phi::EnforceNext { formula, .. } => { return self.map_phi_to_ranges(formula); }
-            Phi::DespiteUntil { .. } => { panic!("Sorry, despite until not supported in los") }
-            Phi::EnforceUntil { .. } => { panic!("Sorry, enforce until not supported in los") }
-            Phi::DespiteEventually { formula, .. } => { return self.map_phi_to_ranges(formula); }
-            Phi::EnforceEventually { formula, .. } => { return self.map_phi_to_ranges(formula); }
-            Phi::DespiteInvariant { formula, .. } => { return self.map_phi_to_ranges(formula); }
-            Phi::EnforceInvariant { formula, .. } => { return self.map_phi_to_ranges(formula); }
+            Phi::DespiteNext { formula, .. } => {
+                return self.map_phi_to_ranges(formula);
+            }
+            Phi::EnforceNext { formula, .. } => {
+                return self.map_phi_to_ranges(formula);
+            }
+            // TODO return smallest distance, or between the two
+            Phi::DespiteUntil { pre, until, .. } => {
+                let pre_symbol_range_map = self.map_phi_to_ranges(pre);
+                let until_symbol_range_map = self.map_phi_to_ranges(until);
+
+                return RangedPhi::Or(
+                    Box::from(pre_symbol_range_map),
+                    Box::from(until_symbol_range_map),
+                );
+            }
+            Phi::EnforceUntil { pre, until, .. } => {
+                let pre_symbol_range_map = self.map_phi_to_ranges(pre);
+                let until_symbol_range_map = self.map_phi_to_ranges(until);
+
+                return RangedPhi::Or(
+                    Box::from(pre_symbol_range_map),
+                    Box::from(until_symbol_range_map),
+                );
+            }
+            Phi::DespiteEventually { formula, .. } => {
+                return self.map_phi_to_ranges(formula);
+            }
+            Phi::EnforceEventually { formula, .. } => {
+                return self.map_phi_to_ranges(formula);
+            }
+            Phi::DespiteInvariant { formula, .. } => {
+                return self.map_phi_to_ranges(formula);
+            }
+            Phi::EnforceInvariant { formula, .. } => {
+                return self.map_phi_to_ranges(formula);
+            }
         }
     }
 
     // TODO think about if this actually works
     fn get_not_ranged_phi(&self, rangedphi: &RangedPhi) -> RangedPhi {
         return match rangedphi {
-            RangedPhi::Or(lhs, rhs) => {
-                RangedPhi::Or(Box::from(self.get_not_ranged_phi(lhs)), Box::from(self.get_not_ranged_phi(rhs)))
-            }
-            RangedPhi::And(lhs, rhs) => {
-                RangedPhi::And(Box::from(self.get_not_ranged_phi(lhs)), Box::from(self.get_not_ranged_phi(rhs)))
-            }
+            RangedPhi::Or(lhs, rhs) => RangedPhi::Or(
+                Box::from(self.get_not_ranged_phi(lhs)),
+                Box::from(self.get_not_ranged_phi(rhs)),
+            ),
+            RangedPhi::And(lhs, rhs) => RangedPhi::And(
+                Box::from(self.get_not_ranged_phi(lhs)),
+                Box::from(self.get_not_ranged_phi(rhs)),
+            ),
             // If proposition, not the Ranges, by converting them to the other kind of Range
             RangedPhi::Proposition(prop_hash_map) => {
                 let mut notted_prop_hash_map: HashMap<SymbolIdentifier, Ranges> = HashMap::new();
@@ -377,7 +495,12 @@ impl LinearOptimizeSearch {
 
     // TODO find better solution than passing current_lowest_distance and dummy value
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
-    fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, current_lowest_distance: i32, state: &State) -> i32 {
+    fn visit_ranged_phi(
+        &self,
+        ranged_phi: &RangedPhi,
+        current_lowest_distance: i32,
+        state: &State,
+    ) -> i32 {
         match ranged_phi {
             // If we need to satisfy either of the formulas, just return the lowest distance found between the two
             RangedPhi::Or(lhs, rhs) => {
@@ -409,7 +532,9 @@ impl LinearOptimizeSearch {
                 }
                 if updated {
                     return cumulative_distance;
-                } else { panic!("Something went wrong") }
+                } else {
+                    panic!("Something went wrong")
+                }
             }
         }
     }
@@ -440,13 +565,15 @@ impl LinearOptimizeSearch {
 
 // TODO add test cases, very deprecated and basically only tests the non-working .is_linear()
 mod test {
+    use crate::algorithms::certain_zero::search_strategy::linear_optimize::{
+        LinearExpression, LinearOptimizeSearch,
+    };
     use crate::game_structure::lcgs::ast::BinaryOpKind::{Addition, Multiplication};
-    use crate::game_structure::lcgs::ast::{Expr, BinaryOpKind};
-    use crate::game_structure::lcgs::ir::symbol_table::{SymbolIdentifier, Owner};
-    use crate::algorithms::certain_zero::search_strategy::linear_optimize::{LinearExpression, LinearOptimizeSearch};
-    use crate::game_structure::lcgs::ast::ExprKind::{Number, BinaryOp, OwnedIdent};
-    use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
+    use crate::game_structure::lcgs::ast::ExprKind::{BinaryOp, Number, OwnedIdent};
     use crate::game_structure::lcgs::ast::Identifier::Simple;
+    use crate::game_structure::lcgs::ast::{BinaryOpKind, Expr};
+    use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
+    use crate::game_structure::lcgs::ir::symbol_table::{Owner, SymbolIdentifier};
     use crate::game_structure::lcgs::parse::parse_lcgs;
 
     #[test]
@@ -455,7 +582,9 @@ mod test {
         let operator = Addition;
         let operand1 = Box::from(Expr { kind: Number(1) });
         let operand2 = Box::from(Expr { kind: Number(1) });
-        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        let expression = Expr {
+            kind: BinaryOp(operator, operand1, operand2),
+        };
         assert_eq!(expression.is_linear(), true)
     }
 
@@ -465,7 +594,9 @@ mod test {
         let operator = Multiplication;
         let operand1 = Box::from(Expr { kind: Number(1) });
         let operand2 = Box::from(Expr { kind: Number(1) });
-        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        let expression = Expr {
+            kind: BinaryOp(operator, operand1, operand2),
+        };
         assert_eq!(expression.is_linear(), true)
     }
 
@@ -473,9 +604,19 @@ mod test {
     // x * x
     fn expression_is_linear_test_two_variables() {
         let operator = Multiplication;
-        let operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        let operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let expression = Expr {
+            kind: BinaryOp(operator, operand1, operand2),
+        };
         assert_eq!(expression.is_linear(), false)
     }
 
@@ -485,9 +626,19 @@ mod test {
     // x * y
     fn expression_is_linear_test_two_variables1() {
         let operator = Multiplication;
-        let operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "y".to_string() })) });
-        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        let operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "y".to_string(),
+            })),
+        });
+        let expression = Expr {
+            kind: BinaryOp(operator, operand1, operand2),
+        };
         assert_eq!(expression.is_linear(), false)
     }
 
@@ -495,9 +646,19 @@ mod test {
     // x + x
     fn expression_is_linear_test_two_variables2() {
         let operator = Addition;
-        let operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let expression = Expr { kind: BinaryOp(operator, operand1, operand2) };
+        let operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let expression = Expr {
+            kind: BinaryOp(operator, operand1, operand2),
+        };
         assert_eq!(expression.is_linear(), true)
     }
 
@@ -505,14 +666,22 @@ mod test {
     // 5 + x * 3
     fn expression_is_linear_test_simple_linear() {
         let inner_operator = Multiplication;
-        let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let inner_operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
         let inner_operand2 = Box::from(Expr { kind: Number(3) });
 
         let outer_operator = Addition;
-        let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+        let outer_operand1 = Box::from(Expr {
+            kind: BinaryOp(inner_operator, inner_operand1, inner_operand2),
+        });
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
-        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        let expression = Expr {
+            kind: BinaryOp(outer_operator, outer_operand1, outer_operand2),
+        };
         assert_eq!(expression.is_linear(), true)
     }
 
@@ -524,10 +693,18 @@ mod test {
         let inner_operand2 = Box::from(Expr { kind: Number(3) });
 
         let outer_operator = Addition;
-        let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
-        let outer_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let outer_operand1 = Box::from(Expr {
+            kind: BinaryOp(inner_operator, inner_operand1, inner_operand2),
+        });
+        let outer_operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
 
-        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        let expression = Expr {
+            kind: BinaryOp(outer_operator, outer_operand1, outer_operand2),
+        };
         assert_eq!(expression.is_linear(), true)
     }
 
@@ -535,14 +712,26 @@ mod test {
     // 5 + x * x
     fn expression_is_linear_test_polynomial() {
         let inner_operator = Multiplication;
-        let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let inner_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let inner_operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let inner_operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
 
         let outer_operator = Addition;
-        let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+        let outer_operand1 = Box::from(Expr {
+            kind: BinaryOp(inner_operator, inner_operand1, inner_operand2),
+        });
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
-        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        let expression = Expr {
+            kind: BinaryOp(outer_operator, outer_operand1, outer_operand2),
+        };
         assert_eq!(expression.is_linear(), false)
     }
 
@@ -550,18 +739,32 @@ mod test {
     // 5 * x * x
     fn expression_is_linear_test_polynomial1() {
         let inner_operator = Multiplication;
-        let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
-        let inner_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let inner_operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
+        let inner_operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
 
         let middle_operator = Multiplication;
         let middle_operand1 = Box::from(Expr { kind: Number(5) });
-        let middle_operand2 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
+        let middle_operand2 = Box::from(Expr {
+            kind: BinaryOp(inner_operator, inner_operand1, inner_operand2),
+        });
 
         let outer_operator = Addition;
-        let outer_operand1 = Box::from(Expr { kind: BinaryOp(middle_operator, middle_operand1, middle_operand2) });
+        let outer_operand1 = Box::from(Expr {
+            kind: BinaryOp(middle_operator, middle_operand1, middle_operand2),
+        });
         let outer_operand2 = Box::from(Expr { kind: Number(5) });
 
-        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        let expression = Expr {
+            kind: BinaryOp(outer_operator, outer_operand1, outer_operand2),
+        };
         assert_eq!(expression.is_linear(), false)
     }
 
@@ -571,14 +774,26 @@ mod test {
     // x * x * 5
     fn expression_is_linear_test_polynomial2() {
         let inner_operator = Multiplication;
-        let inner_operand1 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let inner_operand1 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
         let inner_operand2 = Box::from(Expr { kind: Number(5) });
 
         let outer_operator = Multiplication;
-        let outer_operand1 = Box::from(Expr { kind: BinaryOp(inner_operator, inner_operand1, inner_operand2) });
-        let outer_operand2 = Box::from(Expr { kind: OwnedIdent(Box::from(Simple { name: "x".to_string() })) });
+        let outer_operand1 = Box::from(Expr {
+            kind: BinaryOp(inner_operator, inner_operand1, inner_operand2),
+        });
+        let outer_operand2 = Box::from(Expr {
+            kind: OwnedIdent(Box::from(Simple {
+                name: "x".to_string(),
+            })),
+        });
 
-        let expression = Expr { kind: BinaryOp(outer_operator, outer_operand1, outer_operand2) };
+        let expression = Expr {
+            kind: BinaryOp(outer_operator, outer_operand1, outer_operand2),
+        };
         assert_eq!(expression.is_linear(), false)
     }
 
@@ -594,12 +809,16 @@ mod test {
         let initial = lcgs.initial_state();
 
         let lin_exp = LinearExpression {
-            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            symbol: SymbolIdentifier {
+                owner: Owner::Global,
+                name: "x".to_string(),
+            },
             constant: 5,
             operation: BinaryOpKind::LessThan,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
+        let solution =
+            LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         let expected = 0.0;
         assert_eq!(solution.unwrap(), expected);
     }
@@ -615,12 +834,16 @@ mod test {
         let initial = lcgs.initial_state();
 
         let lin_exp = LinearExpression {
-            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            symbol: SymbolIdentifier {
+                owner: Owner::Global,
+                name: "x".to_string(),
+            },
             constant: 5,
             operation: BinaryOpKind::Equality,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
+        let solution =
+            LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         let expected = 5.0;
         assert_eq!(solution.unwrap(), expected);
     }
@@ -636,12 +859,16 @@ mod test {
         let initial = lcgs.initial_state();
 
         let lin_exp = LinearExpression {
-            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            symbol: SymbolIdentifier {
+                owner: Owner::Global,
+                name: "x".to_string(),
+            },
             constant: 5,
             operation: BinaryOpKind::GreaterThan,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
+        let solution =
+            LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         let expected = 5.0;
         assert_eq!(solution.unwrap(), expected);
     }
@@ -657,12 +884,16 @@ mod test {
         let initial = lcgs.initial_state();
 
         let lin_exp = LinearExpression {
-            symbol: SymbolIdentifier { owner: Owner::Global, name: "x".to_string() },
+            symbol: SymbolIdentifier {
+                owner: Owner::Global,
+                name: "x".to_string(),
+            },
             constant: 5,
             operation: BinaryOpKind::Implication,
         };
 
-        let solution = LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
+        let solution =
+            LinearOptimizeSearch::new(lcgs.clone()).minimum_distance_1d(initial.clone(), &lin_exp);
         assert!(solution.is_none());
     }
 }
