@@ -43,6 +43,7 @@ pub struct LinearOptimizeSearch {
     proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, Ranges>>,
     /// Maps hash of a phi to a rangedphi
     phi_cache: HashMap<Arc<Phi>, RangedPhi>,
+    stupid_high_number: i32,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
     // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
 }
@@ -55,6 +56,7 @@ impl LinearOptimizeSearch {
             result_cache: HashMap::new(),
             proposition_cache: HashMap::new(),
             phi_cache: HashMap::new(),
+            stupid_high_number: 100000,
         }
     }
 }
@@ -75,6 +77,8 @@ pub enum RangedPhi {
     And(Box<RangedPhi>, Box<RangedPhi>),
     /// Mapping symbols to ranges
     Proposition(HashMap<SymbolIdentifier, Ranges>),
+    True,
+    False,
 }
 
 /// Holds extracted linear expressions from the formula in AtlVertex
@@ -166,8 +170,7 @@ impl LinearOptimizeSearch {
             // Get current state in vertex
             let state = self.game.state_from_index(target.state());
             // Find the distance to acceptance region by visting the RangedPhi representing the formula in the vertex
-            // TODO replace 10000 with something
-            let distance = self.visit_ranged_phi(ranged_phi, 10000, &state);
+            let distance = self.visit_ranged_phi(ranged_phi, self.stupid_high_number, &state);
             // Cache the resulting distance from the combination of this formula and state
             self.result_cache
                 .insert((target.formula(), target.state()), distance);
@@ -191,7 +194,7 @@ impl LinearOptimizeSearch {
                 if let DeclKind::Label(label) =
                     &self.game.label_index_to_decl(proposition_index).kind
                 {
-                    // TODO, write better .is_linear(), that actually works
+                    // TODO, write better .is_linear(), that actually works and replace if true to call to this
                     // Expression has to be linear
                     if true {
                         //label.condition.is_linear() {
@@ -376,19 +379,18 @@ impl LinearOptimizeSearch {
     /// Takes a Phi (the formula in the vertex) and maps it to a RangedPhi, using the Ranges that we computed for the propositions
     fn map_phi_to_ranges(&self, phi: &Phi) -> RangedPhi {
         match phi {
-            // TODO find better solution than panics
             Phi::True => {
-                panic!("true not supported")
+                return RangedPhi::True;
             }
             Phi::False => {
-                panic!("false not supported")
+                return RangedPhi::False;
             }
             Phi::Proposition(proposition) => {
                 // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
                 if let Some(symbol_range_map) = self.proposition_cache.get(proposition) {
                     return RangedPhi::Proposition(symbol_range_map.clone());
                 } else {
-                    panic!()
+                    panic!("Could not find range for proposition in cache, something went wrong with caching")
                 }
             }
             Phi::Not(formula) => {
@@ -418,7 +420,6 @@ impl LinearOptimizeSearch {
             Phi::EnforceNext { formula, .. } => {
                 return self.map_phi_to_ranges(formula);
             }
-            // TODO return smallest distance, or between the two
             Phi::DespiteUntil { pre, until, .. } => {
                 let pre_symbol_range_map = self.map_phi_to_ranges(pre);
                 let until_symbol_range_map = self.map_phi_to_ranges(until);
@@ -452,7 +453,6 @@ impl LinearOptimizeSearch {
         }
     }
 
-    // TODO find better solution than passing current_lowest_distance and dummy value
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
     fn visit_ranged_phi(
         &self,
@@ -466,39 +466,35 @@ impl LinearOptimizeSearch {
                 let lhs_distance = self.visit_ranged_phi(lhs, current_lowest_distance, state);
                 let rhs_distance = self.visit_ranged_phi(rhs, current_lowest_distance, state);
 
-                return Ord::min(lhs_distance, rhs_distance);
+                Ord::min(lhs_distance, rhs_distance)
             }
             // If we need to satisfy both of the formulas, just return the largest distance found between the two
             RangedPhi::And(lhs, rhs) => {
                 let lhs_distance = self.visit_ranged_phi(lhs, current_lowest_distance, state);
                 let rhs_distance = self.visit_ranged_phi(rhs, current_lowest_distance, state);
 
-                return Ord::max(lhs_distance, rhs_distance);
+                Ord::max(lhs_distance, rhs_distance)
             }
             // Iterate through all entires in the hashmap mapping symbols to ranges
             // Find distance for each symbol in the current state, to the closest acceptance region,
             // Add all distances and return
             RangedPhi::Proposition(proposition_range) => {
                 let mut cumulative_distance = 0;
-                let mut updated: bool = false;
 
                 for (symbol, range) in proposition_range {
                     if let Some(state_of_symbol) = state.0.get(symbol) {
                         let res = self.distance_to_range_bound(range, state_of_symbol);
                         cumulative_distance = cumulative_distance + res;
-                        updated = true;
                     }
                 }
-                if updated {
-                    return cumulative_distance;
-                } else {
-                    panic!("Something went wrong")
-                }
+
+                cumulative_distance
             }
+            RangedPhi::True => 0,
+            RangedPhi::False => self.stupid_high_number,
         }
     }
 
-    // TODO might not need both ranges, as we don't care which side of the acceptance region we are on
     /// Returns how close we are to min or max in the Range
     fn distance_to_range_bound(&self, range: &Ranges, state_of_symbol: &i32) -> i32 {
         return match range {
