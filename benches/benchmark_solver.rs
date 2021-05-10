@@ -2535,5 +2535,5 @@ criterion_main!(
     rand_3p_1m_400d,
     rand_3p_3m_405d,
     rand_3p_4m_171d,
-    rand_4p_4m_3000d
+    //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
 ); // choose which group(s) to bench
