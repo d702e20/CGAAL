@@ -32,7 +32,6 @@ use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
-use std::time::Instant;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
