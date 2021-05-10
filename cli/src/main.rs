@@ -29,7 +29,7 @@ use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
-use atl_checker::game_structure::{EagerGameStructure};
+use atl_checker::game_structure::EagerGameStructure;
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 use std::time::Instant;
@@ -215,7 +215,6 @@ fn main_inner() -> Result<(), String> {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    let now = Instant::now();
                     let result = match search_strategy {
                         SearchStrategyOption::Los => {
                             let copy = graph.game_structure.clone();
@@ -234,7 +233,6 @@ fn main_inner() -> Result<(), String> {
                             prioritise_back_propagation,
                         ),
                     };
-                    println!("{}", now.elapsed().as_millis());
                     println!("Result: {}", result);
                     Ok(())
                 },
