@@ -1,1 +1,1 @@
-<<cross>> F !nought_wins
+<<cross>> F (game_over & !nought_wins)
