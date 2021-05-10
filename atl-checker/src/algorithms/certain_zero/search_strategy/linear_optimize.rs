@@ -1,4 +1,4 @@
-use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::{NotRange, Range};
+use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::{Range};
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
@@ -62,8 +62,6 @@ impl LinearOptimizeSearch {
 /// Holds the range for which a symbol should be within, to satisfy a proposition
 #[derive(Clone)]
 pub enum Ranges {
-    /// Must be the case that the state of the symbol is outside this range to satisfy the propositon
-    NotRange(i32, i32),
     /// Must be the case that the state of the symbol is inside this range to satisfy the propositon (inclusive)
     Range(i32, i32),
 }
@@ -401,9 +399,7 @@ impl LinearOptimizeSearch {
                 }
             }
             Phi::Not(formula) => {
-                let symbol_range_map = self.map_phi_to_ranges(formula);
-                // Return the Notted RangedPhi
-                return self.get_not_ranged_phi(&symbol_range_map);
+                return self.map_phi_to_ranges(formula);
             }
             Phi::Or(lhs, rhs) => {
                 let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
@@ -463,36 +459,6 @@ impl LinearOptimizeSearch {
         }
     }
 
-    // TODO think about if this actually works
-    fn get_not_ranged_phi(&self, rangedphi: &RangedPhi) -> RangedPhi {
-        return match rangedphi {
-            RangedPhi::Or(lhs, rhs) => RangedPhi::Or(
-                Box::from(self.get_not_ranged_phi(lhs)),
-                Box::from(self.get_not_ranged_phi(rhs)),
-            ),
-            RangedPhi::And(lhs, rhs) => RangedPhi::And(
-                Box::from(self.get_not_ranged_phi(lhs)),
-                Box::from(self.get_not_ranged_phi(rhs)),
-            ),
-            // If proposition, not the Ranges, by converting them to the other kind of Range
-            RangedPhi::Proposition(prop_hash_map) => {
-                let mut notted_prop_hash_map: HashMap<SymbolIdentifier, Ranges> = HashMap::new();
-
-                for (symbol, range) in prop_hash_map {
-                    match range {
-                        NotRange(min, max) => {
-                            notted_prop_hash_map.insert(symbol.clone(), Range(*min, *max));
-                        }
-                        Range(min, max) => {
-                            notted_prop_hash_map.insert(symbol.clone(), NotRange(*min, *max));
-                        }
-                    }
-                }
-                RangedPhi::Proposition(notted_prop_hash_map)
-            }
-        };
-    }
-
     // TODO find better solution than passing current_lowest_distance and dummy value
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
     fn visit_ranged_phi(
@@ -543,14 +509,6 @@ impl LinearOptimizeSearch {
     /// Returns how close we are to min or max in the Range
     fn distance_to_range_bound(&self, range: &Ranges, state_of_symbol: &i32) -> i32 {
         return match range {
-            NotRange(min, max) => {
-                let dist_to_min = i32::abs(min - state_of_symbol);
-                let dist_to_max = i32::abs(max - state_of_symbol);
-
-                let min_distance = cmp::min(dist_to_min, dist_to_max);
-
-                min_distance
-            }
             Range(min, max) => {
                 let dist_to_min = i32::abs(min - state_of_symbol);
                 let dist_to_max = i32::abs(max - state_of_symbol);
