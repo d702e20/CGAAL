@@ -240,33 +240,6 @@ impl BinaryOpKind {
     }
 }
 
-// TODO FIX, does not work
-impl Expr {
-    pub fn is_linear(&self) -> bool {
-        if let ExprKind::BinaryOp(operator, operand1, operand2) = &self.kind {
-            match operator {
-                BinaryOpKind::Division | BinaryOpKind::Multiplication => {
-                    if let ExprKind::OwnedIdent(..) = &operand1.kind {
-                        if operand1 == operand2 {
-                            false
-                        } else {
-                            operand1.is_linear() && operand2.is_linear()
-                        }
-                    } else {
-                        operand1.is_linear() && operand2.is_linear()
-                    }
-                }
-                BinaryOpKind::Addition | BinaryOpKind::Subtraction => {
-                    operand1.is_linear() && operand2.is_linear()
-                }
-                _ => true,
-            }
-        } else {
-            true
-        }
-    }
-}
-
 impl From<&[u8]> for BinaryOpKind {
     fn from(op: &[u8]) -> BinaryOpKind {
         match op {
