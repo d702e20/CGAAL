@@ -807,6 +807,7 @@ mod test {
         // Can we parse ATL formulas that mentions players and labels in an LCGS program
         let lcgs_program = "
         player p1 = something;
+
         template something
             label test = 1;
             [wait] 1;
