@@ -98,7 +98,7 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
 
             // Add edge and distance to queue
             if let Some(dist) = distance {
-                self.queue.push(edge, -dist as i32);
+                self.queue.push(edge, -dist);
             } else {
                 // Todo what should default value be, if cannot be calculated?
                 self.queue.push(edge, 0);
@@ -110,15 +110,13 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
 impl LinearOptimizeSearch {
     /// if edge is a HyperEdge, return average distance from state to accept region between all targets,
     /// if Negation edge, just return the distance from its target
-    fn get_distance_in_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<f32> {
+    fn get_distance_in_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<i32> {
         match &edge {
             Edge::Hyper(hyperedge) => {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
-                    if let Some(result) = self.get_distance_in_atl_vertex(target) {
-                        distances.push(result as f32)
-                    }
+                    self.get_distance_in_atl_vertex(target).map(|dist| distances.push(dist as f32));
                 }
 
                 // If no targets were able to satisfy formula, or something went wrong, return None
@@ -127,13 +125,13 @@ impl LinearOptimizeSearch {
                 } else {
                     // Find average distance between targets, and return this
                     let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
-                    Some(avg_distance)
+                    Some(avg_distance as i32)
                 };
             }
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
             Edge::Negation(edge) => {
                 if let Some(distance) = self.get_distance_in_atl_vertex(&edge.target) {
-                    Some(distance as f32);
+                    Some(distance);
                 }
                 None
             }
