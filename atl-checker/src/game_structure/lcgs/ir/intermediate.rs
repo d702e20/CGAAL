@@ -614,7 +614,9 @@ mod test {
         template gamer
             health : [0 .. max_health] init max_health;
             health' = health - 1;
+
             label alive = health > 0;
+
             [wait] 1;
             [shoot] health > 0;
         endtemplate
@@ -661,10 +663,13 @@ mod test {
         const max_health = 100;
         player anna = gamer [enemy=bob];
         player bob = gamer [enemy=anna];
+
         template gamer
             health : [0 .. max_health] init max_health;
             health' = enemy.shoot ? health - 1 : health;
+
             label alive = health > 0;
+
             [wait] 1;
             [shoot] health > 0 && enemy.health > 0;
         endtemplate
@@ -691,6 +696,7 @@ mod test {
         let input = "
         player anna = human [var=apples, act=dance, prop=happy];
         player bob = human [var=bananas, act=run, prop=sad];
+
         template human
             var : [0 .. 10] init 5;
             var' = var;
@@ -717,6 +723,7 @@ mod test {
         let input = "
         player anna = human [act=work, income=1000 + work * 200, expenses=1000];
         player bob = human [income=1000, expenses=money * 2 / 10];
+
         template human
             money : [0 .. 10000] init 2000;
             money' = money + income - expenses;
@@ -805,6 +812,7 @@ mod test {
         player p1 = test;
         player p2 = test;
         player p3 = test;
+
         template test
             yum : [0 .. 8] init 0;
             yum' = yum;

@@ -1321,6 +1321,7 @@ mod tests {
         player p2 = shooter [target1=p1];
 
         template shooter
+
             health : [0 .. max_health] init max_health;
             health' = health - 1;
 
