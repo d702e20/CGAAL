@@ -1,4 +1,6 @@
 use crate::edg::Edge;
+use std::cmp::Ordering;
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
@@ -16,6 +18,36 @@ impl VertexAssignment {
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
         return matches!(self, VertexAssignment::True | VertexAssignment::False);
+    }
+
+    pub fn max(self, assignment: VertexAssignment) -> VertexAssignment {
+        if assignment > self {
+            assignment
+        } else {
+            self
+        }
+    }
+}
+
+impl PartialOrd for VertexAssignment {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self {
+            VertexAssignment::Undecided => match other {
+                VertexAssignment::Undecided => Some(Equal),
+                VertexAssignment::False => Some(Less),
+                VertexAssignment::True => Some(Less),
+            },
+            VertexAssignment::False => match other {
+                VertexAssignment::Undecided => Some(Greater),
+                VertexAssignment::False => Some(Equal),
+                VertexAssignment::True => None,
+            },
+            VertexAssignment::True => match other {
+                VertexAssignment::Undecided => Some(Greater),
+                VertexAssignment::False => None,
+                VertexAssignment::True => Some(Equal),
+            },
+        }
     }
 }
 
