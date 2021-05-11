@@ -78,6 +78,7 @@ pub enum RangedPhi {
 }
 
 /// Holds extracted linear expressions from the formula in AtlVertex
+#[derive(Clone)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
     pub constant: i32,
@@ -116,7 +117,9 @@ impl LinearOptimizeSearch {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
                 let mut distances: Vec<f32> = Vec::new();
                 for target in &hyperedge.targets {
-                    self.get_distance_in_atl_vertex(target).map(|dist| distances.push(dist as f32));
+                    if let Some(dist) = self.get_distance_in_atl_vertex(target) {
+                        distances.push(dist as f32)
+                    }
                 }
 
                 // If no targets were able to satisfy formula, or something went wrong, return None
@@ -131,7 +134,7 @@ impl LinearOptimizeSearch {
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
             Edge::Negation(edge) => {
                 if let Some(distance) = self.get_distance_in_atl_vertex(&edge.target) {
-                    Some(distance);
+                    return Some(distance);
                 }
                 None
             }
@@ -218,8 +221,8 @@ impl LinearOptimizeSearch {
                 if let ExprKind::OwnedIdent(id) = &operand1.kind {
                     if let Identifier::Resolved { owner, name } = *id.clone() {
                         let symbol_of_id = SymbolIdentifier {
-                            owner: owner.clone(),
-                            name: (name.clone()).parse().unwrap(),
+                            owner,
+                            name: name.parse().unwrap(),
                         };
                         if let ExprKind::Number(number) = operand2.kind {
                             return Some(LinearExpression {
@@ -240,8 +243,8 @@ impl LinearOptimizeSearch {
                 } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
                     if let Identifier::Resolved { owner, name } = *id.clone() {
                         let symbol_of_id = SymbolIdentifier {
-                            owner: owner.clone(),
-                            name: (name.clone()).parse().unwrap(),
+                            owner,
+                            name: name.parse().unwrap(),
                         };
                         if let ExprKind::Number(number) = operand1.kind {
                             return Some(LinearExpression {
@@ -321,7 +324,6 @@ impl LinearOptimizeSearch {
                     linearexpression.constant as f64,
                 );
             }
-
             ComparisonOp::Ge => {
                 problem.add_constraint(
                     &[(x, 1.0)],
@@ -346,77 +348,59 @@ impl LinearOptimizeSearch {
     /// Takes a Phi (the formula in the vertex) and maps it to a RangedPhi, using the Ranges that we computed for the propositions
     fn map_phi_to_ranges(&self, phi: &Phi) -> RangedPhi {
         match phi {
-            Phi::True => {
-                return RangedPhi::True;
-            }
-            Phi::False => {
-                return RangedPhi::False;
-            }
+            Phi::True => RangedPhi::True,
+            Phi::False => RangedPhi::False,
             Phi::Proposition(proposition) => {
                 // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
                 if let Some(symbol_range_map) = self.proposition_cache.get(proposition) {
-                    return RangedPhi::Proposition(symbol_range_map.clone());
+                    RangedPhi::Proposition(symbol_range_map.clone())
                 } else {
                     panic!("Could not find range for proposition in cache, something went wrong with caching")
                 }
             }
-            Phi::Not(formula) => {
-                return self.map_phi_to_ranges(formula);
-            }
+            Phi::Not(formula) => self.map_phi_to_ranges(formula),
             Phi::Or(lhs, rhs) => {
                 let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
                 let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
 
-                return RangedPhi::Or(
+                RangedPhi::Or(
                     Box::from(lhs_symbol_range_map),
                     Box::from(rhs_symbol_range_map),
-                );
+                )
             }
             Phi::And(lhs, rhs) => {
                 let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
                 let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
 
-                return RangedPhi::And(
+                RangedPhi::And(
                     Box::from(lhs_symbol_range_map),
                     Box::from(rhs_symbol_range_map),
-                );
+                )
             }
-            Phi::DespiteNext { formula, .. } => {
-                return self.map_phi_to_ranges(formula);
-            }
-            Phi::EnforceNext { formula, .. } => {
-                return self.map_phi_to_ranges(formula);
-            }
+            Phi::DespiteNext { formula, .. } => self.map_phi_to_ranges(formula),
+            Phi::EnforceNext { formula, .. } => self.map_phi_to_ranges(formula),
             Phi::DespiteUntil { pre, until, .. } => {
                 let pre_symbol_range_map = self.map_phi_to_ranges(pre);
                 let until_symbol_range_map = self.map_phi_to_ranges(until);
 
-                return RangedPhi::Or(
+                RangedPhi::Or(
                     Box::from(pre_symbol_range_map),
                     Box::from(until_symbol_range_map),
-                );
+                )
             }
             Phi::EnforceUntil { pre, until, .. } => {
                 let pre_symbol_range_map = self.map_phi_to_ranges(pre);
                 let until_symbol_range_map = self.map_phi_to_ranges(until);
 
-                return RangedPhi::Or(
+                RangedPhi::Or(
                     Box::from(pre_symbol_range_map),
                     Box::from(until_symbol_range_map),
-                );
+                )
             }
-            Phi::DespiteEventually { formula, .. } => {
-                return self.map_phi_to_ranges(formula);
-            }
-            Phi::EnforceEventually { formula, .. } => {
-                return self.map_phi_to_ranges(formula);
-            }
-            Phi::DespiteInvariant { formula, .. } => {
-                return self.map_phi_to_ranges(formula);
-            }
-            Phi::EnforceInvariant { formula, .. } => {
-                return self.map_phi_to_ranges(formula);
-            }
+            Phi::DespiteEventually { formula, .. } => self.map_phi_to_ranges(formula),
+            Phi::EnforceEventually { formula, .. } => self.map_phi_to_ranges(formula),
+            Phi::DespiteInvariant { formula, .. } => self.map_phi_to_ranges(formula),
+            Phi::EnforceInvariant { formula, .. } => self.map_phi_to_ranges(formula),
         }
     }
 
@@ -433,10 +417,8 @@ impl LinearOptimizeSearch {
                     } else {
                         Some(lhs_distance)
                     };
-                } else {
-                    if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
-                        return Some(rhs_distance);
-                    }
+                } else if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
+                    return Some(rhs_distance);
                 }
                 None
             }
@@ -458,7 +440,7 @@ impl LinearOptimizeSearch {
                 for (symbol, range) in proposition_range {
                     if let Some(state_of_symbol) = state.0.get(symbol) {
                         let res = self.distance_to_range_bound(range, state_of_symbol);
-                        cumulative_distance = cumulative_distance + res;
+                        cumulative_distance += res;
                     }
                 }
 
@@ -471,15 +453,13 @@ impl LinearOptimizeSearch {
 
     /// Returns how close we are to min or max in the Range
     fn distance_to_range_bound(&self, range: &Ranges, state_of_symbol: &i32) -> i32 {
-        return match range {
+        match range {
             Range(min, max) => {
                 let dist_to_min = i32::abs(min - state_of_symbol);
                 let dist_to_max = i32::abs(max - state_of_symbol);
 
-                let min_distance = cmp::min(dist_to_min, dist_to_max);
-
-                min_distance
+                cmp::min(dist_to_min, dist_to_max)
             }
-        };
+        }
     }
 }
