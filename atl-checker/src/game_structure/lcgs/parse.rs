@@ -1296,11 +1296,15 @@ mod tests {
     fn test_template_decl_01() {
         // Simple template decl
         let input = br#"template shooter
+
             health : [0 .. 9] init 9;
             health' = health - 1;
+
             label alive = health;
+
             [shoot_right] 1;
             [shoot_left] 1;
+
         endtemplate"#;
         let parser = template_decl();
         println!("{:?}", parser.parse(input));
@@ -1312,13 +1316,18 @@ mod tests {
         // Simple root
         let input = br#"
         const max_health = 1;
+
         player p1 = shooter [target1=p2];
         player p2 = shooter [target1=p1];
+
         template shooter
             health : [0 .. max_health] init max_health;
             health' = health - 1;
+
             label alive = health;
+
             [wait] 1;
+
         endtemplate
         "#;
         let parser = root();

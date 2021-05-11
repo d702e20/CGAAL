@@ -415,7 +415,7 @@ fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, Stri
             } else {
                 Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
             }
-        }
+        },
         Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }

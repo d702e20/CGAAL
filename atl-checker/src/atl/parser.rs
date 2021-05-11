@@ -743,6 +743,7 @@ mod test {
         // Can we parse ATL coalitions that mentions players in an LCGS program
         let lcgs_program = "
         player p1 = something;
+
         template something
             [wait] 1;
         endtemplate
@@ -759,6 +760,7 @@ mod test {
         // Can we parse ATL formulas that mentions players in an LCGS program
         let lcgs_program = "
         player p1 = something;
+
         template something
             [wait] 1;
         endtemplate
@@ -781,6 +783,7 @@ mod test {
         // Can we parse ATL formulas that mentions labels in an LCGS program
         let lcgs_program = "
         player p1 = something;
+
         label test = 1;
         template something
             [wait] 1;

@@ -610,6 +610,7 @@ mod test {
         const max_health = 100;
         player alice = gamer;
         player bob = gamer;
+
         template gamer
             health : [0 .. max_health] init max_health;
             health' = health - 1;
@@ -1002,6 +1003,7 @@ mod test {
 
         some_var : [0 .. 10] init 0;
         some_var' = some_var + ryan.unavailable_action;
+
         template guy
             [unavailable_action] 0;
             [available_action] 1;
