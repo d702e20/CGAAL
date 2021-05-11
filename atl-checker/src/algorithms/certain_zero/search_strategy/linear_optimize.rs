@@ -1,4 +1,3 @@
-use crate::algorithms::certain_zero::search_strategy::linear_optimize::Ranges::Range;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
@@ -13,6 +12,7 @@ use minilp::{ComparisonOp, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
 use std::cmp;
 use std::collections::HashMap;
+use std::ops::Range;
 use std::option::Option::Some;
 use std::sync::Arc;
 use BinaryOpKind::{Equality, GreaterThan, LessThan};
@@ -38,7 +38,7 @@ pub struct LinearOptimizeSearch {
     result_cache: HashMap<(Arc<Phi>, StateUsize), i32>,
     /// Maps usize from proposition, to a hashmap mapping symbols to the ranges they need to be within,
     /// to satisfy the proposition
-    proposition_cache: HashMap<Proposition, HashMap<SymbolIdentifier, Ranges>>,
+    proposition_cache: HashMap<Proposition, HashMap<SymbolIdentifier, Range<i32>>>,
     /// Maps hash of a phi to a rangedphi
     phi_cache: HashMap<Arc<Phi>, RangedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
@@ -57,13 +57,6 @@ impl LinearOptimizeSearch {
     }
 }
 
-/// Holds the range for which a symbol should be within, to satisfy a proposition
-#[derive(Clone)]
-pub enum Ranges {
-    /// Must be the case that the state of the symbol is inside this range to satisfy the propositon (inclusive)
-    Range(i32, i32),
-}
-
 /// Used when mapping a Phi to a ranged variant,
 /// where the propositions have been replaced by hashmaps mapping symbols to Ranges
 pub enum RangedPhi {
@@ -72,7 +65,7 @@ pub enum RangedPhi {
     /// Both should hold
     And(Box<RangedPhi>, Box<RangedPhi>),
     /// Mapping symbols to ranges
-    Proposition(HashMap<SymbolIdentifier, Ranges>),
+    Proposition(HashMap<SymbolIdentifier, Range<i32>>),
     True,
     False,
 }
@@ -151,6 +144,7 @@ impl LinearOptimizeSearch {
             // TODO or perhaps look for more results close to this state, and extrapolate (Mathias supervisor suggestion)
         }
 
+        #[allow(clippy::map_entry)]
         // If we have not seen this formula before
         if !self.phi_cache.contains_key(&target.formula()) {
             // Find ranges for symbols that would satisfy it and update proposition_cache
@@ -198,11 +192,16 @@ impl LinearOptimizeSearch {
                         // Find range for the symbol in the linear_expression to be within, to satisfy the given proposition
                         if let Some(range) = self.range_to_satisfy_proposition(&linear_expression) {
                             // Maps the symbol to the Range just found
-                            let res_hash =
-                                [(linear_expression.symbol, Ranges::Range(range.0, range.1))]
-                                    .iter()
-                                    .cloned()
-                                    .collect();
+                            let res_hash = [(
+                                linear_expression.symbol,
+                                Range {
+                                    start: range.0,
+                                    end: range.1,
+                                },
+                            )]
+                            .iter()
+                            .cloned()
+                            .collect();
                             // Add to proposition_cache
                             self.proposition_cache.insert(proposition_index, res_hash);
                         }
@@ -452,14 +451,10 @@ impl LinearOptimizeSearch {
     }
 
     /// Returns how close we are to min or max in the Range
-    fn distance_to_range_bound(&self, range: &Ranges, state_of_symbol: &i32) -> i32 {
-        match range {
-            Range(min, max) => {
-                let dist_to_min = i32::abs(min - state_of_symbol);
-                let dist_to_max = i32::abs(max - state_of_symbol);
+    fn distance_to_range_bound(&self, range: &Range<i32>, state_of_symbol: &i32) -> i32 {
+        let dist_to_min = i32::abs(range.start - state_of_symbol);
+        let dist_to_max = i32::abs(range.end - state_of_symbol);
 
-                cmp::min(dist_to_min, dist_to_max)
-            }
-        }
+        cmp::min(dist_to_min, dist_to_max)
     }
 }
