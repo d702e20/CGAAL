@@ -13,10 +13,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
-use BinaryOpKind::{
-    Addition, And, Division, Equality, GreaterOrEqual, GreaterThan, Implication, Inequality,
-    LessOrEqual, LessThan, Multiplication, Or, Subtraction, Xor,
-};
+use BinaryOpKind::{Equality, GreaterThan, LessThan};
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
@@ -304,18 +301,6 @@ impl LinearOptimizeSearch {
         let mut problem = Problem::new(direction);
         let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
         match linearexpression.operation {
-            Addition => {
-                return None;
-            }
-            Multiplication => {
-                return None;
-            }
-            Subtraction => {
-                return None;
-            }
-            Division => {
-                return None;
-            }
             Equality => {
                 problem.add_constraint(
                     &[(x, 1.0)],
@@ -323,9 +308,7 @@ impl LinearOptimizeSearch {
                     linearexpression.constant as f64,
                 );
             }
-            Inequality => {
-                return None;
-            }
+
             GreaterThan => {
                 problem.add_constraint(
                     &[(x, 1.0)],
@@ -340,22 +323,7 @@ impl LinearOptimizeSearch {
                     linearexpression.constant as f64,
                 );
             }
-            GreaterOrEqual => {
-                return None;
-            }
-            LessOrEqual => {
-                return None;
-            }
-            And => {
-                return None;
-            }
-            Or => {
-                return None;
-            }
-            Xor => {
-                return None;
-            }
-            Implication => {
+            _ => {
                 return None;
             }
         }
