@@ -6,6 +6,8 @@ use crate::edg::Edge;
 use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identifier};
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
+use crate::game_structure::Proposition;
+use crate::game_structure::State as StateUsize;
 use minilp::OptimizationDirection::{Maximize, Minimize};
 use minilp::{ComparisonOp, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
@@ -14,8 +16,6 @@ use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
 use BinaryOpKind::{Equality, GreaterThan, LessThan};
-use crate::game_structure::{Proposition};
-use crate::game_structure::State as StateUsize;
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
@@ -78,11 +78,10 @@ pub enum RangedPhi {
 }
 
 /// Holds extracted linear expressions from the formula in AtlVertex
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 struct LinearExpression {
     pub symbol: SymbolIdentifier,
     pub constant: i32,
-    pub operation: BinaryOpKind,
+    pub operation: ComparisonOp,
 }
 
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
@@ -228,7 +227,14 @@ impl LinearOptimizeSearch {
                             return Some(LinearExpression {
                                 symbol: symbol_of_id,
                                 constant: number,
-                                operation: operator.clone(),
+                                operation: match operator {
+                                    Equality => ComparisonOp::Eq,
+                                    GreaterThan => ComparisonOp::Ge,
+                                    LessThan => ComparisonOp::Le,
+                                    _ => {
+                                        return None;
+                                    }
+                                },
                             });
                         }
                     }
@@ -243,7 +249,14 @@ impl LinearOptimizeSearch {
                             return Some(LinearExpression {
                                 symbol: symbol_of_id,
                                 constant: number,
-                                operation: operator.clone(),
+                                operation: match operator {
+                                    Equality => ComparisonOp::Eq,
+                                    GreaterThan => ComparisonOp::Ge,
+                                    LessThan => ComparisonOp::Le,
+                                    _ => {
+                                        return None;
+                                    }
+                                },
                             });
                         }
                     }
@@ -303,7 +316,7 @@ impl LinearOptimizeSearch {
         let mut problem = Problem::new(direction);
         let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
         match linearexpression.operation {
-            Equality => {
+            ComparisonOp::Eq => {
                 problem.add_constraint(
                     &[(x, 1.0)],
                     ComparisonOp::Eq,
@@ -311,22 +324,19 @@ impl LinearOptimizeSearch {
                 );
             }
 
-            GreaterThan => {
+            ComparisonOp::Ge => {
                 problem.add_constraint(
                     &[(x, 1.0)],
                     ComparisonOp::Ge,
                     linearexpression.constant as f64,
                 );
             }
-            LessThan => {
+            ComparisonOp::Le => {
                 problem.add_constraint(
                     &[(x, 1.0)],
                     ComparisonOp::Le,
                     linearexpression.constant as f64,
                 );
-            }
-            _ => {
-                return None;
             }
         }
         match problem.solve() {
