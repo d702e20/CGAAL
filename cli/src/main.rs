@@ -155,6 +155,26 @@ fn main_inner() -> Result<(), String> {
             }
         }
         ("solver", Some(solver_args)) => {
+            fn quiet_output_handle(result: VertexAssignment, quiet_flag: bool) {
+                match result {
+                    VertexAssignment::True => {
+                        if !quiet_flag {
+                            println!("Model satisfies formula: {}", result);
+                        }
+                        std::process::exit(42);
+                    }
+                    VertexAssignment::False => {
+                        if !quiet_flag {
+                            println!("Model satisfies formula: {}", result);
+                        }
+                        std::process::exit(43);
+                    }
+                    VertexAssignment::Undecided => {
+                        eprintln!("Model-checking gave {}, something is broken!", result);
+                        std::process::exit(1);
+                    }
+                }
+            }
             let input_model_path = solver_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
@@ -170,12 +190,11 @@ fn main_inner() -> Result<(), String> {
                 threads: u64,
                 ss: SearchStrategyOption,
                 prioritise_back_propagation: bool,
-            ) where
+            ) -> VertexAssignment
+            where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result =
-                    ss.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation);
-                println!("Result: {}", result);
+                ss.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation)
             }
 
             let threads = match solver_args.value_of("threads") {
@@ -189,40 +208,54 @@ fn main_inner() -> Result<(), String> {
                 formula_path,
                 formula_format,
                 |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
+                    if solver_args.is_present("quiet") {
+                    } else {
+                        println!(
+                            "Checking the formula: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                    }
                     let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
                     let graph = AtlDependencyGraph { game_structure };
-                    check_model(
-                        graph,
-                        v0,
-                        threads,
-                        search_strategy,
-                        prioritise_back_propagation,
+                    quiet_output_handle(
+                        check_model(
+                            graph,
+                            v0,
+                            threads,
+                            search_strategy,
+                            prioritise_back_propagation,
+                        ),
+                        solver_args.is_present("quiet"),
                     );
                 },
                 |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
+                    if solver_args.is_present("quiet") {
+                    } else {
+                        println!(
+                            "Checking the formula: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                    }
+
                     let arc = Arc::from(formula);
                     let graph = AtlDependencyGraph { game_structure };
                     let v0 = AtlVertex::Full {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    check_model(
-                        graph,
-                        v0,
-                        threads,
-                        search_strategy,
-                        prioritise_back_propagation,
+
+                    quiet_output_handle(
+                        check_model(
+                            graph,
+                            v0,
+                            threads,
+                            search_strategy,
+                            prioritise_back_propagation,
+                        ),
+                        solver_args.is_present("quiet"),
                     );
                 },
             )?
@@ -496,6 +529,15 @@ fn parse_arguments() -> ArgMatches<'static> {
                         .long("threads")
                         .env("THREADS")
                         .help("Number of threads to run solver on"),
+                )
+                .arg(
+                    Arg::with_name("quiet")
+                        .short("q")
+                        .takes_value(false)
+                        .long("quiet")
+                        .help(
+                            "Suppress stdout and return exitcode 42 for true result or 43 for false",
+                        ),
                 ),
         )
         .subcommand(
