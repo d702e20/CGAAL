@@ -416,6 +416,8 @@ impl LinearOptimizeSearch {
     fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, state: &State) -> Option<i32> {
         match ranged_phi {
             // If we need to satisfy either of the formulas, just return the lowest distance found between the two
+            // If one the the sides is None, the other is returned (given that the other is Some)
+            // This makes sure that "x < 5 || false" will not return None, but the dist in lhs
             RangedPhi::Or(lhs, rhs) => {
                 if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
                     return if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
