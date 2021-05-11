@@ -10,6 +10,7 @@ use crate::game_structure::State as StateUsize;
 use minilp::OptimizationDirection::{Maximize, Minimize};
 use minilp::{ComparisonOp, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
+use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -36,11 +37,10 @@ pub struct LinearOptimizeSearch {
     game: IntermediateLcgs,
     /// Maps the hash of a Phi and usize of state, to a result distance
     result_cache: HashMap<(Arc<Phi>, StateUsize), i32>,
-    /// Maps usize from proposition, to a hashmap mapping symbols to the ranges they need to be within,
-    /// to satisfy the proposition
-    proposition_cache: HashMap<Proposition, HashMap<SymbolIdentifier, Range<i32>>>,
-    /// Maps hash of a phi to a rangedphi
-    phi_cache: HashMap<Arc<Phi>, RangedPhi>,
+    /// Maps proposition to the linear constraint the are
+    proposition_cache: RefCell<HashMap<Proposition, Option<LinearConstraint>>>,
+    /// Maps phi to a LinearConstrainedPhi
+    phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
     // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
 }
@@ -51,29 +51,30 @@ impl LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
             result_cache: HashMap::new(),
-            proposition_cache: HashMap::new(),
+            proposition_cache: RefCell::new(HashMap::new()),
             phi_cache: HashMap::new(),
         }
     }
 }
 
-/// Used when mapping a Phi to a ranged variant,
+/// Used when mapping a Phi to a LinearConstrainedPhi variant,
 /// where the propositions have been replaced by hashmaps mapping symbols to Ranges
-pub enum RangedPhi {
+pub enum LinearConstrainedPhi {
     /// Either or should hold
-    Or(Box<RangedPhi>, Box<RangedPhi>),
+    Or(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
     /// Both should hold
-    And(Box<RangedPhi>, Box<RangedPhi>),
+    And(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
     /// Mapping symbols to ranges
-    Proposition(HashMap<SymbolIdentifier, Range<i32>>),
+    Constraint(LinearConstraint),
     True,
     False,
 }
 
 /// Holds extracted linear expressions from the formula in AtlVertex
+/// E.g. C = ax + by + cz
 #[derive(Clone)]
-struct LinearExpression {
-    pub symbol: SymbolIdentifier,
+pub struct LinearConstraint {
+    pub terms: Vec<(i32, SymbolIdentifier)>,
     pub constant: i32,
     pub operation: ComparisonOp,
 }
@@ -144,15 +145,14 @@ impl LinearOptimizeSearch {
             // TODO or perhaps look for more results close to this state, and extrapolate (Mathias supervisor suggestion)
         }
 
-        #[allow(clippy::map_entry)]
         // If we have not seen this formula before
         if !self.phi_cache.contains_key(&target.formula()) {
-            // Find ranges for symbols that would satisfy it and update proposition_cache
-            self.populate_proposition_cache(target);
             // Now we know the ranges for which the propositions in the formula would be satisfied,
             // Map the phi to one that holds Ranges, and cache this
-            self.phi_cache
-                .insert(target.formula(), self.map_phi_to_ranges(&*target.formula()));
+            self.phi_cache.insert(
+                target.formula(),
+                self.map_phi_to_constraints(&*target.formula()),
+            );
         }
 
         // Now we have the mapped phi (called RangedPhi)
@@ -172,60 +172,21 @@ impl LinearOptimizeSearch {
         None
     }
 
-    /// Finds all propositions in the formula in the vertex, and find Ranges for the symbols in them,
-    /// that would satisfy the propositions, save these Ranges in cache
-    fn populate_proposition_cache(&mut self, vertex: &AtlVertex) {
-        // get all propositions from the formula in the vertex
-        let propositions = vertex.formula().get_propositions_recursively();
-
-        for proposition_index in propositions {
-            // Only find Ranges for propositions that we have not seen before
-            if !self.proposition_cache.contains_key(&proposition_index) {
-                // Make sure it is a Label
-                if let DeclKind::Label(label) =
-                    &self.game.label_index_to_decl(proposition_index).kind
-                {
-                    // Return the constructed Linear Expression from this condition
-                    if let Some(linear_expression) =
-                        self.extract_linear_expression(label.condition.kind.clone())
-                    {
-                        // Find range for the symbol in the linear_expression to be within, to satisfy the given proposition
-                        if let Some(range) = self.range_to_satisfy_proposition(&linear_expression) {
-                            // Maps the symbol to the Range just found
-                            let res_hash = [(
-                                linear_expression.symbol,
-                                Range {
-                                    start: range.0,
-                                    end: range.1,
-                                },
-                            )]
-                            .iter()
-                            .cloned()
-                            .collect();
-                            // Add to proposition_cache
-                            self.proposition_cache.insert(proposition_index, res_hash);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // TODO should be replaced by something better
     /// Finds a single simple linear expression
-    fn extract_linear_expression(&self, expr: ExprKind) -> Option<LinearExpression> {
+    fn extract_outer_comparison(&self, expr: &ExprKind) -> Option<LinearConstraint> {
         match &expr {
-            ExprKind::BinaryOp(operator, operand1, operand2) => {
-                // Either we have that operand1 is the owned ident, and operand2 is the constant
-                if let ExprKind::OwnedIdent(id) = &operand1.kind {
+            ExprKind::BinaryOp(operator, lhs, rhs) => {
+                // Either we have that lhs is the constant, and rhs is the constraints
+                if let ExprKind::OwnedIdent(id) = &lhs.kind {
                     if let Identifier::Resolved { owner, name } = *id.clone() {
                         let symbol_of_id = SymbolIdentifier {
                             owner,
                             name: name.parse().unwrap(),
                         };
-                        if let ExprKind::Number(number) = operand2.kind {
-                            return Some(LinearExpression {
-                                symbol: symbol_of_id,
+                        if let ExprKind::Number(number) = rhs.kind {
+                            return Some(LinearConstraint {
+                                terms: vec![(1, symbol_of_id)],
                                 constant: number,
                                 operation: match operator {
                                     Equality => ComparisonOp::Eq,
@@ -238,16 +199,16 @@ impl LinearOptimizeSearch {
                             });
                         }
                     }
-                    // Or we have that operand2 is the owned ident, and operand1 is the constant
-                } else if let ExprKind::OwnedIdent(id) = &operand2.kind {
+                    // Or we have that rhs is the constant, and lhs is the constraints
+                } else if let ExprKind::OwnedIdent(id) = &rhs.kind {
                     if let Identifier::Resolved { owner, name } = *id.clone() {
                         let symbol_of_id = SymbolIdentifier {
                             owner,
                             name: name.parse().unwrap(),
                         };
-                        if let ExprKind::Number(number) = operand1.kind {
-                            return Some(LinearExpression {
-                                symbol: symbol_of_id,
+                        if let ExprKind::Number(number) = lhs.kind {
+                            return Some(LinearConstraint {
+                                terms: vec![(1, symbol_of_id)],
                                 constant: number,
                                 operation: match operator {
                                     Equality => ComparisonOp::Eq,
@@ -270,46 +231,14 @@ impl LinearOptimizeSearch {
         }
     }
 
-    /// Runs the linear programming with both minimize, and maximize direction,
-    /// To find the min and max value the symbol should be, to satisfy the proposition
-    fn range_to_satisfy_proposition(
-        &self,
-        linear_expression: &LinearExpression,
-    ) -> Option<(i32, i32)> {
-        // Get the declaration from the symbol in LinearExpression, has to be a StateVar
-        // (i.e a variable in an LCGS program)
-        let symb = self.game.get_decl(&linear_expression.symbol).unwrap();
-        if let DeclKind::StateVar(variable) = &symb.kind {
-            // The range for the variable is used in the linear programming.
-            // This range is the one declared in the LCGS program
-            let range_of_var: (f64, f64) = (
-                *variable.ir_range.start() as f64,
-                *variable.ir_range.end() as f64,
-            );
-
-            // Find both min and max
-            if let Some(min) = self.linear_program_simple_linear_expression(
-                linear_expression,
-                range_of_var,
-                Minimize,
-            ) {
-                if let Some(max) = self.linear_program_simple_linear_expression(
-                    linear_expression,
-                    range_of_var,
-                    Maximize,
-                ) {
-                    return Some((min, max));
-                }
-            }
-        }
-        // If we cannot find a min and max solution, return None
+    fn extract_inner_terms() -> Option<Vec<(i32, SymbolIdentifier)>> {
         None
     }
 
     // TODO when allowing more expressive expressions, this needs to be updated as well
     fn linear_program_simple_linear_expression(
         &self,
-        linearexpression: &LinearExpression,
+        linearexpression: &LinearConstraint,
         range_of_var: (f64, f64),
         direction: OptimizationDirection,
     ) -> Option<i32> {
@@ -344,72 +273,86 @@ impl LinearOptimizeSearch {
         }
     }
 
-    /// Takes a Phi (the formula in the vertex) and maps it to a RangedPhi, using the Ranges that we computed for the propositions
-    fn map_phi_to_ranges(&self, phi: &Phi) -> RangedPhi {
+    /// Takes a Phi (the formula in the vertex) and maps it to a LinearConstrainedPhi, using the Ranges that we computed for the propositions
+    fn map_phi_to_constraints(&self, phi: &Phi) -> LinearConstrainedPhi {
         match phi {
-            Phi::True => RangedPhi::True,
-            Phi::False => RangedPhi::False,
+            Phi::True => LinearConstrainedPhi::True,
+            Phi::False => LinearConstrainedPhi::False,
             Phi::Proposition(proposition) => {
                 // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
-                if let Some(symbol_range_map) = self.proposition_cache.get(proposition) {
-                    RangedPhi::Proposition(symbol_range_map.clone())
-                } else {
-                    panic!("Could not find range for proposition in cache, something went wrong with caching")
-                }
+                let constraint = self.proposition_cache.borrow().get(proposition).cloned();
+                let bla = constraint.unwrap_or_else(|| {
+                    // We have not tried to extract the linear expression from this proposition yet. Let's try
+                    let decl = self.game.label_index_to_decl(*proposition);
+                    if let DeclKind::Label(label) = &decl.kind {
+                        let lin_expr = self.extract_outer_comparison(&label.condition.kind);
+                        // Cache the result
+                        self.proposition_cache
+                            .borrow_mut()
+                            .insert(*proposition, lin_expr.clone());
+                        lin_expr
+                    } else {
+                        None
+                    }
+                });
+                // Convert to LinearConstrainedPhi::Contraint if it is a linear expression, or true otherwise
+                bla.map(|c| LinearConstrainedPhi::Constraint(c))
+                    .or(Some(LinearConstrainedPhi::True))
+                    .unwrap()
             }
-            Phi::Not(formula) => self.map_phi_to_ranges(formula),
+            Phi::Not(formula) => self.map_phi_to_constraints(formula),
             Phi::Or(lhs, rhs) => {
-                let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
-                let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
+                let lhs_symbol_range_map = self.map_phi_to_constraints(lhs);
+                let rhs_symbol_range_map = self.map_phi_to_constraints(rhs);
 
-                RangedPhi::Or(
+                LinearConstrainedPhi::Or(
                     Box::from(lhs_symbol_range_map),
                     Box::from(rhs_symbol_range_map),
                 )
             }
             Phi::And(lhs, rhs) => {
-                let lhs_symbol_range_map = self.map_phi_to_ranges(lhs);
-                let rhs_symbol_range_map = self.map_phi_to_ranges(rhs);
+                let lhs_symbol_range_map = self.map_phi_to_constraints(lhs);
+                let rhs_symbol_range_map = self.map_phi_to_constraints(rhs);
 
-                RangedPhi::And(
+                LinearConstrainedPhi::And(
                     Box::from(lhs_symbol_range_map),
                     Box::from(rhs_symbol_range_map),
                 )
             }
-            Phi::DespiteNext { formula, .. } => self.map_phi_to_ranges(formula),
-            Phi::EnforceNext { formula, .. } => self.map_phi_to_ranges(formula),
+            Phi::DespiteNext { formula, .. } => self.map_phi_to_constraints(formula),
+            Phi::EnforceNext { formula, .. } => self.map_phi_to_constraints(formula),
             Phi::DespiteUntil { pre, until, .. } => {
-                let pre_symbol_range_map = self.map_phi_to_ranges(pre);
-                let until_symbol_range_map = self.map_phi_to_ranges(until);
+                let pre_symbol_range_map = self.map_phi_to_constraints(pre);
+                let until_symbol_range_map = self.map_phi_to_constraints(until);
 
-                RangedPhi::Or(
+                LinearConstrainedPhi::Or(
                     Box::from(pre_symbol_range_map),
                     Box::from(until_symbol_range_map),
                 )
             }
             Phi::EnforceUntil { pre, until, .. } => {
-                let pre_symbol_range_map = self.map_phi_to_ranges(pre);
-                let until_symbol_range_map = self.map_phi_to_ranges(until);
+                let pre_symbol_range_map = self.map_phi_to_constraints(pre);
+                let until_symbol_range_map = self.map_phi_to_constraints(until);
 
-                RangedPhi::Or(
+                LinearConstrainedPhi::Or(
                     Box::from(pre_symbol_range_map),
                     Box::from(until_symbol_range_map),
                 )
             }
-            Phi::DespiteEventually { formula, .. } => self.map_phi_to_ranges(formula),
-            Phi::EnforceEventually { formula, .. } => self.map_phi_to_ranges(formula),
-            Phi::DespiteInvariant { formula, .. } => self.map_phi_to_ranges(formula),
-            Phi::EnforceInvariant { formula, .. } => self.map_phi_to_ranges(formula),
+            Phi::DespiteEventually { formula, .. } => self.map_phi_to_constraints(formula),
+            Phi::EnforceEventually { formula, .. } => self.map_phi_to_constraints(formula),
+            Phi::DespiteInvariant { formula, .. } => self.map_phi_to_constraints(formula),
+            Phi::EnforceInvariant { formula, .. } => self.map_phi_to_constraints(formula),
         }
     }
 
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
-    fn visit_ranged_phi(&self, ranged_phi: &RangedPhi, state: &State) -> Option<i32> {
+    fn visit_ranged_phi(&self, ranged_phi: &LinearConstrainedPhi, state: &State) -> Option<i32> {
         match ranged_phi {
             // If we need to satisfy either of the formulas, just return the lowest distance found between the two
             // If one the the sides is None, the other is returned (given that the other is Some)
             // This makes sure that "x < 5 || false" will not return None, but the dist in lhs
-            RangedPhi::Or(lhs, rhs) => {
+            LinearConstrainedPhi::Or(lhs, rhs) => {
                 if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
                     return if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
                         Some(Ord::min(lhs_distance, rhs_distance))
@@ -422,7 +365,7 @@ impl LinearOptimizeSearch {
                 None
             }
             // If we need to satisfy both of the formulas, just return the largest distance found between the two
-            RangedPhi::And(lhs, rhs) => {
+            LinearConstrainedPhi::And(lhs, rhs) => {
                 if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
                     if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
                         return Some(Ord::max(lhs_distance, rhs_distance));
@@ -430,23 +373,13 @@ impl LinearOptimizeSearch {
                 }
                 None
             }
-            // Iterate through all entires in the hashmap mapping symbols to ranges
-            // Find distance for each symbol in the current state, to the closest acceptance region,
-            // Add all distances and return
-            RangedPhi::Proposition(proposition_range) => {
-                let mut cumulative_distance = 0;
-
-                for (symbol, range) in proposition_range {
-                    if let Some(state_of_symbol) = state.0.get(symbol) {
-                        let res = self.distance_to_range_bound(range, state_of_symbol);
-                        cumulative_distance += res;
-                    }
-                }
-
-                Some(cumulative_distance)
+            // Find distance to constraint
+            LinearConstrainedPhi::Constraint(_constraint) => {
+                // Some(self.distance_to_constraint(constraint, state_of_symbol)) // TODO calc distance to constraint
+                Some(0)
             }
-            RangedPhi::True => Some(0),
-            RangedPhi::False => None,
+            LinearConstrainedPhi::True => Some(0),
+            LinearConstrainedPhi::False => None,
         }
     }
 
