@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
 use BinaryOpKind::{Equality, GreaterThan, LessThan};
+use crate::game_structure::{Proposition};
+use crate::game_structure::State as StateUsize;
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
@@ -33,10 +35,10 @@ pub struct LinearOptimizeSearch {
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
     /// Maps the hash of a Phi and usize of state, to a result distance
-    result_cache: HashMap<(Arc<Phi>, usize), i32>,
+    result_cache: HashMap<(Arc<Phi>, StateUsize), i32>,
     /// Maps usize from proposition, to a hashmap mapping symbols to the ranges they need to be within,
     /// to satisfy the proposition
-    proposition_cache: HashMap<usize, HashMap<SymbolIdentifier, Ranges>>,
+    proposition_cache: HashMap<Proposition, HashMap<SymbolIdentifier, Ranges>>,
     /// Maps hash of a phi to a rangedphi
     phi_cache: HashMap<Arc<Phi>, RangedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
