@@ -24,6 +24,6 @@ pub struct AnnotatedNegationEdge<V: Hash + Eq + PartialEq + Clone, A: Annotation
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum AnnotatedEdge<V: Hash + Eq + PartialEq + Clone, A: Annotation> {
-    HYPER(AnnotatedHyperEdge<V, A>),
-    NEGATION(AnnotatedNegationEdge<V, A>),
+    Hyper(AnnotatedHyperEdge<V, A>),
+    Negation(AnnotatedNegationEdge<V, A>),
 }

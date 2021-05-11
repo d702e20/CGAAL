@@ -4,15 +4,15 @@ use crate::edg::annotated_edg::{
     Annotation,
 };
 use crate::edg::atledg::pmoves::{DeltaIterator, PartialMove, PmovesIterator};
-use crate::edg::atledg::vertex::ATLVertex;
-use crate::edg::atledg::ATLDependencyGraph;
+use crate::edg::atledg::vertex::AtlVertex;
+use crate::edg::atledg::AtlDependencyGraph;
 use crate::game_structure::GameStructure;
 use std::sync::Arc;
 
 impl Annotation for Option<PartialMove> {}
 
-impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<PartialMove>>
-    for ATLDependencyGraph<G>
+impl<G: GameStructure> AnnotatedExtendedDependencyGraph<AtlVertex, Option<PartialMove>>
+    for AtlDependencyGraph<G>
 {
     /// Produce the edges of the given vertex annotated with the (partial move) that produces it.
     /// Where possible, the smallest edge will be the first in the produced vector,
@@ -20,13 +20,13 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
     /// This is mostly relevant for the Until formulae.
     fn annotated_succ(
         &self,
-        vert: &ATLVertex,
-    ) -> Vec<AnnotatedEdge<ATLVertex, Option<PartialMove>>> {
+        vert: &AtlVertex,
+    ) -> Vec<AnnotatedEdge<AtlVertex, Option<PartialMove>>> {
         match vert {
-            ATLVertex::FULL { state, formula } => match formula.as_ref() {
+            AtlVertex::Full { state, formula } => match formula.as_ref() {
                 Phi::True => {
                     // Hyper edge with no targets
-                    vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: None,
                         targets: vec![],
@@ -39,7 +39,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                 Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(prop) {
-                        vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![],
@@ -49,10 +49,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     }
                 }
                 Phi::Not(phi) => {
-                    vec![AnnotatedEdge::NEGATION(AnnotatedNegationEdge {
+                    vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
                         annotation: None,
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             formula: phi.clone(),
                         },
@@ -60,22 +60,22 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                 }
                 Phi::Or(left, right) => {
                     vec![
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: left.clone(),
                                 },
                                 None,
                             )],
                         }),
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: right.clone(),
                                 },
@@ -85,19 +85,19 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     ]
                 }
                 Phi::And(left, right) => {
-                    vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: None,
                         targets: vec![
                             (
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: left.clone(),
                                 },
                                 None,
                             ),
                             (
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: right.clone(),
                                 },
@@ -108,11 +108,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                 }
                 Phi::DespiteNext { players, formula } => {
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<(ATLVertex, Option<PartialMove>)> =
+                    let targets: Vec<(AtlVertex, Option<PartialMove>)> =
                         PmovesIterator::new(moves, players.iter().copied().collect())
                             .map(|pmove| {
                                 (
-                                    ATLVertex::PARTIAL {
+                                    AtlVertex::Partial {
                                         state: *state,
                                         partial_move: pmove,
                                         formula: formula.clone(),
@@ -122,7 +122,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                             })
                             .collect();
 
-                    vec![AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    vec![AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: None,
                         targets,
@@ -132,11 +132,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     let moves = self.game_structure.move_count(*state);
                     PmovesIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
-                            let targets: Vec<(ATLVertex, Option<PartialMove>)> =
+                            let targets: Vec<(AtlVertex, Option<PartialMove>)> =
                                 DeltaIterator::new(&self.game_structure, *state, &pmove)
                                     .map(|(state, mov)| {
                                         (
-                                            ATLVertex::FULL {
+                                            AtlVertex::Full {
                                                 state,
                                                 formula: formula.clone(),
                                             },
@@ -144,13 +144,13 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                         )
                                     })
                                     .collect();
-                            AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                            AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                                 source: vert.clone(),
                                 annotation: Some(pmove),
                                 targets,
                             })
                         })
-                        .collect::<Vec<AnnotatedEdge<ATLVertex, Option<PartialMove>>>>()
+                        .collect::<Vec<AnnotatedEdge<AtlVertex, Option<PartialMove>>>>()
                 }
                 Phi::DespiteUntil {
                     players,
@@ -160,7 +160,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
                     let pre = (
-                        ATLVertex::FULL {
+                        AtlVertex::Full {
                             state: *state,
                             formula: pre.clone(),
                         },
@@ -170,12 +170,12 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     // Together with the `pre` target is all the possible moves by other players,
                     // but it is important that `pre` is the first target
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<(ATLVertex, Option<PartialMove>)> = std::iter::once(pre)
+                    let targets: Vec<(AtlVertex, Option<PartialMove>)> = std::iter::once(pre)
                         .chain(
                             PmovesIterator::new(moves, players.iter().cloned().collect()).map(
                                 |pmove| {
                                     (
-                                        ATLVertex::PARTIAL {
+                                        AtlVertex::Partial {
                                             state: *state,
                                             partial_move: pmove,
                                             formula: vert.formula(),
@@ -191,11 +191,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: until.clone(),
                                 },
@@ -203,7 +203,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                             )],
                         }),
                         // Other branches where pre is satisfied
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets,
@@ -219,11 +219,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: until.clone(),
                                 },
@@ -235,7 +235,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
                     let pre = (
-                        ATLVertex::FULL {
+                        AtlVertex::Full {
                             state: *state,
                             formula: pre.clone(),
                         },
@@ -252,7 +252,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                     DeltaIterator::new(&self.game_structure, *state, &pmove).map(
                                         |(state, mov)| {
                                             (
-                                                ATLVertex::FULL {
+                                                AtlVertex::Full {
                                                     state,
                                                     formula: formula.clone(),
                                                 },
@@ -260,9 +260,9 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                             )
                                         },
                                     );
-                                let targets: Vec<(ATLVertex, Option<PartialMove>)> =
+                                let targets: Vec<(AtlVertex, Option<PartialMove>)> =
                                     std::iter::once(pre.clone()).chain(delta).collect();
-                                AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                                AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                                     source: vert.clone(),
                                     annotation: Some(pmove),
                                     targets,
@@ -280,11 +280,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     // Partial targets with same formula
                     // "Is the formula satisfied in the next state instead?"
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<(ATLVertex, Option<PartialMove>)> =
+                    let targets: Vec<(AtlVertex, Option<PartialMove>)> =
                         PmovesIterator::new(moves, players.iter().cloned().collect())
                             .map(|pmove| {
                                 (
-                                    ATLVertex::PARTIAL {
+                                    AtlVertex::Partial {
                                         state: *state,
                                         partial_move: pmove,
                                         formula: formula.clone(),
@@ -298,18 +298,18 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: subformula.clone(),
                                 },
                                 None,
                             )],
                         }),
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets,
@@ -324,11 +324,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                        AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                             source: vert.clone(),
                             annotation: None,
                             targets: vec![(
-                                ATLVertex::FULL {
+                                AtlVertex::Full {
                                     state: *state,
                                     formula: subformula.clone(),
                                 },
@@ -343,11 +343,11 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     edges.extend(
                         PmovesIterator::new(moves, players.iter().copied().collect()).map(
                             |pmove| {
-                                let targets: Vec<(ATLVertex, Option<PartialMove>)> =
+                                let targets: Vec<(AtlVertex, Option<PartialMove>)> =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove)
                                         .map(|(state, mov)| {
                                             (
-                                                ATLVertex::FULL {
+                                                AtlVertex::Full {
                                                     state,
                                                     formula: formula.clone(),
                                                 },
@@ -355,7 +355,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                                             )
                                         })
                                         .collect();
-                                AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                                AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                                     source: vert.clone(),
                                     annotation: Some(pmove),
                                     targets,
@@ -370,10 +370,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     players,
                     formula: subformula,
                 } => {
-                    vec![AnnotatedEdge::NEGATION(AnnotatedNegationEdge {
+                    vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
                         annotation: None,
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point domain
                             formula: Arc::new(Phi::EnforceUntil {
@@ -388,10 +388,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     players,
                     formula: subformula,
                 } => {
-                    vec![AnnotatedEdge::NEGATION(AnnotatedNegationEdge {
+                    vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
                         annotation: None,
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point
                             formula: Arc::new(Phi::DespiteUntil {
@@ -403,26 +403,26 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<ATLVertex, Option<Partia
                     })]
                 }
             },
-            ATLVertex::PARTIAL {
+            AtlVertex::Partial {
                 state,
                 partial_move,
                 formula,
             } => DeltaIterator::new(&self.game_structure, *state, partial_move)
                 .map(|(state, mov)| {
                     let targets = vec![(
-                        ATLVertex::FULL {
+                        AtlVertex::Full {
                             state,
                             formula: formula.clone(),
                         },
                         None,
                     )];
-                    AnnotatedEdge::HYPER(AnnotatedHyperEdge {
+                    AnnotatedEdge::Hyper(AnnotatedHyperEdge {
                         source: vert.clone(),
                         annotation: Some(mov),
                         targets,
                     })
                 })
-                .collect::<Vec<AnnotatedEdge<ATLVertex, Option<PartialMove>>>>(),
+                .collect::<Vec<AnnotatedEdge<AtlVertex, Option<PartialMove>>>>(),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::atl::Phi;
 use crate::edg::atledg::pmoves::{DeltaIterator, PmovesIterator};
-use crate::edg::atledg::vertex::ATLVertex;
+use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge};
 use crate::game_structure::{GameStructure, Player};
 use std::collections::HashSet;
@@ -11,11 +11,11 @@ mod pmoves;
 pub mod vertex;
 
 #[derive(Clone, Debug)]
-pub struct ATLDependencyGraph<G: GameStructure> {
+pub struct AtlDependencyGraph<G: GameStructure> {
     pub game_structure: G,
 }
 
-impl<G: GameStructure> ATLDependencyGraph<G> {
+impl<G: GameStructure> AtlDependencyGraph<G> {
     #[allow(dead_code)]
     fn invert_players(&self, players: &[Player]) -> HashSet<Player> {
         let max_players = self.game_structure.max_player();
@@ -31,17 +31,17 @@ impl<G: GameStructure> ATLDependencyGraph<G> {
     }
 }
 
-impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph<G> {
+impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph<G> {
     /// Produce the edges of the given vertex
     /// Where possible, the smallest edge will be the first in the produced vector,
     /// and similarly, the smallest target will be the first in the edges' vector of targets.
     /// This is mostly relevant for the Until formulae
-    fn succ(&self, vert: &ATLVertex) -> Vec<Edge<ATLVertex>> {
+    fn succ(&self, vert: &AtlVertex) -> Vec<Edge<AtlVertex>> {
         match vert {
-            ATLVertex::FULL { state, formula } => match formula.as_ref() {
+            AtlVertex::Full { state, formula } => match formula.as_ref() {
                 Phi::True => {
                     // Hyper edge with no targets
-                    vec![Edge::HYPER(HyperEdge {
+                    vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         targets: vec![],
                     })]
@@ -53,7 +53,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 Phi::Proposition(prop) => {
                     let props = self.game_structure.labels(vert.state());
                     if props.contains(prop) {
-                        vec![Edge::HYPER(HyperEdge {
+                        vec![Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             targets: vec![],
                         })]
@@ -62,9 +62,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     }
                 }
                 Phi::Not(phi) => {
-                    vec![Edge::NEGATION(NegationEdge {
+                    vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             formula: phi.clone(),
                         },
@@ -72,16 +72,16 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 }
                 Phi::Or(left, right) => {
                     vec![
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: left.clone(),
                             }],
                         }),
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: right.clone(),
                             }],
@@ -89,14 +89,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     ]
                 }
                 Phi::And(left, right) => {
-                    vec![Edge::HYPER(HyperEdge {
+                    vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         targets: vec![
-                            ATLVertex::FULL {
+                            AtlVertex::Full {
                                 state: *state,
                                 formula: left.clone(),
                             },
-                            ATLVertex::FULL {
+                            AtlVertex::Full {
                                 state: *state,
                                 formula: right.clone(),
                             },
@@ -105,16 +105,16 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 }
                 Phi::DespiteNext { players, formula } => {
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> =
+                    let targets: Vec<AtlVertex> =
                         PmovesIterator::new(moves, players.iter().copied().collect())
-                            .map(|pmove| ATLVertex::PARTIAL {
+                            .map(|pmove| AtlVertex::Partial {
                                 state: *state,
                                 partial_move: pmove,
                                 formula: formula.clone(),
                             })
                             .collect();
 
-                    vec![Edge::HYPER(HyperEdge {
+                    vec![Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         targets,
                     })]
@@ -123,19 +123,19 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     let moves = self.game_structure.move_count(*state);
                     PmovesIterator::new(moves, players.iter().copied().collect())
                         .map(|pmove| {
-                            let targets: Vec<ATLVertex> =
+                            let targets: Vec<AtlVertex> =
                                 DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                    .map(|(state, _)| ATLVertex::FULL {
+                                    .map(|(state, _)| AtlVertex::Full {
                                         state,
                                         formula: formula.clone(),
                                     })
                                     .collect();
-                            Edge::HYPER(HyperEdge {
+                            Edge::Hyper(HyperEdge {
                                 source: vert.clone(),
                                 targets,
                             })
                         })
-                        .collect::<Vec<Edge<ATLVertex>>>()
+                        .collect::<Vec<Edge<AtlVertex>>>()
                 }
                 Phi::DespiteUntil {
                     players,
@@ -144,7 +144,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                 } => {
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
-                    let pre = ATLVertex::FULL {
+                    let pre = AtlVertex::Full {
                         state: *state,
                         formula: pre.clone(),
                     };
@@ -152,10 +152,10 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     // Together with the `pre` target is all the possible moves by other players,
                     // but it is important that `pre` is the first target
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> = std::iter::once(pre)
+                    let targets: Vec<AtlVertex> = std::iter::once(pre)
                         .chain(
                             PmovesIterator::new(moves, players.iter().cloned().collect()).map(
-                                |pmove| ATLVertex::PARTIAL {
+                                |pmove| AtlVertex::Partial {
                                     state: *state,
                                     partial_move: pmove,
                                     formula: vert.formula(),
@@ -168,15 +168,15 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
                             }],
                         }),
                         // Other branches where pre is satisfied
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             targets,
                         }),
@@ -191,9 +191,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // `until`-formula branch
                         // "Is the `until` formula satisfied now?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: until.clone(),
                             }],
@@ -202,7 +202,7 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
 
                     // `pre`-target
                     // "Is `pre` formula satisfied now?"
-                    let pre = ATLVertex::FULL {
+                    let pre = AtlVertex::Full {
                         state: *state,
                         formula: pre.clone(),
                     };
@@ -215,14 +215,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                                 // but it is important that `pre` is the first target
                                 let delta =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove).map(
-                                        |(state, _)| ATLVertex::FULL {
+                                        |(state, _)| AtlVertex::Full {
                                             state,
                                             formula: formula.clone(),
                                         },
                                     );
-                                let targets: Vec<ATLVertex> =
+                                let targets: Vec<AtlVertex> =
                                     std::iter::once(pre.clone()).chain(delta).collect();
-                                Edge::HYPER(HyperEdge {
+                                Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
                                     targets,
                                 })
@@ -239,9 +239,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     // Partial targets with same formula
                     // "Is the formula satisfied in the next state instead?"
                     let moves = self.game_structure.move_count(*state);
-                    let targets: Vec<ATLVertex> =
+                    let targets: Vec<AtlVertex> =
                         PmovesIterator::new(moves, players.iter().cloned().collect())
-                            .map(|pmove| ATLVertex::PARTIAL {
+                            .map(|pmove| AtlVertex::Partial {
                                 state: *state,
                                 partial_move: pmove,
                                 formula: formula.clone(),
@@ -252,14 +252,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
                             }],
                         }),
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
                             targets,
                         }),
@@ -273,9 +273,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                         // sub-formula target
                         // "Is the sub formula satisfied in current state?"
                         // This must be the first edge
-                        Edge::HYPER(HyperEdge {
+                        Edge::Hyper(HyperEdge {
                             source: vert.clone(),
-                            targets: vec![ATLVertex::FULL {
+                            targets: vec![AtlVertex::Full {
                                 state: *state,
                                 formula: subformula.clone(),
                             }],
@@ -288,14 +288,14 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     edges.extend(
                         PmovesIterator::new(moves, players.iter().copied().collect()).map(
                             |pmove| {
-                                let targets: Vec<ATLVertex> =
+                                let targets: Vec<AtlVertex> =
                                     DeltaIterator::new(&self.game_structure, *state, &pmove)
-                                        .map(|(state, _)| ATLVertex::FULL {
+                                        .map(|(state, _)| AtlVertex::Full {
                                             state,
                                             formula: formula.clone(),
                                         })
                                         .collect();
-                                Edge::HYPER(HyperEdge {
+                                Edge::Hyper(HyperEdge {
                                     source: vert.clone(),
                                     targets,
                                 })
@@ -309,9 +309,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    vec![Edge::NEGATION(NegationEdge {
+                    vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point domain
                             formula: Arc::new(Phi::EnforceUntil {
@@ -326,9 +326,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     players,
                     formula: subformula,
                 } => {
-                    vec![Edge::NEGATION(NegationEdge {
+                    vec![Edge::Negation(NegationEdge {
                         source: vert.clone(),
-                        target: ATLVertex::FULL {
+                        target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point
                             formula: Arc::new(Phi::DespiteUntil {
@@ -340,22 +340,22 @@ impl<G: GameStructure> ExtendedDependencyGraph<ATLVertex> for ATLDependencyGraph
                     })]
                 }
             },
-            ATLVertex::PARTIAL {
+            AtlVertex::Partial {
                 state,
                 partial_move,
                 formula,
             } => DeltaIterator::new(&self.game_structure, *state, partial_move)
                 .map(|(state, _)| {
-                    let targets = vec![ATLVertex::FULL {
+                    let targets = vec![AtlVertex::Full {
                         state,
                         formula: formula.clone(),
                     }];
-                    Edge::HYPER(HyperEdge {
+                    Edge::Hyper(HyperEdge {
                         source: vert.clone(),
                         targets,
                     })
                 })
-                .collect::<Vec<Edge<ATLVertex>>>(),
+                .collect::<Vec<Edge<AtlVertex>>>(),
         }
     }
 }
