@@ -125,7 +125,7 @@ impl<'a> PartialMoveIterator<'a> {
         if player >= self.partial_move.len() {
             false
 
-            // Call this function recursively, where we check the next player
+        // Call this function recursively, where we check the next player
         } else if !self.make_next(player + 1) {
             // The next player's move has rolled over or doesn't exist.
             // Then it is our turn to roll -- only RANGE can roll, SPECIFIC should not change
