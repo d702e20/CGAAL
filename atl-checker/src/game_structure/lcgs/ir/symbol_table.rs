@@ -62,6 +62,10 @@ impl SymbolTable {
         self.symbols.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.symbols.is_empty()
+    }
+
     /// Creates and inserts a symbol for the given declaration for the given owner with the
     /// given name. If the name is already associated with a different symbol, the previous
     /// symbol is returned.

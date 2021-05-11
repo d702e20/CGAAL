@@ -74,7 +74,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
             // For each target, increase their priority since we found a new edge,
             // that depends on it
             match &edge {
-                Edge::HYPER(edge) => {
+                Edge::Hyper(edge) => {
                     for target in &edge.targets {
                         let dependency = self
                             .dependencies
@@ -83,7 +83,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
                         dependency.rank += 1;
                     }
                 }
-                Edge::NEGATION(edge) => {
+                Edge::Negation(edge) => {
                     let dependency = self
                         .dependencies
                         .entry(edge.target.clone())
@@ -98,7 +98,7 @@ impl<V: Vertex> SearchStrategy<V> for DependencyHeuristicSearch<V> {
 
     fn queue_released_edges(&mut self, edges: Vec<NegationEdge<V>>) {
         for edge in edges {
-            self.queue(Edge::NEGATION(edge));
+            self.queue(Edge::Negation(edge));
         }
     }
 

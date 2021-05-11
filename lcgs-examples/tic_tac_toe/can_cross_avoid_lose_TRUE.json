@@ -2,9 +2,16 @@
   "enforce eventually": {
     "players": [1],
     "formula": {
-      "not": {
-        "proposition": 1
-      }
+      "and": [
+        {
+          "not": {
+            "proposition": 1
+          }
+        },
+        {
+          "proposition": 3
+        }
+      ]
     }
   }
 }
