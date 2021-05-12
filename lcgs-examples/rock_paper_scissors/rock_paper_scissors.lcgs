@@ -12,11 +12,11 @@ player p2 = rsplayer[INDEX=2];
 
 winner : [0..2] init 0;
         // p2 wins
-winner' = ((p1.paper && p2.scissors) || (p1.scissors && p2.rock) || (p1.rock && p2.paper)) ? 2
+winner' = ((p1.paper && p2.scissors) || (p1.scissors && p2.rock) || (p1.rock && p2.paper)) ? 2 :
         // p1 wins
-        : (((p2.paper && p1.scissors) || (p2.scissors && p1.rock) || (p2.rock && p1.paper)) ? 1
+        (((p2.paper && p1.scissors) || (p2.scissors && p1.rock) || (p2.rock && p1.paper)) ? 1 :
         // tie
-        : 0);
+        0);
 
 
 template rsplayer
