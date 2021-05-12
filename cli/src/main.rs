@@ -21,6 +21,7 @@ use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSea
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use atl_checker::algorithms::global::GlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
@@ -258,6 +259,51 @@ fn main_inner() -> Result<(), String> {
                         ),
                     };
                     quiet_output_handle(result, solver_args.is_present("quiet"));
+                    Ok(())
+                },
+            )??
+        }
+        ("global", Some(global_args)) => {
+            let model_type = get_model_type_from_args(&global_args)?;
+            let input_model_path = global_args.value_of("input_model").unwrap();
+            let formula_path = global_args.value_of("formula").unwrap();
+            let formula_format = get_formula_format_from_args(&global_args)?;
+
+            load(
+                model_type,
+                input_model_path,
+                formula_path,
+                formula_format,
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let v0 = AtlVertex::Full {
+                        state: 0,
+                        formula: Arc::from(formula),
+                    };
+                    let graph = AtlDependencyGraph { game_structure };
+                    let result = GlobalAlgorithm::new(graph, v0).run();
+                    println!("Result: {}", result);
+                    if false {
+                        return Err("something");
+                    }
+                    Ok(())
+                },
+                |game_structure, formula| {
+                    println!(
+                        "Checking the formula: {}",
+                        formula.in_context_of(&game_structure)
+                    );
+                    let arc = Arc::from(formula);
+                    let graph = AtlDependencyGraph { game_structure };
+                    let v0 = AtlVertex::Full {
+                        state: graph.game_structure.initial_state_index(),
+                        formula: arc,
+                    };
+                    let result = GlobalAlgorithm::new(graph, v0).run();
+                    println!("Result: {}", result);
                     Ok(())
                 },
             )??
@@ -556,6 +602,14 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_arg()
                 .add_formula_format_arg()
                 .add_output_arg(true),
+        )
+        .subcommand(
+            SubCommand::with_name("global")
+                .about("Checks satisfiability of an ATL query on a CGS, using the Global Algorithm")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_format_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
