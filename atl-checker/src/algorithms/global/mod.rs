@@ -43,7 +43,7 @@ impl<
 
         while !components.is_empty() {
             let component = components.pop_front().unwrap();
-            while self.F(component.clone(), self.assignment.clone()) {}
+            while self.f(component.clone(), self.assignment.clone()) {}
         }
 
         *self.assignment.get(&self.v0).unwrap()
@@ -68,7 +68,7 @@ impl<
         match edge {
             Edge::Hyper(e) => {
                 for target in e.targets {
-                    if let Some(_) = self.assignment.get(&target) {
+                    if self.assignment.get(&target).is_some() {
                         break;
                     }
                     self.assignment.insert(target.clone(), false);
@@ -80,7 +80,7 @@ impl<
             }
 
             Edge::Negation(e) => {
-                if let None = self.assignment.get(&e.target) {
+                if self.assignment.get(&e.target).is_none() {
                     self.assignment.insert(e.target.clone(), false);
                     self.curr_dist += 1;
                     self.insert_in_curr_dist(e.target.clone());
@@ -111,7 +111,7 @@ impl<
     /// know which component we are worker with and the assignments of the component
     /// before, these are both given as arguments. The function it self returns a boolean
     /// which is true if the assignments are changed.
-    fn F(&mut self, component: HashSet<V>, ass_from_earlier: HashMap<V, bool>) -> bool {
+    fn f(&mut self, component: HashSet<V>, ass_from_earlier: HashMap<V, bool>) -> bool {
         let mut changed_flag = false;
 
         for vertex in component {
@@ -131,7 +131,7 @@ impl<
     /// source vertex already is true we simply return. The return value is based on if a changed
     /// have been made.
     fn process_hyper(&mut self, edge: HyperEdge<V>) -> bool {
-        if *self.assignment.get(&edge.source.clone()).unwrap() {
+        if *self.assignment.get(&edge.source).unwrap() {
             false
         } else {
             let mut final_ass = true;
@@ -153,7 +153,7 @@ impl<
         edge: NegationEdge<V>,
         ass_from_earlier: HashMap<V, bool>,
     ) -> bool {
-        if *self.assignment.get(&edge.source.clone()).unwrap() {
+        if *self.assignment.get(&edge.source).unwrap() {
             false
         } else {
             let mut final_ass = true;
@@ -172,11 +172,11 @@ impl<
     fn update_assignment(&mut self, v: V, new_ass: bool) -> bool {
         self.assignment
             .get_mut(&v)
-            .and_then(|mut ass| {
+            .and_then(|ass| {
                 if new_ass == *ass {
                     Some(false)
                 } else {
-                    *ass = new_ass.clone();
+                    *ass = new_ass;
                     Some(true)
                 }
             })
