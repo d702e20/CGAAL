@@ -9,7 +9,6 @@ use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
-use minilp::ComparisonOp;
 use priority_queue::PriorityQueue;
 use std::cell::RefCell;
 use std::collections::HashMap;
