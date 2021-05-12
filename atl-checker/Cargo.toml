@@ -37,4 +37,5 @@ serde = { version = "1.0.117", features = ["derive", "rc"] }
 tracing = "0.1"
 lazy_static = "1.4.0"
 joinery = "2.0.0"
+minilp = "0.2.2"
 priority-queue = "1.1.1"
