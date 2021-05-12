@@ -108,6 +108,13 @@ impl IntermediateLcgs {
         state
     }
 
+    pub fn label_index_to_decl(&self, label_index: usize) -> &Decl {
+        let label_symbol = self.labels[label_index].clone();
+
+        let label_decl = self.symbols.get(&label_symbol).unwrap();
+        label_decl
+    }
+
     /// Transforms a state into its index
     pub(crate) fn index_of_state(&self, state: &State) -> usize {
         let mut combined_size = 1;
@@ -801,7 +808,7 @@ mod test {
         foo' = foo;
         bar : [-2 .. 5] init 3;
         bar' = bar;
-        
+
         player p1 = test;
         player p2 = test;
         player p3 = test;
@@ -1001,13 +1008,13 @@ mod test {
         // Can we update state even though it depends on unavailable actions?
         let input = "
         player ryan = guy;
-        
+
         some_var : [0 .. 10] init 0;
         some_var' = some_var + ryan.unavailable_action;
 
         template guy
             [unavailable_action] 0;
-            [available_action] 1; 
+            [available_action] 1;
         endtemplate
         ";
         let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
