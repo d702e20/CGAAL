@@ -46,18 +46,13 @@ impl LinearConstraintExtractor {
                 _ => return None,
             };
 
-            println!("Determined comparison operator");
             let mut extractor = LinearConstraintExtractor {
                 terms: HashMap::new(),
                 constant: 0,
                 comparison,
             };
 
-            // ax + bx - cz + k == 0
-
-            println!("Handling lhs...");
             extractor.collect_terms(lhs, 1)?;
-            println!("Handling rhs...");
             extractor.collect_terms(rhs, -1)?;
 
             Some(extractor.into_constraint())
@@ -68,13 +63,9 @@ impl LinearConstraintExtractor {
 
     fn collect_terms(&mut self, expr: &Expr, sign: i32) -> Option<()> {
         match &expr.kind {
-            ExprKind::Number(n) => {
-                println!("Const");
-                self.constant += sign * n
-            }
+            ExprKind::Number(n) => self.constant += sign * n,
             ExprKind::OwnedIdent(ident) => {
                 // A variable with no explicit coefficient (which means the coefficient is 1)
-                println!("Single ident");
                 if let Identifier::Resolved { owner, name } = ident.as_ref() {
                     let coefficient = self.terms.entry(owner.symbol_id(name)).or_default();
                     *coefficient += sign;
@@ -83,26 +74,18 @@ impl LinearConstraintExtractor {
                 }
             }
             ExprKind::UnaryOp(UnaryOpKind::Negation, expr) => {
-                println!("Unary negation");
                 self.collect_terms(expr, -sign)?; // Flip sign
             }
             ExprKind::BinaryOp(operator, lhs, rhs) => match operator {
                 BinaryOpKind::Addition => {
-                    println!("Addition");
-                    println!("Handling lhs");
                     self.collect_terms(lhs, sign)?;
-                    println!("Handling rhs");
                     self.collect_terms(rhs, sign)?;
                 }
                 BinaryOpKind::Subtraction => {
-                    println!("Subtraction");
-                    println!("Handling lhs");
                     self.collect_terms(lhs, sign)?;
-                    println!("Handling rhs");
                     self.collect_terms(rhs, -sign)?; // Note: flipped sign
                 }
                 BinaryOpKind::Multiplication => {
-                    println!("Multiplication");
                     // One side must be a constant, the other must be a variable
                     if let (ExprKind::Number(n), ExprKind::OwnedIdent(ident))
                     | (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) = (&lhs.kind, &rhs.kind)
@@ -118,7 +101,6 @@ impl LinearConstraintExtractor {
                     }
                 }
                 BinaryOpKind::Division => {
-                    println!("Division");
                     // Variable divided with a constant is a linear expression,
                     // but constant divided by variable is not.
                     if let (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) =
@@ -289,14 +271,14 @@ mod test {
         y' = 0;
         z : [0..0] init 0;
         z' = 0;
-        label prop = - x + y - z == 0;
+        label prop = 2 - x + y - z == 0;
         ";
         let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
+            assert_eq!(2, lin_expr.constant);
             assert_eq!(Some(&-1), lin_expr.terms.get(&":global.x".into()));
             assert_eq!(Some(&1), lin_expr.terms.get(&":global.y".into()));
             assert_eq!(Some(&-1), lin_expr.terms.get(&":global.z".into()));
@@ -312,17 +294,17 @@ mod test {
         y' = 0;
         z : [0..0] init 0;
         z' = 0;
-        label prop = - x + y - z == 0;
+        label prop = 4 <= 1 * x + 2 * y - 3 * z;
         ";
         let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
         let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
-            assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
+            assert_eq!(ComparisonOp::LessOrEq, lin_expr.comparison);
+            assert_eq!(4, lin_expr.constant);
             assert_eq!(Some(&-1), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&1), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.z".into()));
+            assert_eq!(Some(&-2), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(Some(&3), lin_expr.terms.get(&":global.z".into()));
         }
     }
 
@@ -443,6 +425,102 @@ mod test {
             assert_eq!(0, lin_expr.constant);
             assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
             assert_eq!(Some(&2), lin_expr.terms.get(&":global.y".into()));
+        }
+    }
+
+    #[test]
+    fn other_linear_constraint_05() {
+        let input = "
+        x : [0..0] init 0;
+        x' = 0;
+        label prop = x + 2 * x + 3 * x + 4 * x == 0;
+        ";
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
+        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
+        if let DeclKind::Label(label) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+            assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
+            assert_eq!(0, lin_expr.constant);
+            assert_eq!(Some(&10), lin_expr.terms.get(&":global.x".into()));
+        }
+    }
+
+    #[test]
+    fn non_linear_constraint_01() {
+        let input = "
+        x : [0..0] init 0;
+        x' = 0;
+        label prop = x * x == 0;
+        ";
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
+        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
+        if let DeclKind::Label(label) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+            assert!(lin_expr.is_none());
+        }
+    }
+
+    #[test]
+    fn non_linear_constraint_02() {
+        let input = "
+        x : [0..0] init 0;
+        x' = 0;
+        y : [0..0] init 0;
+        y' = 0;
+        label prop = x * 2 * y == 0;
+        ";
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
+        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
+        if let DeclKind::Label(label) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+            assert!(lin_expr.is_none());
+        }
+    }
+
+    #[test]
+    fn non_linear_constraint_03() {
+        let input = "
+        x : [0..0] init 0;
+        x' = 0;
+        label prop = 0 < x < 10; // not what you think anyway
+        ";
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
+        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
+        if let DeclKind::Label(label) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+            assert!(lin_expr.is_none());
+        }
+    }
+
+    #[test]
+    fn non_linear_constraint_04() {
+        let input = "
+        x : [0..0] init 0;
+        x' = 0;
+        label prop = 100 / x < 10;
+        ";
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
+        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
+        if let DeclKind::Label(label) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+            assert!(lin_expr.is_none());
+        }
+    }
+
+    #[test]
+    fn non_linear_constraint_05() {
+        let input = "
+        x : [0..0] init 0;
+        x' = 0;
+        y : [0..0] init 0;
+        y' = 0;
+        label prop = 2 * x + 4 * y < x + min(x, y);
+        ";
+        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
+        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
+        if let DeclKind::Label(label) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+            assert!(lin_expr.is_none());
         }
     }
 }
