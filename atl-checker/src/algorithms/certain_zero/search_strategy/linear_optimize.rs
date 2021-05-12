@@ -76,7 +76,7 @@ pub enum LinearConstrainedPhi {
 pub struct LinearConstraint {
     pub terms: Vec<(i32, SymbolIdentifier)>,
     pub constant: i32,
-    pub operation: ComparisonOp,
+    pub comparison: ComparisonOp,
 }
 
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
@@ -178,48 +178,37 @@ impl LinearOptimizeSearch {
         match &expr {
             ExprKind::BinaryOp(operator, lhs, rhs) => {
                 // Either we have that lhs is the constant, and rhs is the constraints
-                if let ExprKind::OwnedIdent(id) = &lhs.kind {
-                    if let Identifier::Resolved { owner, name } = *id.clone() {
-                        let symbol_of_id = SymbolIdentifier {
-                            owner,
-                            name: name.parse().unwrap(),
-                        };
-                        if let ExprKind::Number(number) = rhs.kind {
-                            return Some(LinearConstraint {
-                                terms: vec![(1, symbol_of_id)],
-                                constant: number,
-                                operation: match operator {
-                                    Equality => ComparisonOp::Eq,
-                                    GreaterThan => ComparisonOp::Ge,
-                                    LessThan => ComparisonOp::Le,
-                                    _ => {
-                                        return None;
-                                    }
-                                },
-                            });
-                        }
+                if let ExprKind::Number(constant) = lhs.kind {
+                    if let Some(terms) = self.extract_inner_terms(&rhs.kind) {
+                        return Some(LinearConstraint {
+                            terms,
+                            constant,
+                            comparison: match operator {
+                                Equality => ComparisonOp::Eq,
+                                GreaterThan => ComparisonOp::Ge,
+                                LessThan => ComparisonOp::Le,
+                                _ => {
+                                    return None;
+                                }
+                            },
+                        });
                     }
-                    // Or we have that rhs is the constant, and lhs is the constraints
-                } else if let ExprKind::OwnedIdent(id) = &rhs.kind {
-                    if let Identifier::Resolved { owner, name } = *id.clone() {
-                        let symbol_of_id = SymbolIdentifier {
-                            owner,
-                            name: name.parse().unwrap(),
-                        };
-                        if let ExprKind::Number(number) = lhs.kind {
-                            return Some(LinearConstraint {
-                                terms: vec![(1, symbol_of_id)],
-                                constant: number,
-                                operation: match operator {
-                                    Equality => ComparisonOp::Eq,
-                                    GreaterThan => ComparisonOp::Ge,
-                                    LessThan => ComparisonOp::Le,
-                                    _ => {
-                                        return None;
-                                    }
-                                },
-                            });
-                        }
+                }
+                // Or we have that rhs is the constant, and lhs is the constraints
+                if let ExprKind::Number(constant) = rhs.kind {
+                    if let Some(terms) = self.extract_inner_terms(&lhs.kind) {
+                        return Some(LinearConstraint {
+                            terms,
+                            constant,
+                            comparison: match operator {
+                                Equality => ComparisonOp::Eq,
+                                GreaterThan => ComparisonOp::Ge,
+                                LessThan => ComparisonOp::Le,
+                                _ => {
+                                    return None;
+                                }
+                            },
+                        });
                     }
                 }
                 // If we have something more fancy than "binary operator - identifier - number" i.e x < 5, y == 10,
@@ -244,7 +233,7 @@ impl LinearOptimizeSearch {
     ) -> Option<i32> {
         let mut problem = Problem::new(direction);
         let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
-        match linearexpression.operation {
+        match linearexpression.comparison {
             ComparisonOp::Eq => {
                 problem.add_constraint(
                     &[(x, 1.0)],
