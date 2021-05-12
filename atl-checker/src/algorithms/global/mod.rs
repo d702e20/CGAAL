@@ -2,7 +2,6 @@ use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex}
 use std::cmp::max;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
-use tracing::{span, trace, Level};
 
 // Based on the global algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 struct GlobalAlgorithm<
@@ -83,12 +82,12 @@ impl<
             Edge::Negation(e) => {
                 if self.assignment.get(&e.target).is_none() {
                     self.assignment.insert(e.target.clone(), false);
-                    self.curr_dist = self.curr_dist + 1;
+                    self.curr_dist += 1;
                     self.insert_in_curr_dist(e.target.clone());
                     for target_edge in self.edg.succ(&e.target) {
                         self.initialize_from_edge(target_edge)
                     }
-                    self.curr_dist = self.curr_dist - 1;
+                    self.curr_dist -= 1;
                 }
             }
         }
@@ -176,12 +175,12 @@ impl<
     fn update_assignment(&mut self, v: V, new_ass: bool) -> bool {
         self.assignment
             .get_mut(&v)
-            .and_then(|ass| {
+            .map(|ass| {
                 if new_ass == *ass {
-                    Some(false)
+                    false
                 } else {
                     *ass = new_ass;
-                    Some(true)
+                    true
                 }
             })
             .unwrap()
