@@ -172,7 +172,7 @@ impl<
 
     /// Updating an assignment to the new_ass value, if the new_ass are
     /// equal to the old assignment, we simply return. The return value
-    /// is based on whether the assignment of the given vertex is changed.
+    /// is based on whether the assignment of the given vertex is changed or not.
     fn update_assignment(&mut self, v: V, new_ass: bool) -> bool {
         self.assignment
             .get_mut(&v)
@@ -187,10 +187,12 @@ impl<
             .unwrap()
     }
 
-    /// From the dist list the components are identified. It holds
-    /// that all components that have a lower dist are included in those
-    /// with higher. So we simply go through all sets in dist and whether
-    /// we have engage in a new set we just save the current one as a component.
+    /// From the dist list the components are identified. Since the index
+    /// of every element in `self.dist` are representing the actually distance,
+    /// counted from the end of the list, we can simply pop the back of the list
+    /// until it is empty. For every pop we add the element to our components and
+    /// save them. The components list returned then have C_0 as it first element
+    /// followed by C_1 .. C_k.
     fn get_components(&mut self) -> VecDeque<HashSet<V>> {
         let mut components = VecDeque::<HashSet<V>>::new();
         let mut component = HashSet::<V>::new();
