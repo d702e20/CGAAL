@@ -1,6 +1,8 @@
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
+use std::cmp::max;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
+use tracing::{span, trace, Level};
 
 // Based on the global algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 struct GlobalAlgorithm<
@@ -45,7 +47,6 @@ impl<
             let component = components.pop_front().unwrap();
             while self.f(component.clone(), self.assignment.clone()) {}
         }
-
         *self.assignment.get(&self.v0).unwrap()
     }
 
@@ -82,12 +83,12 @@ impl<
             Edge::Negation(e) => {
                 if self.assignment.get(&e.target).is_none() {
                     self.assignment.insert(e.target.clone(), false);
-                    self.curr_dist += 1;
+                    self.curr_dist = self.curr_dist + 1;
                     self.insert_in_curr_dist(e.target.clone());
                     for target_edge in self.edg.succ(&e.target) {
                         self.initialize_from_edge(target_edge)
                     }
-                    self.curr_dist -= 1;
+                    self.curr_dist = self.curr_dist - 1;
                 }
             }
         }
@@ -117,9 +118,12 @@ impl<
         for vertex in component {
             for edge in self.edg.succ(&vertex) {
                 match edge {
-                    Edge::Hyper(e) => changed_flag = self.process_hyper(e),
+                    Edge::Hyper(e) => changed_flag = max(self.process_hyper(e), changed_flag),
                     Edge::Negation(e) => {
-                        changed_flag = self.process_negation(e, ass_from_earlier.clone())
+                        changed_flag = max(
+                            self.process_negation(e, ass_from_earlier.clone()),
+                            changed_flag,
+                        )
                     }
                 }
             }
@@ -221,7 +225,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_empty_hyper_edge() {
+    fn test_global_algorithm_empty_hyper_edge() {
         simple_edg![
             A => -> {};
         ];
@@ -229,7 +233,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_no_successors() {
+    fn test_global_algorithm_no_successors() {
         simple_edg![
             A => ;
         ];
@@ -237,7 +241,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_01() {
+    fn test_global_algorithm_general_01() {
         simple_edg![
             A => -> {B, C} -> {D};
             B => ;
@@ -251,7 +255,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_02() {
+    fn test_global_algorithm_general_02() {
         simple_edg![
             A => -> {B, C};
             B => .> E;
@@ -267,7 +271,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_03() {
+    fn test_global_algorithm_general_03() {
         simple_edg![
             A => -> {B} -> {E};
             B => -> {C};
@@ -291,7 +295,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_04() {
+    fn test_global_algorithm_general_04() {
         simple_edg![
             A => -> {B} -> {C};
             B => -> {D};
@@ -305,7 +309,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_05() {
+    fn test_global_algorithm_general_05() {
         simple_edg![
             A => -> {B};
             B => -> {C};
@@ -317,7 +321,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_06() {
+    fn test_global_algorithm_general_06() {
         simple_edg![
             A => -> {B} -> {C};
             B => ;
@@ -329,7 +333,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_07() {
+    fn test_global_algorithm_general_07() {
         simple_edg![
             A => -> {B};
             B => -> {A, C};
@@ -343,7 +347,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_general_08() {
+    fn test_global_algorithm_general_08() {
         simple_edg![
             A => -> {B, C};
             B => -> {C} -> {D};
@@ -357,7 +361,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_negation_01() {
+    fn test_global_algorithm_negation_01() {
         simple_edg![
             A => .> B;
             B => -> {};
@@ -367,7 +371,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_negation_02() {
+    fn test_global_algorithm_negation_02() {
         simple_edg![
             A => .> B;
             B => -> {C};
@@ -383,7 +387,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_negation_03() {
+    fn test_global_algorithm_negation_03() {
         simple_edg![
             A => .> B .> C;
             B => .> D;
@@ -397,7 +401,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_negation_04() {
+    fn test_global_algorithm_negation_04() {
         simple_edg![
             A => .> B;
             B => -> {B};
@@ -407,7 +411,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_negation_05() {
+    fn test_global_algorithm_negation_05() {
         simple_edg![
             A => .> B;
             B => .> C;
@@ -425,7 +429,7 @@ mod test {
     }
 
     #[test]
-    fn test_dcz_negation_to_undecided_01() {
+    fn test_global_algorithm_negation_to_undecided_01() {
         // A case where we might explore and find a negation edges to something that is
         // currently assigned undecided
         simple_edg![
