@@ -222,7 +222,7 @@ fn main_inner() -> Result<(), String> {
                             prioritise_back_propagation,
                         ),
                     };
-                    println!("Result: {}", result);
+                    quiet_output_handle(result, solver_args.is_present("quiet"));
                     Ok(())
                 },
                 |game_structure, formula| {
@@ -257,7 +257,7 @@ fn main_inner() -> Result<(), String> {
                             prioritise_back_propagation,
                         ),
                     };
-                    println!("Result: {}", result);
+                    quiet_output_handle(result, solver_args.is_present("quiet"));
                     Ok(())
                 },
             )??
