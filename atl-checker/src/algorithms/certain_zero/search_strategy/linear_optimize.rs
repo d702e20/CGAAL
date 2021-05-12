@@ -1,22 +1,20 @@
+use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
+    LinearConstraint, LinearConstraintExtractor,
+};
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, ExprKind, Identifier};
+use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
-use minilp::OptimizationDirection::{Maximize, Minimize};
-use minilp::{ComparisonOp, OptimizationDirection, Problem};
+use minilp::ComparisonOp;
 use priority_queue::PriorityQueue;
 use std::cell::RefCell;
-use std::cmp;
 use std::collections::HashMap;
-use std::ops::Range;
 use std::option::Option::Some;
 use std::sync::Arc;
-use BinaryOpKind::{Equality, GreaterThan, LessThan};
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {
@@ -70,15 +68,6 @@ pub enum LinearConstrainedPhi {
     False,
 }
 
-/// Holds extracted linear expressions from the formula in AtlVertex
-/// E.g. C = ax + by + cz
-#[derive(Clone)]
-pub struct LinearConstraint {
-    pub terms: Vec<(i32, SymbolIdentifier)>,
-    pub constant: i32,
-    pub comparison: ComparisonOp,
-}
-
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
     /// Simply returns the edge with highest priority (i.e lowest distance)
     fn next(&mut self) -> Option<Edge<AtlVertex>> {
@@ -126,12 +115,7 @@ impl LinearOptimizeSearch {
                 };
             }
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
-            Edge::Negation(edge) => {
-                if let Some(distance) = self.get_distance_in_atl_vertex(&edge.target) {
-                    return Some(distance);
-                }
-                None
-            }
+            Edge::Negation(edge) => self.get_distance_in_atl_vertex(&edge.target),
         }
     }
 
@@ -161,6 +145,7 @@ impl LinearOptimizeSearch {
             let state = self.game.state_from_index(target.state());
             // Find the distance to acceptance region by visting the RangedPhi representing the formula in the vertex
             if let Some(distance) = self.visit_ranged_phi(ranged_phi, &state) {
+                let distance = distance as i32;
                 // Cache the resulting distance from the combination of this formula and state
                 self.result_cache
                     .insert((target.formula(), target.state()), distance);
@@ -170,96 +155,6 @@ impl LinearOptimizeSearch {
         }
         // If something went wrong, and we could not find a distance, return None
         None
-    }
-
-    // TODO should be replaced by something better
-    /// Finds a single simple linear expression
-    fn extract_outer_comparison(&self, expr: &ExprKind) -> Option<LinearConstraint> {
-        match &expr {
-            ExprKind::BinaryOp(operator, lhs, rhs) => {
-                // Either we have that lhs is the constant, and rhs is the constraints
-                if let ExprKind::Number(constant) = lhs.kind {
-                    if let Some(terms) = self.extract_inner_terms(&rhs.kind) {
-                        return Some(LinearConstraint {
-                            terms,
-                            constant,
-                            comparison: match operator {
-                                Equality => ComparisonOp::Eq,
-                                GreaterThan => ComparisonOp::Ge,
-                                LessThan => ComparisonOp::Le,
-                                _ => {
-                                    return None;
-                                }
-                            },
-                        });
-                    }
-                }
-                // Or we have that rhs is the constant, and lhs is the constraints
-                if let ExprKind::Number(constant) = rhs.kind {
-                    if let Some(terms) = self.extract_inner_terms(&lhs.kind) {
-                        return Some(LinearConstraint {
-                            terms,
-                            constant,
-                            comparison: match operator {
-                                Equality => ComparisonOp::Eq,
-                                GreaterThan => ComparisonOp::Ge,
-                                LessThan => ComparisonOp::Le,
-                                _ => {
-                                    return None;
-                                }
-                            },
-                        });
-                    }
-                }
-                // If we have something more fancy than "binary operator - identifier - number" i.e x < 5, y == 10,
-                // Return None
-                None
-            }
-            // Also, return None if it is not a binary operator in the expression
-            _ => None,
-        }
-    }
-
-    fn extract_inner_terms() -> Option<Vec<(i32, SymbolIdentifier)>> {
-        None
-    }
-
-    // TODO when allowing more expressive expressions, this needs to be updated as well
-    fn linear_program_simple_linear_expression(
-        &self,
-        linearexpression: &LinearConstraint,
-        range_of_var: (f64, f64),
-        direction: OptimizationDirection,
-    ) -> Option<i32> {
-        let mut problem = Problem::new(direction);
-        let x = problem.add_var(1.0, (range_of_var.0, range_of_var.1));
-        match linearexpression.comparison {
-            ComparisonOp::Eq => {
-                problem.add_constraint(
-                    &[(x, 1.0)],
-                    ComparisonOp::Eq,
-                    linearexpression.constant as f64,
-                );
-            }
-            ComparisonOp::Ge => {
-                problem.add_constraint(
-                    &[(x, 1.0)],
-                    ComparisonOp::Ge,
-                    linearexpression.constant as f64,
-                );
-            }
-            ComparisonOp::Le => {
-                problem.add_constraint(
-                    &[(x, 1.0)],
-                    ComparisonOp::Le,
-                    linearexpression.constant as f64,
-                );
-            }
-        }
-        match problem.solve() {
-            Ok(solution) => Some(solution[x] as i32),
-            Err(_) => None,
-        }
     }
 
     /// Takes a Phi (the formula in the vertex) and maps it to a LinearConstrainedPhi, using the Ranges that we computed for the propositions
@@ -274,8 +169,8 @@ impl LinearOptimizeSearch {
                     // We have not tried to extract the linear expression from this proposition yet. Let's try
                     let decl = self.game.label_index_to_decl(*proposition);
                     if let DeclKind::Label(label) = &decl.kind {
-                        let lin_expr = self.extract_outer_comparison(&label.condition.kind);
-                        // Cache the result
+                        // Try extracting a linear expression and save the result
+                        let lin_expr = LinearConstraintExtractor::extract(&label.condition);
                         self.proposition_cache
                             .borrow_mut()
                             .insert(*proposition, lin_expr.clone());
@@ -336,6 +231,7 @@ impl LinearOptimizeSearch {
     }
 
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
+    /// A return value of `None` represents an undefined distance.
     fn visit_ranged_phi(&self, ranged_phi: &LinearConstrainedPhi, state: &State) -> Option<i32> {
         match ranged_phi {
             // If we need to satisfy either of the formulas, just return the lowest distance found between the two
@@ -363,20 +259,25 @@ impl LinearOptimizeSearch {
                 None
             }
             // Find distance to constraint
-            LinearConstrainedPhi::Constraint(_constraint) => {
-                // Some(self.distance_to_constraint(constraint, state_of_symbol)) // TODO calc distance to constraint
-                Some(0)
+            LinearConstrainedPhi::Constraint(constraint) => {
+                Some(distance_to_constraint(constraint, state))
             }
             LinearConstrainedPhi::True => Some(0),
             LinearConstrainedPhi::False => None,
         }
     }
+}
 
-    /// Returns how close we are to min or max in the Range
-    fn distance_to_range_bound(&self, range: &Range<i32>, state_of_symbol: &i32) -> i32 {
-        let dist_to_min = i32::abs(range.start - state_of_symbol);
-        let dist_to_max = i32::abs(range.end - state_of_symbol);
+/// Returns the distance between the given state and the constraint.
+fn distance_to_constraint(constraint: &LinearConstraint, state: &State) -> i32 {
+    // This is essentially the distance between a point and a line
+    // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
 
-        cmp::min(dist_to_min, dist_to_max)
+    let mut denom = 0;
+    for (symbol, coefficient) in &constraint.terms {
+        let v = state.0.get(symbol).unwrap();
+        denom += coefficient * v;
     }
+
+    (denom as f64 / constraint.coefficient_norm) as i32
 }
