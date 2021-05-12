@@ -208,8 +208,7 @@ fn main_inner() -> Result<(), String> {
                 formula_path,
                 formula_format,
                 |game_structure, formula| {
-                    if solver_args.is_present("quiet") {
-                    } else {
+                    if !solver_args.is_present("quiet") {
                         println!(
                             "Checking the formula: {}",
                             formula.in_context_of(&game_structure)
@@ -232,8 +231,7 @@ fn main_inner() -> Result<(), String> {
                     );
                 },
                 |game_structure, formula| {
-                    if solver_args.is_present("quiet") {
-                    } else {
+                    if !solver_args.is_present("quiet") {
                         println!(
                             "Checking the formula: {}",
                             formula.in_context_of(&game_structure)
@@ -536,7 +534,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                         .takes_value(false)
                         .long("quiet")
                         .help(
-                            "Suppress stdout and return exitcode 42 for true result or 43 for false",
+                            "Suppress stdout and only return exitcode 42 for true result or 43 for false",
                         ),
                 ),
         )
