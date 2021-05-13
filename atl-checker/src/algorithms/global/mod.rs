@@ -9,8 +9,11 @@ pub struct GlobalAlgorithm<
     V: Vertex + Send + Sync + 'static,
 > {
     edg: G,
+    /// The root vertex, which we discover the graph from
     v0: V,
+    /// The assignment for all vertices, we use this to keep track  of the current assignment
     assignment: HashMap<V, bool>,
+    /// The distance of a vertex is represented as the index number of which set the vertex is located in
     dist: VecDeque<HashSet<V>>,
 }
 
@@ -22,11 +25,8 @@ impl<
     pub fn new(edg: G, v0: V) -> Self {
         Self {
             edg,
-            /// The root vertex, which we discover the graph from
             v0,
-            /// The assignment for all vertices, we use this to keep track  of the current assignment
             assignment: HashMap::<V, bool>::new(),
-            /// The distance of a vertex is represented as the index number of which set the vertex is located in
             dist: VecDeque::<HashSet<V>>::new(),
         }
     }
