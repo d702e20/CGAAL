@@ -1,13 +1,9 @@
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Debug;
 
 // Based on the global algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
-pub struct GlobalAlgorithm<
-    G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-    V: Vertex + Send + Sync + 'static,
-> {
+pub struct GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
     edg: G,
     /// The root vertex, which we discover the graph from
     v0: V,
@@ -17,11 +13,7 @@ pub struct GlobalAlgorithm<
     dist: VecDeque<HashSet<V>>,
 }
 
-impl<
-        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-        V: Vertex + Send + Sync + 'static,
-    > GlobalAlgorithm<G, V>
-{
+impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     pub fn new(edg: G, v0: V) -> Self {
         Self {
             edg,
@@ -40,7 +32,7 @@ impl<
 
         while !components.is_empty() {
             let component = components.pop_front().unwrap();
-            while self.f(component.clone(), self.assignment.clone()) {}
+            while self.f(&component, self.assignment.clone()) {}
         }
         *self.assignment.get(&self.v0).unwrap()
     }
@@ -80,7 +72,7 @@ impl<
             Edge::Hyper(e) => {
                 for target in e.targets {
                     if self.assignment.get(&target).is_some() {
-                        break;
+                        continue;
                     }
                     self.assignment.insert(target.clone(), false);
                     self.insert_in_curr_dist(target.clone(), dist);
@@ -120,11 +112,11 @@ impl<
     /// know which component we are worker with and the assignments of the component
     /// before, these are both given as arguments. The function it self returns a boolean
     /// which is true if the assignments are changed.
-    fn f(&mut self, component: HashSet<V>, ass_from_earlier: HashMap<V, bool>) -> bool {
+    fn f(&mut self, component: &HashSet<V>, ass_from_earlier: HashMap<V, bool>) -> bool {
         let mut changed_flag = false;
 
         for vertex in component {
-            for edge in self.edg.succ(&vertex) {
+            for edge in self.edg.succ(vertex) {
                 match edge {
                     Edge::Hyper(e) => changed_flag = max(self.process_hyper(e), changed_flag),
                     Edge::Negation(e) => {
@@ -185,12 +177,9 @@ impl<
         self.assignment
             .get_mut(&v)
             .map(|ass| {
-                if new_ass == *ass {
-                    false
-                } else {
-                    *ass = new_ass;
-                    true
-                }
+                let old = *ass;
+                *ass = new_ass;
+                new_ass != old
             })
             .unwrap()
     }
