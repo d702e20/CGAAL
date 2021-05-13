@@ -269,11 +269,11 @@ fn distance_to_constraint(constraint: &LinearConstraint, state: &State) -> i32 {
     // This is essentially the distance between a point and a line
     // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
 
-    let mut denom = constraint.constant;
+    let mut numerator = constraint.constant;
     for (symbol, coefficient) in &constraint.terms {
         let v = state.0.get(symbol).unwrap();
-        denom += coefficient * v;
+        numerator += coefficient * v;
     }
 
-    (denom as f64 / constraint.coefficient_norm) as i32
+    (numerator.abs() as f64 / constraint.coefficient_norm) as i32
 }
