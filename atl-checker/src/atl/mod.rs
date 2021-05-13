@@ -85,6 +85,58 @@ pub enum Phi {
 }
 
 impl Phi {
+    /// Returns true if the formula variant is either EnforceNext, EnforceEventually,
+    /// EnforceInvariant, or EnforceUntil, and false otherwise.
+    pub fn is_enforce(&self) -> bool {
+        matches!(
+            self,
+            Phi::EnforceNext { .. }
+                | Phi::EnforceEventually { .. }
+                | Phi::EnforceInvariant { .. }
+                | Phi::EnforceUntil { .. }
+        )
+    }
+
+    /// Returns true if the formula variant is either DespiteNext, DespiteEventually,
+    /// DespiteInvariant, or DespiteUntil, and false otherwise.
+    pub fn is_despite(&self) -> bool {
+        matches!(
+            self,
+            Phi::DespiteNext { .. }
+                | Phi::DespiteEventually { .. }
+                | Phi::DespiteInvariant { .. }
+                | Phi::DespiteUntil { .. }
+        )
+    }
+
+    /// Returns true if formula does not contain any path qualifiers
+    pub fn has_no_path_qualifiers(&self) -> bool {
+        self.path_qualifier_count() == 0
+    }
+
+    /// Returns true if the formula has nested path qualifiers, i.e. either multiple
+    /// path qualifiers, or a path qualifier that is not top-most.
+    pub fn has_nested_path_qualifiers(&self) -> bool {
+        let path_qualifier_count = self.path_qualifier_count();
+        path_qualifier_count > 1
+            || (path_qualifier_count == 1 && !(self.is_enforce() || self.is_despite()))
+    }
+
+    /// Returns the players of this formula variant, if it contains a path-qualifier.
+    pub fn players(&self) -> Option<&[Player]> {
+        match self {
+            Phi::DespiteNext { players, .. } => Some(players),
+            Phi::EnforceNext { players, .. } => Some(players),
+            Phi::DespiteUntil { players, .. } => Some(players),
+            Phi::EnforceUntil { players, .. } => Some(players),
+            Phi::DespiteEventually { players, .. } => Some(players),
+            Phi::EnforceEventually { players, .. } => Some(players),
+            Phi::DespiteInvariant { players, .. } => Some(players),
+            Phi::EnforceInvariant { players, .. } => Some(players),
+            _ => None,
+        }
+    }
+
     /// Returns the size of the formula. This is equivalent to the number of nodes in the
     /// phi structure
     pub fn size(&self) -> u32 {

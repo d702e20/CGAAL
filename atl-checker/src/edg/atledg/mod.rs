@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 pub mod annotated;
-mod pmoves;
+pub mod pmoves;
 pub mod vertex;
 
 #[derive(Clone, Debug)]
