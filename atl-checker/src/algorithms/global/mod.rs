@@ -12,7 +12,6 @@ pub struct GlobalAlgorithm<
     v0: V,
     assignment: HashMap<V, bool>,
     dist: VecDeque<HashSet<V>>,
-    curr_dist: u32,
 }
 
 impl<
@@ -29,9 +28,6 @@ impl<
             assignment: HashMap::<V, bool>::new(),
             /// The distance of a vertex is represented as the index number of which set the vertex is located in
             dist: VecDeque::<HashSet<V>>::new(),
-            /// The current distance is used to keep track of the current depth when discovering all
-            /// the vertices in order to assign the vertex the correct distance
-            curr_dist: 0,
         }
     }
 
@@ -51,20 +47,35 @@ impl<
 
     /// Initialize the dist and assignments by traversing through all edges from root
     fn initialize(&mut self) {
+        let mut queue = VecDeque::<(Edge<V>, u32)>::new();
         let mut curr_dist = HashSet::<V>::new();
         curr_dist.insert(self.v0.clone());
-        self.dist.push_back(curr_dist);
+        self.dist.push_front(curr_dist);
 
         self.assignment.insert(self.v0.clone(), false);
 
         for edge in self.edg.succ(&self.v0) {
-            self.initialize_from_edge(edge);
+            queue.push_back((edge, 0));
+        }
+
+        loop {
+            match queue.pop_front() {
+                None => break,
+                Some((edge, dist)) => {
+                    self.initialize_from_edge(edge, &mut queue, dist);
+                }
+            }
         }
     }
 
-    /// A helper function to initialize(), which recursively discover all vertices by
-    /// following all edges.
-    fn initialize_from_edge(&mut self, edge: Edge<V>) {
+    /// A helper function to initialize(), which assign and targets `false` and insert
+    /// them into the `dist` list. If the target already is know, it is simply skipped
+    fn initialize_from_edge(
+        &mut self,
+        edge: Edge<V>,
+        queue: &mut VecDeque<(Edge<V>, u32)>,
+        dist: u32,
+    ) {
         match edge {
             Edge::Hyper(e) => {
                 for target in e.targets {
@@ -72,9 +83,9 @@ impl<
                         break;
                     }
                     self.assignment.insert(target.clone(), false);
-                    self.insert_in_curr_dist(target.clone());
+                    self.insert_in_curr_dist(target.clone(), dist);
                     for target_edge in self.edg.succ(&target) {
-                        self.initialize_from_edge(target_edge)
+                        queue.push_front((target_edge, dist));
                     }
                 }
             }
@@ -82,24 +93,22 @@ impl<
             Edge::Negation(e) => {
                 if self.assignment.get(&e.target).is_none() {
                     self.assignment.insert(e.target.clone(), false);
-                    self.curr_dist += 1;
-                    self.insert_in_curr_dist(e.target.clone());
+                    self.insert_in_curr_dist(e.target.clone(), dist + 1);
                     for target_edge in self.edg.succ(&e.target) {
-                        self.initialize_from_edge(target_edge)
+                        queue.push_front((target_edge, dist + 1))
                     }
-                    self.curr_dist -= 1;
                 }
             }
         }
     }
 
     /// Inserts a vertex in the set at the index of curr_dist of dist.
-    fn insert_in_curr_dist(&mut self, v: V) {
-        match self.dist.get_mut(self.curr_dist as usize) {
+    fn insert_in_curr_dist(&mut self, v: V, dist: u32) {
+        match self.dist.get_mut(dist as usize) {
             None => {
                 let mut curr_dist = HashSet::<V>::new();
                 curr_dist.insert(v);
-                self.dist.push_back(curr_dist);
+                self.dist.insert(dist as usize, curr_dist);
             }
             Some(set) => {
                 set.insert(v);
