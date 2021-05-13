@@ -78,7 +78,7 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
     /// based on the calculated distance from its state to acceptance region from formula
     fn queue_new_edges(&mut self, edges: Vec<Edge<AtlVertex>>) {
         for edge in edges {
-            let distance = self.get_distance_in_edge(&edge);
+            let distance = self.get_distance_in_atl_vertex(edge.source());
 
             // Add edge and distance to queue
             if let Some(dist) = distance {
@@ -92,32 +92,6 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
 }
 
 impl LinearOptimizeSearch {
-    /// if edge is a HyperEdge, return average distance from state to accept region between all targets,
-    /// if Negation edge, just return the distance from its target
-    fn get_distance_in_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<FloatOrd<f64>> {
-        match &edge {
-            Edge::Hyper(hyperedge) => {
-                // For every target of the hyperedge, we want to see how close we are to acceptance border
-                let distances: Vec<f64> = hyperedge
-                    .targets
-                    .iter()
-                    .filter_map(|target| self.get_distance_in_atl_vertex(target).map(|f| f.0))
-                    .collect();
-
-                // If no targets were able to satisfy formula, or something went wrong, return None
-                return if distances.is_empty() {
-                    None
-                } else {
-                    // Find average distance between targets, and return this
-                    let avg_distance = distances.iter().sum::<f64>() / distances.len() as f64;
-                    Some(FloatOrd(avg_distance))
-                };
-            }
-            // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
-            Edge::Negation(edge) => self.get_distance_in_atl_vertex(&edge.target),
-        }
-    }
-
     /// Finds the distance in a single atl_vertex
     fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<FloatOrd<f64>> {
         // If we have seen this phi before, and this state, get the result instantly
