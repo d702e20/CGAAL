@@ -30,8 +30,8 @@ impl Display for ComparisonOp {
 #[derive(Clone)]
 pub struct LinearConstraint {
     /// A list of variables and their coefficients
-    pub terms: HashMap<SymbolIdentifier, i32>,
-    pub constant: i32,
+    pub terms: HashMap<SymbolIdentifier, f64>,
+    pub constant: f64,
     pub comparison: ComparisonOp,
     /// The norm of the coefficients. That is, if the linear expression is `ax + by + cz + k`, then
     /// this is `sqrt(a*a + b*b + c*c)`
@@ -50,8 +50,8 @@ impl Display for LinearConstraint {
 /// A visitor that can extract linear constraints from an Expr.
 /// See LinearConstraintExtractor::extract.
 pub struct LinearConstraintExtractor {
-    terms: HashMap<SymbolIdentifier, i32>,
-    constant: i32,
+    terms: HashMap<SymbolIdentifier, f64>,
+    constant: f64,
     comparison: ComparisonOp,
 }
 
@@ -75,14 +75,14 @@ impl LinearConstraintExtractor {
             // Prepare extractor
             let mut extractor = LinearConstraintExtractor {
                 terms: HashMap::new(),
-                constant: 0,
+                constant: 0.0,
                 comparison,
             };
 
             // Visit both sides of the comparison. We want to move the stuff on the rhs to the lhs
             // so everyone found on the rhs is multiplied by -1
-            extractor.collect_terms(lhs, 1)?;
-            extractor.collect_terms(rhs, -1)?;
+            extractor.collect_terms(lhs, 1.0)?;
+            extractor.collect_terms(rhs, -1.0)?;
 
             // We found a linear constraint. Now return it
             Some(extractor.into_constraint())
@@ -94,9 +94,9 @@ impl LinearConstraintExtractor {
     /// Visits an Expr and collects all valid linear terms.
     /// Negated terms are handled using the sign parameter (either 1 or -1).
     /// If this returns None, the expression is not linear.
-    fn collect_terms(&mut self, expr: &Expr, sign: i32) -> Option<()> {
+    fn collect_terms(&mut self, expr: &Expr, sign: f64) -> Option<()> {
         match &expr.kind {
-            ExprKind::Number(n) => self.constant += sign * n,
+            ExprKind::Number(n) => self.constant += sign * (*n as f64),
             ExprKind::OwnedIdent(ident) => {
                 // A variable with no explicit coefficient (which means the coefficient is 1)
                 if let Identifier::Resolved { owner, name } = ident.as_ref() {
@@ -127,7 +127,7 @@ impl LinearConstraintExtractor {
                     {
                         if let Identifier::Resolved { owner, name } = ident.as_ref() {
                             let coefficient = self.terms.entry(owner.symbol_id(name)).or_default();
-                            *coefficient += n * sign;
+                            *coefficient += (*n as f64) * sign;
                         } else {
                             panic!("Unresolved identifier")
                         }
@@ -136,15 +136,12 @@ impl LinearConstraintExtractor {
                     }
                 }
                 BinaryOpKind::Division => {
-                    // We found a potential term.
-                    // A variable divided with a constant is a linear expression,
-                    // but constant divided by variable is not.
                     if let (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) =
                         (&lhs.kind, &rhs.kind)
                     {
                         if let Identifier::Resolved { owner, name } = ident.as_ref() {
                             let coefficient = self.terms.entry(owner.symbol_id(name)).or_default();
-                            *coefficient += (1 / n) * sign;
+                            *coefficient += sign / (*n as f64);
                         } else {
                             panic!("Unresolved identifier")
                         }
@@ -201,8 +198,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Less, lin_expr.comparison);
-            assert_eq!(-4, lin_expr.constant);
-            assert_eq!(Some(&1), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(-4.0, lin_expr.constant);
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 
@@ -218,8 +215,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Greater, lin_expr.comparison);
-            assert_eq!(-3, lin_expr.constant);
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(-3.0, lin_expr.constant);
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 
@@ -235,8 +232,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Greater, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&-2), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&-2.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 
@@ -252,8 +249,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&-5), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&-5.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 
@@ -273,9 +270,9 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(5, lin_expr.constant);
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&3), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(5.0, lin_expr.constant);
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.y".into()));
         }
     }
 
@@ -295,9 +292,9 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-3), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&-3.0), lin_expr.terms.get(&":global.y".into()));
         }
     }
 
@@ -317,10 +314,10 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(2, lin_expr.constant);
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&1), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.z".into()));
+            assert_eq!(2.0, lin_expr.constant);
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.z".into()));
         }
     }
 
@@ -340,10 +337,10 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::LessOrEq, lin_expr.comparison);
-            assert_eq!(4, lin_expr.constant);
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-2), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&3), lin_expr.terms.get(&":global.z".into()));
+            assert_eq!(4.0, lin_expr.constant);
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&-2.0), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.z".into()));
         }
     }
 
@@ -359,8 +356,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&3), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 
@@ -376,8 +373,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(-7, lin_expr.constant);
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(-7.0, lin_expr.constant);
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 
@@ -395,9 +392,9 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.y".into()));
         }
     }
 
@@ -417,10 +414,10 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(-5, lin_expr.constant);
-            assert_eq!(Some(&1), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&1), lin_expr.terms.get(&":global.z".into()));
+            assert_eq!(-5.0, lin_expr.constant);
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.z".into()));
         }
     }
 
@@ -440,10 +437,10 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&1), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-1), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&3), lin_expr.terms.get(&":global.z".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.z".into()));
         }
     }
 
@@ -461,9 +458,9 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&2), lin_expr.terms.get(&":global.y".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.y".into()));
         }
     }
 
@@ -479,8 +476,8 @@ mod test {
         if let DeclKind::Label(label) = &decl.kind {
             let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
-            assert_eq!(0, lin_expr.constant);
-            assert_eq!(Some(&10), lin_expr.terms.get(&":global.x".into()));
+            assert_eq!(0.0, lin_expr.constant);
+            assert_eq!(Some(&10.0), lin_expr.terms.get(&":global.x".into()));
         }
     }
 

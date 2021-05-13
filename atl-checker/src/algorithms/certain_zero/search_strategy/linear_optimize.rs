@@ -9,6 +9,7 @@ use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, U
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
+use float_ord::FloatOrd;
 use priority_queue::PriorityQueue;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -30,10 +31,10 @@ impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSe
 /// based on distance from the vertex to a region that borders the line between true/false in the formula.
 pub struct LinearOptimizeSearch {
     /// Priority based on distance, lowest distance highest priority
-    queue: PriorityQueue<Edge<AtlVertex>, i32>,
+    queue: PriorityQueue<Edge<AtlVertex>, FloatOrd<f64>>,
     game: IntermediateLcgs,
     /// Maps the hash of a Phi and usize of state, to a result distance
-    result_cache: HashMap<(Arc<Phi>, StateUsize), i32>,
+    result_cache: HashMap<(Arc<Phi>, StateUsize), FloatOrd<f64>>,
     /// Maps proposition to the linear constraint the are
     proposition_cache: RefCell<HashMap<Proposition, LinearConstrainedPhi>>,
     /// Maps phi to a LinearConstrainedPhi
@@ -54,8 +55,7 @@ impl LinearOptimizeSearch {
     }
 }
 
-/// Used when mapping a Phi to a LinearConstrainedPhi variant,
-/// where the propositions have been replaced by hashmaps mapping symbols to Ranges
+/// A structure describing the relation between linear constraints in a ATL formula
 #[derive(Clone)]
 pub enum LinearConstrainedPhi {
     /// Either or should hold
@@ -82,10 +82,10 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
 
             // Add edge and distance to queue
             if let Some(dist) = distance {
-                self.queue.push(edge, -dist);
+                self.queue.push(edge, FloatOrd(-dist.0));
             } else {
                 // Todo what should default value be, if cannot be calculated? For now: first priority
-                self.queue.push(edge, 0);
+                self.queue.push(edge, FloatOrd(0.0));
             }
         }
     }
@@ -94,24 +94,23 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
 impl LinearOptimizeSearch {
     /// if edge is a HyperEdge, return average distance from state to accept region between all targets,
     /// if Negation edge, just return the distance from its target
-    fn get_distance_in_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<i32> {
+    fn get_distance_in_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<FloatOrd<f64>> {
         match &edge {
             Edge::Hyper(hyperedge) => {
                 // For every target of the hyperedge, we want to see how close we are to acceptance border
-                let mut distances: Vec<f32> = Vec::new();
-                for target in &hyperedge.targets {
-                    if let Some(dist) = self.get_distance_in_atl_vertex(target) {
-                        distances.push(dist as f32)
-                    }
-                }
+                let distances: Vec<f64> = hyperedge
+                    .targets
+                    .iter()
+                    .filter_map(|target| self.get_distance_in_atl_vertex(target).map(|f| f.0))
+                    .collect();
 
                 // If no targets were able to satisfy formula, or something went wrong, return None
                 return if distances.is_empty() {
                     None
                 } else {
                     // Find average distance between targets, and return this
-                    let avg_distance = distances.iter().sum::<f32>() / distances.len() as f32;
-                    Some(avg_distance as i32)
+                    let avg_distance = distances.iter().sum::<f64>() / distances.len() as f64;
+                    Some(FloatOrd(avg_distance))
                 };
             }
             // Same procedure for negation edges as for hyper, just no for loop for all targets, as we only have one target
@@ -120,7 +119,7 @@ impl LinearOptimizeSearch {
     }
 
     /// Finds the distance in a single atl_vertex
-    fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<i32> {
+    fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<FloatOrd<f64>> {
         // If we have seen this phi before, and this state, get the result instantly
         if let Some(distance) = self.result_cache.get(&(target.formula(), target.state())) {
             return Some(*distance);
@@ -142,7 +141,6 @@ impl LinearOptimizeSearch {
 
         // Find the distance to constraints by visiting the constrained phi
         if let Some(distance) = self.visit_constrained_phi(constrained_phi, &state) {
-            let distance = distance as i32;
             // Cache the resulting distance from the combination of this formula and state
             self.result_cache
                 .insert((target.formula(), target.state()), distance);
@@ -265,13 +263,13 @@ impl LinearOptimizeSearch {
         LinearConstrainedPhi::True
     }
 
-    /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
+    /// Goes through the LinearConstrainedPhi and finds how close we are to acceptance border in this state.
     /// A return value of `None` represents an undefined distance.
     fn visit_constrained_phi(
         &self,
         ranged_phi: &LinearConstrainedPhi,
         state: &State,
-    ) -> Option<i32> {
+    ) -> Option<FloatOrd<f64>> {
         match ranged_phi {
             LinearConstrainedPhi::Or(lhs, rhs) => {
                 // If we need to satisfy either of the formulas, just return the lowest distance found between the two
@@ -297,22 +295,22 @@ impl LinearOptimizeSearch {
                 // Find distance to constraint
                 Some(distance_to_constraint(constraint, state))
             }
-            LinearConstrainedPhi::True => Some(0),
+            LinearConstrainedPhi::True => Some(FloatOrd(0.0)),
             LinearConstrainedPhi::False => None,
         }
     }
 }
 
 /// Returns the distance between the given state and the constraint.
-fn distance_to_constraint(constraint: &LinearConstraint, state: &State) -> i32 {
+fn distance_to_constraint(constraint: &LinearConstraint, state: &State) -> FloatOrd<f64> {
     // This is essentially the distance between a point and a line
     // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
 
     let mut numerator = constraint.constant;
     for (symbol, coefficient) in &constraint.terms {
         let v = state.0.get(symbol).unwrap();
-        numerator += coefficient * v;
+        numerator += coefficient * (*v as f64);
     }
 
-    (numerator.abs() as f64 / constraint.coefficient_norm) as i32
+    FloatOrd(numerator.abs() as f64 / constraint.coefficient_norm)
 }
