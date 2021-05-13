@@ -5,7 +5,7 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::DeclKind;
+use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, UnaryOpKind};
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
@@ -35,7 +35,7 @@ pub struct LinearOptimizeSearch {
     /// Maps the hash of a Phi and usize of state, to a result distance
     result_cache: HashMap<(Arc<Phi>, StateUsize), i32>,
     /// Maps proposition to the linear constraint the are
-    proposition_cache: RefCell<HashMap<Proposition, Option<LinearConstraint>>>,
+    proposition_cache: RefCell<HashMap<Proposition, LinearConstrainedPhi>>,
     /// Maps phi to a LinearConstrainedPhi
     phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
@@ -56,6 +56,7 @@ impl LinearOptimizeSearch {
 
 /// Used when mapping a Phi to a LinearConstrainedPhi variant,
 /// where the propositions have been replaced by hashmaps mapping symbols to Ranges
+#[derive(Clone)]
 pub enum LinearConstrainedPhi {
     /// Either or should hold
     Or(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
@@ -152,33 +153,29 @@ impl LinearOptimizeSearch {
         None
     }
 
-    /// Takes a Phi (the formula in the vertex) and maps it to a LinearConstrainedPhi, using the Ranges that we computed for the propositions
+    /// Takes a phi and maps it to a LinearConstrainedPhi
     fn map_phi_to_constraints(&self, phi: &Phi) -> LinearConstrainedPhi {
         match phi {
             Phi::True => LinearConstrainedPhi::True,
             Phi::False => LinearConstrainedPhi::False,
             Phi::Proposition(proposition) => {
-                // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
+                // If we get to a proposition, continue the mapping inside the proposition's condition
+                // The result may be cached
                 let maybe_constraint = self.proposition_cache.borrow().get(proposition).cloned();
-                let constraint = maybe_constraint.unwrap_or_else(|| {
-                    // We have not tried to extract the linear expression from this proposition yet. Let's try
+                maybe_constraint.unwrap_or_else(|| {
+                    // We have not mapped this proposition yet
                     let decl = self.game.label_index_to_decl(*proposition);
                     if let DeclKind::Label(label) = &decl.kind {
-                        let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+                        let mapped_expr = self.map_expr_to_constraints(&label.condition);
                         // Save result in cache
                         self.proposition_cache
                             .borrow_mut()
-                            .insert(*proposition, lin_expr.clone());
-                        lin_expr
+                            .insert(*proposition, mapped_expr.clone());
+                        mapped_expr
                     } else {
-                        None
+                        panic!("Non-propositions symbol in ATL formula")
                     }
-                });
-                // Convert to LinearConstrainedPhi::Contraint if it is a linear expression, or true otherwise
-                constraint
-                    .map(|c| LinearConstrainedPhi::Constraint(c))
-                    .or(Some(LinearConstrainedPhi::True))
-                    .unwrap()
+                })
             }
             Phi::Not(formula) => self.map_phi_to_constraints(formula),
             Phi::Or(lhs, rhs) => {
@@ -224,6 +221,48 @@ impl LinearOptimizeSearch {
             Phi::DespiteInvariant { formula, .. } => self.map_phi_to_constraints(formula),
             Phi::EnforceInvariant { formula, .. } => self.map_phi_to_constraints(formula),
         }
+    }
+
+    /// Takes an expression and maps it to a LinearConstrainedPhi
+    fn map_expr_to_constraints(&self, expr: &Expr) -> LinearConstrainedPhi {
+        match &expr.kind {
+            ExprKind::UnaryOp(UnaryOpKind::Not, sub_expr) => {
+                return self.map_expr_to_constraints(sub_expr);
+            }
+            ExprKind::BinaryOp(operator, lhs, rhs) => {
+                match operator {
+                    BinaryOpKind::Equality
+                    | BinaryOpKind::GreaterThan
+                    | BinaryOpKind::GreaterOrEqual
+                    | BinaryOpKind::LessThan
+                    | BinaryOpKind::LessOrEqual => {
+                        let lin_expr = LinearConstraintExtractor::extract(expr);
+                        return if let Some(lin_expr) = lin_expr {
+                            LinearConstrainedPhi::Constraint(lin_expr)
+                        } else {
+                            // Not linear
+                            LinearConstrainedPhi::True
+                        };
+                    }
+                    BinaryOpKind::And => {
+                        let lhs_con = self.map_expr_to_constraints(lhs);
+                        let rhs_con = self.map_expr_to_constraints(rhs);
+                        return LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con));
+                    }
+                    BinaryOpKind::Or => {
+                        let lhs_con = self.map_expr_to_constraints(lhs);
+                        let rhs_con = self.map_expr_to_constraints(rhs);
+                        return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
+                    }
+                    _ => {}
+                }
+            }
+            // TODO Some other expression can be converted to a comparisons since everything != 0 is true
+            _ => {}
+        }
+
+        // Not linear
+        LinearConstrainedPhi::True
     }
 
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
