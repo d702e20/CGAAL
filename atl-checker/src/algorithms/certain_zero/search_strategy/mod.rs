@@ -5,6 +5,7 @@ pub mod dependency_heuristic;
 pub mod dfs;
 mod linear_constraints;
 pub mod linear_optimize;
+pub mod linear_programming_search;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
 /// certain zero algorithm.
