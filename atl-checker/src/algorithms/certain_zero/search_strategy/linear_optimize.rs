@@ -83,7 +83,7 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
             if let Some(dist) = distance {
                 self.queue.push(edge, -dist);
             } else {
-                // Todo what should default value be, if cannot be calculated?
+                // Todo what should default value be, if cannot be calculated? For now: first priority
                 self.queue.push(edge, 0);
             }
         }
@@ -123,36 +123,32 @@ impl LinearOptimizeSearch {
         // If we have seen this phi before, and this state, get the result instantly
         if let Some(distance) = self.result_cache.get(&(target.formula(), target.state())) {
             return Some(*distance);
-        } else {
-            // TODO could check if current state is close to something in the cache, and just reuse that result,
-            // TODO or perhaps look for more results close to this state, and extrapolate (Mathias supervisor suggestion)
         }
 
         // If we have not seen this formula before
         if !self.phi_cache.contains_key(&target.formula()) {
-            // Now we know the ranges for which the propositions in the formula would be satisfied,
-            // Map the phi to one that holds Ranges, and cache this
+            // Convert the formula to a structure of constraints
             self.phi_cache.insert(
                 target.formula(),
                 self.map_phi_to_constraints(&*target.formula()),
             );
         }
 
-        // Now we have the mapped phi (called RangedPhi)
-        if let Some(ranged_phi) = self.phi_cache.get(&target.formula()) {
-            // Get current state in vertex
-            let state = self.game.state_from_index(target.state());
-            // Find the distance to acceptance region by visting the RangedPhi representing the formula in the vertex
-            if let Some(distance) = self.visit_ranged_phi(ranged_phi, &state) {
-                let distance = distance as i32;
-                // Cache the resulting distance from the combination of this formula and state
-                self.result_cache
-                    .insert((target.formula(), target.state()), distance);
-                // Return calculated distance
-                return Some(distance);
-            }
+        // Get constraints of this phi
+        let constrained_phi = self.phi_cache.get(&target.formula()).unwrap();
+        // Get current state in vertex
+        let state = self.game.state_from_index(target.state());
+
+        // Find the distance to constraints by visiting the constrained phi
+        if let Some(distance) = self.visit_constrained_phi(constrained_phi, &state) {
+            let distance = distance as i32;
+            // Cache the resulting distance from the combination of this formula and state
+            self.result_cache
+                .insert((target.formula(), target.state()), distance);
+            // Return calculated distance
+            return Some(distance);
         }
-        // If something went wrong, and we could not find a distance, return None
+        // If we could not find a distance, return None
         None
     }
 
@@ -163,13 +159,13 @@ impl LinearOptimizeSearch {
             Phi::False => LinearConstrainedPhi::False,
             Phi::Proposition(proposition) => {
                 // If we get to a proposition, find the Range associated with it, in the proposition_cache and return this
-                let constraint = self.proposition_cache.borrow().get(proposition).cloned();
-                let bla = constraint.unwrap_or_else(|| {
+                let maybe_constraint = self.proposition_cache.borrow().get(proposition).cloned();
+                let constraint = maybe_constraint.unwrap_or_else(|| {
                     // We have not tried to extract the linear expression from this proposition yet. Let's try
                     let decl = self.game.label_index_to_decl(*proposition);
                     if let DeclKind::Label(label) = &decl.kind {
-                        // Try extracting a linear expression and save the result
                         let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+                        // Save result in cache
                         self.proposition_cache
                             .borrow_mut()
                             .insert(*proposition, lin_expr.clone());
@@ -179,7 +175,8 @@ impl LinearOptimizeSearch {
                     }
                 });
                 // Convert to LinearConstrainedPhi::Contraint if it is a linear expression, or true otherwise
-                bla.map(|c| LinearConstrainedPhi::Constraint(c))
+                constraint
+                    .map(|c| LinearConstrainedPhi::Constraint(c))
                     .or(Some(LinearConstrainedPhi::True))
                     .unwrap()
             }
@@ -231,34 +228,34 @@ impl LinearOptimizeSearch {
 
     /// Goes through the RangedPhi and finds how close we are to acceptance border in this state.
     /// A return value of `None` represents an undefined distance.
-    fn visit_ranged_phi(&self, ranged_phi: &LinearConstrainedPhi, state: &State) -> Option<i32> {
+    fn visit_constrained_phi(
+        &self,
+        ranged_phi: &LinearConstrainedPhi,
+        state: &State,
+    ) -> Option<i32> {
         match ranged_phi {
-            // If we need to satisfy either of the formulas, just return the lowest distance found between the two
-            // If one the the sides is None, the other is returned (given that the other is Some)
-            // This makes sure that "x < 5 || false" will not return None, but the dist in lhs
             LinearConstrainedPhi::Or(lhs, rhs) => {
-                if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
-                    return if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
-                        Some(Ord::min(lhs_distance, rhs_distance))
-                    } else {
-                        Some(lhs_distance)
-                    };
-                } else if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
-                    return Some(rhs_distance);
+                // If we need to satisfy either of the formulas, just return the lowest distance found between the two
+                // If one the the sides is None, the other is returned (given that the other is Some)
+                // This makes sure that "x < 5 || false" will not return None, but the dist in lhs
+                let lhs_dist = self.visit_constrained_phi(lhs, state);
+                let rhs_dist = self.visit_constrained_phi(rhs, state);
+                match (lhs_dist, rhs_dist) {
+                    (Some(l), Some(r)) => Some(Ord::min(l, r)),
+                    (Some(l), None) => Some(l),
+                    (None, Some(r)) => Some(r),
+                    _ => None,
                 }
-                None
             }
-            // If we need to satisfy both of the formulas, just return the largest distance found between the two
             LinearConstrainedPhi::And(lhs, rhs) => {
-                if let Some(lhs_distance) = self.visit_ranged_phi(lhs, state) {
-                    if let Some(rhs_distance) = self.visit_ranged_phi(rhs, state) {
-                        return Some(Ord::max(lhs_distance, rhs_distance));
-                    }
-                }
-                None
+                // If we need to satisfy both of the formulas, just return the largest distance found between the two
+                Ord::max(
+                    self.visit_constrained_phi(lhs, state),
+                    self.visit_constrained_phi(rhs, state),
+                )
             }
-            // Find distance to constraint
             LinearConstrainedPhi::Constraint(constraint) => {
+                // Find distance to constraint
                 Some(distance_to_constraint(constraint, state))
             }
             LinearConstrainedPhi::True => Some(0),
@@ -272,7 +269,7 @@ fn distance_to_constraint(constraint: &LinearConstraint, state: &State) -> i32 {
     // This is essentially the distance between a point and a line
     // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
 
-    let mut denom = 0;
+    let mut denom = constraint.constant;
     for (symbol, coefficient) in &constraint.terms {
         let v = state.0.get(symbol).unwrap();
         denom += coefficient * v;

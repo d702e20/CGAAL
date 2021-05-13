@@ -1,7 +1,9 @@
 use crate::game_structure::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, UnaryOpKind};
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
+/// All comparison operators
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ComparisonOp {
     Equal,
@@ -9,6 +11,18 @@ pub enum ComparisonOp {
     LessOrEq,
     Greater,
     GreaterOrEq,
+}
+
+impl Display for ComparisonOp {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ComparisonOp::Equal => write!(f, "="),
+            ComparisonOp::Less => write!(f, "<"),
+            ComparisonOp::LessOrEq => write!(f, "<="),
+            ComparisonOp::Greater => write!(f, ">"),
+            ComparisonOp::GreaterOrEq => write!(f, ">="),
+        }
+    }
 }
 
 /// Holds extracted linear expressions from the formula in AtlVertex
@@ -24,6 +38,17 @@ pub struct LinearConstraint {
     pub coefficient_norm: f64,
 }
 
+impl Display for LinearConstraint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for (coefficient, symbol) in &self.terms {
+            write!(f, "{} * {} ", coefficient, symbol)?;
+        }
+        write!(f, "+ {} {} 0", self.constant, self.comparison)
+    }
+}
+
+/// A visitor that can extract linear constraints from an Expr.
+/// See LinearConstraintExtractor::extract.
 pub struct LinearConstraintExtractor {
     terms: HashMap<SymbolIdentifier, i32>,
     constant: i32,
@@ -36,6 +61,7 @@ impl LinearConstraintExtractor {
     /// to the left-hand-side and the sign of their coefficients will be flipped in the process.
     /// Terms will also be combined, e.g. `x + 2 * x = 0`, will result in x's coefficient being 3.
     pub fn extract(expr: &Expr) -> Option<LinearConstraint> {
+        // Outermost node must be a comparison
         if let ExprKind::BinaryOp(operator, lhs, rhs) = &expr.kind {
             let comparison = match operator {
                 BinaryOpKind::Equality => ComparisonOp::Equal,
@@ -46,21 +72,28 @@ impl LinearConstraintExtractor {
                 _ => return None,
             };
 
+            // Prepare extractor
             let mut extractor = LinearConstraintExtractor {
                 terms: HashMap::new(),
                 constant: 0,
                 comparison,
             };
 
+            // Visit both sides of the comparison. We want to move the stuff on the rhs to the lhs
+            // so everyone found on the rhs is multiplied by -1
             extractor.collect_terms(lhs, 1)?;
             extractor.collect_terms(rhs, -1)?;
 
+            // We found a linear constraint. Now return it
             Some(extractor.into_constraint())
         } else {
             None
         }
     }
 
+    /// Visits an Expr and collects all valid linear terms.
+    /// Negated terms are handled using the sign parameter (either 1 or -1).
+    /// If this returns None, the expression is not linear.
     fn collect_terms(&mut self, expr: &Expr, sign: i32) -> Option<()> {
         match &expr.kind {
             ExprKind::Number(n) => self.constant += sign * n,
@@ -74,7 +107,8 @@ impl LinearConstraintExtractor {
                 }
             }
             ExprKind::UnaryOp(UnaryOpKind::Negation, expr) => {
-                self.collect_terms(expr, -sign)?; // Flip sign
+                // Unary negation simply flips the sign
+                self.collect_terms(expr, -sign)?;
             }
             ExprKind::BinaryOp(operator, lhs, rhs) => match operator {
                 BinaryOpKind::Addition => {
@@ -86,6 +120,7 @@ impl LinearConstraintExtractor {
                     self.collect_terms(rhs, -sign)?; // Note: flipped sign
                 }
                 BinaryOpKind::Multiplication => {
+                    // We found a potential term
                     // One side must be a constant, the other must be a variable
                     if let (ExprKind::Number(n), ExprKind::OwnedIdent(ident))
                     | (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) = (&lhs.kind, &rhs.kind)
@@ -101,7 +136,8 @@ impl LinearConstraintExtractor {
                     }
                 }
                 BinaryOpKind::Division => {
-                    // Variable divided with a constant is a linear expression,
+                    // We found a potential term.
+                    // A variable divided with a constant is a linear expression,
                     // but constant divided by variable is not.
                     if let (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) =
                         (&lhs.kind, &rhs.kind)
@@ -123,7 +159,10 @@ impl LinearConstraintExtractor {
         Some(())
     }
 
+    /// Finish the extraction by turn the extractor into a linear constraint
     fn into_constraint(self) -> LinearConstraint {
+        // This value is useful for calculating distance later
+        // Since it involves sqrt we don't want to do it multiple times
         let coefficient_norm = self
             .terms
             .iter()
