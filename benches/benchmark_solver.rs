@@ -1,5 +1,6 @@
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::atl::Phi;
 use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
@@ -66,7 +67,9 @@ macro_rules! bench_lcgs {
                         .expect(&format!("Could not read model {}", $model));
                     let game_structure =
                         IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
-                    let graph = AtlDependencyGraph { game_structure };
+                    let graph = AtlDependencyGraph {
+                        game_structure: game_structure.clone(),
+                    };
 
                     let formula = serde_json::from_str(include_str!(concat!(
                         lcgs_model_path_prefix!(),
@@ -83,7 +86,9 @@ macro_rules! bench_lcgs {
                         graph,
                         v0,
                         num_cpus::get() as u64,
-                        BreadthFirstSearchBuilder,
+                        LinearOptimizeSearchBuilder {
+                            game: game_structure,
+                        },
                         PRIORITISE_BACK_PROPAGATION,
                     );
                 });
@@ -112,7 +117,9 @@ macro_rules! bench_lcgs_threads {
                             .expect(&format!("Could not read model {}", $model));
                             let game_structure =
                                 IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
-                            let graph = AtlDependencyGraph { game_structure };
+                            let graph = AtlDependencyGraph {
+                                game_structure: game_structure.clone(),
+                            };
 
                             let formula = serde_json::from_str(include_str!(concat!(
                                 lcgs_model_path_prefix!(),
@@ -129,7 +136,9 @@ macro_rules! bench_lcgs_threads {
                                 graph,
                                 v0,
                                 core_count,
-                                BreadthFirstSearchBuilder,
+                                LinearOptimizeSearchBuilder {
+                                    game: game_structure,
+                                },
                                 PRIORITISE_BACK_PROPAGATION,
                             );
                         });
