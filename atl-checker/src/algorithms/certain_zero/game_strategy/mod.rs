@@ -2,8 +2,8 @@ use crate::algorithms::certain_zero::common::VertexAssignment;
 use crate::algorithms::certain_zero::game_strategy::enforcing::compute_enforcing_strategy;
 use crate::algorithms::certain_zero::game_strategy::error::Error;
 use crate::edg::atledg::pmoves::PartialMove;
-use crate::edg::atledg::vertex::ATLVertex;
-use crate::edg::atledg::ATLDependencyGraph;
+use crate::edg::atledg::vertex::AtlVertex;
+use crate::edg::atledg::AtlDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
 use std::collections::HashMap;
 
@@ -28,9 +28,9 @@ pub struct PartialStrategy {
 }
 
 pub fn compute_game_strategy<G: GameStructure>(
-    graph: &ATLDependencyGraph<G>,
-    v0: &ATLVertex,
-    assignments: &HashMap<ATLVertex, VertexAssignment>,
+    graph: &AtlDependencyGraph<G>,
+    v0: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> Result<CertainZeroGameStrategy, Error> {
     // There are six cases:
     // - True enforce formula => a strategy is exists for the given players
@@ -49,12 +49,12 @@ pub fn compute_game_strategy<G: GameStructure>(
     }
 
     match res {
-        VertexAssignment::TRUE if formula.is_enforce() => Ok(CertainZeroGameStrategy::Strategy(
+        VertexAssignment::True if formula.is_enforce() => Ok(CertainZeroGameStrategy::Strategy(
             compute_enforcing_strategy(graph, v0, assignments),
         )),
-        VertexAssignment::TRUE if formula.is_despite() => unimplemented!(),
-        VertexAssignment::FALSE if formula.is_enforce() => unimplemented!(),
-        VertexAssignment::FALSE if formula.is_despite() => unimplemented!(),
+        VertexAssignment::True if formula.is_despite() => unimplemented!(),
+        VertexAssignment::False if formula.is_enforce() => unimplemented!(),
+        VertexAssignment::False if formula.is_despite() => unimplemented!(),
         _ if formula.players().is_none() => Ok(CertainZeroGameStrategy::NoStrategyNeeded),
         _ => panic!("Assignment of v0 is undecided"),
     }
