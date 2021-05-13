@@ -1,11 +1,13 @@
 use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
-    LinearConstraint, LinearConstraintExtractor,
+    ComparisonOp, LinearConstraint, LinearConstraintExtractor,
 };
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, UnaryOpKind};
+use crate::game_structure::lcgs::ast::{
+    BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind,
+};
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
@@ -252,10 +254,62 @@ impl LinearOptimizeSearch {
                         let rhs_con = self.map_expr_to_constraints(rhs);
                         return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
                     }
+                    // P -> Q == not P v Q, we don't care about not, so becomes P v Q
+                    BinaryOpKind::Implication => {
+                        let lhs_con = self.map_expr_to_constraints(lhs);
+                        let rhs_con = self.map_expr_to_constraints(rhs);
+                        return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
+                    }
                     _ => {}
                 }
             }
-            // TODO Some other expression can be converted to a comparisons since everything != 0 is true
+            ExprKind::Number(n) => {
+                return if *n == 0 {
+                    LinearConstrainedPhi::False
+                } else {
+                    LinearConstrainedPhi::True
+                }
+            }
+            // https://en.wikipedia.org/wiki/Conditioned_disjunction
+            // Q ? P : R == (Q -> P) and (not Q -> R) == (Q and P) or (not Q and R)
+            // we don't care about not, so becomes (Q and P) or (Q and R), and can be written as
+            // (Q and (P or R))
+            ExprKind::TernaryIf(q, p, r) => {
+                let q = self.map_expr_to_constraints(q);
+                let p = self.map_expr_to_constraints(p);
+                let r = self.map_expr_to_constraints(r);
+                return LinearConstrainedPhi::And(
+                    Box::new(q),
+                    Box::from(LinearConstrainedPhi::Or(Box::new(p), Box::new(r))),
+                );
+            }
+            // Some other expression can be converted to a comparisons since everything != 0 is true
+            ExprKind::OwnedIdent(ident) => {
+                let mut terms_hashmap = HashMap::new();
+                if let Identifier::Resolved { owner, name } = ident.as_ref() {
+                    terms_hashmap.insert(owner.symbol_id(name), 1.0);
+                }
+
+                let less_constraint = LinearConstraint {
+                    terms: terms_hashmap.clone(),
+                    constant: 0.0,
+                    comparison: ComparisonOp::Less,
+                    coefficient_norm: 1.0,
+                };
+
+                let greater_constraint = LinearConstraint {
+                    terms: terms_hashmap,
+                    constant: 0.0,
+                    comparison: ComparisonOp::Greater,
+                    coefficient_norm: 1.0,
+                };
+
+                return LinearConstrainedPhi::Or(
+                    Box::new(LinearConstrainedPhi::Constraint(less_constraint)),
+                    Box::new(LinearConstrainedPhi::Constraint(greater_constraint)),
+                );
+            }
+
             _ => {}
         }
 
