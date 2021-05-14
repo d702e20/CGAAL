@@ -28,12 +28,17 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     pub fn run(&mut self) -> bool {
         self.initialize();
 
-        let mut components = self.get_components();
+        let components = self.dist.clone();
+        components.iter().rev().for_each(
+            |component| {
+                while self.f(&component, self.assignment.clone()) {}
+            },
+        );
 
-        while !components.is_empty() {
-            let component = components.pop_front().unwrap();
-            while self.f(&component, self.assignment.clone()) {}
-        }
+        //while !self.dist.is_empty() {
+        //    let component = self.dist.pop_front().unwrap();
+        //    while self.f(&component, self.assignment.clone()) {}
+        //}
         *self.assignment.get(&self.v0).unwrap()
     }
 
