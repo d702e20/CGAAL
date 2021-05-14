@@ -22,13 +22,36 @@ pub enum LinearConstrainedPhi {
     And(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
     /// Mapping symbols to ranges
     Constraint(LinearConstraint),
+    /// Proposition that is not linear. We can't use these in the linear methods, but it is not
+    /// definitively true or false either
+    NonLinear,
     True,
     False,
 }
 
+impl LinearConstrainedPhi {
+    /// Change this constrained phi to its negation
+    pub fn negated(&self) -> Self {
+        match self {
+            LinearConstrainedPhi::Or(lhs, rhs) => {
+                LinearConstrainedPhi::And(Box::new(lhs.negate()), Box::new(rhs.negate()))
+            }
+            LinearConstrainedPhi::And(lhs, rhs) => {
+                LinearConstrainedPhi::Or(Box::new(lhs.negate()), Box::new(rhs.negate()))
+            }
+            LinearConstrainedPhi::Constraint(constraint) => {
+                LinearConstrainedPhi::Constraint(constraint.negated())
+            }
+            LinearConstrainedPhi::True => LinearConstrainedPhi::False,
+            LinearConstrainedPhi::False => LinearConstrainedPhi::True,
+            LinearConstrainedPhi::NonLinear => LinearConstrainedPhi::NonLinear,
+        }
+    }
+}
+
 pub struct ConstrainedPhiMapper {
-    /// Cached LinearConstrainedPhi of propositions
-    proposition_cache: RefCell<HashMap<Proposition, LinearConstrainedPhi>>,
+    /// Cached LinearConstrainedPhi of propositions. The bool is true for negated propositions.
+    proposition_cache: RefCell<HashMap<(Proposition, bool), LinearConstrainedPhi>>,
 }
 
 impl ConstrainedPhiMapper {
@@ -41,84 +64,110 @@ impl ConstrainedPhiMapper {
     /// Map the given phi to a linear constrained phi. Propositions will be map based on the given
     /// game and they will be cached, so the same game should be used every time.
     pub fn map(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
-        self.map_phi_to_constraints(game, phi)
+        self.map_phi_to_constraints(game, phi, false)
     }
 
     /// Takes a phi and maps it to a LinearConstrainedPhi
-    fn map_phi_to_constraints(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
+    fn map_phi_to_constraints(
+        &self,
+        game: &IntermediateLcgs,
+        phi: &Phi,
+        negated: bool,
+    ) -> LinearConstrainedPhi {
         match phi {
-            Phi::True => LinearConstrainedPhi::True,
-            Phi::False => LinearConstrainedPhi::False,
+            Phi::True => {
+                if !negated {
+                    LinearConstrainedPhi::True
+                } else {
+                    LinearConstrainedPhi::False
+                }
+            }
+            Phi::False => {
+                if !negated {
+                    LinearConstrainedPhi::False
+                } else {
+                    LinearConstrainedPhi::True
+                }
+            }
             Phi::Proposition(proposition) => {
                 // If we get to a proposition, continue the mapping inside the proposition's condition
                 // The result may be cached
-                let maybe_constraint = self.proposition_cache.borrow().get(proposition).cloned();
+                let key = (*proposition, negated);
+                let maybe_constraint = self.proposition_cache.borrow().get(&key).cloned();
                 maybe_constraint.unwrap_or_else(|| {
                     // We have not mapped this proposition yet
                     let decl = game.label_index_to_decl(*proposition);
                     if let DeclKind::Label(label) = &decl.kind {
-                        let mapped_expr = self.map_expr_to_constraints(&label.condition);
+                        let mapped_expr = self.map_expr_to_constraints(&label.condition, negated);
                         // Save result in cache
                         self.proposition_cache
                             .borrow_mut()
-                            .insert(*proposition, mapped_expr.clone());
+                            .insert(key, mapped_expr.clone());
                         mapped_expr
                     } else {
                         panic!("Non-propositions symbol in ATL formula")
                     }
                 })
             }
-            Phi::Not(formula) => self.map_phi_to_constraints(game, formula),
+            Phi::Not(formula) => self.map_phi_to_constraints(game, formula, !negated),
             Phi::Or(lhs, rhs) => {
-                let lhs_symbol_range_map = self.map_phi_to_constraints(game, lhs);
-                let rhs_symbol_range_map = self.map_phi_to_constraints(game, rhs);
-
-                LinearConstrainedPhi::Or(
-                    Box::from(lhs_symbol_range_map),
-                    Box::from(rhs_symbol_range_map),
-                )
+                let lhs_lcp = self.map_phi_to_constraints(game, lhs, negated);
+                let rhs_lcp = self.map_phi_to_constraints(game, rhs, negated);
+                if !negated {
+                    LinearConstrainedPhi::Or(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                } else {
+                    LinearConstrainedPhi::And(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                }
             }
             Phi::And(lhs, rhs) => {
-                let lhs_symbol_range_map = self.map_phi_to_constraints(game, lhs);
-                let rhs_symbol_range_map = self.map_phi_to_constraints(game, rhs);
-
-                LinearConstrainedPhi::And(
-                    Box::from(lhs_symbol_range_map),
-                    Box::from(rhs_symbol_range_map),
-                )
+                let lhs_lcp = self.map_phi_to_constraints(game, lhs, negated);
+                let rhs_lcp = self.map_phi_to_constraints(game, rhs, negated);
+                if !negated {
+                    LinearConstrainedPhi::And(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                } else {
+                    LinearConstrainedPhi::Or(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                }
             }
-            Phi::DespiteNext { formula, .. } => self.map_phi_to_constraints(game, formula),
-            Phi::EnforceNext { formula, .. } => self.map_phi_to_constraints(game, formula),
+            Phi::DespiteNext { formula, .. } => self.map_phi_to_constraints(game, formula, negated),
+            Phi::EnforceNext { formula, .. } => self.map_phi_to_constraints(game, formula, negated),
             Phi::DespiteUntil { pre, until, .. } => {
-                let pre_symbol_range_map = self.map_phi_to_constraints(game, pre);
-                let until_symbol_range_map = self.map_phi_to_constraints(game, until);
-
-                LinearConstrainedPhi::Or(
-                    Box::from(pre_symbol_range_map),
-                    Box::from(until_symbol_range_map),
-                )
+                let pre_lcp = self.map_phi_to_constraints(game, pre, negated);
+                let until_lcp = self.map_phi_to_constraints(game, until, negated);
+                if !negated {
+                    LinearConstrainedPhi::Or(Box::from(pre_lcp), Box::from(until_lcp))
+                } else {
+                    LinearConstrainedPhi::And(Box::from(pre_lcp), Box::from(until_lcp))
+                }
             }
             Phi::EnforceUntil { pre, until, .. } => {
-                let pre_symbol_range_map = self.map_phi_to_constraints(game, pre);
-                let until_symbol_range_map = self.map_phi_to_constraints(game, until);
-
-                LinearConstrainedPhi::Or(
-                    Box::from(pre_symbol_range_map),
-                    Box::from(until_symbol_range_map),
-                )
+                let pre_lcp = self.map_phi_to_constraints(game, pre, negated);
+                let until_lcp = self.map_phi_to_constraints(game, until, negated);
+                if !negated {
+                    LinearConstrainedPhi::Or(Box::from(pre_lcp), Box::from(until_lcp))
+                } else {
+                    LinearConstrainedPhi::And(Box::from(pre_lcp), Box::from(until_lcp))
+                }
             }
-            Phi::DespiteEventually { formula, .. } => self.map_phi_to_constraints(game, formula),
-            Phi::EnforceEventually { formula, .. } => self.map_phi_to_constraints(game, formula),
-            Phi::DespiteInvariant { formula, .. } => self.map_phi_to_constraints(game, formula),
-            Phi::EnforceInvariant { formula, .. } => self.map_phi_to_constraints(game, formula),
+            Phi::DespiteEventually { formula, .. } => {
+                self.map_phi_to_constraints(game, formula, negated)
+            }
+            Phi::EnforceEventually { formula, .. } => {
+                self.map_phi_to_constraints(game, formula, negated)
+            }
+            Phi::DespiteInvariant { formula, .. } => {
+                self.map_phi_to_constraints(game, formula, negated)
+            }
+            Phi::EnforceInvariant { formula, .. } => {
+                self.map_phi_to_constraints(game, formula, negated)
+            }
         }
     }
 
     /// Takes an expression and maps it to a LinearConstrainedPhi
-    fn map_expr_to_constraints(&self, expr: &Expr) -> LinearConstrainedPhi {
+    fn map_expr_to_constraints(&self, expr: &Expr, negated: bool) -> LinearConstrainedPhi {
         match &expr.kind {
             ExprKind::UnaryOp(UnaryOpKind::Not, sub_expr) => {
-                return self.map_expr_to_constraints(sub_expr);
+                return self.map_expr_to_constraints(sub_expr, !negated);
             }
             ExprKind::BinaryOp(operator, lhs, rhs) => {
                 match operator {
@@ -129,82 +178,99 @@ impl ConstrainedPhiMapper {
                     | BinaryOpKind::LessOrEqual => {
                         let lin_expr = LinearConstraintExtractor::extract(expr);
                         return if let Some(lin_expr) = lin_expr {
-                            LinearConstrainedPhi::Constraint(lin_expr)
+                            if !negated {
+                                LinearConstrainedPhi::Constraint(lin_expr)
+                            } else {
+                                LinearConstrainedPhi::Constraint(lin_expr.negated())
+                            }
                         } else {
-                            // Not linear
-                            LinearConstrainedPhi::True
+                            LinearConstrainedPhi::NonLinear
                         };
                     }
                     BinaryOpKind::And => {
-                        let lhs_con = self.map_expr_to_constraints(lhs);
-                        let rhs_con = self.map_expr_to_constraints(rhs);
-                        return LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con));
+                        let lhs_con = self.map_expr_to_constraints(lhs, negated);
+                        let rhs_con = self.map_expr_to_constraints(rhs, negated);
+                        return if !negated {
+                            LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con))
+                        } else {
+                            LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con))
+                        };
                     }
                     BinaryOpKind::Or => {
-                        let lhs_con = self.map_expr_to_constraints(lhs);
-                        let rhs_con = self.map_expr_to_constraints(rhs);
-                        return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
+                        let lhs_con = self.map_expr_to_constraints(lhs, negated);
+                        let rhs_con = self.map_expr_to_constraints(rhs, negated);
+                        return if !negated {
+                            LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con))
+                        } else {
+                            LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con))
+                        };
                     }
-                    // P -> Q == not P v Q, we don't care about not, so becomes P v Q
+                    // P -> Q == not P v Q
                     BinaryOpKind::Implication => {
-                        let lhs_con = self.map_expr_to_constraints(lhs);
-                        let rhs_con = self.map_expr_to_constraints(rhs);
-                        return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
+                        let lhs_con = self.map_expr_to_constraints(lhs, !negated);
+                        let rhs_con = self.map_expr_to_constraints(rhs, negated);
+                        return if !negated {
+                            LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con))
+                        } else {
+                            LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con))
+                        };
                     }
                     _ => {}
                 }
             }
             ExprKind::Number(n) => {
-                return if *n == 0 {
+                // Think of != as XOR in this situation
+                return if (*n == 0) != negated {
                     LinearConstrainedPhi::False
                 } else {
                     LinearConstrainedPhi::True
-                }
+                };
             }
             // https://en.wikipedia.org/wiki/Conditioned_disjunction
             // Q ? P : R == (Q -> P) and (not Q -> R) == (Q and P) or (not Q and R)
-            // we don't care about not, so becomes (Q and P) or (Q and R), and can be written as
-            // (Q and (P or R))
             ExprKind::TernaryIf(q, p, r) => {
-                let q = self.map_expr_to_constraints(q);
-                let p = self.map_expr_to_constraints(p);
-                let r = self.map_expr_to_constraints(r);
-                return LinearConstrainedPhi::And(
-                    Box::new(q),
-                    Box::from(LinearConstrainedPhi::Or(Box::new(p), Box::new(r))),
-                );
+                let q = self.map_expr_to_constraints(q, negated);
+                let p = self.map_expr_to_constraints(p, negated);
+                let r = self.map_expr_to_constraints(r, negated);
+                return if !negated {
+                    LinearConstrainedPhi::Or(
+                        Box::new(LinearConstrainedPhi::And(Box::new(q), Box::new(p))),
+                        Box::from(LinearConstrainedPhi::And(Box::new(q.clone()), Box::new(r))),
+                    )
+                } else {
+                    LinearConstrainedPhi::And(
+                        Box::new(LinearConstrainedPhi::Or(Box::new(q), Box::new(p))),
+                        Box::from(LinearConstrainedPhi::Or(Box::new(q.clone()), Box::new(r))),
+                    )
+                };
             }
-            // Some other expression can be converted to a comparisons since everything != 0 is true
+            // This is essentially x != 0, if x is the name of the symbol
             ExprKind::OwnedIdent(ident) => {
                 let mut terms_hashmap = HashMap::new();
                 if let Identifier::Resolved { owner, name } = ident.as_ref() {
                     terms_hashmap.insert(owner.symbol_id(name), 1.0);
                 }
 
-                let less_constraint = LinearConstraint {
-                    terms: terms_hashmap.clone(),
-                    constant: 0.0,
-                    comparison: ComparisonOp::Less,
-                    coefficient_norm: 1.0,
+                let operator = if !negated {
+                    ComparisonOp::NotEqual
+                } else {
+                    ComparisonOp::Equal
                 };
 
-                let greater_constraint = LinearConstraint {
+                let constraint = LinearConstraint {
                     terms: terms_hashmap,
                     constant: 0.0,
-                    comparison: ComparisonOp::Greater,
+                    comparison: operator,
                     coefficient_norm: 1.0,
                 };
 
-                return LinearConstrainedPhi::Or(
-                    Box::new(LinearConstrainedPhi::Constraint(less_constraint)),
-                    Box::new(LinearConstrainedPhi::Constraint(greater_constraint)),
-                );
+                return LinearConstrainedPhi::Constraint(constraint);
             }
-
+            // TODO Other expression can be converted to a comparisons since everything != 0 is true
             _ => {}
         }
 
         // Not linear
-        LinearConstrainedPhi::True
+        LinearConstrainedPhi::NonLinear
     }
 }
