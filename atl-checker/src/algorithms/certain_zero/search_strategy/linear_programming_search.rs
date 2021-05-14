@@ -1,3 +1,6 @@
+use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
+    ConstrainedPhiMapper, LinearConstrainedPhi,
+};
 use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
     LinearConstraint, LinearConstraintExtractor,
 };
@@ -36,10 +39,9 @@ pub struct LinearOptimizeSearch {
     /// Priority based on distance, lowest distance highest priority
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
+    phi_mapper: ConstrainedPhiMapper,
     /// Maps the hash of a Phi and usize of state, to a result state and distance
     result_cache: HashMap<AtlVertex, (State, i32)>,
-    /// Maps proposition to the linear constraint the are
-    proposition_cache: RefCell<HashMap<Proposition, LinearConstrainedPhi>>,
     /// Maps phi to a LinearConstrainedPhi
     phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
@@ -51,24 +53,11 @@ impl LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
             game,
+            phi_mapper: ConstrainedPhiMapper::new(),
             result_cache: HashMap::new(),
-            proposition_cache: RefCell::new(HashMap::new()),
             phi_cache: HashMap::new(),
         }
     }
-}
-
-/// A structure describing the relation between linear constraints in a ATL formula
-#[derive(Clone)]
-pub enum LinearConstrainedPhi {
-    /// Either or should hold
-    Or(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
-    /// Both should hold
-    And(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
-    /// Mapping symbols to ranges
-    Constraint(LinearConstraint),
-    True,
-    False,
 }
 
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
@@ -107,11 +96,8 @@ impl LinearOptimizeSearch {
         // If we have not seen this formula before, calculate constrained phi
         if !self.phi_cache.contains_key(&source.formula()) {
             // Convert the formula to a structure of constraints
-            // TODO
-            // self.phi_cache.insert(
-            //     target.formula(),
-            //     self.map_phi_to_constraints(&*target.formula()),
-            // );
+            let lcp = self.phi_mapper.map(&self.game, &*source.formula());
+            self.phi_cache.insert(source.formula(), lcp);
         }
 
         // Get constraints of this phi
