@@ -29,16 +29,10 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
         self.initialize();
 
         let components = self.dist.clone();
-        components.iter().rev().for_each(
-            |component| {
-                while self.f(&component, self.assignment.clone()) {}
-            },
-        );
-
-        //while !self.dist.is_empty() {
-        //    let component = self.dist.pop_front().unwrap();
-        //    while self.f(&component, self.assignment.clone()) {}
-        //}
+        components
+            .iter()
+            .rev()
+            .for_each(|component| while self.f(&component) {});
         *self.assignment.get(&self.v0).unwrap()
     }
 
@@ -117,19 +111,14 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     /// know which component we are worker with and the assignments of the component
     /// before, these are both given as arguments. The function it self returns a boolean
     /// which is true if the assignments are changed.
-    fn f(&mut self, component: &HashSet<V>, ass_from_earlier: HashMap<V, bool>) -> bool {
+    fn f(&mut self, component: &HashSet<V>) -> bool {
         let mut changed_flag = false;
 
         for vertex in component {
             for edge in self.edg.succ(vertex) {
                 match edge {
                     Edge::Hyper(e) => changed_flag = max(self.process_hyper(e), changed_flag),
-                    Edge::Negation(e) => {
-                        changed_flag = max(
-                            self.process_negation(e, ass_from_earlier.clone()),
-                            changed_flag,
-                        )
-                    }
+                    Edge::Negation(e) => changed_flag = max(self.process_negation(e), changed_flag),
                 }
             }
         }
@@ -157,21 +146,12 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     /// Rising the value of the source vertex assignment if the target vertex was assigned
     /// false in the last component assignment. If the source vertex already is true we
     /// simply return. The return value is based on if a changed have been made.
-    fn process_negation(
-        &mut self,
-        edge: NegationEdge<V>,
-        ass_from_earlier: HashMap<V, bool>,
-    ) -> bool {
+    fn process_negation(&mut self, edge: NegationEdge<V>) -> bool {
         if *self.assignment.get(&edge.source).unwrap() {
             false
         } else {
-            let mut final_ass = true;
-
-            if *ass_from_earlier.get(&edge.target).unwrap() {
-                final_ass = false;
-            }
-
-            self.update_assignment(edge.source, final_ass)
+            let new_ass = !*self.assignment.get(&edge.target).unwrap();
+            self.update_assignment(edge.source, new_ass)
         }
     }
 
@@ -187,25 +167,6 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
                 new_ass != old
             })
             .unwrap()
-    }
-
-    /// From the dist list the components are identified. Since the index
-    /// of every element in `self.dist` are representing the actually distance,
-    /// counted from the end of the list, we can simply pop the back of the list
-    /// until it is empty. For every pop we add the element to our components and
-    /// save them. The components list returned then have C_0 as it first element
-    /// followed by C_1 .. C_k.
-    fn get_components(&mut self) -> VecDeque<HashSet<V>> {
-        let mut components = VecDeque::<HashSet<V>>::new();
-        let mut component = HashSet::<V>::new();
-
-        while !self.dist.is_empty() {
-            for v in self.dist.pop_back().unwrap() {
-                component.insert(v);
-            }
-            components.push_back(component.clone());
-        }
-        components
     }
 }
 #[cfg(test)]
