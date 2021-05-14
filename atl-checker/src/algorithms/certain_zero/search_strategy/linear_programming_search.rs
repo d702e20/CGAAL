@@ -33,10 +33,10 @@ impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSe
 /// based on distance from the vertex to a region that borders the line between true/false in the formula.
 pub struct LinearOptimizeSearch {
     /// Priority based on distance, lowest distance highest priority
-    queue: PriorityQueue<Edge<AtlVertex>, FloatOrd<f64>>,
+    queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
-    /// Maps the hash of a Phi and usize of state, to a result distance
-    result_cache: HashMap<(Arc<Phi>, StateUsize), f64>,
+    /// Maps the hash of a Phi and usize of state, to a result state and distance
+    result_cache: HashMap<AtlVertex, (State, i32)>,
     /// Maps proposition to the linear constraint the are
     proposition_cache: RefCell<HashMap<Proposition, LinearConstrainedPhi>>,
     /// Maps phi to a LinearConstrainedPhi
@@ -73,36 +73,38 @@ pub enum LinearConstrainedPhi {
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
     /// Simply returns the edge with highest priority (i.e lowest distance)
     fn next(&mut self) -> Option<Edge<AtlVertex>> {
-        self.queue.pop().map(|entry| entry.0)
+        self.queue.pop().map(|(edge, _)| edge)
     }
 
     /// Takes a Vec of Edges holding ATLVertices, and puts these in the queue,
     /// based on the calculated distance from its state to acceptance region from formula
     fn queue_new_edges(&mut self, edges: Vec<Edge<AtlVertex>>) {
         for edge in edges {
-            let distance = self.get_distance_in_atl_vertex(edge.source());
+            let distance = self.get_distance_of_edge(&edge);
 
             // Add edge and distance to queue
             if let Some(dist) = distance {
-                self.queue.push(edge, FloatOrd(-dist));
+                self.queue.push(edge, -dist);
             } else {
                 // Todo what should default value be, if cannot be calculated? For now: first priority
-                self.queue.push(edge, FloatOrd(0.0));
+                self.queue.push(edge, 0);
             }
         }
     }
 }
 
 impl LinearOptimizeSearch {
-    /// Finds the distance in a single atl_vertex
-    fn get_distance_in_atl_vertex(&mut self, target: &AtlVertex) -> Option<f64> {
-        // If we have seen this phi before, and this state, get the result instantly
-        if let Some(distance) = self.result_cache.get(&(target.formula(), target.state())) {
-            return Some(*distance);
+    /// Finds the distance of an edge using linear programming
+    fn get_distance_of_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<i32> {
+        let source = edge.source();
+
+        // If we have seen this source before, get the result instantly
+        if let Some(sol) = self.result_cache.get(&source) {
+            return Some(sol.1);
         }
 
-        // If we have not seen this formula before
-        if !self.phi_cache.contains_key(&target.formula()) {
+        // If we have not seen this formula before, calculate constrained phi
+        if !self.phi_cache.contains_key(&source.formula()) {
             // Convert the formula to a structure of constraints
             // TODO
             // self.phi_cache.insert(
@@ -112,17 +114,16 @@ impl LinearOptimizeSearch {
         }
 
         // Get constraints of this phi
-        let constrained_phi = self.phi_cache.get(&target.formula()).unwrap();
+        let constrained_phi = self.phi_cache.get(&source.formula()).unwrap();
         // Get current state in vertex
-        let state = self.game.state_from_index(target.state());
+        let state = self.game.state_from_index(source.state());
 
-        // Find the distance to constraints by visiting the constrained phi
-        if let Some(distance) = self.get_optimal_distance(constrained_phi, &state) {
-            // Cache the resulting distance from the combination of this formula and state
-            self.result_cache
-                .insert((target.formula(), target.state()), distance);
-            // Return calculated distance
-            return Some(distance);
+        // Use linear programming to find closest state that satisfies the constraints
+        if let Some(sol) = self.get_optimal_distance(constrained_phi, &state) {
+            let dist = sol.1;
+            // Cache the resulting solution
+            self.result_cache.insert(source.clone(), sol);
+            return Some(dist);
         }
         // If we could not find a distance, return None
         None
@@ -132,10 +133,10 @@ impl LinearOptimizeSearch {
         &self,
         constrained_phi: &LinearConstrainedPhi,
         state: &State,
-    ) -> Option<f64> {
+    ) -> Option<(State, i32)> {
         // The LinearConstrainedPhi contains multiple variants of the linear problem due to the ORs.
         // So we iterate through them and find the best result
-        let best = None
+        let mut best: Option<(State, i32)> = None;
         for constraints in LinearProblemConstraintIterator::new(constrained_phi) {
             // We keep track of the symbols/variables encountered
             let mut symbol_vars: HashMap<SymbolIdentifier, Variable> = HashMap::new();
@@ -146,10 +147,19 @@ impl LinearOptimizeSearch {
                 let mut lin_expr = LinearExpr::empty();
                 for (symbol, coefficient) in &constraint.terms {
                     // Get symbol variable or register if missing
-                    let var = symbol_vars.get(&symbol).get_or_insert_with(|s| {
-                        &problem.add_var(1.0, (f64::MIN, f64::MAX)) // TODO Use symbol range from LCGS
+                    let var = symbol_vars.entry(symbol.clone()).or_insert_with(|| {
+                        let decl = self.game.get_decl(symbol).unwrap();
+                        if let DeclKind::StateVar(var_decl) = &decl.kind {
+                            let range = (
+                                *var_decl.ir_range.start() as f64,
+                                *var_decl.ir_range.end() as f64,
+                            );
+                            problem.add_var(1.0, range)
+                        } else {
+                            panic!("Proposition contains a non-variable")
+                        }
                     });
-                    lin_expr.add(**var, *coefficient);
+                    lin_expr.add(*var, *coefficient);
                 }
 
                 problem.add_constraint(
@@ -161,22 +171,41 @@ impl LinearOptimizeSearch {
 
             if let Ok(solution) = problem.solve() {
                 // Extract solution
-                // TODO
+                let mut sol_state: HashMap<SymbolIdentifier, i32> = HashMap::new();
+                let mut man_dist = 0;
+                for (symbol, var) in symbol_vars {
+                    let v = solution[var] as i32;
+                    man_dist += (state.0[&symbol] - v).abs();
+                    sol_state.insert(symbol, v);
+                }
+
+                if let Some((_, old_best_dist)) = best {
+                    if old_best_dist > man_dist {
+                        // We found a better solution
+                        best = Some((State(sol_state), man_dist));
+                    }
+                } else {
+                    // We our first possible a solution
+                    best = Some((State(sol_state), man_dist));
+                }
             }
         }
-        None
+
+        best
     }
 }
 
-struct LinearProblemConstraintIterator<'a> {}
+struct LinearProblemConstraintIterator<'a> {
+    phi: &'a LinearConstrainedPhi,
+}
 
 impl<'a> LinearProblemConstraintIterator<'a> {
     fn new(phi: &'a LinearConstrainedPhi) -> LinearProblemConstraintIterator<'a> {
-        LinearProblemIterator
+        LinearProblemConstraintIterator { phi }
     }
 }
 
-impl Iterator for LinearProblemConstraintIterator {
+impl<'a> Iterator for LinearProblemConstraintIterator<'a> {
     type Item = Vec<LinearConstraint>;
 
     fn next(&mut self) -> Option<Self::Item> {

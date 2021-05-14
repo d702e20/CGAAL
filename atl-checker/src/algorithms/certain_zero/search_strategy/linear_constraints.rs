@@ -25,6 +25,16 @@ impl Display for ComparisonOp {
     }
 }
 
+impl From<ComparisonOp> for minilp::ComparisonOp {
+    fn from(op: ComparisonOp) -> Self {
+        match op {
+            ComparisonOp::Equal => minilp::ComparisonOp::Eq,
+            ComparisonOp::Less | ComparisonOp::LessOrEq => minilp::ComparisonOp::Le,
+            ComparisonOp::Greater | ComparisonOp::GreaterOrEq => minilp::ComparisonOp::Ge,
+        }
+    }
+}
+
 /// Holds extracted linear expressions from the formula in AtlVertex
 /// E.g. `ax + by + cz + k = 0`.
 #[derive(Clone)]
