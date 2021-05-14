@@ -145,6 +145,9 @@ impl LinearOptimizeSearch {
             for constraint in &constraints {
                 // Build constraint
                 let mut lin_expr = LinearExpr::empty();
+                // The contraint is offset by the given state. This is reflected by adding
+                // coefficient*value_of_symbol_in_state to the constant
+                let mut offset = -constraint.constant;
                 for (symbol, coefficient) in &constraint.terms {
                     // Get symbol variable or register if missing
                     let var = symbol_vars.entry(symbol.clone()).or_insert_with(|| {
@@ -160,13 +163,10 @@ impl LinearOptimizeSearch {
                         }
                     });
                     lin_expr.add(*var, *coefficient);
+                    offset += *coefficient * state.0[&symbol] as f64;
                 }
 
-                problem.add_constraint(
-                    lin_expr,
-                    constraint.comparison.into(),
-                    -constraint.constant,
-                );
+                problem.add_constraint(lin_expr, constraint.comparison.into(), offset);
             }
 
             if let Ok(solution) = problem.solve() {
