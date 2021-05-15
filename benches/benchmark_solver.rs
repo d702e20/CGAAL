@@ -8,7 +8,7 @@ use atl_checker::game_structure::EagerGameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::sync::Arc;
 
-const PRIORITISE_BACK_PROPAGATION: bool = true;
+const PRIORITISE_BACK_PROPAGATION: bool = true; // change this for benches with no-backprop
 
 // CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
