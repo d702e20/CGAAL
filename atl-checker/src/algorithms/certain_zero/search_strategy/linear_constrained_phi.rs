@@ -26,6 +26,26 @@ pub enum LinearConstrainedPhi {
     False,
 }
 
+impl LinearConstrainedPhi {
+    /// Returns the negations of this constrained phi
+    pub fn negated(&self) -> Self {
+        match self {
+            LinearConstrainedPhi::Or(lhs, rhs) => {
+                LinearConstrainedPhi::And(Box::new(lhs.negate()), Box::new(rhs.negate()))
+            }
+            LinearConstrainedPhi::And(lhs, rhs) => {
+                LinearConstrainedPhi::Or(Box::new(lhs.negate()), Box::new(rhs.negate()))
+            }
+            LinearConstrainedPhi::Constraint(constraint) => {
+                LinearConstrainedPhi::Constraint(constraint.negated())
+            }
+            LinearConstrainedPhi::True => LinearConstrainedPhi::False,
+            LinearConstrainedPhi::False => LinearConstrainedPhi::True,
+            LinearConstrainedPhi::NonLinear => LinearConstrainedPhi::NonLinear,
+        }
+    }
+}
+
 pub struct ConstrainedPhiMapper {
     /// Cached LinearConstrainedPhi of propositions. The bool is true for negated propositions.
     proposition_cache: RefCell<HashMap<(Proposition, bool), LinearConstrainedPhi>>,
@@ -38,8 +58,8 @@ impl ConstrainedPhiMapper {
         }
     }
 
-    /// Map the given phi to a linear constrained phi. Propositions will be map based on the given
-    /// game and they will be cached, so the same game should be used every time.
+    /// Map the given phi to a linear constrained phi. Propositions will be mapped based on the
+    /// given game and they will be cached, so the same game should be used every time.
     pub fn map(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
         self.map_phi_to_constraints(game, phi, false)
     }
@@ -91,18 +111,18 @@ impl ConstrainedPhiMapper {
                 let lhs_lcp = self.map_phi_to_constraints(game, lhs, negated);
                 let rhs_lcp = self.map_phi_to_constraints(game, rhs, negated);
                 if !negated {
-                    LinearConstrainedPhi::Or(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                    LinearConstrainedPhi::Or(Box::new(lhs_lcp), Box::new(rhs_lcp))
                 } else {
-                    LinearConstrainedPhi::And(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                    LinearConstrainedPhi::And(Box::new(lhs_lcp), Box::new(rhs_lcp))
                 }
             }
             Phi::And(lhs, rhs) => {
                 let lhs_lcp = self.map_phi_to_constraints(game, lhs, negated);
                 let rhs_lcp = self.map_phi_to_constraints(game, rhs, negated);
                 if !negated {
-                    LinearConstrainedPhi::And(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                    LinearConstrainedPhi::And(Box::new(lhs_lcp), Box::new(rhs_lcp))
                 } else {
-                    LinearConstrainedPhi::Or(Box::from(lhs_lcp), Box::from(rhs_lcp))
+                    LinearConstrainedPhi::Or(Box::new(lhs_lcp), Box::new(rhs_lcp))
                 }
             }
             Phi::DespiteNext { formula, .. } => self.map_phi_to_constraints(game, formula, negated),
@@ -111,18 +131,18 @@ impl ConstrainedPhiMapper {
                 let pre_lcp = self.map_phi_to_constraints(game, pre, negated);
                 let until_lcp = self.map_phi_to_constraints(game, until, negated);
                 if !negated {
-                    LinearConstrainedPhi::Or(Box::from(pre_lcp), Box::from(until_lcp))
+                    LinearConstrainedPhi::Or(Box::new(pre_lcp), Box::new(until_lcp))
                 } else {
-                    LinearConstrainedPhi::And(Box::from(pre_lcp), Box::from(until_lcp))
+                    LinearConstrainedPhi::And(Box::new(pre_lcp), Box::new(until_lcp))
                 }
             }
             Phi::EnforceUntil { pre, until, .. } => {
                 let pre_lcp = self.map_phi_to_constraints(game, pre, negated);
                 let until_lcp = self.map_phi_to_constraints(game, until, negated);
                 if !negated {
-                    LinearConstrainedPhi::Or(Box::from(pre_lcp), Box::from(until_lcp))
+                    LinearConstrainedPhi::Or(Box::new(pre_lcp), Box::new(until_lcp))
                 } else {
-                    LinearConstrainedPhi::And(Box::from(pre_lcp), Box::from(until_lcp))
+                    LinearConstrainedPhi::And(Box::new(pre_lcp), Box::new(until_lcp))
                 }
             }
             Phi::DespiteEventually { formula, .. } => {
@@ -207,17 +227,18 @@ impl ConstrainedPhiMapper {
             // Q ? P : R == (Q -> P) and (not Q -> R) == (Q and P) or (not Q and R)
             ExprKind::TernaryIf(q, p, r) => {
                 let q = self.map_expr_to_constraints(q, negated);
+                let not_q = q.negated();
                 let p = self.map_expr_to_constraints(p, negated);
                 let r = self.map_expr_to_constraints(r, negated);
                 return if !negated {
                     LinearConstrainedPhi::Or(
-                        Box::new(LinearConstrainedPhi::And(Box::new(q.clone()), Box::new(p))),
-                        Box::from(LinearConstrainedPhi::And(Box::new(q), Box::new(r))),
+                        Box::new(LinearConstrainedPhi::And(Box::new(q), Box::new(p))),
+                        Box::new(LinearConstrainedPhi::And(Box::new(not_q), Box::new(r))),
                     )
                 } else {
                     LinearConstrainedPhi::And(
-                        Box::new(LinearConstrainedPhi::Or(Box::new(q.clone()), Box::new(p))),
-                        Box::from(LinearConstrainedPhi::Or(Box::new(q), Box::new(r))),
+                        Box::new(LinearConstrainedPhi::Or(Box::new(not_q), Box::new(p))),
+                        Box::new(LinearConstrainedPhi::Or(Box::new(q), Box::new(r))),
                     )
                 };
             }

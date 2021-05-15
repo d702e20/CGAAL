@@ -35,9 +35,9 @@ pub struct LinearProgrammingSearch {
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
     phi_mapper: ConstrainedPhiMapper,
-    /// Maps the hash of a Phi and usize of state, to a result state and distance
+    /// Caches the linear programming solution state and distance of ATL vertices
     result_cache: HashMap<AtlVertex, (State, i32)>,
-    /// Maps phi to a LinearConstrainedPhi
+    /// Caches the LinearConstrainedPhi version of Phis
     phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
     // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
@@ -172,7 +172,7 @@ impl LinearProgrammingSearch {
                         best = Some((State(sol_state), man_dist));
                     }
                 } else {
-                    // We our first possible a solution
+                    // We got our first possible a solution
                     best = Some((State(sol_state), man_dist));
                 }
             }
