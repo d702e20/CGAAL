@@ -28,6 +28,9 @@ macro_rules! json_model_path_prefix {
 macro_rules! bench_json {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
+            // Write header for stats if enabled
+            #[cfg(feature = "use-counts")]
+            eprintln!(concat!("[stats] bench_run_start: ", stringify!($name)));
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
                     let game_structure: EagerGameStructure = serde_json::from_str(include_str!(
@@ -60,6 +63,9 @@ macro_rules! bench_json {
 macro_rules! bench_lcgs {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
+            // Write header for stats if enabled
+            #[cfg(feature = "use-counts")]
+            eprintln!(concat!("[stats] bench_run_start: ", stringify!($name)));
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
                     let lcgs = parse_lcgs(include_str!(concat!(lcgs_model_path_prefix!(), $model)))
@@ -98,8 +104,19 @@ macro_rules! bench_lcgs_threads {
             let mut group = c.benchmark_group(stringify!($name));
 
             for core_count in 1..num_cpus::get() + 1 {
-                let core_count = core_count as u64; //todo, 1. this should be simplified if able
-                                                    //todo, 2. is criterion throughput useful here?
+                let core_count = core_count as u64;
+
+                // Write header for stats if enabled
+                #[cfg(feature = "use-counts")]
+                eprintln!(
+                    "{}{}",
+                    concat!(
+                        "[stats] bench_run_start: ",
+                        stringify!($name),
+                        " core_count: "
+                    ),
+                    core_count
+                );
                 group.bench_with_input(
                     BenchmarkId::from_parameter(core_count),
                     &core_count,
