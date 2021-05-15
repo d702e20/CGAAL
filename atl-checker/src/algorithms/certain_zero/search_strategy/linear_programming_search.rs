@@ -2,23 +2,18 @@ use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
     ConstrainedPhiMapper, LinearConstrainedPhi,
 };
 use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
-    LinearConstraint, LinearConstraintExtractor,
+    ComparisonOp, LinearConstraint,
 };
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, UnaryOpKind};
+use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
-use crate::game_structure::Proposition;
-use crate::game_structure::State as StateUsize;
-use float_ord::FloatOrd;
 use minilp::{LinearExpr, OptimizationDirection, Problem, Variable};
 use priority_queue::PriorityQueue;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::env::var;
 use std::option::Option::Some;
 use std::sync::Arc;
 
@@ -130,6 +125,11 @@ impl LinearOptimizeSearch {
             let mut problem = Problem::new(OptimizationDirection::Minimize);
 
             for constraint in &constraints {
+                if constraint.comparison == ComparisonOp::NotEqual {
+                    // We skip not-equal constraints since the minilp cannot handle them.
+                    // They don't restrict the solution space in a meaning way anyway.
+                    continue;
+                }
                 // Build constraint
                 let mut lin_expr = LinearExpr::empty();
                 // The contraint is offset by the given state. This is reflected by adding
@@ -214,9 +214,11 @@ fn all_variants_rec(
             }
             variants
         }
-        // No changes to variants
-        LinearConstrainedPhi::True => variants,
         // No variants of this branch will ever be true, so we throw them all away
         LinearConstrainedPhi::False => vec![],
+        // No changes to variants
+        LinearConstrainedPhi::True => variants,
+        // No changes to variants
+        LinearConstrainedPhi::NonLinear => variants,
     }
 }

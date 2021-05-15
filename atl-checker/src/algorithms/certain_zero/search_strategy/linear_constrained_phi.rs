@@ -6,12 +6,9 @@ use crate::game_structure::lcgs::ast::{
     BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind,
 };
 use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use crate::game_structure::Proposition;
-use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 /// A structure describing the relation between linear constraints in a ATL formula
 #[derive(Clone)]
@@ -27,26 +24,6 @@ pub enum LinearConstrainedPhi {
     NonLinear,
     True,
     False,
-}
-
-impl LinearConstrainedPhi {
-    /// Change this constrained phi to its negation
-    pub fn negated(&self) -> Self {
-        match self {
-            LinearConstrainedPhi::Or(lhs, rhs) => {
-                LinearConstrainedPhi::And(Box::new(lhs.negate()), Box::new(rhs.negate()))
-            }
-            LinearConstrainedPhi::And(lhs, rhs) => {
-                LinearConstrainedPhi::Or(Box::new(lhs.negate()), Box::new(rhs.negate()))
-            }
-            LinearConstrainedPhi::Constraint(constraint) => {
-                LinearConstrainedPhi::Constraint(constraint.negated())
-            }
-            LinearConstrainedPhi::True => LinearConstrainedPhi::False,
-            LinearConstrainedPhi::False => LinearConstrainedPhi::True,
-            LinearConstrainedPhi::NonLinear => LinearConstrainedPhi::NonLinear,
-        }
-    }
 }
 
 pub struct ConstrainedPhiMapper {
@@ -234,13 +211,13 @@ impl ConstrainedPhiMapper {
                 let r = self.map_expr_to_constraints(r, negated);
                 return if !negated {
                     LinearConstrainedPhi::Or(
-                        Box::new(LinearConstrainedPhi::And(Box::new(q), Box::new(p))),
-                        Box::from(LinearConstrainedPhi::And(Box::new(q.clone()), Box::new(r))),
+                        Box::new(LinearConstrainedPhi::And(Box::new(q.clone()), Box::new(p))),
+                        Box::from(LinearConstrainedPhi::And(Box::new(q), Box::new(r))),
                     )
                 } else {
                     LinearConstrainedPhi::And(
-                        Box::new(LinearConstrainedPhi::Or(Box::new(q), Box::new(p))),
-                        Box::from(LinearConstrainedPhi::Or(Box::new(q.clone()), Box::new(r))),
+                        Box::new(LinearConstrainedPhi::Or(Box::new(q.clone()), Box::new(p))),
+                        Box::from(LinearConstrainedPhi::Or(Box::new(q), Box::new(r))),
                     )
                 };
             }

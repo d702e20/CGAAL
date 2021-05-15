@@ -1,22 +1,15 @@
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
     ConstrainedPhiMapper, LinearConstrainedPhi,
 };
-use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
-    ComparisonOp, LinearConstraint, LinearConstraintExtractor,
-};
+use crate::algorithms::certain_zero::search_strategy::linear_constraints::LinearConstraint;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::{
-    BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind,
-};
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
 use float_ord::FloatOrd;
 use priority_queue::PriorityQueue;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
@@ -174,6 +167,7 @@ impl LinearOptimizeSearch {
             }
             LinearConstrainedPhi::True => Some(FloatOrd(0.0)),
             LinearConstrainedPhi::False => None,
+            LinearConstrainedPhi::NonLinear => None,
         }
     }
 }
