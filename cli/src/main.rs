@@ -20,6 +20,7 @@ use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
@@ -54,6 +55,7 @@ enum ModelType {
 /// Valid search strategies options
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum SearchStrategyOption {
+    Los,
     Bfs,
     Dfs,
     Dhs,
@@ -72,6 +74,8 @@ impl SearchStrategyOption {
         prioritise_back_propagation: bool,
     ) -> VertexAssignment {
         match self {
+            SearchStrategyOption::Los => panic!("Linear optimization cannot be called generically"),
+
             SearchStrategyOption::Bfs => distributed_certain_zero(
                 edg,
                 v0,
@@ -155,6 +159,26 @@ fn main_inner() -> Result<(), String> {
             }
         }
         ("solver", Some(solver_args)) => {
+            fn quiet_output_handle(result: VertexAssignment, quiet_flag: bool) {
+                match result {
+                    VertexAssignment::True => {
+                        if !quiet_flag {
+                            println!("Model satisfies formula: {}", result);
+                        }
+                        std::process::exit(42);
+                    }
+                    VertexAssignment::False => {
+                        if !quiet_flag {
+                            println!("Model satisfies formula: {}", result);
+                        }
+                        std::process::exit(43);
+                    }
+                    VertexAssignment::Undecided => {
+                        eprintln!("Model-checking gave {}, something is broken!", result);
+                        std::process::exit(1);
+                    }
+                }
+            }
             let input_model_path = solver_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
@@ -162,21 +186,6 @@ fn main_inner() -> Result<(), String> {
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
-
-            // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
-            fn check_model<G>(
-                graph: AtlDependencyGraph<G>,
-                v0: AtlVertex,
-                threads: u64,
-                ss: SearchStrategyOption,
-                prioritise_back_propagation: bool,
-            ) where
-                G: GameStructure + Send + Sync + Clone + Debug + 'static,
-            {
-                let result =
-                    ss.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation);
-                println!("Result: {}", result);
-            }
 
             let threads = match solver_args.value_of("threads") {
                 None => num_cpus::get() as u64,
@@ -189,43 +198,69 @@ fn main_inner() -> Result<(), String> {
                 formula_path,
                 formula_format,
                 |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
+                    if !solver_args.is_present("quiet") {
+                        println!(
+                            "Checking the formula: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                    }
                     let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
                     let graph = AtlDependencyGraph { game_structure };
-                    check_model(
-                        graph,
-                        v0,
-                        threads,
-                        search_strategy,
-                        prioritise_back_propagation,
-                    );
+                    let result = match search_strategy {
+                        SearchStrategyOption::Los => {
+                            return Err(
+                                "Linear optimization search is not supported for JSON models",
+                            )
+                        }
+                        _ => search_strategy.distributed_certain_zero(
+                            graph,
+                            v0,
+                            threads,
+                            prioritise_back_propagation,
+                        ),
+                    };
+                    quiet_output_handle(result, solver_args.is_present("quiet"));
+                    Ok(())
                 },
                 |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
+                    if !solver_args.is_present("quiet") {
+                        println!(
+                            "Checking the formula: {}",
+                            formula.in_context_of(&game_structure)
+                        );
+                    }
+
                     let arc = Arc::from(formula);
                     let graph = AtlDependencyGraph { game_structure };
                     let v0 = AtlVertex::Full {
                         state: graph.game_structure.initial_state_index(),
                         formula: arc,
                     };
-                    check_model(
-                        graph,
-                        v0,
-                        threads,
-                        search_strategy,
-                        prioritise_back_propagation,
-                    );
+                    let result = match search_strategy {
+                        SearchStrategyOption::Los => {
+                            let copy = graph.game_structure.clone();
+                            distributed_certain_zero(
+                                graph,
+                                v0,
+                                threads,
+                                LinearOptimizeSearchBuilder { game: copy },
+                                prioritise_back_propagation,
+                            )
+                        }
+                        _ => search_strategy.distributed_certain_zero(
+                            graph,
+                            v0,
+                            threads,
+                            prioritise_back_propagation,
+                        ),
+                    };
+                    quiet_output_handle(result, solver_args.is_present("quiet"));
+                    Ok(())
                 },
-            )?
+            )??
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -369,7 +404,7 @@ fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_
 }
 
 /// Determine the model type (either "json" or "lcgs") by reading the the
-/// --model_type argument or inferring it from the model's path extension.  
+/// --model_type argument or inferring it from the model's path extension.
 fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     match args.value_of("model_type") {
         Some("lcgs") => Ok(ModelType::Lcgs),
@@ -416,7 +451,8 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
         Some("bfs") => Ok(SearchStrategyOption::Bfs),
         Some("dfs") => Ok(SearchStrategyOption::Dfs),
         Some("dhs") => Ok(SearchStrategyOption::Dhs),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies: \"bfs\", \"dfs\", \"dhs\" [default is \"bfs\"]", other)),
+        Some("los") => Ok(SearchStrategyOption::Los),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\", \"dfs\", \"los\", \"dhs\"  [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
     }
@@ -496,6 +532,15 @@ fn parse_arguments() -> ArgMatches<'static> {
                         .long("threads")
                         .env("THREADS")
                         .help("Number of threads to run solver on"),
+                )
+                .arg(
+                    Arg::with_name("quiet")
+                        .short("q")
+                        .takes_value(false)
+                        .long("quiet")
+                        .help(
+                            "Suppress stdout and only return exitcode 42 for true result or 43 for false",
+                        ),
                 ),
         )
         .subcommand(
