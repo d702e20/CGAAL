@@ -24,7 +24,7 @@ macro_rules! json_model_path_prefix {
     };
 }
 
-/// Benchmark solver given json-model and -formula. TODO; deprecated but retained for future use
+/// Benchmark solver given json-model and -formula
 macro_rules! bench_json {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
