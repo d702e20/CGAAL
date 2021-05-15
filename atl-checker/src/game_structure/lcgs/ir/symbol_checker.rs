@@ -121,10 +121,10 @@ impl<'a> SymbolChecker<'a> {
                     // The player exists, so now we fetch the symbol
                     let owner = Owner::Player(player_name.to_string());
                     self.symbols
-                            .get(&owner, &name)
-                            .ok_or(SymbolError {
-                                msg: format!("Unknown identifier '{}.{}'. The player does not own a declaration of that name.", owner, name)
-                            })?
+                        .get(&owner, &name)
+                        .ok_or(SymbolError {
+                            msg: format!("Unknown identifier '{}.{}'. The player does not own a declaration of that name.", owner, name)
+                        })?
                 } else {
                     // Player is omitted. Assume it is scope owner. If not, then try global.
                     self.symbols

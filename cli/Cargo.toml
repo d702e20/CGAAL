@@ -13,6 +13,10 @@ authors = [
 ]
 edition = "2018"
 
+[features]
+default = ["graph-printer"]
+graph-printer = []
+
 [dependencies]
 num_cpus = "1.13.0"
 git-version = "0.3.4"
