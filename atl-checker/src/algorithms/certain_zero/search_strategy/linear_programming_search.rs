@@ -17,20 +17,20 @@ use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
 
-/// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
-pub struct LinearOptimizeSearchBuilder {
+/// A SearchStrategyBuilder for building the LinearProgrammingSearch strategy.
+pub struct LinearProgrammingSearchBuilder {
     pub game: IntermediateLcgs,
 }
 
-impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
-    fn build(&self) -> LinearOptimizeSearch {
-        LinearOptimizeSearch::new(self.game.clone())
+impl SearchStrategyBuilder<AtlVertex, LinearProgrammingSearch> for LinearProgrammingSearchBuilder {
+    fn build(&self) -> LinearProgrammingSearch {
+        LinearProgrammingSearch::new(self.game.clone())
     }
 }
 
 /// Search strategy using ideas from linear programming to order next vertices,
 /// based on distance from the vertex to a region that borders the line between true/false in the formula.
-pub struct LinearOptimizeSearch {
+pub struct LinearProgrammingSearch {
     /// Priority based on distance, lowest distance highest priority
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
@@ -43,9 +43,9 @@ pub struct LinearOptimizeSearch {
     // TODO - to acceptance region, based on previous results (Mathias supervisor suggestion)
 }
 
-impl LinearOptimizeSearch {
-    pub fn new(game: IntermediateLcgs) -> LinearOptimizeSearch {
-        LinearOptimizeSearch {
+impl LinearProgrammingSearch {
+    pub fn new(game: IntermediateLcgs) -> LinearProgrammingSearch {
+        LinearProgrammingSearch {
             queue: PriorityQueue::new(),
             game,
             phi_mapper: ConstrainedPhiMapper::new(),
@@ -55,7 +55,7 @@ impl LinearOptimizeSearch {
     }
 }
 
-impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
+impl SearchStrategy<AtlVertex> for LinearProgrammingSearch {
     /// Simply returns the edge with highest priority (i.e lowest distance)
     fn next(&mut self) -> Option<Edge<AtlVertex>> {
         self.queue.pop().map(|(edge, _)| edge)
@@ -78,7 +78,7 @@ impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
     }
 }
 
-impl LinearOptimizeSearch {
+impl LinearProgrammingSearch {
     /// Finds the distance of an edge using linear programming
     fn get_distance_of_edge(&mut self, edge: &Edge<AtlVertex>) -> Option<i32> {
         let source = edge.source();
