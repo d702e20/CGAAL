@@ -236,9 +236,14 @@ impl ConstrainedPhiMapper {
                         Box::new(LinearConstrainedPhi::And(Box::new(not_q), Box::new(r))),
                     )
                 } else {
+                    // If negated, then we want to produce not (Q and P) or (not Q and R)
+                    // == (not (Q and P)) and (not (not Q and R))
+                    // == (not Q or not P) and (Q or not R)
+                    // And all terms are negated since negated was passed to it, so ultimately
+                    // we get (Q or P) and (not Q or R)
                     LinearConstrainedPhi::And(
-                        Box::new(LinearConstrainedPhi::Or(Box::new(not_q), Box::new(p))),
-                        Box::new(LinearConstrainedPhi::Or(Box::new(q), Box::new(r))),
+                        Box::new(LinearConstrainedPhi::Or(Box::new(q), Box::new(p))),
+                        Box::new(LinearConstrainedPhi::Or(Box::new(not_q), Box::new(r))),
                     )
                 };
             }
