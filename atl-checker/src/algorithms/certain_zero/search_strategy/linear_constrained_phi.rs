@@ -31,10 +31,10 @@ impl LinearConstrainedPhi {
     pub fn negated(&self) -> Self {
         match self {
             LinearConstrainedPhi::Or(lhs, rhs) => {
-                LinearConstrainedPhi::And(Box::new(lhs.negate()), Box::new(rhs.negate()))
+                LinearConstrainedPhi::And(Box::new(lhs.negated()), Box::new(rhs.negated()))
             }
             LinearConstrainedPhi::And(lhs, rhs) => {
-                LinearConstrainedPhi::Or(Box::new(lhs.negate()), Box::new(rhs.negate()))
+                LinearConstrainedPhi::Or(Box::new(lhs.negated()), Box::new(rhs.negated()))
             }
             LinearConstrainedPhi::Constraint(constraint) => {
                 LinearConstrainedPhi::Constraint(constraint.negated())

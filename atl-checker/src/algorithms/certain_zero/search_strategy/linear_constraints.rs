@@ -42,6 +42,9 @@ impl Display for ComparisonOp {
 
 impl From<ComparisonOp> for minilp::ComparisonOp {
     fn from(op: ComparisonOp) -> Self {
+        // We are bound to lose some precision here, however, this should not matter for the
+        // linear programming solutions. Except for NotEqual becoming Equal, but, we don't
+        // include NotEqual's in our linear problems anyway, since they are almost always true.
         match op {
             ComparisonOp::Equal | ComparisonOp::NotEqual => minilp::ComparisonOp::Eq,
             ComparisonOp::Less | ComparisonOp::LessOrEq => minilp::ComparisonOp::Le,
