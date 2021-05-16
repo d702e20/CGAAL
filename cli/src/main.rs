@@ -308,51 +308,6 @@ fn main_inner() -> Result<(), String> {
                 },
             )??
         }
-        ("global", Some(global_args)) => {
-            let model_type = get_model_type_from_args(&global_args)?;
-            let input_model_path = global_args.value_of("input_model").unwrap();
-            let formula_path = global_args.value_of("formula").unwrap();
-            let formula_format = get_formula_format_from_args(&global_args)?;
-
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                formula_format,
-                |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
-                    let v0 = AtlVertex::Full {
-                        state: 0,
-                        formula: Arc::from(formula),
-                    };
-                    let graph = AtlDependencyGraph { game_structure };
-                    let result = GlobalAlgorithm::new(graph, v0).run();
-                    println!("Result: {}", result);
-                    if false {
-                        return Err("something");
-                    }
-                    Ok(())
-                },
-                |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
-                    let arc = Arc::from(formula);
-                    let graph = AtlDependencyGraph { game_structure };
-                    let v0 = AtlVertex::Full {
-                        state: graph.game_structure.initial_state_index(),
-                        formula: arc,
-                    };
-                    let result = GlobalAlgorithm::new(graph, v0).run();
-                    println!("Result: {}", result);
-                    Ok(())
-                },
-            )??
-        }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&analyse_args)?;
