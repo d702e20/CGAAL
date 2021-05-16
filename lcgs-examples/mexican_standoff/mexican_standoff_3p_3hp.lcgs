@@ -2,9 +2,9 @@
 
 const max_health = 3;
 
-player p0 = shooter [target1=p2, target2=p3];
-player p1 = shooter [target1=p3, target2=p1];
-player p2 = shooter [target1=p1, target2=p2];
+player p0 = shooter [target1=p1, target2=p2];
+player p1 = shooter [target1=p2, target2=p0];
+player p2 = shooter [target1=p0, target2=p1];
 
 template shooter
     label alive = health > 0;
