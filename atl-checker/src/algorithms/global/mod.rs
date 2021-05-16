@@ -23,7 +23,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
         }
     }
 
-    /// Firing the global algorithm, which simply reapplying the F_i function explained in the paper
+    /// Firing the global algorithm, which simply reapplies the F_i function explained in the paper
     /// until the assignment does not change anymore. Lastly the assignment of the root, v0, is returned
     pub fn run(&mut self) -> bool {
         self.initialize();
