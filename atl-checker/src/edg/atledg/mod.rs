@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 pub mod annotated;
+pub mod format;
 pub mod pmoves;
 pub mod vertex;
 

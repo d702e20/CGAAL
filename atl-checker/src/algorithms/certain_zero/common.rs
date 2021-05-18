@@ -15,6 +15,15 @@ pub enum VertexAssignment {
 }
 
 impl VertexAssignment {
+    /// Returns assignment as some bool, or none if undecided
+    pub fn to_bool(&self) -> Option<bool> {
+        match self {
+            VertexAssignment::Undecided => None,
+            VertexAssignment::False => Some(false),
+            VertexAssignment::True => Some(true),
+        }
+    }
+
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
         return matches!(self, VertexAssignment::True | VertexAssignment::False);

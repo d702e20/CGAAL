@@ -1,5 +1,5 @@
 use crate::algorithms::certain_zero::common::VertexAssignment;
-use crate::algorithms::certain_zero::game_strategy::PartialStrategy;
+use crate::algorithms::game_strategy::PartialStrategy;
 use crate::atl::Phi;
 use crate::edg::annotated_edg::{AnnotatedEdge, AnnotatedExtendedDependencyGraph};
 use crate::edg::atledg::pmoves::PartialMove;
@@ -57,35 +57,16 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                     }
                 }
             }
-            Phi::EnforceEventually { .. } => {
+            Phi::EnforceInvariant { .. } => {
+                // Invariants belong to the maximum fixed point domain, so it only has one
+                // negation edge to an EnforceUntil. Let's visit that one instead.
                 let edges = graph.annotated_succ(vertex);
-                // Find the first hyper-edge where all targets are true
-                for edge in edges {
-                    if let AnnotatedEdge::Hyper(edge) = edge {
-                        let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                            matches!(assignments.get(t), Some(VertexAssignment::True))
-                        });
-
-                        if all_targets_true {
-                            // We have found the partial move that will guarantee the property
-                            move_to_pick.insert(*state, edge.annotation.unwrap());
-
-                            // Recurse to find the moves of the next states
-                            for (target, _) in edge.targets {
-                                compute_enforcing_strategy_rec(
-                                    graph,
-                                    &target,
-                                    assignments,
-                                    move_to_pick,
-                                );
-                            }
-                        }
-                    }
+                if let Some(AnnotatedEdge::Negation(_edge)) = edges.get(0) {
+                    // TODO compute_despite_strategy_rec(graph, &edge.target, assignments, move_to_pick);
+                    unimplemented!()
                 }
             }
-            // Invariant and Until is similar. In both we want to check if the subformula is true
-            // in the current state, or otherwise find the first hyper-edge with all true targets.
-            Phi::EnforceInvariant { .. } | Phi::EnforceUntil { .. } => {
+            Phi::EnforceEventually { .. } | Phi::EnforceUntil { .. } => {
                 let mut edges = graph.annotated_succ(vertex);
                 let mut edges_drain = edges.drain(..);
 
@@ -123,6 +104,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                                     move_to_pick,
                                 );
                             }
+                            return;
                         }
                     }
                 }

@@ -15,16 +15,15 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::args::CommonArgs;
-use atl_checker::algorithms::certain_zero::common::VertexAssignment;
-use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult, SpecificationProof};
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::AtlVertex;
 use atl_checker::edg::atledg::AtlDependencyGraph;
-use atl_checker::edg::{ExtendedDependencyGraph, Vertex};
+use atl_checker::edg::ExtendedDependencyGraph;
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
@@ -62,37 +61,38 @@ enum SearchStrategyOption {
 
 impl SearchStrategyOption {
     /// Run the distributed certain zero algorithm using the given search strategy
-    pub fn distributed_certain_zero<
-        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-        V: Vertex + Send + Sync + 'static,
-    >(
+    pub fn model_check<G: GameStructure + Send + Sync + Clone + Debug + 'static>(
         &self,
-        edg: G,
-        v0: V,
+        edg: AtlDependencyGraph<G>,
+        v0: AtlVertex,
         worker_count: u64,
         prioritise_back_propagation: bool,
-    ) -> VertexAssignment {
+        find_game_strategy: bool,
+    ) -> ModelCheckResult {
         match self {
-            SearchStrategyOption::Bfs => distributed_certain_zero(
+            SearchStrategyOption::Bfs => model_check(
                 edg,
                 v0,
                 worker_count,
                 BreadthFirstSearchBuilder,
                 prioritise_back_propagation,
+                find_game_strategy,
             ),
-            SearchStrategyOption::Dfs => distributed_certain_zero(
+            SearchStrategyOption::Dfs => model_check(
                 edg,
                 v0,
                 worker_count,
                 DepthFirstSearchBuilder,
                 prioritise_back_propagation,
+                find_game_strategy,
             ),
-            SearchStrategyOption::Dhs => distributed_certain_zero(
+            SearchStrategyOption::Dhs => model_check(
                 edg,
                 v0,
                 worker_count,
                 DependencyHeuristicSearchBuilder,
                 prioritise_back_propagation,
+                find_game_strategy,
             ),
         }
     }
@@ -163,6 +163,7 @@ fn main_inner() -> Result<(), String> {
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
+            let game_strategy_path = solver_args.value_of("game_strategy");
 
             // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
             fn check_model<G>(
@@ -171,12 +172,48 @@ fn main_inner() -> Result<(), String> {
                 threads: u64,
                 ss: SearchStrategyOption,
                 prioritise_back_propagation: bool,
-            ) where
+                game_strategy_path: Option<&str>,
+            ) -> Result<(), String>
+            where
                 G: GameStructure + Send + Sync + Clone + Debug + 'static,
             {
-                let result =
-                    ss.distributed_certain_zero(graph, v0, threads, prioritise_back_propagation);
-                println!("Result: {}", result);
+                let result = ss.model_check(
+                    graph.clone(),
+                    v0,
+                    threads,
+                    prioritise_back_propagation,
+                    game_strategy_path.is_some(),
+                );
+                println!("Result: {}", &result.satisfied);
+
+                if let Some(game_strategy_path) = game_strategy_path {
+                    let proof_res = result.proof.unwrap();
+                    match proof_res {
+                        Ok(proof) => match proof {
+                            SpecificationProof::Strategy(strategy) => {
+                                let mut file = File::create(game_strategy_path).map_err(|err| {
+                                    format!("Failed to create game strategy output file.\n{}", err)
+                                })?;
+                                write!(file, "{}", strategy.in_context_of(&graph.game_structure))
+                                    .map_err(|err| {
+                                    format!("Failed to write game strategy file. {}", err)
+                                })?;
+                                println!(
+                                    "Proving game strategy was saved to {}",
+                                    game_strategy_path
+                                );
+                            }
+                            SpecificationProof::NoStrategyNeeded => {
+                                println!("No game strategy was computed since a strategy is not needed to prove the given query.")
+                            }
+                        },
+                        Err(err) => {
+                            println!("Game strategy was not computed due to error: {}", err)
+                        }
+                    }
+                }
+
+                Ok(())
             }
 
             let threads = match solver_args.value_of("threads") {
@@ -205,7 +242,8 @@ fn main_inner() -> Result<(), String> {
                         threads,
                         search_strategy,
                         prioritise_back_propagation,
-                    );
+                        game_strategy_path,
+                    )
                 },
                 |game_structure, formula| {
                     println!(
@@ -224,9 +262,10 @@ fn main_inner() -> Result<(), String> {
                         threads,
                         search_strategy,
                         prioritise_back_propagation,
-                    );
+                        game_strategy_path,
+                    )
                 },
-            )?
+            )??
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -491,6 +530,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_arg()
                 .add_formula_format_arg()
                 .add_search_strategy_arg()
+                .add_game_strategy_arg()
                 .arg(
                     Arg::with_name("threads")
                         .short("r")

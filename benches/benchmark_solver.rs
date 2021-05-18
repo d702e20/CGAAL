@@ -65,6 +65,7 @@ macro_rules! bench_lcgs {
                         num_cpus::get() as u64,
                         BreadthFirstSearchBuilder,
                         true,
+                        false,
                     );
                 });
             });
@@ -109,6 +110,7 @@ macro_rules! bench_lcgs_threads {
                                 core_count,
                                 BreadthFirstSearchBuilder,
                                 true,
+                                false,
                             );
                         });
                     },

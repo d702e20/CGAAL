@@ -1,3 +1,4 @@
+use crate::edg::atledg::format::PartialMoveWithFormatting;
 use crate::game_structure::{GameStructure, Player, State};
 use std::collections::HashSet;
 use std::convert::From;
@@ -35,6 +36,23 @@ impl Index<Player> for PartialMove {
 
     fn index(&self, index: Player) -> &Self::Output {
         &self.0[index]
+    }
+}
+
+impl PartialMove {
+    /// Creates a triple of a partial move with its game structure and the relevant state,
+    /// allowing us to print the move using the names of players and moves as defined by
+    /// the game structure.
+    pub fn in_context_of<'a, G: GameStructure>(
+        &'a self,
+        game: &'a G,
+        state: &'a State,
+    ) -> PartialMoveWithFormatting<'a, G> {
+        PartialMoveWithFormatting {
+            pmove: self,
+            game,
+            state,
+        }
     }
 }
 

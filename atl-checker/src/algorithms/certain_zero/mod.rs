@@ -17,8 +17,14 @@ use tracing::{span, trace, Level};
 
 pub mod com;
 pub mod common;
-pub mod game_strategy;
 pub mod search_strategy;
+
+pub enum CertainZeroResult<V: Vertex> {
+    /// Assignment of root of EDG
+    RootAssignment(VertexAssignment),
+    /// All certain assignments. May not contain an assignment for all vertices
+    AllFoundAssignments(HashMap<V, VertexAssignment>),
+}
 
 // Based on the algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 pub fn distributed_certain_zero<
@@ -32,7 +38,8 @@ pub fn distributed_certain_zero<
     worker_count: u64,
     ss_builder: SB,
     prioritise_back_propagation: bool,
-) -> VertexAssignment {
+    return_all_assignments: bool,
+) -> CertainZeroResult<V> {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
 
     let (mut brokers, manager_broker) = ChannelBroker::new(worker_count);
@@ -53,28 +60,33 @@ pub fn distributed_certain_zero<
         });
     }
 
-    let assignment = manager_broker
+    let root_assignment = manager_broker
         .receive_result()
         .expect("Error receiving final assigment on termination");
-    trace!(v0_assignment = ?assignment, "Found assignment of v0");
+    trace!(v0_assignment = ?root_assignment, "Found assignment of v0");
 
-    // All assignments is received and collected to a single hashmap
-    let mut combined = HashMap::<V, VertexAssignment>::new();
-    for _ in 0..worker_count {
-        let assignments = manager_broker
-            .receive_assignment()
-            .expect("Error receiving the assignment table");
+    if return_all_assignments {
+        // All assignments is received and collected to a single hashmap
+        let mut combined = HashMap::<V, VertexAssignment>::new();
+        combined.insert(v0, root_assignment);
+        for _ in 0..worker_count {
+            let assignments = manager_broker
+                .receive_assignment()
+                .expect("Error receiving the assignment table");
 
-        for (vertex, v) in assignments {
-            let new_ass = match combined.get(&vertex) {
-                Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
-                None => v,
-            };
-            combined.insert(vertex, new_ass);
+            for (vertex, v) in assignments {
+                let new_ass = match combined.get(&vertex) {
+                    Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
+                    None => v,
+                };
+                combined.insert(vertex, new_ass);
+            }
         }
-    }
 
-    assignment
+        CertainZeroResult::AllFoundAssignments(combined)
+    } else {
+        CertainZeroResult::RootAssignment(root_assignment)
+    }
 }
 
 #[derive(Debug)]
@@ -858,12 +870,14 @@ mod test {
         };
         // With custom names and worker count
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
-            assert_eq!(
-                crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder, true),
-                crate::algorithms::certain_zero::common::VertexAssignment::$assign,
-                "Vertex {}",
-                stringify!($v)
-            );
+            if let crate::algorithms::certain_zero::CertainZeroResult::RootAssignment(root_ass) = crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder, true, false) {
+                assert_eq!(
+                    root_ass,
+                    crate::algorithms::certain_zero::common::VertexAssignment::$assign,
+                    "Vertex {}",
+                    stringify!($v)
+                );
+            }
         };
     }
 
