@@ -3,6 +3,10 @@ use crate::edg::{Edge, NegationEdge, Vertex};
 pub mod bfs;
 pub mod dependency_heuristic;
 pub mod dfs;
+mod linear_constrained_phi;
+mod linear_constraints;
+pub mod linear_optimize;
+pub mod linear_programming_search;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
 /// certain zero algorithm.

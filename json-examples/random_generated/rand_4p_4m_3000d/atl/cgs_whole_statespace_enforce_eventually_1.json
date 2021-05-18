@@ -1,0 +1,1 @@
+{"enforce eventually": {"players": [0, 1, 2, 3], "formula": {"and": [{"proposition": 10}, {"proposition": 6}]}}}

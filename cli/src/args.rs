@@ -6,7 +6,7 @@ pub(crate) trait CommonArgs {
     fn add_input_model_arg(self) -> Self;
     fn add_input_model_type_arg(self) -> Self;
     fn add_formula_arg(self) -> Self;
-    fn add_formula_format_arg(self) -> Self;
+    fn add_formula_type_arg(self) -> Self;
     fn add_output_arg(self, required: bool) -> Self;
     fn add_search_strategy_arg(self) -> Self;
     fn add_game_strategy_arg(self) -> Self;
@@ -50,13 +50,13 @@ impl CommonArgs for App<'_, '_> {
     }
 
     /// Adds "--formula-format" as an optional argument
-    fn add_formula_format_arg(self) -> Self {
+    fn add_formula_type_arg(self) -> Self {
         self.arg(
-            Arg::with_name("formula_format")
+            Arg::with_name("formula_type")
                 .short("y")
-                .long("formula-format")
-                .env("FORMULA_FORMAT")
-                .help("The format of ATL formula file given {{json, text}}"),
+                .long("formula-type")
+                .env("FORMULA_TYPE")
+                .help("The type of ATL formula file given {{json, atl}}"),
         )
     }
 
@@ -79,7 +79,7 @@ impl CommonArgs for App<'_, '_> {
                 .short("s")
                 .long("search-strategy")
                 .env("SEARCH_STRATEGY")
-                .help("The search strategy used {{bfs, dfs, dhs}}"),
+                .help("The search strategy used {{bfs, dfs, los, lps, dhs}}"),
         )
         .arg(
             Arg::with_name("no_prioritised_back_propagation")

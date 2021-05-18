@@ -1,4 +1,5 @@
 mod args;
+mod solver;
 
 #[no_link]
 extern crate git_version;
@@ -15,10 +16,12 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::args::CommonArgs;
+use crate::solver::solver;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult, SpecificationProof};
+use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult};
+use atl_checker::algorithms::global::GlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::AtlVertex;
@@ -39,7 +42,7 @@ const GIT_VERSION: &str = git_version!(fallback = "unknown");
 
 /// The formula types that the system supports
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum FormulaFormat {
+enum FormulaType {
     Json,
     Atl,
 }
@@ -53,7 +56,9 @@ enum ModelType {
 
 /// Valid search strategies options
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum SearchStrategyOption {
+pub enum SearchStrategyOption {
+    Los,
+    Lps,
     Bfs,
     Dfs,
     Dhs,
@@ -70,6 +75,8 @@ impl SearchStrategyOption {
         find_game_strategy: bool,
     ) -> ModelCheckResult {
         match self {
+            SearchStrategyOption::Los => panic!("Linear optimization cannot be called generically"),
+            SearchStrategyOption::Lps => panic!("Linear programming cannot be called generically"),
             SearchStrategyOption::Bfs => model_check(
                 edg,
                 v0,
@@ -159,119 +166,68 @@ fn main_inner() -> Result<(), String> {
             let input_model_path = solver_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
-            let formula_format = get_formula_format_from_args(&solver_args)?;
+            let formula_type = get_formula_type_from_args(&solver_args)?;
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
             let game_strategy_path = solver_args.value_of("game_strategy");
-
-            // Generic start function for use with `load` that start model checking with `distributed_certain_zero`
-            fn check_model<G>(
-                graph: AtlDependencyGraph<G>,
-                v0: AtlVertex,
-                threads: u64,
-                ss: SearchStrategyOption,
-                prioritise_back_propagation: bool,
-                game_strategy_path: Option<&str>,
-            ) -> Result<(), String>
-            where
-                G: GameStructure + Send + Sync + Clone + Debug + 'static,
-            {
-                let result = ss.model_check(
-                    graph.clone(),
-                    v0,
-                    threads,
-                    prioritise_back_propagation,
-                    game_strategy_path.is_some(),
-                );
-                println!("Result: {}", &result.satisfied);
-
-                if let Some(game_strategy_path) = game_strategy_path {
-                    let proof_res = result.proof.unwrap();
-                    match proof_res {
-                        Ok(proof) => match proof {
-                            SpecificationProof::Strategy(strategy) => {
-                                let mut file = File::create(game_strategy_path).map_err(|err| {
-                                    format!("Failed to create game strategy output file.\n{}", err)
-                                })?;
-                                write!(file, "{}", strategy.in_context_of(&graph.game_structure))
-                                    .map_err(|err| {
-                                    format!("Failed to write game strategy file. {}", err)
-                                })?;
-                                println!(
-                                    "Proving game strategy was saved to {}",
-                                    game_strategy_path
-                                );
-                            }
-                            SpecificationProof::NoStrategyNeeded => {
-                                println!("No game strategy was computed since a strategy is not needed to prove the given query.")
-                            }
-                        },
-                        Err(err) => {
-                            println!("Game strategy was not computed due to error: {}", err)
-                        }
-                    }
-                }
-
-                Ok(())
-            }
+            let quiet = solver_args.is_present("quiet");
 
             let threads = match solver_args.value_of("threads") {
                 None => num_cpus::get() as u64,
                 Some(t_arg) => t_arg.parse().unwrap(),
             };
 
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                formula_format,
-                |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
+            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+            solver(
+                model_and_formula,
+                threads,
+                search_strategy,
+                prioritise_back_propagation,
+                game_strategy_path,
+                quiet,
+            )?;
+        }
+        ("global", Some(global_args)) => {
+            let model_type = get_model_type_from_args(&global_args)?;
+            let input_model_path = global_args.value_of("input_model").unwrap();
+            let formula_path = global_args.value_of("formula").unwrap();
+            let formula_type = get_formula_type_from_args(&global_args)?;
+
+            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+
+            let result = match model_and_formula {
+                ModelAndFormula::Lcgs { model, formula } => {
+                    println!("Checking the formula: {}", formula.in_context_of(&model));
+                    let v0 = AtlVertex::Full {
+                        state: model.initial_state_index(),
+                        formula: Arc::from(formula),
+                    };
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
+                    };
+                    GlobalAlgorithm::new(graph, v0).run()
+                }
+                ModelAndFormula::Json { model, formula } => {
+                    println!("Checking the formula: {}", formula.in_context_of(&model));
                     let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
-                    let graph = AtlDependencyGraph { game_structure };
-                    check_model(
-                        graph,
-                        v0,
-                        threads,
-                        search_strategy,
-                        prioritise_back_propagation,
-                        game_strategy_path,
-                    )
-                },
-                |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
-                    let arc = Arc::from(formula);
-                    let graph = AtlDependencyGraph { game_structure };
-                    let v0 = AtlVertex::Full {
-                        state: graph.game_structure.initial_state_index(),
-                        formula: arc,
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
                     };
-                    check_model(
-                        graph,
-                        v0,
-                        threads,
-                        search_strategy,
-                        prioritise_back_propagation,
-                        game_strategy_path,
-                    )
-                },
-            )??
+                    GlobalAlgorithm::new(graph, v0).run()
+                }
+            };
+
+            println!("Model satisfies formula: {}", result);
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&analyse_args)?;
             let formula_path = analyse_args.value_of("formula").unwrap();
-            let formula_format = get_formula_format_from_args(&analyse_args)?;
+            let formula_type = get_formula_type_from_args(&analyse_args)?;
 
             let output_arg = analyse_args.value_of("output").unwrap();
 
@@ -288,28 +244,30 @@ fn main_inner() -> Result<(), String> {
                     .map_err(|err| format!("Failed to write to output file.\n{}", err))
             }
 
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                formula_format,
-                |game_structure, formula| {
+            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+
+            match model_and_formula {
+                ModelAndFormula::Lcgs { model, formula } => {
+                    let v0 = AtlVertex::Full {
+                        state: model.initial_state_index(),
+                        formula: Arc::from(formula),
+                    };
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
+                    };
+                    analyse_and_save(&graph, v0, output_arg)?
+                }
+                ModelAndFormula::Json { model, formula } => {
                     let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
-                    let graph = AtlDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0, output_arg)
-                },
-                |game_structure, formula| {
-                    let v0 = AtlVertex::Full {
-                        state: game_structure.initial_state_index(),
-                        formula: Arc::from(formula),
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
                     };
-                    let graph = AtlDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0, output_arg)
-                },
-            )??
+                    analyse_and_save(&graph, v0, output_arg)?
+                }
+            };
         }
         #[cfg(feature = "graph-printer")]
         ("graph", Some(graph_args)) => {
@@ -317,7 +275,7 @@ fn main_inner() -> Result<(), String> {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
                 let model_type = get_model_type_from_args(&graph_args)?;
                 let formula_path = graph_args.value_of("formula").unwrap();
-                let formula_format = get_formula_format_from_args(&graph_args)?;
+                let formula_type = get_formula_type_from_args(&graph_args)?;
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
@@ -340,37 +298,34 @@ fn main_inner() -> Result<(), String> {
                     print_graph(graph, v0, output).unwrap();
                 }
 
-                load(
-                    model_type,
-                    input_model_path,
-                    formula_path,
-                    formula_format,
-                    |game_structure, formula| {
-                        println!(
-                            "Printing graph for: {}",
-                            formula.in_context_of(&game_structure)
-                        );
-                        let v0 = AtlVertex::Full {
-                            state: 0,
-                            formula: Arc::from(formula),
-                        };
-                        let graph = AtlDependencyGraph { game_structure };
-                        print_model(graph, v0, graph_args.value_of("output"));
-                    },
-                    |game_structure, formula| {
-                        println!(
-                            "Printing graph for: {}",
-                            formula.in_context_of(&game_structure)
-                        );
+                let model_and_formula =
+                    load(model_type, input_model_path, formula_path, formula_type)?;
+
+                match model_and_formula {
+                    ModelAndFormula::Lcgs { model, formula } => {
+                        println!("Printing graph for: {}", formula.in_context_of(&model));
                         let arc = Arc::from(formula);
-                        let graph = AtlDependencyGraph { game_structure };
+                        let graph = AtlDependencyGraph {
+                            game_structure: model,
+                        };
                         let v0 = AtlVertex::Full {
                             state: graph.game_structure.initial_state_index(),
                             formula: arc,
                         };
                         print_model(graph, v0, graph_args.value_of("output"));
-                    },
-                )?
+                    }
+                    ModelAndFormula::Json { model, formula } => {
+                        println!("Printing graph for: {}", formula.in_context_of(&model));
+                        let v0 = AtlVertex::Full {
+                            state: 0,
+                            formula: Arc::from(formula),
+                        };
+                        let graph = AtlDependencyGraph {
+                            game_structure: model,
+                        };
+                        print_model(graph, v0, graph_args.value_of("output"));
+                    }
+                }
             }
         }
         _ => (),
@@ -381,7 +336,11 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_parser: &A) -> Phi {
+fn load_formula<A: AtlExpressionParser>(
+    path: &str,
+    formula_type: FormulaType,
+    expr_parser: &A,
+) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -393,12 +352,12 @@ fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_
         exit(1);
     });
 
-    match format {
-        FormulaFormat::Json => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
+    match formula_type {
+        FormulaType::Json => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
-        FormulaFormat::Atl => {
+        FormulaType::Atl => {
             let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
@@ -409,7 +368,7 @@ fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_
 }
 
 /// Determine the model type (either "json" or "lcgs") by reading the the
-/// --model_type argument or inferring it from the model's path extension.  
+/// --model_type argument or inferring it from the model's path extension.
 fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     match args.value_of("model_type") {
         Some("lcgs") => Ok(ModelType::Lcgs),
@@ -429,24 +388,24 @@ fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     }
 }
 
-/// Determine the formula format (either "json" or "atl") by reading the
+/// Determine the formula type (either "json" or "atl") by reading the
 /// --formula_format argument. If none is given, we try to infer it from the file extension
-fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, String> {
+fn get_formula_type_from_args(args: &ArgMatches) -> Result<FormulaType, String> {
     match args.value_of("formula_format") {
-        Some("json") => Ok(FormulaFormat::Json),
-        Some("atl") => Ok(FormulaFormat::Atl),
+        Some("json") => Ok(FormulaType::Json),
+        Some("atl") => Ok(FormulaType::Atl),
         None => {
             // Infer format from file extension
             let formula_path = args.value_of("formula").unwrap();
             if formula_path.ends_with(".atl") {
-                Ok(FormulaFormat::Atl)
+                Ok(FormulaType::Atl)
             } else if formula_path.ends_with(".json") {
-                Ok(FormulaFormat::Json)
+                Ok(FormulaType::Json)
             } else {
-                Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
+                Err("Cannot infer formula format from file the extension. You can specify it with '--formula_type=FORMULA_TYPE'".to_string())
             }
         },
-        Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
+        Some(format) => Err(format!("Invalid formula type '{}' specified with --formula_type. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
 
@@ -456,25 +415,33 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
         Some("bfs") => Ok(SearchStrategyOption::Bfs),
         Some("dfs") => Ok(SearchStrategyOption::Dfs),
         Some("dhs") => Ok(SearchStrategyOption::Dhs),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies: \"bfs\", \"dfs\", \"dhs\" [default is \"bfs\"]", other)),
+        Some("los") => Ok(SearchStrategyOption::Los),
+        Some("lps") => Ok(SearchStrategyOption::Lps),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\", \"dfs\", \"los\", \"dhs\"  [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
     }
 }
 
-/// Loads a model and a formula from files, and then call the handler function with the loaded model and formula.
-fn load<R, J, L>(
+/// An enum of the given model and formula types. Returned by [load].
+pub enum ModelAndFormula {
+    Lcgs {
+        model: IntermediateLcgs,
+        formula: Phi,
+    },
+    Json {
+        model: EagerGameStructure,
+        formula: Phi,
+    },
+}
+
+/// Loads a model and a formula from files
+fn load(
     model_type: ModelType,
     game_structure_path: &str,
     formula_path: &str,
-    formula_format: FormulaFormat,
-    handle_json: J,
-    handle_lcgs: L,
-) -> Result<R, String>
-where
-    J: FnOnce(EagerGameStructure, Phi) -> R,
-    L: FnOnce(IntermediateLcgs, Phi) -> R,
-{
+    formula_format: FormulaType,
+) -> Result<ModelAndFormula, String> {
     // Open the input model file
     let mut file = File::open(game_structure_path)
         .map_err(|err| format!("Failed to open input model.\n{}", err))?;
@@ -491,7 +458,10 @@ where
 
             let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_json(game_structure, phi))
+            Ok(ModelAndFormula::Json {
+                model: game_structure,
+                formula: phi,
+            })
         }
         ModelType::Lcgs => {
             let lcgs = parse_lcgs(&content)
@@ -502,7 +472,10 @@ where
 
             let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_lcgs(game_structure, phi))
+            Ok(ModelAndFormula::Lcgs {
+                model: game_structure,
+                formula: phi,
+            })
         }
     }
 }
@@ -528,7 +501,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg()
+                .add_formula_type_arg()
                 .add_search_strategy_arg()
                 .add_game_strategy_arg()
                 .arg(
@@ -537,6 +510,15 @@ fn parse_arguments() -> ArgMatches<'static> {
                         .long("threads")
                         .env("THREADS")
                         .help("Number of threads to run solver on"),
+                )
+                .arg(
+                    Arg::with_name("quiet")
+                        .short("q")
+                        .takes_value(false)
+                        .long("quiet")
+                        .help(
+                            "Suppress stdout and only return exitcode 42 for true result or 43 for false",
+                        ),
                 ),
         )
         .subcommand(
@@ -550,8 +532,16 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg()
+                .add_formula_type_arg()
                 .add_output_arg(true),
+        )
+        .subcommand(
+            SubCommand::with_name("global")
+                .about("Checks satisfiability of an ATL query on a CGS, using the Global Algorithm")
+                .add_input_model_arg()
+                .add_input_model_type_arg()
+                .add_formula_arg()
+                .add_formula_type_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
@@ -563,7 +553,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg()
+                .add_formula_type_arg()
                 .add_output_arg(false),
         );
     }
