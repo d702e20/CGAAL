@@ -148,14 +148,15 @@ fn solver_inner<
     ss_builder: SB,
     prioritise_back_propagation: bool,
     game_strategy_path: Option<&str>,
-    _quiet: bool,
+    quiet: bool,
 ) -> Result<(), String> {
     let game_structure = edg.game_structure.clone();
-
-    println!(
-        "Checking the formula: {}",
-        v0.formula().in_context_of(&edg.game_structure)
-    );
+    if !quiet {
+        println!(
+            "Checking the formula: {}",
+            v0.formula().in_context_of(&edg.game_structure)
+        );
+    }
     let result = model_check(
         edg,
         v0,
@@ -165,7 +166,9 @@ fn solver_inner<
         game_strategy_path.is_some(),
     );
 
-    println!("Model satisfies formula: {}", &result.satisfied);
+    if !quiet {
+        println!("Model satisfies formula: {}", &result.satisfied);
+    }
 
     // Partial game strategy?
     if let Some(game_strategy_path) = game_strategy_path {
@@ -178,16 +181,28 @@ fn solver_inner<
                     })?;
                     write!(file, "{}", strategy.in_context_of(&game_structure))
                         .map_err(|err| format!("Failed to write game strategy file. {}", err))?;
-                    println!("Proving game strategy was saved to {}", game_strategy_path);
+                    if !quiet {
+                        println!("Proving game strategy was saved to {}", game_strategy_path);
+                    }
                 }
                 SpecificationProof::NoStrategyNeeded => {
-                    println!("No game strategy was computed since a strategy is not needed to prove the given query.")
+                    if !quiet {
+                        println!("No game strategy was computed since a strategy is not needed to prove the given query.");
+                    }
                 }
             },
             Err(err) => {
-                println!("Game strategy was not computed due to error: {}", err)
+                if !quiet {
+                    println!("Game strategy was not computed due to error: {}", err);
+                }
             }
         }
+    }
+
+    if result.satisfied {
+        std::process::exit(42);
+    } else {
+        std::process::exit(43);
     }
 
     Ok(())
