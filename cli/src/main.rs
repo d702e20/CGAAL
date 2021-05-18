@@ -21,6 +21,7 @@ use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSea
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
 use atl_checker::algorithms::global::GlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
@@ -57,6 +58,7 @@ enum ModelType {
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum SearchStrategyOption {
     Los,
+    Lps,
     Bfs,
     Dfs,
     Dhs,
@@ -76,7 +78,7 @@ impl SearchStrategyOption {
     ) -> VertexAssignment {
         match self {
             SearchStrategyOption::Los => panic!("Linear optimization cannot be called generically"),
-
+            SearchStrategyOption::Lps => panic!("Linear programming cannot be called generically"),
             SearchStrategyOption::Bfs => distributed_certain_zero(
                 edg,
                 v0,
@@ -248,6 +250,16 @@ fn main_inner() -> Result<(), String> {
                                 v0,
                                 threads,
                                 LinearOptimizeSearchBuilder { game: copy },
+                                prioritise_back_propagation,
+                            )
+                        }
+                        SearchStrategyOption::Lps => {
+                            let copy = graph.game_structure.clone();
+                            distributed_certain_zero(
+                                graph,
+                                v0,
+                                threads,
+                                LinearProgrammingSearchBuilder { game: copy },
                                 prioritise_back_propagation,
                             )
                         }
@@ -502,6 +514,7 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
         Some("dfs") => Ok(SearchStrategyOption::Dfs),
         Some("dhs") => Ok(SearchStrategyOption::Dhs),
         Some("los") => Ok(SearchStrategyOption::Los),
+        Some("lps") => Ok(SearchStrategyOption::Lps),
         Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\", \"dfs\", \"los\", \"dhs\"  [default is \"bfs\"]", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
