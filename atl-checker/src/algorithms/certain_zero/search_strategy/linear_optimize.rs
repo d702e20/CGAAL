@@ -1,19 +1,15 @@
-use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
-    ComparisonOp, LinearConstraint, LinearConstraintExtractor,
+use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
+    ConstrainedPhiMapper, LinearConstrainedPhi,
 };
+use crate::algorithms::certain_zero::search_strategy::linear_constraints::LinearConstraint;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atlcgsedg::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::{
-    BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind,
-};
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::Proposition;
 use crate::game_structure::State as StateUsize;
 use float_ord::FloatOrd;
 use priority_queue::PriorityQueue;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
@@ -35,10 +31,9 @@ pub struct LinearOptimizeSearch {
     /// Priority based on distance, lowest distance highest priority
     queue: PriorityQueue<Edge<AtlVertex>, FloatOrd<f64>>,
     game: IntermediateLcgs,
+    phi_mapper: ConstrainedPhiMapper,
     /// Maps the hash of a Phi and usize of state, to a result distance
     result_cache: HashMap<(Arc<Phi>, StateUsize), FloatOrd<f64>>,
-    /// Maps proposition to the linear constraint the are
-    proposition_cache: RefCell<HashMap<Proposition, LinearConstrainedPhi>>,
     /// Maps phi to a LinearConstrainedPhi
     phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
@@ -49,25 +44,12 @@ impl LinearOptimizeSearch {
     pub fn new(game: IntermediateLcgs) -> LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
+            phi_mapper: ConstrainedPhiMapper::new(),
             game,
             result_cache: HashMap::new(),
-            proposition_cache: RefCell::new(HashMap::new()),
             phi_cache: HashMap::new(),
         }
     }
-}
-
-/// A structure describing the relation between linear constraints in a ATL formula
-#[derive(Clone)]
-pub enum LinearConstrainedPhi {
-    /// Either or should hold
-    Or(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
-    /// Both should hold
-    And(Box<LinearConstrainedPhi>, Box<LinearConstrainedPhi>),
-    /// Mapping symbols to ranges
-    Constraint(LinearConstraint),
-    True,
-    False,
 }
 
 impl SearchStrategy<AtlVertex> for LinearOptimizeSearch {
@@ -130,10 +112,8 @@ impl LinearOptimizeSearch {
         // If we have not seen this formula before
         if !self.phi_cache.contains_key(&target.formula()) {
             // Convert the formula to a structure of constraints
-            self.phi_cache.insert(
-                target.formula(),
-                self.map_phi_to_constraints(&*target.formula()),
-            );
+            let lcp = self.phi_mapper.map(&self.game, &*target.formula());
+            self.phi_cache.insert(target.formula(), lcp);
         }
 
         // Get constraints of this phi
@@ -151,170 +131,6 @@ impl LinearOptimizeSearch {
         }
         // If we could not find a distance, return None
         None
-    }
-
-    /// Takes a phi and maps it to a LinearConstrainedPhi
-    fn map_phi_to_constraints(&self, phi: &Phi) -> LinearConstrainedPhi {
-        match phi {
-            Phi::True => LinearConstrainedPhi::True,
-            Phi::False => LinearConstrainedPhi::False,
-            Phi::Proposition(proposition) => {
-                // If we get to a proposition, continue the mapping inside the proposition's condition
-                // The result may be cached
-                let maybe_constraint = self.proposition_cache.borrow().get(proposition).cloned();
-                maybe_constraint.unwrap_or_else(|| {
-                    // We have not mapped this proposition yet
-                    let decl = self.game.label_index_to_decl(*proposition);
-                    if let DeclKind::Label(label) = &decl.kind {
-                        let mapped_expr = self.map_expr_to_constraints(&label.condition);
-                        // Save result in cache
-                        self.proposition_cache
-                            .borrow_mut()
-                            .insert(*proposition, mapped_expr.clone());
-                        mapped_expr
-                    } else {
-                        panic!("Non-propositions symbol in ATL formula")
-                    }
-                })
-            }
-            Phi::Not(formula) => self.map_phi_to_constraints(formula),
-            Phi::Or(lhs, rhs) => {
-                let lhs_symbol_range_map = self.map_phi_to_constraints(lhs);
-                let rhs_symbol_range_map = self.map_phi_to_constraints(rhs);
-
-                LinearConstrainedPhi::Or(
-                    Box::from(lhs_symbol_range_map),
-                    Box::from(rhs_symbol_range_map),
-                )
-            }
-            Phi::And(lhs, rhs) => {
-                let lhs_symbol_range_map = self.map_phi_to_constraints(lhs);
-                let rhs_symbol_range_map = self.map_phi_to_constraints(rhs);
-
-                LinearConstrainedPhi::And(
-                    Box::from(lhs_symbol_range_map),
-                    Box::from(rhs_symbol_range_map),
-                )
-            }
-            Phi::DespiteNext { formula, .. } => self.map_phi_to_constraints(formula),
-            Phi::EnforceNext { formula, .. } => self.map_phi_to_constraints(formula),
-            Phi::DespiteUntil { pre, until, .. } => {
-                let pre_symbol_range_map = self.map_phi_to_constraints(pre);
-                let until_symbol_range_map = self.map_phi_to_constraints(until);
-
-                LinearConstrainedPhi::Or(
-                    Box::from(pre_symbol_range_map),
-                    Box::from(until_symbol_range_map),
-                )
-            }
-            Phi::EnforceUntil { pre, until, .. } => {
-                let pre_symbol_range_map = self.map_phi_to_constraints(pre);
-                let until_symbol_range_map = self.map_phi_to_constraints(until);
-
-                LinearConstrainedPhi::Or(
-                    Box::from(pre_symbol_range_map),
-                    Box::from(until_symbol_range_map),
-                )
-            }
-            Phi::DespiteEventually { formula, .. } => self.map_phi_to_constraints(formula),
-            Phi::EnforceEventually { formula, .. } => self.map_phi_to_constraints(formula),
-            Phi::DespiteInvariant { formula, .. } => self.map_phi_to_constraints(formula),
-            Phi::EnforceInvariant { formula, .. } => self.map_phi_to_constraints(formula),
-        }
-    }
-
-    /// Takes an expression and maps it to a LinearConstrainedPhi
-    fn map_expr_to_constraints(&self, expr: &Expr) -> LinearConstrainedPhi {
-        match &expr.kind {
-            ExprKind::UnaryOp(UnaryOpKind::Not, sub_expr) => {
-                return self.map_expr_to_constraints(sub_expr);
-            }
-            ExprKind::BinaryOp(operator, lhs, rhs) => {
-                match operator {
-                    BinaryOpKind::Equality
-                    | BinaryOpKind::GreaterThan
-                    | BinaryOpKind::GreaterOrEqual
-                    | BinaryOpKind::LessThan
-                    | BinaryOpKind::LessOrEqual => {
-                        let lin_expr = LinearConstraintExtractor::extract(expr);
-                        return if let Some(lin_expr) = lin_expr {
-                            LinearConstrainedPhi::Constraint(lin_expr)
-                        } else {
-                            // Not linear
-                            LinearConstrainedPhi::True
-                        };
-                    }
-                    BinaryOpKind::And => {
-                        let lhs_con = self.map_expr_to_constraints(lhs);
-                        let rhs_con = self.map_expr_to_constraints(rhs);
-                        return LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con));
-                    }
-                    BinaryOpKind::Or => {
-                        let lhs_con = self.map_expr_to_constraints(lhs);
-                        let rhs_con = self.map_expr_to_constraints(rhs);
-                        return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
-                    }
-                    // P -> Q == not P v Q, we don't care about not, so becomes P v Q
-                    BinaryOpKind::Implication => {
-                        let lhs_con = self.map_expr_to_constraints(lhs);
-                        let rhs_con = self.map_expr_to_constraints(rhs);
-                        return LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con));
-                    }
-                    _ => {}
-                }
-            }
-            ExprKind::Number(n) => {
-                return if *n == 0 {
-                    LinearConstrainedPhi::False
-                } else {
-                    LinearConstrainedPhi::True
-                }
-            }
-            // https://en.wikipedia.org/wiki/Conditioned_disjunction
-            // Q ? P : R == (Q -> P) and (not Q -> R) == (Q and P) or (not Q and R)
-            // we don't care about not, so becomes (Q and P) or (Q and R), and can be written as
-            // (Q and (P or R))
-            ExprKind::TernaryIf(q, p, r) => {
-                let q = self.map_expr_to_constraints(q);
-                let p = self.map_expr_to_constraints(p);
-                let r = self.map_expr_to_constraints(r);
-                return LinearConstrainedPhi::And(
-                    Box::new(q),
-                    Box::from(LinearConstrainedPhi::Or(Box::new(p), Box::new(r))),
-                );
-            }
-            // Some other expression can be converted to a comparisons since everything != 0 is true
-            ExprKind::OwnedIdent(ident) => {
-                let mut terms_hashmap = HashMap::new();
-                if let Identifier::Resolved { owner, name } = ident.as_ref() {
-                    terms_hashmap.insert(owner.symbol_id(name), 1.0);
-                }
-
-                let less_constraint = LinearConstraint {
-                    terms: terms_hashmap.clone(),
-                    constant: 0.0,
-                    comparison: ComparisonOp::Less,
-                    coefficient_norm: 1.0,
-                };
-
-                let greater_constraint = LinearConstraint {
-                    terms: terms_hashmap,
-                    constant: 0.0,
-                    comparison: ComparisonOp::Greater,
-                    coefficient_norm: 1.0,
-                };
-
-                return LinearConstrainedPhi::Or(
-                    Box::new(LinearConstrainedPhi::Constraint(less_constraint)),
-                    Box::new(LinearConstrainedPhi::Constraint(greater_constraint)),
-                );
-            }
-
-            _ => {}
-        }
-
-        // Not linear
-        LinearConstrainedPhi::True
     }
 
     /// Goes through the LinearConstrainedPhi and finds how close we are to acceptance border in this state.
@@ -351,6 +167,7 @@ impl LinearOptimizeSearch {
             }
             LinearConstrainedPhi::True => Some(FloatOrd(0.0)),
             LinearConstrainedPhi::False => None,
+            LinearConstrainedPhi::NonLinear => None,
         }
     }
 }

@@ -7,20 +7,48 @@ use std::fmt::{Display, Formatter};
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ComparisonOp {
     Equal,
+    NotEqual,
     Less,
     LessOrEq,
     Greater,
     GreaterOrEq,
 }
 
+impl ComparisonOp {
+    fn negated(&self) -> ComparisonOp {
+        match self {
+            ComparisonOp::Equal => ComparisonOp::NotEqual,
+            ComparisonOp::NotEqual => ComparisonOp::Equal,
+            ComparisonOp::Less => ComparisonOp::GreaterOrEq,
+            ComparisonOp::LessOrEq => ComparisonOp::Greater,
+            ComparisonOp::Greater => ComparisonOp::LessOrEq,
+            ComparisonOp::GreaterOrEq => ComparisonOp::Less,
+        }
+    }
+}
+
 impl Display for ComparisonOp {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ComparisonOp::Equal => write!(f, "="),
+            ComparisonOp::NotEqual => writeln!(f, "!="),
             ComparisonOp::Less => write!(f, "<"),
             ComparisonOp::LessOrEq => write!(f, "<="),
             ComparisonOp::Greater => write!(f, ">"),
             ComparisonOp::GreaterOrEq => write!(f, ">="),
+        }
+    }
+}
+
+impl From<ComparisonOp> for minilp::ComparisonOp {
+    fn from(op: ComparisonOp) -> Self {
+        // We are bound to lose some precision here, however, this should not matter for the
+        // linear programming solutions. Except for NotEqual becoming Equal, but, we don't
+        // include NotEqual's in our linear problems anyway, since they are almost always true.
+        match op {
+            ComparisonOp::Equal | ComparisonOp::NotEqual => minilp::ComparisonOp::Eq,
+            ComparisonOp::Less | ComparisonOp::LessOrEq => minilp::ComparisonOp::Le,
+            ComparisonOp::Greater | ComparisonOp::GreaterOrEq => minilp::ComparisonOp::Ge,
         }
     }
 }
@@ -36,6 +64,15 @@ pub struct LinearConstraint {
     /// The norm of the coefficients. That is, if the linear expression is `ax + by + cz + k`, then
     /// this is `sqrt(a*a + b*b + c*c)`
     pub coefficient_norm: f64,
+}
+
+impl LinearConstraint {
+    /// Return a negated version of this constraint
+    pub fn negated(&self) -> Self {
+        let mut clone = self.clone();
+        clone.comparison = clone.comparison.negated();
+        clone
+    }
 }
 
 impl Display for LinearConstraint {
