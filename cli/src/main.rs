@@ -42,7 +42,7 @@ const GIT_VERSION: &str = git_version!(fallback = "unknown");
 
 /// The formula types that the system supports
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum FormulaFormat {
+enum FormulaType {
     Json,
     Atl,
 }
@@ -185,7 +185,7 @@ fn main_inner() -> Result<(), String> {
             let input_model_path = solver_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
-            let formula_format = get_formula_format_from_args(&solver_args)?;
+            let formula_type = get_formula_type_from_args(&solver_args)?;
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
@@ -199,7 +199,7 @@ fn main_inner() -> Result<(), String> {
                 model_type,
                 input_model_path,
                 formula_path,
-                formula_format,
+                formula_type,
                 |game_structure, formula| {
                     if !solver_args.is_present("quiet") {
                         println!(
@@ -279,13 +279,13 @@ fn main_inner() -> Result<(), String> {
             let model_type = get_model_type_from_args(&global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
-            let formula_format = get_formula_format_from_args(&global_args)?;
+            let formula_type = get_formula_type_from_args(&global_args)?;
 
             load(
                 model_type,
                 input_model_path,
                 formula_path,
-                formula_format,
+                formula_type,
                 |game_structure, formula| {
                     println!(
                         "Checking the formula: {}",
@@ -324,7 +324,7 @@ fn main_inner() -> Result<(), String> {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&analyse_args)?;
             let formula_path = analyse_args.value_of("formula").unwrap();
-            let formula_format = get_formula_format_from_args(&analyse_args)?;
+            let formula_type = get_formula_type_from_args(&analyse_args)?;
 
             let output_arg = analyse_args.value_of("output").unwrap();
 
@@ -345,7 +345,7 @@ fn main_inner() -> Result<(), String> {
                 model_type,
                 input_model_path,
                 formula_path,
-                formula_format,
+                formula_type,
                 |game_structure, formula| {
                     let v0 = AtlVertex::Full {
                         state: 0,
@@ -370,7 +370,7 @@ fn main_inner() -> Result<(), String> {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
                 let model_type = get_model_type_from_args(&graph_args)?;
                 let formula_path = graph_args.value_of("formula").unwrap();
-                let formula_format = get_formula_format_from_args(&graph_args)?;
+                let formula_type = get_formula_type_from_args(&graph_args)?;
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
@@ -397,7 +397,7 @@ fn main_inner() -> Result<(), String> {
                     model_type,
                     input_model_path,
                     formula_path,
-                    formula_format,
+                    formula_type,
                     |game_structure, formula| {
                         println!(
                             "Printing graph for: {}",
@@ -434,7 +434,11 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_parser: &A) -> Phi {
+fn load_formula<A: AtlExpressionParser>(
+    path: &str,
+    formula_type: FormulaType,
+    expr_parser: &A,
+) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -446,12 +450,12 @@ fn load_formula<A: AtlExpressionParser>(path: &str, format: FormulaFormat, expr_
         exit(1);
     });
 
-    match format {
-        FormulaFormat::Json => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
+    match formula_type {
+        FormulaType::Json => serde_json::from_str(raw_phi.as_str()).unwrap_or_else(|err| {
             eprintln!("Failed to deserialize formula\n\nError:\n{}", err);
             exit(1);
         }),
-        FormulaFormat::Atl => {
+        FormulaType::Atl => {
             let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
@@ -482,24 +486,24 @@ fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     }
 }
 
-/// Determine the formula format (either "json" or "atl") by reading the
+/// Determine the formula type (either "json" or "atl") by reading the
 /// --formula_format argument. If none is given, we try to infer it from the file extension
-fn get_formula_format_from_args(args: &ArgMatches) -> Result<FormulaFormat, String> {
+fn get_formula_type_from_args(args: &ArgMatches) -> Result<FormulaType, String> {
     match args.value_of("formula_format") {
-        Some("json") => Ok(FormulaFormat::Json),
-        Some("atl") => Ok(FormulaFormat::Atl),
+        Some("json") => Ok(FormulaType::Json),
+        Some("atl") => Ok(FormulaType::Atl),
         None => {
             // Infer format from file extension
             let formula_path = args.value_of("formula").unwrap();
             if formula_path.ends_with(".atl") {
-                Ok(FormulaFormat::Atl)
+                Ok(FormulaType::Atl)
             } else if formula_path.ends_with(".json") {
-                Ok(FormulaFormat::Json)
+                Ok(FormulaType::Json)
             } else {
-                Err("Cannot infer formula format from file the extension. You can specify it with '--model_type=MODEL_TYPE'".to_string())
+                Err("Cannot infer formula format from file the extension. You can specify it with '--formula_type=FORMULA_TYPE'".to_string())
             }
         },
-        Some(format) => Err(format!("Invalid formula format '{}' specified with --formula_format. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
+        Some(format) => Err(format!("Invalid formula type '{}' specified with --formula_type. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
 
@@ -522,7 +526,7 @@ fn load<R, J, L>(
     model_type: ModelType,
     game_structure_path: &str,
     formula_path: &str,
-    formula_format: FormulaFormat,
+    formula_format: FormulaType,
     handle_json: J,
     handle_lcgs: L,
 ) -> Result<R, String>
@@ -583,7 +587,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg()
+                .add_formula_type_arg()
                 .add_search_strategy_arg()
                 .arg(
                     Arg::with_name("threads")
@@ -613,7 +617,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg()
+                .add_formula_type_arg()
                 .add_output_arg(true),
         )
         .subcommand(
@@ -622,7 +626,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg(),
+                .add_formula_type_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
@@ -634,7 +638,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_format_arg()
+                .add_formula_type_arg()
                 .add_output_arg(false),
         );
     }
