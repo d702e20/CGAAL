@@ -3,8 +3,8 @@ use crate::algorithms::game_strategy::PartialStrategy;
 use crate::atl::Phi;
 use crate::edg::annotated_edg::{AnnotatedEdge, AnnotatedExtendedDependencyGraph};
 use crate::edg::atledg::pmoves::PartialMove;
-use crate::edg::atledg::vertex::ATLVertex;
-use crate::edg::atledg::ATLDependencyGraph;
+use crate::edg::atledg::vertex::AtlVertex;
+use crate::edg::atledg::AtlDependencyGraph;
 use crate::game_structure::{GameStructure, State};
 use std::collections::HashMap;
 
@@ -12,9 +12,9 @@ use std::collections::HashMap;
 /// In other words, the behaviour of this function is undefined, if the ATL formula of v0
 /// is not an enforce path qualifier or if the formula is not satisfied.
 pub fn compute_enforcing_strategy<G: GameStructure>(
-    graph: &ATLDependencyGraph<G>,
-    v0: &ATLVertex,
-    assignments: &HashMap<ATLVertex, VertexAssignment>,
+    graph: &AtlDependencyGraph<G>,
+    v0: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> PartialStrategy {
     let mut move_to_pick = HashMap::new();
 
@@ -28,12 +28,12 @@ pub fn compute_enforcing_strategy<G: GameStructure>(
 
 /// Recursive helper function to [compute_enforcing_strategy].
 fn compute_enforcing_strategy_rec<G: GameStructure>(
-    graph: &ATLDependencyGraph<G>,
-    vertex: &ATLVertex,
-    assignments: &HashMap<ATLVertex, VertexAssignment>,
+    graph: &AtlDependencyGraph<G>,
+    vertex: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
     move_to_pick: &mut HashMap<State, PartialMove>,
 ) {
-    if let ATLVertex::FULL { state, formula } = vertex {
+    if let AtlVertex::Full { state, formula } = vertex {
         if move_to_pick.get(state).is_some() {
             // We have already found the move to pick in this state
             return;
@@ -46,7 +46,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                 for edge in edges {
                     if let AnnotatedEdge::Hyper(edge) = edge {
                         let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                            matches!(assignments.get(t), Some(VertexAssignment::TRUE))
+                            matches!(assignments.get(t), Some(VertexAssignment::True))
                         });
 
                         if all_targets_true {
@@ -76,7 +76,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                     let all_targets_true = edge
                         .targets
                         .iter()
-                        .all(|(t, _)| matches!(assignments.get(t), Some(VertexAssignment::TRUE)));
+                        .all(|(t, _)| matches!(assignments.get(t), Some(VertexAssignment::True)));
 
                     if all_targets_true {
                         // No need for more moves
@@ -88,7 +88,7 @@ fn compute_enforcing_strategy_rec<G: GameStructure>(
                 for edge in edges_drain {
                     if let AnnotatedEdge::Hyper(edge) = edge {
                         let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                            matches!(assignments.get(t), Some(VertexAssignment::TRUE))
+                            matches!(assignments.get(t), Some(VertexAssignment::True))
                         });
 
                         if all_targets_true {

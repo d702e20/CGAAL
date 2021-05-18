@@ -21,7 +21,7 @@ impl<'a, G: GameStructure> Display for PartialMoveWithFormatting<'a, G> {
                 .iter()
                 .enumerate()
                 .filter_map(|(player, mov)| {
-                    if let PartialMoveChoice::SPECIFIC(mov) = mov {
+                    if let PartialMoveChoice::Specific(mov) = mov {
                         Some(format!(
                             "{}",
                             self.game.action_name(*self.state, player, *mov)
