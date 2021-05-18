@@ -1,5 +1,6 @@
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::global::GlobalAlgorithm;
 use atl_checker::atl::Phi;
 use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
@@ -47,13 +48,7 @@ macro_rules! bench_json {
 
                     let v0 = AtlVertex::Full { state: 0, formula };
 
-                    distributed_certain_zero(
-                        graph,
-                        v0,
-                        num_cpus::get() as u64,
-                        BreadthFirstSearchBuilder,
-                        PRIORITISE_BACK_PROPAGATION,
-                    );
+                    GlobalAlgorithm::new(graph, v0).run();
                 })
             });
         }
@@ -85,13 +80,7 @@ macro_rules! bench_lcgs {
                         formula,
                     };
 
-                    distributed_certain_zero(
-                        graph,
-                        v0,
-                        num_cpus::get() as u64,
-                        BreadthFirstSearchBuilder,
-                        PRIORITISE_BACK_PROPAGATION,
-                    );
+                    GlobalAlgorithm::new(graph, v0).run();
                 });
             });
         }
