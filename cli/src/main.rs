@@ -191,15 +191,12 @@ fn main_inner() -> Result<(), String> {
         ("global", Some(global_args)) => {
             /// Do less verbose output if quiet-flag is set and return status code
             fn quiet_output_handle(result: bool, quiet_flag: bool) {
+                if !quiet_flag {
+                    println!("Model satisfies formula: {}", result);
+                }
                 if result {
-                    if !quiet_flag {
-                        println!("Model satisfies formula: {}", result);
-                    }
                     std::process::exit(42);
                 } else {
-                    if !quiet_flag {
-                        println!("Model satisfies formula: {}", result);
-                    }
                     std::process::exit(43);
                 }
             }
@@ -520,21 +517,13 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_type_arg()
                 .add_search_strategy_arg()
                 .add_game_strategy_arg()
+                .add_quiet_arg()
                 .arg(
                     Arg::with_name("threads")
                         .short("r")
                         .long("threads")
                         .env("THREADS")
                         .help("Number of threads to run solver on"),
-                )
-                .arg(
-                    Arg::with_name("quiet")
-                        .short("q")
-                        .takes_value(false)
-                        .long("quiet")
-                        .help(
-                            "Suppress stdout and only return exitcode 42 for true result or 43 for false",
-                        ),
                 ),
         )
         .subcommand(
@@ -557,15 +546,8 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_type_arg().arg(
-                Arg::with_name("quiet")
-                    .short("q")
-                    .takes_value(false)
-                    .long("quiet")
-                    .help(
-                        "Suppress stdout and only return exitcode 42 for true result or 43 for false",
-                    ),
-            ),
+                .add_formula_type_arg()
+                .add_quiet_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
