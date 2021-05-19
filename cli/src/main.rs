@@ -301,7 +301,14 @@ fn main_inner() -> Result<(), String> {
                     };
                     let graph = AtlDependencyGraph { game_structure };
                     let result = GlobalAlgorithm::new(graph, v0).run();
-                    quiet_output_handle(result, global_args.is_present("quiet"));
+                    quiet_output_handle(
+                        if result {
+                            VertexAssignment::True
+                        } else {
+                            VertexAssignment::False
+                        },
+                        global_args.is_present("quiet"),
+                    );
                     if false {
                         return Err("something");
                     }
@@ -321,7 +328,14 @@ fn main_inner() -> Result<(), String> {
                         formula: arc,
                     };
                     let result = GlobalAlgorithm::new(graph, v0).run();
-                    quiet_output_handle(result, global_args.is_present("quiet"));
+                    quiet_output_handle(
+                        if result {
+                            VertexAssignment::True
+                        } else {
+                            VertexAssignment::False
+                        },
+                        global_args.is_present("quiet"),
+                    );
                     Ok(())
                 },
             )??
