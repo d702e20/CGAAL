@@ -1,3 +1,4 @@
+use crate::algorithms::certain_zero::common::VertexAssignment;
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -25,7 +26,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
 
     /// Firing the global algorithm, which simply reapplies the F_i function explained in the paper
     /// until the assignment does not change anymore. Lastly the assignment of the root, v0, is returned
-    pub fn run(&mut self) -> bool {
+    pub fn run(&mut self) -> VertexAssignment {
         self.initialize();
 
         let components = self.dist.clone();
@@ -33,7 +34,11 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
             .iter()
             .rev()
             .for_each(|component| while self.f(&component) {});
-        *self.assignment.get(&self.v0).unwrap()
+        if *self.assignment.get(&self.v0).unwrap() {
+            VertexAssignment::True
+        } else {
+            VertexAssignment::False
+        }
     }
 
     /// Initialize the dist and assignments by traversing through all edges from root
