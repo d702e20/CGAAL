@@ -6,7 +6,7 @@ use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
 };
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
-use crate::edg::atlcgsedg::AtlVertex;
+use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
 use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};

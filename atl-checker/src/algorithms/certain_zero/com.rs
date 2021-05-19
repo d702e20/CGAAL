@@ -1,5 +1,6 @@
 use crate::algorithms::certain_zero::common::{Message, VertexAssignment, WorkerId};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use std::collections::HashMap;
 use std::error::Error;
 use std::hash::Hash;
 
@@ -10,6 +11,9 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
 
     /// Send result to the main thread
     fn return_result(&self, assignment: VertexAssignment);
+
+    /// Send assignment table to the main thread
+    fn return_assignments(&self, assignments: HashMap<V, VertexAssignment>);
 
     /// Signal all workers to release the given depth
     fn release(&self, depth: usize);
@@ -24,17 +28,27 @@ pub trait Broker<V: Hash + Eq + PartialEq + Clone> {
     fn receive(&self) -> Result<Option<Message<V>>, Box<dyn Error>>;
 }
 
-pub trait BrokerManager {
+pub trait BrokerManager<V: Hash + Eq + PartialEq + Clone> {
     fn receive_result(&self) -> Result<VertexAssignment, Box<dyn Error>>;
+
+    fn receive_assignment(&self) -> Result<HashMap<V, VertexAssignment>, Box<dyn Error>>;
 }
 
-pub struct ChannelBrokerManager {
+pub struct ChannelBrokerManager<V: Hash + Eq + PartialEq + Clone> {
     result: Receiver<VertexAssignment>,
+    assignment: Receiver<HashMap<V, VertexAssignment>>,
 }
 
-impl BrokerManager for ChannelBrokerManager {
+impl<V: Hash + Eq + PartialEq + Clone> BrokerManager<V> for ChannelBrokerManager<V> {
     fn receive_result(&self) -> Result<VertexAssignment, Box<dyn Error>> {
         match self.result.recv() {
+            Ok(msg) => Ok(msg),
+            Err(err) => Err(Box::new(err)),
+        }
+    }
+
+    fn receive_assignment(&self) -> Result<HashMap<V, VertexAssignment>, Box<dyn Error>> {
+        match self.assignment.recv() {
             Ok(msg) => Ok(msg),
             Err(err) => Err(Box::new(err)),
         }
@@ -46,6 +60,7 @@ impl BrokerManager for ChannelBrokerManager {
 pub struct ChannelBroker<V: Hash + Eq + PartialEq + Clone> {
     workers: Vec<Sender<Message<V>>>,
     result: Sender<VertexAssignment>,
+    assignment: Sender<HashMap<V, VertexAssignment>>,
     receiver: Receiver<Message<V>>,
 }
 
@@ -64,6 +79,12 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
             .send(assignment)
             .expect("Failed to send result to main thread");
         self.terminate();
+    }
+
+    fn return_assignments(&self, assignments: HashMap<V, VertexAssignment>) {
+        self.assignment
+            .send(assignments)
+            .expect("Failed to send the assignments table to main thread");
     }
 
     fn release(&self, depth: usize) {
@@ -97,7 +118,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
-    pub fn new(worker_count: u64) -> (Vec<Self>, ChannelBrokerManager) {
+    pub fn new(worker_count: u64) -> (Vec<Self>, ChannelBrokerManager<V>) {
         // Create a message channel foreach worker
         let mut msg_senders = Vec::with_capacity(worker_count as usize);
         let mut msg_receivers = Vec::with_capacity(worker_count as usize);
@@ -109,17 +130,22 @@ impl<V: Hash + Eq + PartialEq + Clone> ChannelBroker<V> {
         }
 
         let (result_tx, result_rx) = unbounded();
+        let (assignment_tx, assignment_rx) = unbounded();
 
         let brokers = msg_receivers
             .drain(..)
             .map(|receiver| Self {
                 workers: msg_senders.clone(),
                 result: result_tx.clone(),
+                assignment: assignment_tx.clone(),
                 receiver,
             })
             .collect();
 
-        let broker_manager = ChannelBrokerManager { result: result_rx };
+        let broker_manager = ChannelBrokerManager {
+            result: result_rx,
+            assignment: assignment_rx,
+        };
 
         (brokers, broker_manager)
     }

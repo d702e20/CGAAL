@@ -1,4 +1,5 @@
 mod args;
+mod solver;
 
 #[no_link]
 extern crate git_version;
@@ -15,18 +16,17 @@ use git_version::git_version;
 use tracing::trace;
 
 use crate::args::CommonArgs;
-use atl_checker::algorithms::certain_zero::common::VertexAssignment;
-use atl_checker::algorithms::certain_zero::distributed_certain_zero;
+use crate::solver::solver;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult};
 use atl_checker::algorithms::global::GlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
-use atl_checker::edg::atlcgsedg::{AtlDependencyGraph, AtlVertex};
-use atl_checker::edg::{ExtendedDependencyGraph, Vertex};
+use atl_checker::edg::atledg::vertex::AtlVertex;
+use atl_checker::edg::atledg::AtlDependencyGraph;
+use atl_checker::edg::ExtendedDependencyGraph;
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
@@ -56,7 +56,7 @@ enum ModelType {
 
 /// Valid search strategies options
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum SearchStrategyOption {
+pub enum SearchStrategyOption {
     Los,
     Lps,
     Bfs,
@@ -66,39 +66,40 @@ enum SearchStrategyOption {
 
 impl SearchStrategyOption {
     /// Run the distributed certain zero algorithm using the given search strategy
-    pub fn distributed_certain_zero<
-        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-        V: Vertex + Send + Sync + 'static,
-    >(
+    pub fn model_check<G: GameStructure + Send + Sync + Clone + Debug + 'static>(
         &self,
-        edg: G,
-        v0: V,
+        edg: AtlDependencyGraph<G>,
+        v0: AtlVertex,
         worker_count: u64,
         prioritise_back_propagation: bool,
-    ) -> VertexAssignment {
+        find_game_strategy: bool,
+    ) -> ModelCheckResult {
         match self {
             SearchStrategyOption::Los => panic!("Linear optimization cannot be called generically"),
             SearchStrategyOption::Lps => panic!("Linear programming cannot be called generically"),
-            SearchStrategyOption::Bfs => distributed_certain_zero(
+            SearchStrategyOption::Bfs => model_check(
                 edg,
                 v0,
                 worker_count,
                 BreadthFirstSearchBuilder,
                 prioritise_back_propagation,
+                find_game_strategy,
             ),
-            SearchStrategyOption::Dfs => distributed_certain_zero(
+            SearchStrategyOption::Dfs => model_check(
                 edg,
                 v0,
                 worker_count,
                 DepthFirstSearchBuilder,
                 prioritise_back_propagation,
+                find_game_strategy,
             ),
-            SearchStrategyOption::Dhs => distributed_certain_zero(
+            SearchStrategyOption::Dhs => model_check(
                 edg,
                 v0,
                 worker_count,
                 DependencyHeuristicSearchBuilder,
                 prioritise_back_propagation,
+                find_game_strategy,
             ),
         }
     }
@@ -162,26 +163,6 @@ fn main_inner() -> Result<(), String> {
             }
         }
         ("solver", Some(solver_args)) => {
-            fn quiet_output_handle(result: VertexAssignment, quiet_flag: bool) {
-                match result {
-                    VertexAssignment::True => {
-                        if !quiet_flag {
-                            println!("Model satisfies formula: {}", result);
-                        }
-                        std::process::exit(42);
-                    }
-                    VertexAssignment::False => {
-                        if !quiet_flag {
-                            println!("Model satisfies formula: {}", result);
-                        }
-                        std::process::exit(43);
-                    }
-                    VertexAssignment::Undecided => {
-                        eprintln!("Model-checking gave {}, something is broken!", result);
-                        std::process::exit(1);
-                    }
-                }
-            }
             let input_model_path = solver_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(&solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
@@ -189,91 +170,23 @@ fn main_inner() -> Result<(), String> {
             let search_strategy = get_search_strategy_from_args(&solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
+            let game_strategy_path = solver_args.value_of("game_strategy");
+            let quiet = solver_args.is_present("quiet");
 
             let threads = match solver_args.value_of("threads") {
                 None => num_cpus::get() as u64,
                 Some(t_arg) => t_arg.parse().unwrap(),
             };
 
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                formula_type,
-                |game_structure, formula| {
-                    if !solver_args.is_present("quiet") {
-                        println!(
-                            "Checking the formula: {}",
-                            formula.in_context_of(&game_structure)
-                        );
-                    }
-                    let v0 = AtlVertex::Full {
-                        state: 0,
-                        formula: Arc::from(formula),
-                    };
-                    let graph = AtlDependencyGraph { game_structure };
-                    let result = match search_strategy {
-                        SearchStrategyOption::Los => {
-                            return Err(
-                                "Linear optimization search is not supported for JSON models",
-                            )
-                        }
-                        _ => search_strategy.distributed_certain_zero(
-                            graph,
-                            v0,
-                            threads,
-                            prioritise_back_propagation,
-                        ),
-                    };
-                    quiet_output_handle(result, solver_args.is_present("quiet"));
-                    Ok(())
-                },
-                |game_structure, formula| {
-                    if !solver_args.is_present("quiet") {
-                        println!(
-                            "Checking the formula: {}",
-                            formula.in_context_of(&game_structure)
-                        );
-                    }
-
-                    let arc = Arc::from(formula);
-                    let graph = AtlDependencyGraph { game_structure };
-                    let v0 = AtlVertex::Full {
-                        state: graph.game_structure.initial_state_index(),
-                        formula: arc,
-                    };
-                    let result = match search_strategy {
-                        SearchStrategyOption::Los => {
-                            let copy = graph.game_structure.clone();
-                            distributed_certain_zero(
-                                graph,
-                                v0,
-                                threads,
-                                LinearOptimizeSearchBuilder { game: copy },
-                                prioritise_back_propagation,
-                            )
-                        }
-                        SearchStrategyOption::Lps => {
-                            let copy = graph.game_structure.clone();
-                            distributed_certain_zero(
-                                graph,
-                                v0,
-                                threads,
-                                LinearProgrammingSearchBuilder { game: copy },
-                                prioritise_back_propagation,
-                            )
-                        }
-                        _ => search_strategy.distributed_certain_zero(
-                            graph,
-                            v0,
-                            threads,
-                            prioritise_back_propagation,
-                        ),
-                    };
-                    quiet_output_handle(result, solver_args.is_present("quiet"));
-                    Ok(())
-                },
-            )??
+            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+            solver(
+                model_and_formula,
+                threads,
+                search_strategy,
+                prioritise_back_propagation,
+                game_strategy_path,
+                quiet,
+            )?;
         }
         ("global", Some(global_args)) => {
             let model_type = get_model_type_from_args(&global_args)?;
@@ -281,44 +194,34 @@ fn main_inner() -> Result<(), String> {
             let formula_path = global_args.value_of("formula").unwrap();
             let formula_type = get_formula_type_from_args(&global_args)?;
 
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                formula_type,
-                |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
+            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+
+            let result = match model_and_formula {
+                ModelAndFormula::Lcgs { model, formula } => {
+                    println!("Checking the formula: {}", formula.in_context_of(&model));
+                    let v0 = AtlVertex::Full {
+                        state: model.initial_state_index(),
+                        formula: Arc::from(formula),
+                    };
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
+                    };
+                    GlobalAlgorithm::new(graph, v0).run()
+                }
+                ModelAndFormula::Json { model, formula } => {
+                    println!("Checking the formula: {}", formula.in_context_of(&model));
                     let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
-                    let graph = AtlDependencyGraph { game_structure };
-                    let result = GlobalAlgorithm::new(graph, v0).run();
-                    println!("Result: {}", result);
-                    if false {
-                        return Err("something");
-                    }
-                    Ok(())
-                },
-                |game_structure, formula| {
-                    println!(
-                        "Checking the formula: {}",
-                        formula.in_context_of(&game_structure)
-                    );
-                    let arc = Arc::from(formula);
-                    let graph = AtlDependencyGraph { game_structure };
-                    let v0 = AtlVertex::Full {
-                        state: graph.game_structure.initial_state_index(),
-                        formula: arc,
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
                     };
-                    let result = GlobalAlgorithm::new(graph, v0).run();
-                    println!("Result: {}", result);
-                    Ok(())
-                },
-            )??
+                    GlobalAlgorithm::new(graph, v0).run()
+                }
+            };
+
+            println!("Model satisfies formula: {}", result);
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -341,28 +244,30 @@ fn main_inner() -> Result<(), String> {
                     .map_err(|err| format!("Failed to write to output file.\n{}", err))
             }
 
-            load(
-                model_type,
-                input_model_path,
-                formula_path,
-                formula_type,
-                |game_structure, formula| {
+            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+
+            match model_and_formula {
+                ModelAndFormula::Lcgs { model, formula } => {
+                    let v0 = AtlVertex::Full {
+                        state: model.initial_state_index(),
+                        formula: Arc::from(formula),
+                    };
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
+                    };
+                    analyse_and_save(&graph, v0, output_arg)?
+                }
+                ModelAndFormula::Json { model, formula } => {
                     let v0 = AtlVertex::Full {
                         state: 0,
                         formula: Arc::from(formula),
                     };
-                    let graph = AtlDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0, output_arg)
-                },
-                |game_structure, formula| {
-                    let v0 = AtlVertex::Full {
-                        state: game_structure.initial_state_index(),
-                        formula: Arc::from(formula),
+                    let graph = AtlDependencyGraph {
+                        game_structure: model,
                     };
-                    let graph = AtlDependencyGraph { game_structure };
-                    analyse_and_save(&graph, v0, output_arg)
-                },
-            )??
+                    analyse_and_save(&graph, v0, output_arg)?
+                }
+            };
         }
         #[cfg(feature = "graph-printer")]
         ("graph", Some(graph_args)) => {
@@ -393,37 +298,34 @@ fn main_inner() -> Result<(), String> {
                     print_graph(graph, v0, output).unwrap();
                 }
 
-                load(
-                    model_type,
-                    input_model_path,
-                    formula_path,
-                    formula_type,
-                    |game_structure, formula| {
-                        println!(
-                            "Printing graph for: {}",
-                            formula.in_context_of(&game_structure)
-                        );
-                        let v0 = AtlVertex::Full {
-                            state: 0,
-                            formula: Arc::from(formula),
-                        };
-                        let graph = AtlDependencyGraph { game_structure };
-                        print_model(graph, v0, graph_args.value_of("output"));
-                    },
-                    |game_structure, formula| {
-                        println!(
-                            "Printing graph for: {}",
-                            formula.in_context_of(&game_structure)
-                        );
+                let model_and_formula =
+                    load(model_type, input_model_path, formula_path, formula_type)?;
+
+                match model_and_formula {
+                    ModelAndFormula::Lcgs { model, formula } => {
+                        println!("Printing graph for: {}", formula.in_context_of(&model));
                         let arc = Arc::from(formula);
-                        let graph = AtlDependencyGraph { game_structure };
+                        let graph = AtlDependencyGraph {
+                            game_structure: model,
+                        };
                         let v0 = AtlVertex::Full {
                             state: graph.game_structure.initial_state_index(),
                             formula: arc,
                         };
                         print_model(graph, v0, graph_args.value_of("output"));
-                    },
-                )?
+                    }
+                    ModelAndFormula::Json { model, formula } => {
+                        println!("Printing graph for: {}", formula.in_context_of(&model));
+                        let v0 = AtlVertex::Full {
+                            state: 0,
+                            formula: Arc::from(formula),
+                        };
+                        let graph = AtlDependencyGraph {
+                            game_structure: model,
+                        };
+                        print_model(graph, v0, graph_args.value_of("output"));
+                    }
+                }
             }
         }
         _ => (),
@@ -521,19 +423,25 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
     }
 }
 
-/// Loads a model and a formula from files, and then call the handler function with the loaded model and formula.
-fn load<R, J, L>(
+/// An enum of the given model and formula types. Returned by [load].
+pub enum ModelAndFormula {
+    Lcgs {
+        model: IntermediateLcgs,
+        formula: Phi,
+    },
+    Json {
+        model: EagerGameStructure,
+        formula: Phi,
+    },
+}
+
+/// Loads a model and a formula from files
+fn load(
     model_type: ModelType,
     game_structure_path: &str,
     formula_path: &str,
     formula_format: FormulaType,
-    handle_json: J,
-    handle_lcgs: L,
-) -> Result<R, String>
-where
-    J: FnOnce(EagerGameStructure, Phi) -> R,
-    L: FnOnce(IntermediateLcgs, Phi) -> R,
-{
+) -> Result<ModelAndFormula, String> {
     // Open the input model file
     let mut file = File::open(game_structure_path)
         .map_err(|err| format!("Failed to open input model.\n{}", err))?;
@@ -550,7 +458,10 @@ where
 
             let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_json(game_structure, phi))
+            Ok(ModelAndFormula::Json {
+                model: game_structure,
+                formula: phi,
+            })
         }
         ModelType::Lcgs => {
             let lcgs = parse_lcgs(&content)
@@ -561,7 +472,10 @@ where
 
             let phi = load_formula(formula_path, formula_format, &game_structure);
 
-            Ok(handle_lcgs(game_structure, phi))
+            Ok(ModelAndFormula::Lcgs {
+                model: game_structure,
+                formula: phi,
+            })
         }
     }
 }
@@ -589,6 +503,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_arg()
                 .add_formula_type_arg()
                 .add_search_strategy_arg()
+                .add_game_strategy_arg()
                 .arg(
                     Arg::with_name("threads")
                         .short("r")
