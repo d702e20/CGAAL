@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-pub mod atlcgsedg;
+pub mod annotated_edg;
+pub mod atledg;
 
 pub trait Vertex: Hash + Eq + PartialEq + Clone + Display + Debug {}
 
