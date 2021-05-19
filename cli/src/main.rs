@@ -119,28 +119,6 @@ fn main_inner() -> Result<(), String> {
     setup_tracing(&args)?;
     trace!(?args, "commandline arguments");
 
-    /// Do less verbose output if quiet-flag is set and return status code
-    fn quiet_output_handle(result: VertexAssignment, quiet_flag: bool) {
-        match result {
-            VertexAssignment::True => {
-                if !quiet_flag {
-                    println!("Model satisfies formula: {}", result);
-                }
-                std::process::exit(42);
-            }
-            VertexAssignment::False => {
-                if !quiet_flag {
-                    println!("Model satisfies formula: {}", result);
-                }
-                std::process::exit(43);
-            }
-            VertexAssignment::Undecided => {
-                eprintln!("Model-checking gave {}, something is broken!", result);
-                std::process::exit(1);
-            }
-        }
-    }
-
     match args.subcommand() {
         ("index", Some(index_args)) => {
             // Display the indexes for the players and labels
@@ -211,16 +189,32 @@ fn main_inner() -> Result<(), String> {
             )?;
         }
         ("global", Some(global_args)) => {
+            /// Do less verbose output if quiet-flag is set and return status code
+            fn quiet_output_handle(result: bool, quiet_flag: bool) {
+                if result {
+                    if !quiet_flag {
+                        println!("Model satisfies formula: {}", result);
+                    }
+                    std::process::exit(42);
+                } else {
+                    if !quiet_flag {
+                        println!("Model satisfies formula: {}", result);
+                    }
+                    std::process::exit(43);
+                }
+            }
             let model_type = get_model_type_from_args(&global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
             let formula_type = get_formula_type_from_args(&global_args)?;
-
             let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+            let quiet = global_args.is_present("quiet");
 
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
-                    println!("Checking the formula: {}", formula.in_context_of(&model));
+                    if !quiet {
+                        println!("Checking the formula: {}", formula.in_context_of(&model));
+                    }
                     let v0 = AtlVertex::Full {
                         state: model.initial_state_index(),
                         formula: Arc::from(formula),
@@ -243,7 +237,7 @@ fn main_inner() -> Result<(), String> {
                 }
             };
 
-            println!("Model satisfies formula: {}", result);
+            quiet_output_handle(result, quiet);
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
