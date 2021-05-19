@@ -189,16 +189,29 @@ fn main_inner() -> Result<(), String> {
             )?;
         }
         ("global", Some(global_args)) => {
+            /// Do less verbose output if quiet-flag is set and return status code
+            fn quiet_output_handle(result: bool, quiet_flag: bool) {
+                if !quiet_flag {
+                    println!("Model satisfies formula: {}", result);
+                }
+                if result {
+                    std::process::exit(42);
+                } else {
+                    std::process::exit(43);
+                }
+            }
             let model_type = get_model_type_from_args(&global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
             let formula_type = get_formula_type_from_args(&global_args)?;
-
             let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+            let quiet = global_args.is_present("quiet");
 
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
-                    println!("Checking the formula: {}", formula.in_context_of(&model));
+                    if !quiet {
+                        println!("Checking the formula: {}", formula.in_context_of(&model));
+                    }
                     let v0 = AtlVertex::Full {
                         state: model.initial_state_index(),
                         formula: Arc::from(formula),
@@ -221,7 +234,7 @@ fn main_inner() -> Result<(), String> {
                 }
             };
 
-            println!("Model satisfies formula: {}", result);
+            quiet_output_handle(result, quiet);
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -504,21 +517,13 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_type_arg()
                 .add_search_strategy_arg()
                 .add_game_strategy_arg()
+                .add_quiet_arg()
                 .arg(
                     Arg::with_name("threads")
                         .short("r")
                         .long("threads")
                         .env("THREADS")
                         .help("Number of threads to run solver on"),
-                )
-                .arg(
-                    Arg::with_name("quiet")
-                        .short("q")
-                        .takes_value(false)
-                        .long("quiet")
-                        .help(
-                            "Suppress stdout and only return exitcode 42 for true result or 43 for false",
-                        ),
                 ),
         )
         .subcommand(
@@ -541,7 +546,8 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_arg()
                 .add_input_model_type_arg()
                 .add_formula_arg()
-                .add_formula_type_arg(),
+                .add_formula_type_arg()
+                .add_quiet_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
