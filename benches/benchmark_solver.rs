@@ -2184,9 +2184,9 @@ criterion_group!(
     ttt4,
     ttt5,
     rc1,
-    rc2,*//*
+    rc2,*/
     rc3, //rc benches takes 215s total
-    pa1_3proc,
+    /*pa1_3proc,
     pa2_3proc,
     pa3_3proc,
     pa4_3proc,
