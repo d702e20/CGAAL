@@ -69,6 +69,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     ) {
         match edge {
             Edge::Hyper(e) => {
+                emit_count!("worker initialise_hyper");
                 for target in e.targets {
                     if self.assignment.get(&target).is_some() {
                         continue;
@@ -82,6 +83,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
             }
 
             Edge::Negation(e) => {
+                emit_count!("worker initialise_negation");
                 if self.assignment.get(&e.target).is_none() {
                     self.assignment.insert(e.target.clone(), false);
                     self.insert_in_curr_dist(e.target.clone(), dist + 1);
@@ -95,6 +97,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
 
     /// Inserts a vertex in the set at the index of curr_dist of dist.
     fn insert_in_curr_dist(&mut self, v: V, dist: u32) {
+        emit_count!("worker insert_in_curr_dist");
         match self.dist.get_mut(dist as usize) {
             None => {
                 let mut curr_dist = HashSet::<V>::new();
@@ -112,6 +115,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     /// before, these are both given as arguments. The function it self returns a boolean
     /// which is true if the assignments are changed.
     fn f(&mut self, component: &HashSet<V>) -> bool {
+        emit_count!("worker apply_f");
         let mut changed_flag = false;
 
         for vertex in component {
@@ -129,6 +133,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     /// source vertex already is true we simply return. The return value is based on if a changed
     /// have been made.
     fn process_hyper(&mut self, edge: HyperEdge<V>) -> bool {
+        emit_count!("worker process_hyper");
         if *self.assignment.get(&edge.source).unwrap() {
             false
         } else {
@@ -147,6 +152,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     /// false in the last component assignment. If the source vertex already is true we
     /// simply return. The return value is based on if a changed have been made.
     fn process_negation(&mut self, edge: NegationEdge<V>) -> bool {
+        emit_count!("worker process_negation");
         if *self.assignment.get(&edge.source).unwrap() {
             false
         } else {
@@ -159,6 +165,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
     /// equal to the old assignment, we simply return. The return value
     /// is based on whether the assignment of the given vertex is changed or not.
     fn update_assignment(&mut self, v: V, new_ass: bool) -> bool {
+        emit_count!("worker update_assignment");
         self.assignment
             .get_mut(&v)
             .map(|ass| {
