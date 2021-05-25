@@ -2539,11 +2539,11 @@ criterion_group!(
 );
 
 criterion_main!(
-    static_thread_case_studies,
-    rand_1p_1m_530d,
-    rand_2p_1m_546d,
-    rand_3p_1m_400d,
-    rand_3p_3m_405d,
-    rand_3p_4m_171d,
-    //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
+    static_thread_case_studies, /*
+                                rand_1p_1m_530d,
+                                rand_2p_1m_546d,
+                                rand_3p_1m_400d,
+                                rand_3p_3m_405d,
+                                rand_3p_4m_171d,*/
+                                //rand_4p_4m_3000d //disable lasdfarge test which results in no-space error on MCC
 ); // choose which group(s) to bench
