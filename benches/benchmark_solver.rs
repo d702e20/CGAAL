@@ -2161,35 +2161,35 @@ bench_lcgs_threads!(
 // static_thread_case_studies naming is one-to-one with paper shorthand
 criterion_group!(
     static_thread_case_studies,
-    mexican_standoff_3p_3hp_lcgs_survive,
+    /*mexican_standoff_3p_3hp_lcgs_survive,
     mexican_standoff_5p_1hp_lcgs_survive,
     ttt1,
     ttt2,
     ttt3,
     ttt4,
     ttt5,
-    rc1,
+    rc1,*/
     rc2,
-    rc3, //rc benches takes 215s total
-    pa1_3proc,
+    //rc3, //rc benches takes 215s total
+    //pa1_3proc,
     pa2_3proc,
-    pa3_3proc,
+    /*pa3_3proc,
     pa4_3proc,
     pa5_3proc,
     pa1_4proc,
     pa2_4proc,
     pa3_4proc,
     pa4_4proc,
-    pa5_4proc,
+    pa5_4proc,*/
     gg1_circular,
-    gg2_circular,
+    /*gg2_circular,
     gg3_circular,
     gg4_circular,
     gg5_circular,
     gg6_circular,
-    gg7_circular,
+    gg7_circular,*/
     gg1_total,
-    gg2_total,
+    /*gg2_total,
     gg3_total,
     gg4_total,
     gg5_total,
@@ -2199,7 +2199,7 @@ criterion_group!(
     rps2,
     mp1,
     mp2,
-    mp3,
+    mp3,*/
 );
 
 criterion_group!(
@@ -2529,11 +2529,11 @@ criterion_group!(
 );
 
 criterion_main!(
-    static_thread_case_studies,
-    rand_1p_1m_530d,
-    rand_2p_1m_546d,
-    rand_3p_1m_400d,
-    rand_3p_3m_405d,
-    rand_3p_4m_171d,
-    //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
+    static_thread_case_studies, /*
+                                rand_1p_1m_530d,
+                                rand_2p_1m_546d,
+                                rand_3p_1m_400d,
+                                rand_3p_3m_405d,
+                                rand_3p_4m_171d,*/
+                                //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
 ); // choose which group(s) to bench
