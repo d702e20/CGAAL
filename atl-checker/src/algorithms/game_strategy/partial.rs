@@ -210,7 +210,6 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     }
                 }
                 Phi::DespiteUntil { .. } => {
-                    println!("des unt {:?}", assignments.get(&vertex));
                     let edges = graph.annotated_succ(vertex);
                     // We skip the first edge with the `until` formula target. We know that it is false.
                     #[cfg(debug_assertions)]
@@ -238,12 +237,10 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                             // This means there will be a cycle of undecided configurations.
                             // Find the first target assigned undecided.
                             for target in edge.targets.iter().skip(1) {
-                                println!("tar {:?}", assignments.get(&target.0));
                                 if matches!(
                                     assignments.get(&target.0),
                                     Some(VertexAssignment::Undecided)
                                 ) {
-                                    println!("false");
                                     // Target is annotated with the move we need
                                     move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
                                     compute_partial_strategy_rec(
