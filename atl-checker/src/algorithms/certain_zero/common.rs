@@ -9,24 +9,24 @@ pub type WorkerId = u64;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VertexAssignment {
     // UNEXPLORED is implemented as hashmap doesn't contain the key/vertex
-    UNDECIDED,
-    FALSE,
-    TRUE,
+    Undecided,
+    False,
+    True,
 }
 
 impl VertexAssignment {
     /// Returns assignment as some bool, or none if undecided
     pub fn to_bool(&self) -> Option<bool> {
         match self {
-            VertexAssignment::UNDECIDED => None,
-            VertexAssignment::FALSE => Some(false),
-            VertexAssignment::TRUE => Some(true),
+            VertexAssignment::Undecided => None,
+            VertexAssignment::False => Some(false),
+            VertexAssignment::True => Some(true),
         }
     }
 
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
-        return matches!(self, VertexAssignment::TRUE | VertexAssignment::FALSE);
+        return matches!(self, VertexAssignment::True | VertexAssignment::False);
     }
 
     pub fn max(self, assignment: VertexAssignment) -> VertexAssignment {
@@ -41,20 +41,20 @@ impl VertexAssignment {
 impl PartialOrd for VertexAssignment {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match self {
-            VertexAssignment::UNDECIDED => match other {
-                VertexAssignment::UNDECIDED => Some(Equal),
-                VertexAssignment::FALSE => Some(Less),
-                VertexAssignment::TRUE => Some(Less),
+            VertexAssignment::Undecided => match other {
+                VertexAssignment::Undecided => Some(Equal),
+                VertexAssignment::False => Some(Less),
+                VertexAssignment::True => Some(Less),
             },
-            VertexAssignment::FALSE => match other {
-                VertexAssignment::UNDECIDED => Some(Greater),
-                VertexAssignment::FALSE => Some(Equal),
-                VertexAssignment::TRUE => None,
+            VertexAssignment::False => match other {
+                VertexAssignment::Undecided => Some(Greater),
+                VertexAssignment::False => Some(Equal),
+                VertexAssignment::True => None,
             },
-            VertexAssignment::TRUE => match other {
-                VertexAssignment::UNDECIDED => Some(Greater),
-                VertexAssignment::FALSE => None,
-                VertexAssignment::TRUE => Some(Equal),
+            VertexAssignment::True => match other {
+                VertexAssignment::Undecided => Some(Greater),
+                VertexAssignment::False => None,
+                VertexAssignment::True => Some(Equal),
             },
         }
     }
@@ -63,9 +63,9 @@ impl PartialOrd for VertexAssignment {
 impl Display for VertexAssignment {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            VertexAssignment::UNDECIDED => write!(f, "undecided"),
-            VertexAssignment::FALSE => write!(f, "false"),
-            VertexAssignment::TRUE => write!(f, "true"),
+            VertexAssignment::Undecided => write!(f, "undecided"),
+            VertexAssignment::False => write!(f, "false"),
+            VertexAssignment::True => write!(f, "true"),
         }
     }
 }
@@ -73,7 +73,7 @@ impl Display for VertexAssignment {
 impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns true if this is a hyper edge
     pub fn is_hyper(&self) -> bool {
-        matches!(self, Edge::HYPER(_))
+        matches!(self, Edge::Hyper(_))
     }
 
     /// Returns true if this is a negation edge
@@ -84,16 +84,16 @@ impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns the source vertex of this edge
     pub fn source(&self) -> &V {
         match self {
-            Edge::HYPER(e) => &e.source,
-            Edge::NEGATION(e) => &e.source,
+            Edge::Hyper(e) => &e.source,
+            Edge::Negation(e) => &e.source,
         }
     }
 
     /// Returns the targets vertices of this edge
     pub fn targets(&self) -> Vec<&V> {
         match self {
-            Edge::HYPER(e) => e.targets.iter().collect(),
-            Edge::NEGATION(e) => vec![&e.target],
+            Edge::Hyper(e) => e.targets.iter().collect(),
+            Edge::Negation(e) => vec![&e.target],
         }
     }
 }
@@ -102,21 +102,21 @@ impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
 #[derive(Clone, Debug)]
 pub enum Message<V: Hash + Eq + PartialEq + Clone> {
     /// Send from a worker that needs the final assignment of `vertex` but is not the owner of the vertex.
-    REQUEST {
+    Request {
         vertex: V,
         depth: u32,
         worker_id: WorkerId,
     },
     /// Send from the owner of `vertex` to all workers that have requested the final assignment of `vertex`
-    ANSWER {
+    Answer {
         vertex: V,
         assignment: VertexAssignment,
     },
-    TOKEN(MsgToken),
+    Token(MsgToken),
     /// Release component/negation-edges of `depth` depth
-    RELEASE(usize),
+    Release(usize),
     /// Terminate the worker
-    TERMINATE,
+    Terminate,
 }
 
 #[derive(Clone, Debug, PartialOrd, Ord, Eq, PartialEq)]

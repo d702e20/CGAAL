@@ -5,11 +5,11 @@ use crate::algorithms::game_strategy::error::Error;
 use crate::algorithms::game_strategy::format::PartialStrategyWithFormatting;
 use crate::algorithms::game_strategy::partial::{compute_partial_strategy, PartialStrategy};
 use crate::edg::atledg::pmoves::PartialMove;
-use crate::edg::atledg::vertex::ATLVertex;
-use crate::edg::atledg::ATLDependencyGraph;
+use crate::edg::atledg::vertex::AtlVertex;
+use crate::edg::atledg::AtlDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
 use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 
 pub mod error;
 pub mod format;
@@ -21,16 +21,17 @@ pub struct ModelCheckResult {
     pub proof: Option<Result<SpecificationProof, Error>>,
 }
 
-/// Check game model starting from the given ATLVertex. Optionally returns a proof.
+/// Check game model starting from the given AtlVertex. Optionally returns a proof.
 pub fn model_check<
     G: GameStructure + Clone + Debug + Send + Sync + 'static,
-    S: SearchStrategy<ATLVertex> + Send + 'static,
-    SB: SearchStrategyBuilder<ATLVertex, S>,
+    S: SearchStrategy<AtlVertex> + Send + 'static,
+    SB: SearchStrategyBuilder<AtlVertex, S>,
 >(
-    edg: ATLDependencyGraph<G>,
-    v0: ATLVertex,
+    edg: AtlDependencyGraph<G>,
+    v0: AtlVertex,
     worker_count: u64,
     ss_builder: SB,
+    prioritise_back_propagation: bool,
     find_proof: bool,
 ) -> ModelCheckResult {
     let czr = distributed_certain_zero(
@@ -38,6 +39,7 @@ pub fn model_check<
         v0.clone(),
         worker_count,
         ss_builder,
+        prioritise_back_propagation,
         find_proof,
     );
 
@@ -62,9 +64,9 @@ pub enum SpecificationProof {
 }
 
 pub fn compute_game_strategy<G: GameStructure>(
-    graph: &ATLDependencyGraph<G>,
-    v0: &ATLVertex,
-    assignments: &HashMap<ATLVertex, VertexAssignment>,
+    graph: &AtlDependencyGraph<G>,
+    v0: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> Result<SpecificationProof, Error> {
     // There are six cases:
     // - True enforce formula => a strategy is exists for the given players
@@ -83,12 +85,12 @@ pub fn compute_game_strategy<G: GameStructure>(
     }
 
     match res {
-        VertexAssignment::TRUE if formula.is_enforce() => Ok(SpecificationProof::Strategy(
+        VertexAssignment::True if formula.is_enforce() => Ok(SpecificationProof::Strategy(
             compute_partial_strategy(graph, v0, assignments),
         )),
-        VertexAssignment::TRUE if formula.is_despite() => unimplemented!(),
-        VertexAssignment::FALSE if formula.is_enforce() => unimplemented!(),
-        VertexAssignment::FALSE if formula.is_despite() => Ok(SpecificationProof::Strategy(
+        VertexAssignment::True if formula.is_despite() => unimplemented!(),
+        VertexAssignment::False if formula.is_enforce() => unimplemented!(),
+        VertexAssignment::False if formula.is_despite() => Ok(SpecificationProof::Strategy(
             compute_partial_strategy(graph, v0, assignments),
         )),
         _ if formula.players().is_none() => Ok(SpecificationProof::NoStrategyNeeded),

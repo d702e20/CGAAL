@@ -6,23 +6,23 @@ use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
-pub enum ATLVertex {
-    FULL {
+pub enum AtlVertex {
+    Full {
         state: State,
         formula: Arc<Phi>,
     },
-    PARTIAL {
+    Partial {
         state: State,
         partial_move: PartialMove,
         formula: Arc<Phi>,
     },
 }
 
-impl Display for ATLVertex {
+impl Display for AtlVertex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ATLVertex::FULL { state, formula } => write!(f, "state={} formula={}", state, formula),
-            ATLVertex::PARTIAL {
+            AtlVertex::Full { state, formula } => write!(f, "state={} formula={}", state, formula),
+            AtlVertex::Partial {
                 state,
                 partial_move,
                 formula,
@@ -40,20 +40,20 @@ impl Display for ATLVertex {
     }
 }
 
-impl ATLVertex {
+impl AtlVertex {
     pub fn state(&self) -> State {
         match self {
-            ATLVertex::FULL { state, .. } => *state,
-            ATLVertex::PARTIAL { state, .. } => *state,
+            AtlVertex::Full { state, .. } => *state,
+            AtlVertex::Partial { state, .. } => *state,
         }
     }
 
     pub fn formula(&self) -> Arc<Phi> {
         match self {
-            ATLVertex::FULL { formula, .. } => formula.clone(),
-            ATLVertex::PARTIAL { formula, .. } => formula.clone(),
+            AtlVertex::Full { formula, .. } => formula.clone(),
+            AtlVertex::Partial { formula, .. } => formula.clone(),
         }
     }
 }
 
-impl Vertex for ATLVertex {}
+impl Vertex for AtlVertex {}

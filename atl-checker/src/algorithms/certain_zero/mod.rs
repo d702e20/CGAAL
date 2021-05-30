@@ -7,8 +7,6 @@ use crate::algorithms::certain_zero::common::{
     Message, MsgToken, Token, VertexAssignment, WorkerId,
 };
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
-use crate::algorithms::game_strategy::compute_game_strategy;
-use crate::algorithms::game_strategy::error::Error;
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
 use std::cmp::max;
 use std::collections::hash_map::DefaultHasher;
@@ -39,6 +37,7 @@ pub fn distributed_certain_zero<
     v0: V,
     worker_count: u64,
     ss_builder: SB,
+    prioritise_back_propagation: bool,
     return_all_assignments: bool,
 ) -> CertainZeroResult<V> {
     trace!(?v0, worker_count, "starting distributed_certain_zero");
@@ -53,6 +52,7 @@ pub fn distributed_certain_zero<
             brokers.pop().unwrap(),
             edg.clone(),
             ss_builder.build(),
+            prioritise_back_propagation,
         );
         thread::spawn(move || {
             trace!("worker thread start");
@@ -110,8 +110,14 @@ struct Worker<B: Broker<V> + Debug, G: ExtendedDependencyGraph<V>, V: Vertex, S:
     depth: HashMap<V, u32>,
     msg_queue: VecDeque<Message<V>>,
     unsafe_neg_edges: Vec<Vec<NegationEdge<V>>>,
+    /// Queue of edges where a target recently received a certain assignment. If `prioritise_back_propagation`
+    /// is false, the edges are instead queued using the given search strategy.
+    back_propagation_queue: VecDeque<Edge<V>>,
     /// Search strategy. Defines in which order edges are processed
     strategy: S,
+    /// If this is false, the `back_propagation_queue` is not used and back-propagation is instead
+    /// handled by the search strategy
+    prioritise_back_propagation: bool,
     /// Used to communicate with other workers
     broker: B,
     /// The logic of handling which edges have been deleted from a vertex is delegated to Worker instead of having to be duplicated in every implementation of ExtendedDependencyGraph.
@@ -154,7 +160,15 @@ impl<
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(id: WorkerId, worker_count: u64, v0: V, broker: B, edg: G, strategy: S) -> Self {
+    pub fn new(
+        id: WorkerId,
+        worker_count: u64,
+        v0: V,
+        broker: B,
+        edg: G,
+        strategy: S,
+        prioritise_back_propagation: bool,
+    ) -> Self {
         trace!(
             worker_id = id,
             worker_count,
@@ -172,7 +186,9 @@ impl<
             interests: HashMap::<V, HashSet<WorkerId>>::new(),
             msg_queue: VecDeque::new(),
             unsafe_neg_edges: Vec::<Vec<NegationEdge<V>>>::new(),
+            back_propagation_queue: VecDeque::new(),
             strategy,
+            prioritise_back_propagation,
             depth: HashMap::<V, u32>::new(),
             broker,
             successors: HashMap::<V, HashSet<Edge<V>>>::new(),
@@ -218,7 +234,7 @@ impl<
             deepest_component: max(msg.deepest_component, self.get_depth_of_deepest_component()),
         };
 
-        self.broker.send(successor, Message::TOKEN(token))
+        self.broker.send(successor, Message::Token(token))
     }
 
     pub fn run(&mut self) {
@@ -262,7 +278,7 @@ impl<
             match self.broker.receive() {
                 Ok(opt_msg) => match opt_msg {
                     Some(msg) => match msg {
-                        Message::TERMINATE => {
+                        Message::Terminate => {
                             emit_count!("worker received_termination");
                             // Send assignments to main thread for collecting
                             self.broker.return_assignments(self.assignment.clone());
@@ -306,7 +322,7 @@ impl<
                 } => {
                     trace!("Late termination");
                     emit_count!("worker late_termination");
-                    self.broker.return_result(VertexAssignment::FALSE)
+                    self.broker.return_result(VertexAssignment::False)
                 }
                 // No one has seen safe tasks, but some workers have unsafe negation edges.
                 MsgToken {
@@ -355,7 +371,7 @@ impl<
         emit_count!("worker initiate_token_circulation");
         self.broker.send(
             (self.id + 1) % self.worker_count,
-            Message::TOKEN(MsgToken {
+            Message::Token(MsgToken {
                 token,
                 deepest_component: self.get_depth_of_deepest_component(),
             }),
@@ -367,39 +383,48 @@ impl<
 
     /// Process the next task. This returns true if any task was processed.
     fn process_task(&mut self) -> bool {
-        if let Some(msg) = self.msg_queue.pop_front() {
+        if let Some(edge) = self.back_propagation_queue.pop_front() {
+            // This case is only relevant when we are prioritising back-progation
+            self.process_edge(edge);
+            return true;
+        } else if let Some(msg) = self.msg_queue.pop_front() {
             let _guard = span!(Level::TRACE, "worker receive message", worker_id = self.id);
             match msg {
                 // Alg 1, Line 8
-                Message::REQUEST {
+                Message::Request {
                     vertex,
                     depth,
                     worker_id,
                 } => self.process_request(&vertex, worker_id, depth),
                 // Alg 1, Line 9
-                Message::ANSWER { vertex, assignment } => self.process_answer(&vertex, assignment),
-                Message::RELEASE(depth) => {
+                Message::Answer { vertex, assignment } => self.process_answer(&vertex, assignment),
+                Message::Release(depth) => {
                     self.release_negations(depth);
                 }
-                Message::TOKEN(msg_token) => {
+                Message::Token(msg_token) => {
                     self.handle_incoming_token(msg_token);
                 }
                 _ => unreachable!(),
             }
             return true;
         } else if let Some(edge) = self.strategy.next() {
-            match edge {
-                Edge::HYPER(e) => {
-                    self.process_hyper_edge(e);
-                }
-                Edge::NEGATION(e) => {
-                    self.process_negation_edge(e);
-                }
-            }
+            self.process_edge(edge);
             return true;
         }
         // No tasks
         false
+    }
+
+    /// Process an edge by delegating depending on edge type
+    fn process_edge(&mut self, edge: Edge<V>) {
+        match edge {
+            Edge::Hyper(e) => {
+                self.process_hyper_edge(e);
+            }
+            Edge::Negation(e) => {
+                self.process_negation_edge(e);
+            }
+        }
     }
 
     /// Releasing the edges from the unsafe queue to the safe negation
@@ -433,6 +458,7 @@ impl<
     /// When the certain assignment of the vertex is found, the worker will be notified.
     fn mark_interest(&mut self, vertex: &V, worker: WorkerId) {
         emit_count!("worker mark_interest");
+        self.strategy.on_interest(vertex);
         if let Some(set) = self.interests.get_mut(vertex) {
             trace!(is_initialized = true, ?vertex, "mark vertex interest");
             set.insert(worker);
@@ -453,15 +479,28 @@ impl<
         emit_count!("worker explore_vertex");
         // Line 2
         self.assignment
-            .insert(vertex.clone(), VertexAssignment::UNDECIDED);
+            .insert(vertex.clone(), VertexAssignment::Undecided);
 
         // Line 3
         if self.is_owner(vertex) {
-            let successors = self.succ(vertex); // Line 4
+            let successors = self.strategy.modify(self.edg.succ(vertex)); // Line 4
+
+            debug!(
+                ?vertex,
+                ?successors,
+                known_vertex = false,
+                "loaded successors from EDG"
+            );
+            emit_count!("worker successor_generated");
+
+            // Cache successors
+            let successor_set = successors.iter().cloned().collect();
+            self.successors.insert(vertex.clone(), successor_set);
+
             if successors.is_empty() {
                 // Line 4
                 // The vertex has no outgoing edges, so we assign it false
-                self.final_assign(vertex, VertexAssignment::FALSE);
+                self.final_assign(vertex, VertexAssignment::False);
             } else {
                 // Line 5
                 // Queue the new edges
@@ -472,7 +511,7 @@ impl<
             // The vertex is owned by another worker, so we send a request
             self.broker.send(
                 self.vertex_owner(vertex),
-                Message::REQUEST {
+                Message::Request {
                     vertex: vertex.clone(),
                     depth: *self.depth.get(vertex).unwrap_or(&0),
                     worker_id: self.id,
@@ -491,12 +530,12 @@ impl<
         let all_final = edge.targets.iter().all(|target| {
             self.assignment
                 .get(target)
-                .map_or(false, |f| matches!(f, VertexAssignment::TRUE))
+                .map_or(false, |f| matches!(f, VertexAssignment::True))
         });
 
         // Line 3
         if all_final {
-            self.final_assign(&edge.source, VertexAssignment::TRUE);
+            self.final_assign(&edge.source, VertexAssignment::True);
             return;
         }
 
@@ -504,12 +543,12 @@ impl<
         let any_target = edge.targets.iter().any(|target| {
             self.assignment
                 .get(target)
-                .map_or(false, |f| matches!(f, VertexAssignment::FALSE))
+                .map_or(false, |f| matches!(f, VertexAssignment::False))
         });
 
         // Line 4
         if any_target {
-            self.delete_edge(Edge::HYPER(edge));
+            self.delete_edge(Edge::Hyper(edge));
             return;
         }
 
@@ -517,15 +556,15 @@ impl<
         for target in &edge.targets {
             // Line 5 condition
             match self.assignment.get(&target) {
-                Some(VertexAssignment::UNDECIDED) => {
+                Some(VertexAssignment::Undecided) => {
                     // UNDECIDED
                     // Line 7
-                    self.add_depend(target, Edge::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::Hyper(edge.clone()));
                 }
                 None => {
                     // UNEXPLORED
                     // Line 7
-                    self.add_depend(target, Edge::HYPER(edge.clone()));
+                    self.add_depend(target, Edge::Hyper(edge.clone()));
                     // Line 8
                     self.explore(target);
                 }
@@ -534,31 +573,33 @@ impl<
         }
     }
 
-    /// Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn add_depend(&mut self, vertex: &V, dependency: Edge<V>) {
-        emit_count!("worker add_dependency");
-        // Update the depth
-        let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
-        let source_depth = *self.depth.get(dependency.source()).unwrap_or(&0);
-        let new_vertex_depth = if dependency.is_negation() {
-            max(old_vertex_depth, source_depth + 1)
-        } else {
-            max(old_vertex_depth, source_depth)
-        };
-        self.depth.insert(vertex.clone(), new_vertex_depth);
-
-        // Mark `dependency` as a prerequisite for finding the final assignment of `vertex`
-        self.depends
+    /// Mark `vertex` as a prerequisite for finalising the processing of `edge`
+    fn add_depend(&mut self, vertex: &V, edge: Edge<V>) {
+        // Mark `vertex` as a prerequisite for finalising the processing of `edge`
+        let new_dependency = self
+            .depends
             .entry(vertex.clone())
             .or_default()
-            .insert(dependency);
+            .insert(edge.clone());
+
+        if new_dependency {
+            emit_count!("worker add_dependency"); // Update the depth
+            let old_vertex_depth = *self.depth.get(vertex).unwrap_or(&0);
+            let source_depth = *self.depth.get(edge.source()).unwrap_or(&0);
+            let new_vertex_depth = if edge.is_negation() {
+                max(old_vertex_depth, source_depth + 1)
+            } else {
+                max(old_vertex_depth, source_depth)
+            };
+            self.depth.insert(vertex.clone(), new_vertex_depth);
+        }
     }
 
-    /// Remove `dependency` as a prerequisite for finding the final assignment of `vertex`
-    fn remove_depend(&mut self, vertex: &V, dependency: Edge<V>) {
+    /// Remove `vertex` as a prerequisite for finalising the processing of `edge`
+    fn remove_depend(&mut self, vertex: &V, edge: Edge<V>) {
         emit_count!("worker remove_dependency");
         if let Some(dependencies) = self.depends.get_mut(vertex) {
-            dependencies.remove(&dependency);
+            dependencies.remove(&edge);
         }
     }
 
@@ -571,32 +612,32 @@ impl<
                 // UNEXPLORED
                 // Line 6
                 trace!(?edge, assignment = "UNEXPLORED", "processing negation edge");
-                self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
+                self.add_depend(&edge.target, Edge::Negation(edge.clone()));
                 self.queue_unsafe_negation(edge.clone());
                 self.explore(&edge.target);
             }
             Some(assignment) => match assignment {
-                VertexAssignment::UNDECIDED => {
+                VertexAssignment::Undecided => {
                     if self.only_unsafe_left {
                         // This is a released negation edge
-                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing released negation edge");
-                        self.final_assign(&edge.source, VertexAssignment::TRUE)
+                        trace!(?edge, assignment = ?VertexAssignment::Undecided, "processing released negation edge");
+                        self.final_assign(&edge.source, VertexAssignment::True)
                     } else {
                         // We haven't released any negation edges yet, so the undecided assignment
                         // must be from another branch of the EDG. Hence, we add this edge as an
                         // unsafe dependency
-                        trace!(?edge, assignment = ?VertexAssignment::UNDECIDED, "processing negation edge");
-                        self.add_depend(&edge.target, Edge::NEGATION(edge.clone()));
+                        trace!(?edge, assignment = ?VertexAssignment::Undecided, "processing negation edge");
+                        self.add_depend(&edge.target, Edge::Negation(edge.clone()));
                         self.queue_unsafe_negation(edge.clone())
                     }
                 }
-                VertexAssignment::FALSE => {
-                    trace!(?edge, assignment = ?VertexAssignment::FALSE, "processing negation edge");
-                    self.final_assign(&edge.source, VertexAssignment::TRUE)
+                VertexAssignment::False => {
+                    trace!(?edge, assignment = ?VertexAssignment::False, "processing negation edge");
+                    self.final_assign(&edge.source, VertexAssignment::True)
                 }
-                VertexAssignment::TRUE => {
-                    trace!(?edge, assignment = ?VertexAssignment::TRUE, "processing negation edge");
-                    self.delete_edge(Edge::NEGATION(edge))
+                VertexAssignment::True => {
+                    trace!(?edge, assignment = ?VertexAssignment::True, "processing negation edge");
+                    self.delete_edge(Edge::Negation(edge))
                 }
             },
         }
@@ -643,7 +684,7 @@ impl<
             if assignment.is_certain() {
                 self.broker.send(
                     requester,
-                    Message::ANSWER {
+                    Message::Answer {
                         vertex: vertex.clone(),
                         assignment: *assignment,
                     },
@@ -704,7 +745,7 @@ impl<
                 for worker_id in interested {
                     self.broker.send(
                         *worker_id,
-                        Message::ANSWER {
+                        Message::Answer {
                             vertex: vertex.clone(),
                             assignment,
                         },
@@ -716,7 +757,11 @@ impl<
             if let Some(depends) = self.depends.get(&vertex) {
                 for edge in depends.clone() {
                     trace!(?edge, "requeueing edge because target got assignment");
-                    self.strategy.queue_back_propagation(edge)
+                    if self.prioritise_back_propagation {
+                        self.back_propagation_queue.push_back(edge)
+                    } else {
+                        self.strategy.queue_back_propagation(edge)
+                    }
                 }
             }
         }
@@ -730,55 +775,33 @@ impl<
         // Remove edge from source
         self.successors.get_mut(source).unwrap().remove(&edge);
 
-        match self.successors.get(source) {
-            None => panic!("successors should have been filled, or at least have a empty vector"),
-            Some(successors) => {
-                // Line 3
-                if successors.is_empty() {
-                    trace!(
-                        ?source,
-                        assignment = ?VertexAssignment::FALSE,
-                        "no more successors, final assignment is FALSE"
-                    );
-                    self.final_assign(source, VertexAssignment::FALSE);
-                }
-            }
+        if self
+            .successors
+            .get(source)
+            .expect("successors should have been filled, or at least have a empty vector")
+            .is_empty()
+        {
+            trace!(
+                ?source,
+                assignment = ?VertexAssignment::False,
+                "no more successors, final assignment is FALSE"
+            );
+            self.final_assign(source, VertexAssignment::False);
         }
 
         match edge {
             // Line 4-6
-            Edge::HYPER(ref edge) => {
+            Edge::Hyper(ref edge) => {
                 debug!(source = ?edge, targets = ?edge.targets, "remove hyper-edge as dependency");
                 for target in &edge.targets {
-                    self.remove_depend(target, Edge::HYPER(edge.clone()))
+                    self.remove_depend(target, Edge::Hyper(edge.clone()))
                 }
             }
             // Line 7-8
-            Edge::NEGATION(ref edge) => {
+            Edge::Negation(ref edge) => {
                 debug!(source = ?edge, target = ?edge.target, "remove negation-edge as dependency");
-                self.remove_depend(&edge.target, Edge::NEGATION(edge.clone()))
+                self.remove_depend(&edge.target, Edge::Negation(edge.clone()))
             }
-        }
-    }
-
-    /// Wraps the ExtendedDependencyGraph::succ(v) with caching allowing edges to be deleted.
-    /// See documentation for the `successors` field.
-    fn succ(&mut self, vertex: &V) -> Vec<Edge<V>> {
-        if let Some(_successors) = self.successors.get(vertex) {
-            panic!("Used cached successors instead")
-        } else {
-            // Setup the successors list the first time it is requested
-            let successors = self.edg.succ(vertex);
-            let successor_set = successors.iter().cloned().collect();
-            self.successors.insert(vertex.clone(), successor_set);
-            debug!(
-                ?vertex,
-                ?successors,
-                known_vertex = false,
-                "loaded successors from EDG"
-            );
-            emit_count!("worker successor_generated");
-            successors
         }
     }
 }
@@ -847,7 +870,7 @@ mod test {
         };
         // With custom names and worker count
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
-            if let crate::algorithms::certain_zero::CertainZeroResult::RootAssignment(root_ass) = crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder, false) {
+            if let crate::algorithms::certain_zero::CertainZeroResult::RootAssignment(root_ass) = crate::algorithms::certain_zero::distributed_certain_zero($edg_name, $vertex_name::$v, $wc, crate::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder, true, false) {
                 assert_eq!(
                     root_ass,
                     crate::algorithms::certain_zero::common::VertexAssignment::$assign,
@@ -863,7 +886,7 @@ mod test {
         simple_edg![
             A => -> {};
         ];
-        edg_assert!(A, TRUE);
+        edg_assert!(A, True);
     }
 
     #[test]
@@ -871,7 +894,7 @@ mod test {
         simple_edg![
             A => ;
         ];
-        edg_assert!(A, FALSE);
+        edg_assert!(A, False);
     }
 
     #[test]
@@ -882,10 +905,10 @@ mod test {
             C => .> D;
             D => -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -897,11 +920,11 @@ mod test {
             D => -> {} -> {C};
             E => .> D;
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-        edg_assert!(E, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
+        edg_assert!(E, False);
     }
 
     #[test]
@@ -917,15 +940,15 @@ mod test {
             H => -> {I};
             I => ;
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, TRUE);
-        edg_assert!(G, FALSE);
-        edg_assert!(H, FALSE);
-        edg_assert!(I, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
+        edg_assert!(E, True);
+        edg_assert!(F, True);
+        edg_assert!(G, False);
+        edg_assert!(H, False);
+        edg_assert!(I, False);
     }
 
     #[test]
@@ -936,10 +959,10 @@ mod test {
             C => ;
             D => -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, False);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -949,9 +972,9 @@ mod test {
             B => -> {C};
             C => -> {B};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
+        edg_assert!(A, False);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
     }
 
     #[test]
@@ -961,9 +984,9 @@ mod test {
             B => ;
             C => ;
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
+        edg_assert!(A, False);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
     }
 
     #[test]
@@ -974,10 +997,10 @@ mod test {
             C => -> {D};
             D => -> {};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, False);
+        edg_assert!(B, False);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -988,10 +1011,10 @@ mod test {
             C => -> {B};
             D => -> {C} -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, True);
     }
 
     #[test]
@@ -1000,8 +1023,8 @@ mod test {
             A => .> B;
             B => -> {};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, TRUE);
+        edg_assert!(A, False);
+        edg_assert!(B, True);
     }
 
     #[test]
@@ -1013,11 +1036,11 @@ mod test {
             D => -> {E};
             E => -> {D};
         ];
-        edg_assert!(A, FALSE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, FALSE);
+        edg_assert!(A, False);
+        edg_assert!(B, True);
+        edg_assert!(C, True);
+        edg_assert!(D, False);
+        edg_assert!(E, False);
     }
 
     #[test]
@@ -1028,10 +1051,10 @@ mod test {
             C => -> {D};
             D => ;
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, TRUE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, True);
+        edg_assert!(C, False);
+        edg_assert!(D, False);
     }
 
     #[test]
@@ -1040,8 +1063,8 @@ mod test {
             A => .> B;
             B => -> {B};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
     }
 
     #[test]
@@ -1054,12 +1077,12 @@ mod test {
             E => .> F;
             F => -> {F};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, TRUE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, FALSE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
+        edg_assert!(C, True);
+        edg_assert!(D, False);
+        edg_assert!(E, True);
+        edg_assert!(F, False);
     }
 
     #[test]
@@ -1079,12 +1102,12 @@ mod test {
             J => -> {K};
             K => -> {};
         ];
-        edg_assert!(A, TRUE);
-        edg_assert!(B, FALSE);
-        edg_assert!(C, FALSE);
-        edg_assert!(D, FALSE);
-        edg_assert!(E, TRUE);
-        edg_assert!(F, TRUE);
-        edg_assert!(G, TRUE);
+        edg_assert!(A, True);
+        edg_assert!(B, False);
+        edg_assert!(C, False);
+        edg_assert!(D, False);
+        edg_assert!(E, True);
+        edg_assert!(F, True);
+        edg_assert!(G, True);
     }
 }

@@ -3,8 +3,8 @@ use crate::algorithms::game_strategy::format::PartialStrategyWithFormatting;
 use crate::atl::Phi;
 use crate::edg::annotated_edg::{AnnotatedEdge, AnnotatedExtendedDependencyGraph};
 use crate::edg::atledg::pmoves::PartialMove;
-use crate::edg::atledg::vertex::ATLVertex;
-use crate::edg::atledg::ATLDependencyGraph;
+use crate::edg::atledg::vertex::AtlVertex;
+use crate::edg::atledg::AtlDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
 use std::collections::HashMap;
 
@@ -35,9 +35,9 @@ impl PartialStrategy {
 /// the given property. In other words, the behaviour of this function is undefined, if the
 /// ATL formula of v0 is an unsatisfied enforce property or a satisfied despite property.
 pub fn compute_partial_strategy<G: GameStructure>(
-    graph: &ATLDependencyGraph<G>,
-    v0: &ATLVertex,
-    assignments: &HashMap<ATLVertex, VertexAssignment>,
+    graph: &AtlDependencyGraph<G>,
+    v0: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> PartialStrategy {
     let mut move_to_pick = HashMap::new();
 
@@ -51,13 +51,13 @@ pub fn compute_partial_strategy<G: GameStructure>(
 
 /// Recursive helper function to [compute_partial_strategy].
 fn compute_partial_strategy_rec<G: GameStructure>(
-    graph: &ATLDependencyGraph<G>,
-    vertex: &ATLVertex,
-    assignments: &HashMap<ATLVertex, VertexAssignment>,
+    graph: &AtlDependencyGraph<G>,
+    vertex: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
     move_to_pick: &mut HashMap<State, PartialMove>,
 ) {
     match vertex {
-        ATLVertex::FULL { state, formula } => {
+        AtlVertex::Full { state, formula } => {
             if move_to_pick.get(state).is_some() {
                 // We have already found the move to pick in this state
                 return;
@@ -70,7 +70,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     for edge in edges {
                         if let AnnotatedEdge::Hyper(edge) = edge {
                             let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                                matches!(assignments.get(t), Some(VertexAssignment::TRUE))
+                                matches!(assignments.get(t), Some(VertexAssignment::True))
                             });
 
                             if all_targets_true {
@@ -103,7 +103,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     // target of the first edge is true
                     if let Some(AnnotatedEdge::Hyper(edge)) = edges_drain.next() {
                         let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                            matches!(assignments.get(t), Some(VertexAssignment::TRUE))
+                            matches!(assignments.get(t), Some(VertexAssignment::True))
                         });
 
                         if all_targets_true {
@@ -116,7 +116,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     for edge in edges_drain {
                         if let AnnotatedEdge::Hyper(edge) = edge {
                             let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                                matches!(assignments.get(t), Some(VertexAssignment::TRUE))
+                                matches!(assignments.get(t), Some(VertexAssignment::True))
                             });
 
                             if all_targets_true {
@@ -146,7 +146,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                             for target in edge.targets {
                                 if matches!(
                                     assignments.get(&target.0),
-                                    Some(VertexAssignment::FALSE)
+                                    Some(VertexAssignment::False)
                                 ) {
                                     // Target is annotated with the move we need
                                     move_to_pick.insert(*state, target.1.unwrap());
@@ -178,7 +178,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                             for target in &edge.targets {
                                 if matches!(
                                     assignments.get(&target.0),
-                                    Some(VertexAssignment::FALSE)
+                                    Some(VertexAssignment::False)
                                 ) {
                                     // Target is annotated with the move we need
                                     move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
@@ -206,7 +206,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                                 println!("tar {:?}", assignments.get(&target.0));
                                 if matches!(
                                     assignments.get(&target.0),
-                                    Some(VertexAssignment::FALSE)
+                                    Some(VertexAssignment::False)
                                 ) {
                                     println!("false");
                                     // Target is annotated with the move we need
@@ -226,10 +226,10 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                 _ => panic!("The formula does not require a strategy"),
             }
         }
-        ATLVertex::PARTIAL { .. } => {
+        AtlVertex::Partial { .. } => {
             // Partial vertices are only used by despite formulae.
             // The full vertices handles finding the moves so we just need to visit all
-            // targets of all the edges to proceed.
+            // targets of all the edges to proceed with the computation in the successor states.
             let edges = graph.annotated_succ(vertex);
             for edge in edges {
                 if let AnnotatedEdge::Hyper(edge) = edge {

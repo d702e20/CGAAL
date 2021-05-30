@@ -89,7 +89,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
 
     fn release(&self, depth: usize) {
         for i in 0..self.workers.len() {
-            self.send(i as u64, Message::RELEASE(depth))
+            self.send(i as u64, Message::Release(depth))
         }
     }
 
@@ -99,7 +99,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
                 .workers
                 .get(to as usize)
                 .expect("receiver id out of bounds")
-                .send(Message::TERMINATE);
+                .send(Message::Terminate);
         }
     }
 

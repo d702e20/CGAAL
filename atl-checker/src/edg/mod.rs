@@ -1,4 +1,3 @@
-use crate::algorithms::game_strategy::error::Error;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -27,6 +26,6 @@ pub struct NegationEdge<V: Hash + Eq + PartialEq + Clone> {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
-    HYPER(HyperEdge<V>),
-    NEGATION(NegationEdge<V>),
+    Hyper(HyperEdge<V>),
+    Negation(NegationEdge<V>),
 }

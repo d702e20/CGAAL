@@ -121,10 +121,10 @@ impl<'a> SymbolChecker<'a> {
                     // The player exists, so now we fetch the symbol
                     let owner = Owner::Player(player_name.to_string());
                     self.symbols
-                            .get(&owner, &name)
-                            .ok_or(SymbolError {
-                                msg: format!("Unknown identifier '{}.{}'. The player does not own a declaration of that name.", owner, name)
-                            })?
+                        .get(&owner, &name)
+                        .ok_or(SymbolError {
+                            msg: format!("Unknown identifier '{}.{}'. The player does not own a declaration of that name.", owner, name)
+                        })?
                 } else {
                     // Player is omitted. Assume it is scope owner. If not, then try global.
                     self.symbols
@@ -243,6 +243,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the min of that
     /// Then returns a new checked Vec of Expr to find Min of.
+    #[allow(clippy::unnecessary_wraps)]
     fn check_min(&self, ls: &[Expr]) -> Result<Expr, SymbolError> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list
@@ -277,6 +278,7 @@ impl<'a> SymbolChecker<'a> {
     }
     /// First combines all numbers, as we already know the max of that
     /// Then returns a new checked Vec of Expr to find Max of.
+    #[allow(clippy::unnecessary_wraps)]
     fn check_max(&self, ls: &[Expr]) -> Result<Expr, SymbolError> {
         let checked_list: Vec<Expr> = ls.iter().map(|p| self.check(p).unwrap()).collect();
         let number: Option<i32> = checked_list

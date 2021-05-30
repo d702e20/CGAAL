@@ -1,6 +1,6 @@
 use crate::algorithms::solve_set::{minimum_solve_set, SolveSetAssignment};
 use crate::atl::Phi;
-use crate::edg::atledg::vertex::ATLVertex;
+use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::{Edge, ExtendedDependencyGraph};
 
 #[derive(Serialize, Deserialize)]
@@ -84,12 +84,12 @@ pub struct PhiStats {
 
 /// Analyses the vertices of an EDG starting from the given root, and returns a Vec of data
 /// describing each vertex with different data depending of the vertex' ATL formula.
-pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) -> Vec<VertexData> {
+pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) -> Vec<VertexData> {
     let mss = minimum_solve_set(edg, root);
     let mut data = vec![];
     for (v, mssa) in &mss {
         match v {
-            ATLVertex::FULL { formula, .. } => match formula.as_ref() {
+            AtlVertex::Full { formula, .. } => match formula.as_ref() {
                 Phi::Proposition(..) => data.push(VertexData::Proposition {
                     // Propositions are assigned 1 in certain zero iff they have a positive signed
                     // solve set
@@ -105,7 +105,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                         .iter()
                         .map(|e| {
                             // Or-formula have multiple hyper-edges with one target
-                            if let Edge::HYPER(e) = e {
+                            if let Edge::Hyper(e) = e {
                                 phi_stats(mssa, &e.targets.get(0).unwrap())
                             } else {
                                 unreachable!()
@@ -116,7 +116,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                 Phi::And(..) => data.push(VertexData::And {
                     stats: phi_stats(mssa, v),
                     // And-formulae only have one hyper-edge with multiple targets
-                    target_stats: if let Edge::HYPER(e) = edg.succ(v).iter().next().unwrap() {
+                    target_stats: if let Edge::Hyper(e) = edg.succ(v).get(0).unwrap() {
                         e.targets.iter().map(|t| phi_stats(mssa, t)).collect()
                     } else {
                         unreachable!()
@@ -126,7 +126,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                     player_count: players.len() as u32,
                     stats: phi_stats(mssa, v),
                     // And-formulae only have one hyper-edge with multiple targets
-                    target_stats: if let Edge::HYPER(e) = edg.succ(v).iter().next().unwrap() {
+                    target_stats: if let Edge::Hyper(e) = edg.succ(v).get(0).unwrap() {
                         e.targets.iter().map(|t| phi_stats(mssa, t)).collect()
                     } else {
                         unreachable!()
@@ -241,14 +241,14 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
                 }
                 _ => {}
             },
-            ATLVertex::PARTIAL { .. } => data.push(VertexData::Partial {
+            AtlVertex::Partial { .. } => data.push(VertexData::Partial {
                 stats: phi_stats(mssa, v),
                 target_stats: edg
                     .succ(v)
                     .iter()
                     .map(|e| {
                         // Partial vertices have multiple hyper-edges with one target
-                        if let Edge::HYPER(e) = e {
+                        if let Edge::Hyper(e) = e {
                             phi_stats(mssa, &e.targets.get(0).unwrap())
                         } else {
                             unreachable!()
@@ -262,7 +262,7 @@ pub fn analyse<G: ExtendedDependencyGraph<ATLVertex>>(edg: &G, root: ATLVertex) 
 }
 
 /// Returns statistics about a given vertex
-fn phi_stats(mssa: &SolveSetAssignment<ATLVertex>, v: &ATLVertex) -> PhiStats {
+fn phi_stats(mssa: &SolveSetAssignment<AtlVertex>, v: &AtlVertex) -> PhiStats {
     let phi = v.formula();
     PhiStats {
         solve_set_size: mssa.len() as u32,
