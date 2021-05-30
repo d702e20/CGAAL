@@ -24,6 +24,14 @@ impl VertexAssignment {
         }
     }
 
+    /// Returns true if the assignment is true, otherwise false
+    pub fn is_true(&self) -> bool {
+        match self {
+            VertexAssignment::True => true,
+            _ => false,
+        }
+    }
+
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
         return matches!(self, VertexAssignment::True | VertexAssignment::False);

@@ -172,15 +172,30 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                 Phi::DespiteEventually { .. } => {
                     let edges = graph.annotated_succ(vertex);
                     // We skip the first edge with the subformula target. We know that it is false.
+                    #[cfg(debug_assertions)]
+                    {
+                        if let AnnotatedEdge::Hyper(e) = edges.get(0).unwrap() {
+                            let t = e.targets.get(0).unwrap();
+                            let a = assignments.get(&t.0);
+                            match a {
+                                Some(VertexAssignment::False) => {}
+                                _ => panic!(
+                                    "First edge of despite was not false contrary to assumption"
+                                ),
+                            }
+                        }
+                    }
                     for edge in edges.iter().skip(1) {
                         if let AnnotatedEdge::Hyper(edge) = edge {
-                            // Find the first target assigned false
+                            // We expect to find infinite computations that never hits the `until` formula.
+                            // This means there will be a cycle of undecided configurations.
+                            // Find the first target assigned undecided.
                             for target in &edge.targets {
                                 if matches!(
                                     assignments.get(&target.0),
-                                    Some(VertexAssignment::False)
+                                    Some(VertexAssignment::Undecided)
                                 ) {
-                                    // Target is annotated with the move we need
+                                    // Target is a partial configuration annotated with the move we need
                                     move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
                                     compute_partial_strategy_rec(
                                         graph,
@@ -198,15 +213,35 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     println!("des unt {:?}", assignments.get(&vertex));
                     let edges = graph.annotated_succ(vertex);
                     // We skip the first edge with the `until` formula target. We know that it is false.
+                    #[cfg(debug_assertions)]
+                    {
+                        if let AnnotatedEdge::Hyper(e) = edges.get(0).unwrap() {
+                            let t = e.targets.get(0).unwrap();
+                            let a = assignments.get(&t.0);
+                            match a {
+                                Some(VertexAssignment::False) => {}
+                                _ => panic!(
+                                    "First edge of despite was not false contrary to assumption"
+                                ),
+                            }
+                        }
+                    }
                     for edge in edges.iter().skip(1) {
                         if let AnnotatedEdge::Hyper(edge) = edge {
-                            // Find the first target assigned false
-                            // We also skip the first target with the `pre` formula
+                            // If the `pre` formula is also false, then we don't need to check further
+                            let pre = edge.targets.get(0).unwrap();
+                            if let Some(VertexAssignment::False) = assignments.get(&pre.0) {
+                                return;
+                            }
+
+                            // We expect to find infinite computations that never hits the `until` formula.
+                            // This means there will be a cycle of undecided configurations.
+                            // Find the first target assigned undecided.
                             for target in edge.targets.iter().skip(1) {
                                 println!("tar {:?}", assignments.get(&target.0));
                                 if matches!(
                                     assignments.get(&target.0),
-                                    Some(VertexAssignment::False)
+                                    Some(VertexAssignment::Undecided)
                                 ) {
                                     println!("false");
                                     // Target is annotated with the move we need

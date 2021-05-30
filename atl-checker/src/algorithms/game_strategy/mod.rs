@@ -84,16 +84,18 @@ pub fn compute_game_strategy<G: GameStructure>(
         return Err(Error::UnsupportedFormula);
     }
 
-    match res {
-        VertexAssignment::True if formula.is_enforce() => Ok(SpecificationProof::Strategy(
-            compute_partial_strategy(graph, v0, assignments),
-        )),
-        VertexAssignment::True if formula.is_despite() => unimplemented!(),
-        VertexAssignment::False if formula.is_enforce() => unimplemented!(),
-        VertexAssignment::False if formula.is_despite() => Ok(SpecificationProof::Strategy(
+    match res.is_true() {
+        true if formula.is_enforce() => Ok(SpecificationProof::Strategy(compute_partial_strategy(
+            graph,
+            v0,
+            assignments,
+        ))),
+        true if formula.is_despite() => unimplemented!(),
+        false if formula.is_enforce() => unimplemented!(),
+        false if formula.is_despite() => Ok(SpecificationProof::Strategy(
             compute_partial_strategy(graph, v0, assignments),
         )),
         _ if formula.players().is_none() => Ok(SpecificationProof::NoStrategyNeeded),
-        _ => panic!("Assignment of v0 is undecided"),
+        _ => unreachable!(),
     }
 }
