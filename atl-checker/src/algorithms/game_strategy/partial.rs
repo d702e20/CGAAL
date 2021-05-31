@@ -65,9 +65,8 @@ fn compute_partial_strategy_rec<G: GameStructure>(
 
             match formula.as_ref() {
                 Phi::EnforceNext { .. } => {
-                    let edges = graph.annotated_succ(vertex);
                     // Find the first hyper-edge where all targets are true
-                    for edge in edges {
+                    for edge in graph.annotated_succ(vertex) {
                         if let AnnotatedEdge::Hyper(edge) = edge {
                             let all_targets_true = edge.targets.iter().all(|(t, _)| {
                                 matches!(assignments.get(t), Some(VertexAssignment::True))
@@ -86,7 +85,6 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     // negation edge to an DespiteUntil. Let's visit that one instead.
                     let edges = graph.annotated_succ(vertex);
                     if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
-                        println!("enf inv {:?}", assignments.get(&vertex));
                         compute_partial_strategy_rec(
                             graph,
                             &edge.target,
@@ -138,9 +136,8 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     }
                 }
                 Phi::DespiteNext { .. } => {
-                    let edges = graph.annotated_succ(vertex);
                     // There is only one hyper-edge
-                    for edge in edges {
+                    for edge in graph.annotated_succ(vertex) {
                         if let AnnotatedEdge::Hyper(edge) = edge {
                             // Find the first target assigned false
                             for target in edge.targets {
@@ -262,8 +259,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
             // Partial vertices are only used by despite formulae.
             // The full vertices handles finding the moves so we just need to visit all
             // targets of all the edges to proceed with the computation in the successor states.
-            let edges = graph.annotated_succ(vertex);
-            for edge in edges {
+            for edge in graph.annotated_succ(vertex) {
                 if let AnnotatedEdge::Hyper(edge) = edge {
                     for target in edge.targets {
                         compute_partial_strategy_rec(graph, &target.0, assignments, move_to_pick);
