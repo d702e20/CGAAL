@@ -1,9 +1,9 @@
 use crate::algorithms::certain_zero::common::VertexAssignment;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
-use crate::algorithms::game_strategy::enforcing::compute_enforcing_strategy;
 use crate::algorithms::game_strategy::error::Error;
 use crate::algorithms::game_strategy::format::PartialStrategyWithFormatting;
+use crate::algorithms::game_strategy::partial::{compute_partial_strategy, PartialStrategy};
 use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::atledg::AtlDependencyGraph;
@@ -11,9 +11,9 @@ use crate::game_structure::{GameStructure, Player, State};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-pub mod enforcing;
 pub mod error;
 pub mod format;
+pub mod partial;
 
 #[derive(Debug)]
 pub struct ModelCheckResult {
@@ -63,29 +63,6 @@ pub enum SpecificationProof {
     NoStrategyNeeded,
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub struct PartialStrategy {
-    /// The players for which this strategy applies
-    players: Vec<Player>,
-    /// A partial mapping from States to a partial move, where the given players have made
-    /// a specific choice.
-    move_to_pick: HashMap<State, PartialMove>,
-}
-
-impl PartialStrategy {
-    /// Pairs a partial strategy with its game structure, allowing us to print
-    /// the strategy using the names of players and moves as defined by the game structure.
-    pub fn in_context_of<'a, G: GameStructure>(
-        &'a self,
-        game: &'a G,
-    ) -> PartialStrategyWithFormatting<'a, G> {
-        PartialStrategyWithFormatting {
-            strategy: self,
-            game,
-        }
-    }
-}
-
 pub fn compute_game_strategy<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
@@ -107,14 +84,18 @@ pub fn compute_game_strategy<G: GameStructure>(
         return Err(Error::UnsupportedFormula);
     }
 
-    match res {
-        VertexAssignment::True if formula.is_enforce() => Ok(SpecificationProof::Strategy(
-            compute_enforcing_strategy(graph, v0, assignments),
+    match res.is_true() {
+        true if formula.is_enforce() => Ok(SpecificationProof::Strategy(compute_partial_strategy(
+            graph,
+            v0,
+            assignments,
+        ))),
+        true if formula.is_despite() => unimplemented!(),
+        false if formula.is_enforce() => unimplemented!(),
+        false if formula.is_despite() => Ok(SpecificationProof::Strategy(
+            compute_partial_strategy(graph, v0, assignments),
         )),
-        VertexAssignment::True if formula.is_despite() => unimplemented!(),
-        VertexAssignment::False if formula.is_enforce() => unimplemented!(),
-        VertexAssignment::False if formula.is_despite() => unimplemented!(),
         _ if formula.players().is_none() => Ok(SpecificationProof::NoStrategyNeeded),
-        _ => panic!("Assignment of v0 is undecided"),
+        _ => unreachable!(),
     }
 }
