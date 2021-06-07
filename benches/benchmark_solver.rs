@@ -2547,13 +2547,16 @@ criterion_group!(
     rand_5p_5m_3000d_state_enforce_until_1,
     rand_5p_5m_3000d_state_enforce_until_2,
 );
+// tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
+criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
 criterion_main!(
-    static_thread_case_studies,
-    rand_1p_1m_530d,
-    rand_2p_1m_546d,
-    rand_3p_1m_400d,
-    rand_3p_3m_405d,
-    rand_3p_4m_171d,
-    //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
+    github_action_suite, // remember to disable when benchmarking
+                         //static_thread_case_studies,
+                         //rand_1p_1m_530d,
+                         //rand_2p_1m_546d,
+                         //rand_3p_1m_400d,
+                         //rand_3p_3m_405d,
+                         //rand_3p_4m_171d,
+                         //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
 ); // choose which group(s) to bench
