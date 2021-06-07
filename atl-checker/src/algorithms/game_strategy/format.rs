@@ -23,7 +23,12 @@ impl<'a, G: GameStructure> Display for PartialStrategyWithFormatting<'a, G> {
                 .to_string()
         )?;
         for (state, pmove) in &self.strategy.move_to_pick {
-            writeln!(f, "{}: {}", state, pmove.in_context_of(self.game, state))?;
+            writeln!(
+                f,
+                "{}: {}",
+                self.game.state_name(*state),
+                pmove.in_context_of(self.game, state)
+            )?;
         }
         Ok(())
     }
