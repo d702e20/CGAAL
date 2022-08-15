@@ -2,12 +2,10 @@ use crate::algorithms::certain_zero::common::VertexAssignment;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
 use crate::algorithms::game_strategy::error::Error;
-use crate::algorithms::game_strategy::format::PartialStrategyWithFormatting;
 use crate::algorithms::game_strategy::partial::{compute_partial_strategy, PartialStrategy};
-use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::atledg::AtlDependencyGraph;
-use crate::game_structure::{GameStructure, Player, State};
+use crate::game_structure::GameStructure;
 use std::collections::HashMap;
 use std::fmt::Debug;
 

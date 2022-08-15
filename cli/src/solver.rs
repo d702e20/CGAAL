@@ -204,6 +204,4 @@ fn solver_inner<
     } else {
         std::process::exit(43);
     }
-
-    Ok(())
 }
