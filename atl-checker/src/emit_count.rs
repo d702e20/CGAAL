@@ -2,6 +2,6 @@
 macro_rules! emit_count {
     ($($msg: tt)*) => {
         #[cfg(feature = "use-counts")]
-        eprintln!(concat!("[stats] ", $($msg)*));
+        eprintln!(concat!("[stats] ", $($msg)*))
     };
 }
