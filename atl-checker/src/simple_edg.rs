@@ -4,7 +4,7 @@
 ///
 /// # Example A
 /// A simple EDG with 4 vertices A, B, C, D:
-/// ```
+/// ```ignored
 /// simple_edg![
 ///     A => -> {B, C} -> {D};
 ///     B => ;
@@ -28,7 +28,7 @@
 /// macro's arguments, where `EDG_NAME` is the desired name of the example, and `VERTEX_NAME` is
 /// the desired name of the vertex enum. This allows us to have multiple hardcoded EDGs in the
 /// same scope.
-/// ```
+/// ```ignored
 /// simple_edg![
 ///     [MyEDG1, MyVertex1]
 ///     A => -> {B} .> {D};

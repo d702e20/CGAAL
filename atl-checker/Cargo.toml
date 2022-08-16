@@ -11,7 +11,7 @@ authors = [
     "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
     "Nicolaj Østerby Jensen <naje17@student.aau.dk>",
 ]
-edition = "2018"
+edition = "2021"
 
 [features]
 default = ["graph-printer"]
@@ -33,10 +33,10 @@ harness = false
 [dependencies]
 crossbeam-channel = "0.5.0"
 pom = "3.2.0"
-serde = { version = "1.0.117", features = ["derive", "rc"] }
+serde = { version = "1.0.143", features = ["derive", "rc"] }
 tracing = "0.1"
 lazy_static = "1.4.0"
-joinery = "2.0.0"
+joinery = "2.1.0"
 minilp = "0.2.2"
-priority-queue = "1.1.1"
-float-ord = "0.3.1"
+priority-queue = "1.2.3"
+float-ord = "0.3.2"
