@@ -52,7 +52,7 @@ pub struct ParseError {
 /// The `ParseState` is a struct carried around during parsing contained extra information
 /// about the state of the parser, such as the errors encountered
 #[derive(Debug, Default)]
-pub(crate) struct ParseState {
+pub struct ParseState {
     errors: RefCell<Vec<ParseError>>,
 }
 
@@ -60,6 +60,14 @@ impl ParseState {
     /// Saves and error to display when parsing is done
     pub fn report_err(&self, err: ParseError) {
         self.errors.borrow_mut().push(err)
+    }
+
+    pub fn has_errors(&self) -> bool {
+        !self.errors.borrow().is_empty()
+    }
+
+    pub fn errors_as_str(&self, input: &str) -> String {
+        unimplemented!("Nicely formatted errors")
     }
 }
 

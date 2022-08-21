@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use crate::atl::{number, AtlExpressionParser};
 use crate::game_structure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
+use crate::parsing::ParseState;
 use pom::parser::Parser;
 use std::str::{self};
 
@@ -83,7 +84,7 @@ impl GameStructure for EagerGameStructure {
 }
 
 impl AtlExpressionParser for EagerGameStructure {
-    fn player_parser(&self) -> Parser<u8, Player> {
+    fn player_parser(&self, state: &ParseState) -> Parser<u8, Player> {
         // In ATL, players are just their index
         number().convert(move |i| {
             if i <= self.max_player() {
@@ -94,7 +95,7 @@ impl AtlExpressionParser for EagerGameStructure {
         })
     }
 
-    fn proposition_parser(&self) -> Parser<u8, Proposition> {
+    fn proposition_parser(&self, state: &ParseState) -> Parser<u8, Proposition> {
         // In ATL, proposition are just their index. All numbers are valid propositions,
         // but they might not be true anywhere.
         number()
