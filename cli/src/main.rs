@@ -207,6 +207,11 @@ fn main_inner() -> Result<(), String> {
             let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
             let quiet = global_args.is_present("quiet");
 
+            let threads = match solver_args.value_of("threads") {
+                None => num_cpus::get() as u64,
+                Some(t_arg) => t_arg.parse().unwrap(),
+            };
+
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
                     if !quiet {
@@ -219,7 +224,7 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph {
                         game_structure: model,
                     };
-                    GlobalAlgorithm::new(graph, v0).run()
+                    GlobalAlgorithm::new(graph, threads,v0).run()
                 }
                 ModelAndFormula::Json { model, formula } => {
                     println!("Checking the formula: {}", formula.in_context_of(&model));
@@ -230,7 +235,7 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph {
                         game_structure: model,
                     };
-                    GlobalAlgorithm::new(graph, v0).run()
+                    GlobalAlgorithm::new(graph, threads, v0).run()
                 }
             };
 
