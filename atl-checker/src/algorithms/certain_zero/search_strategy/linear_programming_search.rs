@@ -91,7 +91,9 @@ impl LinearProgrammingSearch {
         // If we have not seen this formula before, calculate constrained phi
         if !self.phi_cache.contains_key(&source.formula()) {
             // Convert the formula to a structure of constraints
-            let lcp = self.constrained_phi_maker.convert(&self.game, &*source.formula());
+            let lcp = self
+                .constrained_phi_maker
+                .convert(&self.game, &*source.formula());
             self.phi_cache.insert(source.formula(), lcp);
         }
 
@@ -122,7 +124,6 @@ impl LinearProgrammingSearch {
         // so we iterate through them and find the closest distance across all problems
         let mut best: Option<i32> = None;
         for constraints in all_variants(constrained_phi) {
-
             let mut problem = Problem::new(OptimizationDirection::Minimize);
 
             // Every state variable is associated with two linear programming variables:
@@ -169,7 +170,11 @@ impl LinearProgrammingSearch {
                     let goal_var = symbol_vars.get(state_var).unwrap();
                     lin_expr.add(*goal_var, *coefficient);
                 }
-                problem.add_constraint(lin_expr, constraint.comparison.into(), -constraint.constant);
+                problem.add_constraint(
+                    lin_expr,
+                    constraint.comparison.into(),
+                    -constraint.constant,
+                );
             }
 
             if let Ok(solution) = problem.solve() {
