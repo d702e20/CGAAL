@@ -199,8 +199,8 @@ impl LinearConstraintExtractor {
         // Since it involves sqrt we don't want to do it multiple times
         let coefficient_norm = self
             .terms
-            .iter()
-            .map(|(_, coefficient)| coefficient * coefficient)
+            .values()
+            .map(|coefficient| coefficient * coefficient)
             .sum::<f64>()
             .sqrt();
 

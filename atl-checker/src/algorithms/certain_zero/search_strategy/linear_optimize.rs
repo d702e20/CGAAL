@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
     ConstrainedPhiMaker, LinearConstrainedPhi,
 };
@@ -110,10 +111,10 @@ impl LinearOptimizeSearch {
         }
 
         // If we have not seen this formula before
-        if !self.phi_cache.contains_key(&target.formula()) {
+        if let Entry::Vacant(e) = self.phi_cache.entry(target.formula()) {
             // Convert the formula to a structure of constraints
-            let lcp = self.phi_mapper.convert(&self.game, &*target.formula());
-            self.phi_cache.insert(target.formula(), lcp);
+            let lcp = self.phi_mapper.convert(&self.game, &target.formula());
+            e.insert(lcp);
         }
 
         // Get constraints of this phi
