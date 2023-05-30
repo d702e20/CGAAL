@@ -93,7 +93,7 @@ impl LinearProgrammingSearch {
             // Convert the formula to a structure of constraints
             let lcp = self
                 .constrained_phi_maker
-                .convert(&self.game, &*source.formula());
+                .convert(&self.game, &source.formula());
             self.phi_cache.insert(source.formula(), lcp);
         }
 

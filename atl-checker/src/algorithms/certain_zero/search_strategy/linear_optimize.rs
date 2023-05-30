@@ -183,5 +183,5 @@ fn distance_to_constraint(constraint: &LinearConstraint, state: &State) -> Float
         numerator += coefficient * (*v as f64);
     }
 
-    FloatOrd(numerator.abs() as f64 / constraint.coefficient_norm)
+    FloatOrd(numerator.abs() / constraint.coefficient_norm)
 }
