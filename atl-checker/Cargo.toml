@@ -20,7 +20,7 @@ use-counts = []
 
 [dev-dependencies]
 test-env-log = { version = "0.2.5", features = ["trace"], default-features = false }
-criterion = "0.3"
+criterion = "0.5"
 tracing-subscriber = "0.2.17"
 serde_json = "1.0.59"
 num_cpus = "1.13.0"
