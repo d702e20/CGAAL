@@ -1,5 +1,5 @@
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
-    ConstrainedPhiMapper, LinearConstrainedPhi,
+    ConstrainedPhiMaker, LinearConstrainedPhi,
 };
 use crate::algorithms::certain_zero::search_strategy::linear_constraints::LinearConstraint;
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
@@ -31,7 +31,7 @@ pub struct LinearOptimizeSearch {
     /// Priority based on distance, lowest distance highest priority
     queue: PriorityQueue<Edge<AtlVertex>, FloatOrd<f64>>,
     game: IntermediateLcgs,
-    phi_mapper: ConstrainedPhiMapper,
+    phi_mapper: ConstrainedPhiMaker,
     /// Maps the hash of a Phi and usize of state, to a result distance
     result_cache: HashMap<(Arc<Phi>, StateUsize), FloatOrd<f64>>,
     /// Maps phi to a LinearConstrainedPhi
@@ -44,7 +44,7 @@ impl LinearOptimizeSearch {
     pub fn new(game: IntermediateLcgs) -> LinearOptimizeSearch {
         LinearOptimizeSearch {
             queue: PriorityQueue::new(),
-            phi_mapper: ConstrainedPhiMapper::new(),
+            phi_mapper: ConstrainedPhiMaker::new(),
             game,
             result_cache: HashMap::new(),
             phi_cache: HashMap::new(),
@@ -112,7 +112,7 @@ impl LinearOptimizeSearch {
         // If we have not seen this formula before
         if !self.phi_cache.contains_key(&target.formula()) {
             // Convert the formula to a structure of constraints
-            let lcp = self.phi_mapper.map(&self.game, &*target.formula());
+            let lcp = self.phi_mapper.convert(&self.game, &*target.formula());
             self.phi_cache.insert(target.formula(), lcp);
         }
 
