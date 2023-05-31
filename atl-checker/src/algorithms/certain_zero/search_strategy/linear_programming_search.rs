@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
     ConstrainedPhiMaker, LinearConstrainedPhi,
 };
@@ -14,6 +13,7 @@ use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use minilp::{LinearExpr, OptimizationDirection, Problem, Variable};
 use priority_queue::PriorityQueue;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
