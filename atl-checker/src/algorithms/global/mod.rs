@@ -2,17 +2,17 @@ mod com;
 pub mod multithread;
 pub mod singlethread;
 
-use std::cmp::max;
 use crate::edg::{Edge, ExtendedDependencyGraph, HyperEdge, NegationEdge, Vertex};
+use std::cmp::max;
 use std::collections::{HashMap, HashSet, VecDeque};
 
-pub trait GlobalAlgorithm<G:ExtendedDependencyGraph<V>, V: Vertex>{
+pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
     fn edg(&self) -> &G;
     fn edg_mut(&mut self) -> &mut G;
     fn v0(&self) -> &V;
     fn v0_mut(&mut self) -> &mut V;
-    fn assignment(&self) -> &HashMap<V,bool>;
-    fn assignment_mut(&mut self) -> &mut HashMap<V,bool>;
+    fn assignment(&self) -> &HashMap<V, bool>;
+    fn assignment_mut(&mut self) -> &mut HashMap<V, bool>;
     fn dist(&self) -> &VecDeque<HashSet<V>>;
     fn dist_mut(&mut self) -> &mut VecDeque<HashSet<V>>;
 
@@ -27,7 +27,6 @@ pub trait GlobalAlgorithm<G:ExtendedDependencyGraph<V>, V: Vertex>{
             .iter()
             .rev()
             .for_each(|mut component| while self.f(&mut component) {});
-
 
         *self.assignment().get(&self.v0()).unwrap()
     }

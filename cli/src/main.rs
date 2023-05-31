@@ -20,14 +20,14 @@ use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
-use atl_checker::edg::atledg::AtlDependencyGraph;
 use atl_checker::edg::atledg::vertex::AtlVertex;
+use atl_checker::edg::atledg::AtlDependencyGraph;
 use atl_checker::edg::ExtendedDependencyGraph;
-use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 use atl_checker::game_structure::lcgs::ast::DeclKind;
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
+use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
 
@@ -228,7 +228,7 @@ fn main_inner() -> Result<(), String> {
                     };
 
                     if threads > 1 {
-                        MultithreadedGlobalAlgorithm::new(graph, threads,v0).run()
+                        MultithreadedGlobalAlgorithm::new(graph, threads, v0).run()
                     } else if threads == 1 {
                         SinglethreadedGlobalAlgorithm::new(graph, v0).run()
                     } else {
@@ -247,7 +247,7 @@ fn main_inner() -> Result<(), String> {
                     };
 
                     if threads > 1 {
-                        MultithreadedGlobalAlgorithm::new(graph, threads,v0).run()
+                        MultithreadedGlobalAlgorithm::new(graph, threads, v0).run()
                     } else if threads == 1 {
                         SinglethreadedGlobalAlgorithm::new(graph, v0).run()
                     } else {

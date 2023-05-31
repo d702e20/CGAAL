@@ -4,20 +4,22 @@ use std::fmt::Debug;
 use std::thread;
 use tracing::{span, trace, Level};
 
-use crate::algorithms::global::com::{GBroker, GBrokerManager, GChannelBroker, GChannelBrokerManager, GMessage};
 use crate::algorithms::global::com::GMessage::{Terminate, Updates};
+use crate::algorithms::global::com::{
+    GBroker, GBrokerManager, GChannelBroker, GChannelBrokerManager, GMessage,
+};
 use crate::algorithms::global::GlobalAlgorithm;
 use crate::edg::{Edge, ExtendedDependencyGraph, Vertex};
 
-
-pub struct GWorker<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex>{
+pub struct GWorker<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> {
     edg: G,
-    assignment: HashMap<V,bool>,
+    assignment: HashMap<V, bool>,
     broker: B,
 }
 
-
-impl <B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G,V> for GWorker<B,G,V>  {
+impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V>
+    for GWorker<B, G, V>
+{
     fn edg(&self) -> &G {
         &self.edg
     }
@@ -47,11 +49,9 @@ impl <B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G
     }
 }
 
-impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>,  V: Vertex> GWorker<B,G,V>{
-    pub fn new(edg: G, assignment: HashMap<V,bool>, broker: B) -> Self {
-        trace!(
-            "new global worker"
-        );
+impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
+    pub fn new(edg: G, assignment: HashMap<V, bool>, broker: B) -> Self {
+        trace!("new global worker");
         Self {
             edg,
             assignment,
@@ -65,15 +65,16 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>,  V: Vertex> GWorker<B,G,V>{
         trace!("worker start");
         emit_count!("worker start");
         loop {
-            match self.broker.receive(){
+            match self.broker.receive() {
                 Ok(msg) => {
-                    if let Some(Updates { updates: assignment }) = msg {
+                    if let Some(Updates {
+                        updates: assignment,
+                    }) = msg
+                    {
                         trace!("Worker received updates");
-                        assignment
-                            .iter()
-                            .for_each(|(k,v)|{
-                                self.update_assignment(k.clone(), *v);
-                            });
+                        assignment.iter().for_each(|(k, v)| {
+                            self.update_assignment(k.clone(), *v);
+                        });
                     } else if let Some(Terminate) = msg {
                         trace!("Worker received terminate");
                         return true;
@@ -89,12 +90,17 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>,  V: Vertex> GWorker<B,G,V>{
                 }
                 for edge in self.edg.succ(&task) {
                     match edge {
-                        Edge::Hyper(e) => { self.process_hyper(e); }
-                        Edge::Negation(e) => { self.process_negation(e); }
+                        Edge::Hyper(e) => {
+                            self.process_hyper(e);
+                        }
+                        Edge::Negation(e) => {
+                            self.process_negation(e);
+                        }
                     }
                     trace!("Worker finished task");
                 }
-                self.broker.send_result(task.clone(), *self.assignment.get(&task).unwrap());
+                self.broker
+                    .send_result(task.clone(), *self.assignment.get(&task).unwrap());
             }
         }
     }
@@ -108,7 +114,11 @@ pub struct MultithreadedGlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex
     dist: VecDeque<HashSet<V>>,
 }
 
-impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: Vertex + Send + Sync + 'static> GlobalAlgorithm<G,V> for MultithreadedGlobalAlgorithm<G,V> {
+impl<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    > GlobalAlgorithm<G, V> for MultithreadedGlobalAlgorithm<G, V>
+{
     fn edg(&self) -> &G {
         &self.edg
     }
@@ -142,7 +152,7 @@ impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: V
             let mut worker = GWorker::new(
                 self.edg.clone(),
                 self.assignment.clone(),
-                brokers.pop().unwrap()
+                brokers.pop().unwrap(),
             );
             thread::spawn(move || {
                 worker.run();
@@ -150,49 +160,57 @@ impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: V
         }
 
         let components = self.dist.clone();
-        components
-            .iter()
-            .rev()
-            .for_each(|component| {
-                let mut tasks: HashMap<V, bool> = HashMap::new();
-                let mut changed_flag = true;
+        components.iter().rev().for_each(|component| {
+            let mut tasks: HashMap<V, bool> = HashMap::new();
+            let mut changed_flag = true;
 
-                for vertex in component {
-                    self.queue_task(vertex.clone(),&mut tasks,&manager);
-                }
+            for vertex in component {
+                self.queue_task(vertex.clone(), &mut tasks, &manager);
+            }
 
-                loop {
-                    if !tasks.values().any(|value| *value)  {
-                        if manager.task_queue_is_empty() && !changed_flag { break; }
-
-                        manager.send_updates(self.assignment().clone());
-                        for vertex in component {
-                            self.queue_task(vertex.clone(),&mut tasks, &manager);
-                        }
-                        changed_flag = false;
+            loop {
+                if !tasks.values().any(|value| *value) {
+                    if manager.task_queue_is_empty() && !changed_flag {
+                        break;
                     }
 
-                    match manager.receive() {
-                        Ok(msg) => {
-                            if let GMessage::Result { task, value } = msg {
-                                changed_flag = max(self.update_assignment(task.clone(), value.clone()), changed_flag);
-                                tasks.insert(task, false);
-                            }
+                    manager.send_updates(self.assignment().clone());
+                    for vertex in component {
+                        self.queue_task(vertex.clone(), &mut tasks, &manager);
+                    }
+                    changed_flag = false;
+                }
+
+                match manager.receive() {
+                    Ok(msg) => {
+                        if let GMessage::Result { task, value } = msg {
+                            changed_flag = max(
+                                self.update_assignment(task.clone(), value.clone()),
+                                changed_flag,
+                            );
+                            tasks.insert(task, false);
                         }
-                        Err(err) => { panic!("{}", err); }
+                    }
+                    Err(err) => {
+                        panic!("{}", err);
                     }
                 }
-            });
+            }
+        });
 
         manager.terminate();
         *self.assignment().get(&self.v0).unwrap()
     }
 }
 
-impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: Vertex + Send + Sync + 'static> MultithreadedGlobalAlgorithm<G, V> {
+impl<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    > MultithreadedGlobalAlgorithm<G, V>
+{
     pub fn new(edg: G, worker_count: u64, v0: V) -> Self {
         let mut assignment = HashMap::new();
-        assignment.insert(v0.clone(),false);
+        assignment.insert(v0.clone(), false);
         let dist = VecDeque::new();
         Self {
             edg,
@@ -203,12 +221,17 @@ impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: V
         }
     }
     pub fn run(&mut self) -> bool {
-        GlobalAlgorithm::<G,V>::run(self)
+        GlobalAlgorithm::<G, V>::run(self)
     }
 
-    fn queue_task(&self, task: V,tasks: &mut HashMap<V, bool>, manager: &GChannelBrokerManager<V>){
+    fn queue_task(
+        &self,
+        task: V,
+        tasks: &mut HashMap<V, bool>,
+        manager: &GChannelBrokerManager<V>,
+    ) {
         tasks.insert(task.clone(), true);
-        manager.queue_task( task.clone());
+        manager.queue_task(task.clone());
     }
 }
 
@@ -461,4 +484,3 @@ mod test {
         edg_multi_assert!(G, true);
     }
 }
-

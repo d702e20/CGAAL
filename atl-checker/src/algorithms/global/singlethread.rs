@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Debug;
 use crate::algorithms::global::GlobalAlgorithm;
 use crate::edg::{ExtendedDependencyGraph, Vertex};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::Debug;
 // Based on the global algorithm described in "Extended Dependency Graphs and Efficient Distributed Fixed-Point Computation" by A.E. Dalsgaard et al., 2017
 pub struct SinglethreadedGlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
     edg: G,
@@ -13,7 +13,11 @@ pub struct SinglethreadedGlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Verte
     dist: VecDeque<HashSet<V>>,
 }
 
-impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: Vertex + Send + Sync + 'static> GlobalAlgorithm<G,V> for SinglethreadedGlobalAlgorithm<G,V> {
+impl<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    > GlobalAlgorithm<G, V> for SinglethreadedGlobalAlgorithm<G, V>
+{
     fn edg(&self) -> &G {
         &self.edg
     }
@@ -40,11 +44,15 @@ impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: V
     }
 }
 
-impl<G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static, V: Vertex + Send + Sync + 'static> SinglethreadedGlobalAlgorithm<G,V>{
-    pub fn run(mut self)->bool{
-        GlobalAlgorithm::<G,V>::run(&mut self)
+impl<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    > SinglethreadedGlobalAlgorithm<G, V>
+{
+    pub fn run(mut self) -> bool {
+        GlobalAlgorithm::<G, V>::run(&mut self)
     }
-    pub fn new(edg: G,v0: V) -> Self {
+    pub fn new(edg: G, v0: V) -> Self {
         Self {
             edg,
             v0,

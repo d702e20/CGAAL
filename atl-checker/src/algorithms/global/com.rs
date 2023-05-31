@@ -1,31 +1,25 @@
-use std::collections::{HashMap};
+use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use std::collections::HashMap;
 use std::error::Error;
 use std::hash::Hash;
-use crossbeam_channel::{Receiver, Sender, TryRecvError};
 
 #[derive(Clone, Debug)]
 pub enum GMessage<V: Hash + Eq + PartialEq + Clone> {
-    Updates {
-        updates:HashMap<V, bool>,
-    },
-    Result {
-        task: V,
-        value: bool,
-    },
+    Updates { updates: HashMap<V, bool> },
+    Result { task: V, value: bool },
     Terminate,
 }
 
 pub trait GBroker<V: Hash + Eq + PartialEq + Clone> {
     fn send_terminate(&self);
-    fn send_result(&self, task: V ,value: bool);
+    fn send_result(&self, task: V, value: bool);
     fn receive(&self) -> Result<Option<GMessage<V>>, Box<dyn Error>>;
     fn get_task(&self) -> Result<Option<V>, Box<dyn Error>>;
     fn task_queue_is_empty(&self) -> bool;
-
 }
 
 pub trait GBrokerManager<V: Hash + Eq + PartialEq + Clone> {
-    fn send_updates(&self, assignments: HashMap<V,bool>);
+    fn send_updates(&self, assignments: HashMap<V, bool>);
     fn queue_task(&self, task: V);
     fn receive(&self) -> Result<GMessage<V>, Box<dyn Error>>;
     fn task_queue_is_empty(&self) -> bool;
@@ -39,31 +33,33 @@ pub struct GChannelBrokerManager<V: Hash + Eq + PartialEq + Clone> {
     task_queue_consumer: Receiver<V>,
 }
 
-impl<V: Hash + Eq + PartialEq + Clone> GBrokerManager<V> for GChannelBrokerManager<V>{
-    fn send_updates(&self, updates: HashMap<V, bool>){
+impl<V: Hash + Eq + PartialEq + Clone> GBrokerManager<V> for GChannelBrokerManager<V> {
+    fn send_updates(&self, updates: HashMap<V, bool>) {
         let msg = GMessage::Updates { updates };
-        for worker in &self.workers{
-            worker.send(msg.clone()).expect("Sending assignments to workers failed");
+        for worker in &self.workers {
+            worker
+                .send(msg.clone())
+                .expect("Sending assignments to workers failed");
         }
     }
-    fn queue_task(&self, task: V){
-        self.task_queue_producer.send(task).expect("Sending tasks failed");
+    fn queue_task(&self, task: V) {
+        self.task_queue_producer
+            .send(task)
+            .expect("Sending tasks failed");
     }
 
     fn receive(&self) -> Result<GMessage<V>, Box<dyn Error>> {
         match self.updates.try_recv() {
-            Ok(msg) => {
-                Ok(msg)
-            },
-            Err(err) => {
-                match err {
-                    TryRecvError::Empty => {
-                        debug!("nothing to receive");
-                        Ok(GMessage::Updates {updates: HashMap::new()})
-                    }
-                    TryRecvError::Disconnected => Err(Box::new(err)),
+            Ok(msg) => Ok(msg),
+            Err(err) => match err {
+                TryRecvError::Empty => {
+                    debug!("nothing to receive");
+                    Ok(GMessage::Updates {
+                        updates: HashMap::new(),
+                    })
                 }
-            }
+                TryRecvError::Disconnected => Err(Box::new(err)),
+            },
         }
     }
 
@@ -91,12 +87,14 @@ pub struct GChannelBroker<V: Hash + Eq + PartialEq + Clone> {
 
 impl<V: Hash + Eq + PartialEq + Clone> GBroker<V> for GChannelBroker<V> {
     fn send_terminate(&self) {
-        self.updates.send(GMessage::Terminate).expect("Failed to send terminate message");
+        self.updates
+            .send(GMessage::Terminate)
+            .expect("Failed to send terminate message");
     }
 
-    fn send_result(&self, task: V, value: bool){
+    fn send_result(&self, task: V, value: bool) {
         self.updates
-            .send(GMessage::Result {task, value})
+            .send(GMessage::Result { task, value })
             .expect("Failed to send the assignments table to main thread");
     }
 
@@ -129,7 +127,6 @@ impl<V: Hash + Eq + PartialEq + Clone> GBroker<V> for GChannelBroker<V> {
     fn task_queue_is_empty(&self) -> bool {
         self.task_queue_consumer.is_empty()
     }
-
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> GChannelBroker<V> {
@@ -143,7 +140,7 @@ impl<V: Hash + Eq + PartialEq + Clone> GChannelBroker<V> {
             msg_senders.push(sender);
             msg_receivers.push(receiver);
         }
-        let (task_tx,task_rx) = crossbeam_channel::unbounded();
+        let (task_tx, task_rx) = crossbeam_channel::unbounded();
         let (changes_tx, changes_rx) = crossbeam_channel::unbounded();
 
         let brokers = msg_receivers
