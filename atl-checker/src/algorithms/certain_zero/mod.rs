@@ -85,6 +85,12 @@ pub fn distributed_certain_zero<
 
         CertainZeroResult::AllFoundAssignments(combined)
     } else {
+        // Receive (but discard) all assignments, such that the workers can terminate correctly
+        for _ in 0..worker_count {
+            let _ = manager_broker
+                .receive_assignment()
+                .expect("Error receiving the assignment table");
+        }
         CertainZeroResult::RootAssignment(root_assignment)
     }
 }
@@ -254,6 +260,9 @@ impl<
         while self.running {
             // Receive incoming tasks and terminate if requested
             self.recv_all_and_fill_queues();
+            if !self.running {
+                break;
+            }
 
             if self.process_task() {
                 continue; // We did a task
