@@ -855,7 +855,7 @@ mod test {
     /// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
     /// ```
     #[allow(unused_macros)]
-    macro_rules! edg_assert {
+    macro_rules! assert_with_otf_algo {
         // Standard use, no names or worker count given
         ( $v:ident, $assign:ident ) => {
             edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 3)
@@ -886,7 +886,7 @@ mod test {
         simple_edg![
             A => -> {};
         ];
-        edg_assert!(A, True);
+        assert_with_otf_algo!(A, True);
     }
 
     #[test]
@@ -894,7 +894,7 @@ mod test {
         simple_edg![
             A => ;
         ];
-        edg_assert!(A, False);
+        assert_with_otf_algo!(A, False);
     }
 
     #[test]
@@ -905,10 +905,10 @@ mod test {
             C => .> D;
             D => -> {};
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, False);
-        edg_assert!(C, False);
-        edg_assert!(D, True);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(C, False);
+        assert_with_otf_algo!(D, True);
     }
 
     #[test]
@@ -920,11 +920,11 @@ mod test {
             D => -> {} -> {C};
             E => .> D;
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, True);
-        edg_assert!(C, True);
-        edg_assert!(D, True);
-        edg_assert!(E, False);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, True);
+        assert_with_otf_algo!(C, True);
+        assert_with_otf_algo!(D, True);
+        assert_with_otf_algo!(E, False);
     }
 
     #[test]
@@ -940,15 +940,15 @@ mod test {
             H => -> {I};
             I => ;
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, True);
-        edg_assert!(C, True);
-        edg_assert!(D, True);
-        edg_assert!(E, True);
-        edg_assert!(F, True);
-        edg_assert!(G, False);
-        edg_assert!(H, False);
-        edg_assert!(I, False);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, True);
+        assert_with_otf_algo!(C, True);
+        assert_with_otf_algo!(D, True);
+        assert_with_otf_algo!(E, True);
+        assert_with_otf_algo!(F, True);
+        assert_with_otf_algo!(G, False);
+        assert_with_otf_algo!(H, False);
+        assert_with_otf_algo!(I, False);
     }
 
     #[test]
@@ -959,10 +959,10 @@ mod test {
             C => ;
             D => -> {};
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, True);
-        edg_assert!(C, False);
-        edg_assert!(D, True);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, True);
+        assert_with_otf_algo!(C, False);
+        assert_with_otf_algo!(D, True);
     }
 
     #[test]
@@ -972,9 +972,9 @@ mod test {
             B => -> {C};
             C => -> {B};
         ];
-        edg_assert!(A, False);
-        edg_assert!(B, False);
-        edg_assert!(C, False);
+        assert_with_otf_algo!(A, False);
+        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(C, False);
     }
 
     #[test]
@@ -984,9 +984,9 @@ mod test {
             B => ;
             C => ;
         ];
-        edg_assert!(A, False);
-        edg_assert!(B, False);
-        edg_assert!(C, False);
+        assert_with_otf_algo!(A, False);
+        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(C, False);
     }
 
     #[test]
@@ -997,10 +997,10 @@ mod test {
             C => -> {D};
             D => -> {};
         ];
-        edg_assert!(A, False);
-        edg_assert!(B, False);
-        edg_assert!(C, True);
-        edg_assert!(D, True);
+        assert_with_otf_algo!(A, False);
+        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(C, True);
+        assert_with_otf_algo!(D, True);
     }
 
     #[test]
@@ -1011,10 +1011,10 @@ mod test {
             C => -> {B};
             D => -> {C} -> {};
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, True);
-        edg_assert!(C, True);
-        edg_assert!(D, True);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, True);
+        assert_with_otf_algo!(C, True);
+        assert_with_otf_algo!(D, True);
     }
 
     #[test]
@@ -1023,8 +1023,8 @@ mod test {
             A => .> B;
             B => -> {};
         ];
-        edg_assert!(A, False);
-        edg_assert!(B, True);
+        assert_with_otf_algo!(A, False);
+        assert_with_otf_algo!(B, True);
     }
 
     #[test]
@@ -1036,11 +1036,11 @@ mod test {
             D => -> {E};
             E => -> {D};
         ];
-        edg_assert!(A, False);
-        edg_assert!(B, True);
-        edg_assert!(C, True);
-        edg_assert!(D, False);
-        edg_assert!(E, False);
+        assert_with_otf_algo!(A, False);
+        assert_with_otf_algo!(B, True);
+        assert_with_otf_algo!(C, True);
+        assert_with_otf_algo!(D, False);
+        assert_with_otf_algo!(E, False);
     }
 
     #[test]
@@ -1051,10 +1051,10 @@ mod test {
             C => -> {D};
             D => ;
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, True);
-        edg_assert!(C, False);
-        edg_assert!(D, False);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, True);
+        assert_with_otf_algo!(C, False);
+        assert_with_otf_algo!(D, False);
     }
 
     #[test]
@@ -1063,8 +1063,8 @@ mod test {
             A => .> B;
             B => -> {B};
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, False);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, False);
     }
 
     #[test]
@@ -1077,12 +1077,12 @@ mod test {
             E => .> F;
             F => -> {F};
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, False);
-        edg_assert!(C, True);
-        edg_assert!(D, False);
-        edg_assert!(E, True);
-        edg_assert!(F, False);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(C, True);
+        assert_with_otf_algo!(D, False);
+        assert_with_otf_algo!(E, True);
+        assert_with_otf_algo!(F, False);
     }
 
     #[test]
@@ -1102,12 +1102,12 @@ mod test {
             J => -> {K};
             K => -> {};
         ];
-        edg_assert!(A, True);
-        edg_assert!(B, False);
-        edg_assert!(C, False);
-        edg_assert!(D, False);
-        edg_assert!(E, True);
-        edg_assert!(F, True);
-        edg_assert!(G, True);
+        assert_with_otf_algo!(A, True);
+        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(C, False);
+        assert_with_otf_algo!(D, False);
+        assert_with_otf_algo!(E, True);
+        assert_with_otf_algo!(F, True);
+        assert_with_otf_algo!(G, True);
     }
 }

@@ -1,6 +1,5 @@
 /// Defines a hardcoded EDG.
-/// This allows us to easily create EDGs for testing and other purposes. It works well
-/// together with the `edg_assert` macro.
+/// This allows us to easily create EDGs for testing and other purposes.
 ///
 /// # Example A
 /// A simple EDG with 4 vertices A, B, C, D:
@@ -11,9 +10,6 @@
 ///     C => -> {B} .> D;
 ///     D => -> {};
 /// ];
-///
-/// edg_assert!(A, TRUE);
-/// edg_assert!(B, FALSE);
 /// ```
 /// We list the edges of each vertex, separating each vertex using a semicolon.
 /// The syntax `-> {V, ..., W}` defines a hyper-edge with targets `V`,...,`W`, and the syntax
@@ -36,11 +32,7 @@
 ///     C => ;
 ///     D => -> {C};
 /// ];
-///
-/// edg_assert!([MyEDG1, MyVertex1] A, TRUE);
-/// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
 /// ```
-/// The `edg_assert` macro allows the same naming functionality.
 #[allow(unused_macros)]
 macro_rules! simple_edg {
     // Standard use

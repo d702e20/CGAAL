@@ -173,7 +173,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
 mod test {
     use test_env_log::test;
     #[allow(unused_macros)]
-    macro_rules! edg_assert {
+    macro_rules! assert_with_global {
         // Standard use, no names or worker count given
         ( $v:ident, $assign:expr ) => {
             edg_assert!([SimpleEDG, SimpleVertex] $v, $assign)
@@ -194,7 +194,7 @@ mod test {
         simple_edg![
             A => -> {};
         ];
-        edg_assert!(A, true);
+        assert_with_global!(A, true);
     }
 
     #[test]
@@ -202,7 +202,7 @@ mod test {
         simple_edg![
             A => ;
         ];
-        edg_assert!(A, false);
+        assert_with_global!(A, false);
     }
 
     #[test]
@@ -213,10 +213,10 @@ mod test {
             C => .> D;
             D => -> {};
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, false);
-        edg_assert!(C, false);
-        edg_assert!(D, true);
+        assert_with_global!(A, true);
+        assert_with_global!(B, false);
+        assert_with_global!(C, false);
+        assert_with_global!(D, true);
     }
 
     #[test]
@@ -228,11 +228,11 @@ mod test {
             D => -> {} -> {C};
             E => .> D;
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, true);
-        edg_assert!(C, true);
-        edg_assert!(D, true);
-        edg_assert!(E, false);
+        assert_with_global!(A, true);
+        assert_with_global!(B, true);
+        assert_with_global!(C, true);
+        assert_with_global!(D, true);
+        assert_with_global!(E, false);
     }
 
     #[test]
@@ -248,15 +248,15 @@ mod test {
             H => -> {I};
             I => ;
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, true);
-        edg_assert!(C, true);
-        edg_assert!(D, true);
-        edg_assert!(E, true);
-        edg_assert!(F, true);
-        edg_assert!(G, false);
-        edg_assert!(H, false);
-        edg_assert!(I, false);
+        assert_with_global!(A, true);
+        assert_with_global!(B, true);
+        assert_with_global!(C, true);
+        assert_with_global!(D, true);
+        assert_with_global!(E, true);
+        assert_with_global!(F, true);
+        assert_with_global!(G, false);
+        assert_with_global!(H, false);
+        assert_with_global!(I, false);
     }
 
     #[test]
@@ -267,10 +267,10 @@ mod test {
             C => ;
             D => -> {};
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, true);
-        edg_assert!(C, false);
-        edg_assert!(D, true);
+        assert_with_global!(A, true);
+        assert_with_global!(B, true);
+        assert_with_global!(C, false);
+        assert_with_global!(D, true);
     }
 
     #[test]
@@ -280,9 +280,9 @@ mod test {
             B => -> {C};
             C => -> {B};
         ];
-        edg_assert!(A, false);
-        edg_assert!(B, false);
-        edg_assert!(C, false);
+        assert_with_global!(A, false);
+        assert_with_global!(B, false);
+        assert_with_global!(C, false);
     }
 
     #[test]
@@ -292,9 +292,9 @@ mod test {
             B => ;
             C => ;
         ];
-        edg_assert!(A, false);
-        edg_assert!(B, false);
-        edg_assert!(C, false);
+        assert_with_global!(A, false);
+        assert_with_global!(B, false);
+        assert_with_global!(C, false);
     }
 
     #[test]
@@ -305,10 +305,10 @@ mod test {
             C => -> {D};
             D => -> {};
         ];
-        edg_assert!(A, false);
-        edg_assert!(B, false);
-        edg_assert!(C, true);
-        edg_assert!(D, true);
+        assert_with_global!(A, false);
+        assert_with_global!(B, false);
+        assert_with_global!(C, true);
+        assert_with_global!(D, true);
     }
 
     #[test]
@@ -319,10 +319,10 @@ mod test {
             C => -> {B};
             D => -> {C} -> {};
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, true);
-        edg_assert!(C, true);
-        edg_assert!(D, true);
+        assert_with_global!(A, true);
+        assert_with_global!(B, true);
+        assert_with_global!(C, true);
+        assert_with_global!(D, true);
     }
 
     #[test]
@@ -331,8 +331,8 @@ mod test {
             A => .> B;
             B => -> {};
         ];
-        edg_assert!(A, false);
-        edg_assert!(B, true);
+        assert_with_global!(A, false);
+        assert_with_global!(B, true);
     }
 
     #[test]
@@ -344,11 +344,11 @@ mod test {
             D => -> {E};
             E => -> {D};
         ];
-        edg_assert!(A, false);
-        edg_assert!(B, true);
-        edg_assert!(C, true);
-        edg_assert!(D, false);
-        edg_assert!(E, false);
+        assert_with_global!(A, false);
+        assert_with_global!(B, true);
+        assert_with_global!(C, true);
+        assert_with_global!(D, false);
+        assert_with_global!(E, false);
     }
 
     #[test]
@@ -359,10 +359,10 @@ mod test {
             C => -> {D};
             D => ;
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, true);
-        edg_assert!(C, false);
-        edg_assert!(D, false);
+        assert_with_global!(A, true);
+        assert_with_global!(B, true);
+        assert_with_global!(C, false);
+        assert_with_global!(D, false);
     }
 
     #[test]
@@ -371,8 +371,8 @@ mod test {
             A => .> B;
             B => -> {B};
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, false);
+        assert_with_global!(A, true);
+        assert_with_global!(B, false);
     }
 
     #[test]
@@ -385,12 +385,12 @@ mod test {
             E => .> F;
             F => -> {F};
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, false);
-        edg_assert!(C, true);
-        edg_assert!(D, false);
-        edg_assert!(E, true);
-        edg_assert!(F, false);
+        assert_with_global!(A, true);
+        assert_with_global!(B, false);
+        assert_with_global!(C, true);
+        assert_with_global!(D, false);
+        assert_with_global!(E, true);
+        assert_with_global!(F, false);
     }
 
     #[test]
@@ -410,12 +410,12 @@ mod test {
             J => -> {K};
             K => -> {};
         ];
-        edg_assert!(A, true);
-        edg_assert!(B, false);
-        edg_assert!(C, false);
-        edg_assert!(D, false);
-        edg_assert!(E, true);
-        edg_assert!(F, true);
-        edg_assert!(G, true);
+        assert_with_global!(A, true);
+        assert_with_global!(B, false);
+        assert_with_global!(C, false);
+        assert_with_global!(D, false);
+        assert_with_global!(E, true);
+        assert_with_global!(F, true);
+        assert_with_global!(G, true);
     }
 }
