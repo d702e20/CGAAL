@@ -171,12 +171,13 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
 }
 #[cfg(test)]
 mod test {
-    use test_env_log::test;
+    use test_log::test;
+
     #[allow(unused_macros)]
     macro_rules! assert_with_global {
         // Standard use, no names or worker count given
         ( $v:ident, $assign:expr ) => {
-            edg_assert!([SimpleEDG, SimpleVertex] $v, $assign)
+            assert_with_global!([SimpleEDG, SimpleVertex] $v, $assign)
         };
         // With custom names and worker count
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:expr) => {

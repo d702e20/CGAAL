@@ -808,7 +808,7 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use test_env_log::test;
+    use test_log::test;
 
     /// Defines an assertion which test the assignment of a vertex in an EDG using the
     /// distributed certain zero algorithm.
@@ -822,8 +822,8 @@ mod test {
     ///     B => -> {};
     /// ];
     ///
-    /// edg_assert!(A, FALSE);
-    /// edg_assert!(B, TRUE);
+    /// assert_with_otf_algo!(A, FALSE);
+    /// assert_with_otf_algo!(B, TRUE);
     /// ```
     /// Note that TRUE/FALSE must be capitalized.
     ///
@@ -831,7 +831,7 @@ mod test {
     /// You can set the worker count by supplying a third argument to the marco. The default
     /// number of workers are 3.
     /// ```
-    /// edg_assert!(A, FALSE, 5);
+    /// assert_with_otf_algo!(A, FALSE, 5);
     /// ```
     ///
     /// # Custom names
@@ -851,22 +851,22 @@ mod test {
     ///     D => -> {C};
     /// ];
     ///
-    /// edg_assert!([MyEDG1, MyVertex1] A, TRUE);
-    /// edg_assert!([MyEDG1, MyVertex1] B, FALSE);
+    /// assert_with_otf_algo!([MyEDG1, MyVertex1] A, TRUE);
+    /// assert_with_otf_algo!([MyEDG1, MyVertex1] B, FALSE);
     /// ```
     #[allow(unused_macros)]
     macro_rules! assert_with_otf_algo {
         // Standard use, no names or worker count given
         ( $v:ident, $assign:ident ) => {
-            edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, 3)
+            assert_with_otf_algo!([SimpleEDG, SimpleVertex] $v, $assign, 3)
         };
         // With worker count given
         ( $v:ident, $assign:ident, $wc:expr ) => {
-            edg_assert!([SimpleEDG, SimpleVertex] $v, $assign, $wc)
+            assert_with_otf_algo!([SimpleEDG, SimpleVertex] $v, $assign, $wc)
         };
         // With custom names given
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident ) => {
-            edg_assert!([$edg_name, $vertex_name] $v, $assign, 3)
+            assert_with_otf_algo!([$edg_name, $vertex_name] $v, $assign, 3)
         };
         // With custom names and worker count
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:ident, $wc:expr ) => {
