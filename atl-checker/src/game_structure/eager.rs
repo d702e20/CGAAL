@@ -51,7 +51,7 @@ impl GameStructure for EagerGameStructure {
     fn transitions(&self, state: State, choices: Vec<usize>) -> State {
         transition_lookup(
             choices.as_slice(),
-            &self
+            self
                 .transitions
                 .get(state)
                 .unwrap_or_else(|| panic!("Undefined state {}, no transitions", state)),

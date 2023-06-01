@@ -106,7 +106,7 @@ pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) 
                         .map(|e| {
                             // Or-formula have multiple hyper-edges with one target
                             if let Edge::Hyper(e) = e {
-                                phi_stats(mssa, &e.targets.get(0).unwrap())
+                                phi_stats(mssa, e.targets.get(0).unwrap())
                             } else {
                                 unreachable!()
                             }
@@ -144,7 +144,7 @@ pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) 
                 Phi::DespiteUntil { players, .. } => {
                     let edges = edg.succ(v);
                     // Use the fact that the `until` branch is the first edge in successors
-                    let until_stats = phi_stats(mssa, &edges[0].targets().first().unwrap());
+                    let until_stats = phi_stats(mssa, edges[0].targets().first().unwrap());
                     // Use the fact that `pre` target is the first target of the second edge
                     let second_edge_targets = edges.get(1).unwrap().targets();
                     let pre_target = second_edge_targets.first().unwrap();
@@ -165,7 +165,7 @@ pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) 
                 Phi::EnforceUntil { players, .. } => {
                     let edges = edg.succ(v);
                     // Use the fact that the `until` branch is the first edge in successors
-                    let until_stats = phi_stats(mssa, &edges[0].targets().first().unwrap());
+                    let until_stats = phi_stats(mssa, edges[0].targets().first().unwrap());
                     // Use the fact that `pre` target is the first target of the second edge
                     let second_edge_targets = edges.get(1).unwrap().targets();
                     let pre_target = second_edge_targets.first().unwrap();
@@ -194,7 +194,7 @@ pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) 
                 Phi::DespiteEventually { players, .. } => {
                     let edges = edg.succ(v);
                     // Use the fact that the `until` branch is the first edge in successors
-                    let until_stats = phi_stats(mssa, &edges[0].targets().first().unwrap());
+                    let until_stats = phi_stats(mssa, edges[0].targets().first().unwrap());
                     let second_edge_targets = edges.get(1).unwrap().targets();
                     let other_target_stats: Vec<PhiStats> = second_edge_targets[1..]
                         .iter()
@@ -211,7 +211,7 @@ pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) 
                 Phi::EnforceEventually { players, .. } => {
                     let edges = edg.succ(v);
                     // Use the fact that the `until` branch is the first edge in successors
-                    let until_stats = phi_stats(mssa, &edges[0].targets().first().unwrap());
+                    let until_stats = phi_stats(mssa, edges[0].targets().first().unwrap());
                     // Stats of the other edges and their targets
                     let other_edge_stats: Vec<Vec<PhiStats>> = edges[1..]
                         .iter()
@@ -249,7 +249,7 @@ pub fn analyse<G: ExtendedDependencyGraph<AtlVertex>>(edg: &G, root: AtlVertex) 
                     .map(|e| {
                         // Partial vertices have multiple hyper-edges with one target
                         if let Edge::Hyper(e) = e {
-                            phi_stats(mssa, &e.targets.get(0).unwrap())
+                            phi_stats(mssa, e.targets.get(0).unwrap())
                         } else {
                             unreachable!()
                         }
