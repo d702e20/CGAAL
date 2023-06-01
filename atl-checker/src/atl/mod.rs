@@ -323,18 +323,12 @@ impl Display for Phi {
             Phi::Not(formula) => write!(f, "!({})", formula),
             Phi::Or(left, right) => write!(f, "({} | {})", left, right),
             Phi::And(left, right) => write!(f, "({} & {})", left, right),
-            Phi::DespiteNext { players, formula } => write!(
-                f,
-                "[[{}]] X {}",
-                players.iter().join_with(","),
-                formula
-            ),
-            Phi::EnforceNext { players, formula } => write!(
-                f,
-                "<<{}>> X {}",
-                players.iter().join_with(","),
-                formula
-            ),
+            Phi::DespiteNext { players, formula } => {
+                write!(f, "[[{}]] X {}", players.iter().join_with(","), formula)
+            }
+            Phi::EnforceNext { players, formula } => {
+                write!(f, "<<{}>> X {}", players.iter().join_with(","), formula)
+            }
             Phi::DespiteUntil {
                 players,
                 pre,
@@ -357,30 +351,18 @@ impl Display for Phi {
                 pre,
                 until
             ),
-            Phi::DespiteEventually { players, formula } => write!(
-                f,
-                "[[{}]] F {}",
-                players.iter().join_with(","),
-                formula
-            ),
-            Phi::EnforceEventually { players, formula } => write!(
-                f,
-                "<<{}>> F {}",
-                players.iter().join_with(","),
-                formula
-            ),
-            Phi::DespiteInvariant { players, formula } => write!(
-                f,
-                "[[{}]] G {}",
-                players.iter().join_with(","),
-                formula
-            ),
-            Phi::EnforceInvariant { players, formula } => write!(
-                f,
-                "<<{}>> G {}",
-                players.iter().join_with(","),
-                formula
-            ),
+            Phi::DespiteEventually { players, formula } => {
+                write!(f, "[[{}]] F {}", players.iter().join_with(","), formula)
+            }
+            Phi::EnforceEventually { players, formula } => {
+                write!(f, "<<{}>> F {}", players.iter().join_with(","), formula)
+            }
+            Phi::DespiteInvariant { players, formula } => {
+                write!(f, "[[{}]] G {}", players.iter().join_with(","), formula)
+            }
+            Phi::EnforceInvariant { players, formula } => {
+                write!(f, "<<{}>> G {}", players.iter().join_with(","), formula)
+            }
         }
     }
 }

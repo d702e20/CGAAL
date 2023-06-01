@@ -660,10 +660,7 @@ impl<
             }
         }
 
-        self.unsafe_neg_edges
-            .get_mut(depth)
-            .unwrap()
-            .push(edge);
+        self.unsafe_neg_edges.get_mut(depth).unwrap().push(edge);
     }
 
     /// Process a request from another worker. We either answer immediately if we know the
