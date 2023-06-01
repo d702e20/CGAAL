@@ -71,7 +71,7 @@ impl<V: Hash + Eq + PartialEq + Clone> GBrokerManager<V> for GChannelBrokerManag
         for to in 0..self.workers.len() {
             let _err = self
                 .workers
-                .get(to as usize)
+                .get(to)
                 .expect("receiver id out of bounds")
                 .send(GMessage::Terminate);
         }

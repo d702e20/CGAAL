@@ -26,7 +26,7 @@ pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
         components
             .iter()
             .rev()
-            .for_each(|mut component| while self.f(&mut component) {});
+            .for_each(|component| while self.f(component) {});
 
         *self.assignment().get(&self.v0()).unwrap()
     }
@@ -100,7 +100,7 @@ pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
         curr_dist.insert(self.v0().clone());
         self.dist_mut().push_front(curr_dist);
         let v = self.v0().clone();
-        self.assignment_mut().insert(v.clone(), false);
+        self.assignment_mut().insert(v, false);
 
         for edge in self.edg().succ(&self.v0()) {
             queue.push_back((edge, 0));

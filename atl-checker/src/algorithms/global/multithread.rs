@@ -184,10 +184,8 @@ impl<
                 match manager.receive() {
                     Ok(msg) => {
                         if let GMessage::Result { task, value } = msg {
-                            changed_flag = max(
-                                self.update_assignment(task.clone(), value.clone()),
-                                changed_flag,
-                            );
+                            changed_flag =
+                                max(self.update_assignment(task.clone(), value), changed_flag);
                             tasks.insert(task, false);
                         }
                     }
@@ -231,7 +229,7 @@ impl<
         manager: &GChannelBrokerManager<V>,
     ) {
         tasks.insert(task.clone(), true);
-        manager.queue_task(task.clone());
+        manager.queue_task(task);
     }
 }
 
