@@ -169,6 +169,11 @@ impl IntermediateLcgs {
         res
     }
 
+    /// Returns the variables that make up a state
+    pub fn get_vars(&self) -> Vec<SymbolIdentifier> {
+        self.vars.clone()
+    }
+
     /// Returns a vector of players
     pub fn get_player(&self) -> Vec<Player> {
         self.players.clone()
