@@ -5,8 +5,14 @@ use std::hash::Hash;
 
 #[derive(Clone, Debug)]
 pub enum GMessage<V: Hash + Eq + PartialEq + Clone> {
-    Updates { updates: HashMap<V, bool>, iteration: usize },
-    Result { task: V, value: bool},
+    Updates {
+        updates: HashMap<V, bool>,
+        iteration: usize,
+    },
+    Result {
+        task: V,
+        value: bool,
+    },
     Terminate,
 }
 
@@ -32,7 +38,10 @@ pub struct GChannelBrokerManager<V: Hash + Eq + PartialEq + Clone> {
 
 impl<V: Hash + Eq + PartialEq + Clone> GBrokerManager<V> for GChannelBrokerManager<V> {
     fn send_updates(&self, updates: HashMap<V, bool>, iterations: usize) {
-        let msg = GMessage::Updates { updates, iteration: iterations };
+        let msg = GMessage::Updates {
+            updates,
+            iteration: iterations,
+        };
         for worker in &self.workers {
             worker
                 .send(msg.clone())
@@ -57,7 +66,6 @@ impl<V: Hash + Eq + PartialEq + Clone> GBrokerManager<V> for GChannelBrokerManag
             },
         }
     }
-
 
     fn terminate(&self) {
         for to in 0..self.workers.len() {
@@ -86,7 +94,7 @@ impl<V: Hash + Eq + PartialEq + Clone> GBroker<V> for GChannelBroker<V> {
 
     fn send_result(&self, task: V, value: bool) {
         self.updates
-            .send(GMessage::Result { task, value})
+            .send(GMessage::Result { task, value })
             .expect("Failed to send the result");
     }
 
@@ -103,7 +111,7 @@ impl<V: Hash + Eq + PartialEq + Clone> GBroker<V> for GChannelBroker<V> {
         }
     }
 
-    fn get_task(&self) -> Result<Option<(V,usize)>, Box<dyn Error>> {
+    fn get_task(&self) -> Result<Option<(V, usize)>, Box<dyn Error>> {
         match self.task_queue_consumer.try_recv() {
             Ok(t) => Ok(Some(t)),
             Err(err) => match err {
@@ -115,7 +123,6 @@ impl<V: Hash + Eq + PartialEq + Clone> GBroker<V> for GChannelBroker<V> {
             },
         }
     }
-
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> GChannelBroker<V> {

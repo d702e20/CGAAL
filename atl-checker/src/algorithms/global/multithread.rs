@@ -15,7 +15,7 @@ pub struct GWorker<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> {
     edg: G,
     assignment: HashMap<V, bool>,
     broker: B,
-    iteration: usize
+    iteration: usize,
 }
 
 impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V>
@@ -57,7 +57,7 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
             edg,
             assignment,
             broker,
-            iteration: 1
+            iteration: 1,
         }
     }
 
@@ -73,7 +73,7 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
                 Ok(msg) => {
                     if let Some(Updates {
                         updates: assignment,
-                                    iteration
+                        iteration,
                     }) = msg
                     {
                         trace!("Worker received updates");
@@ -88,24 +88,24 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
             }
 
             match curr_task {
-                Some((task,iteration)) if iteration <= self.iteration => {
-                        for edge in self.edg.succ(&task) {
-                            match edge {
-                                Edge::Hyper(e) => {
-                                    self.process_hyper(e);
-                                }
-                                Edge::Negation(e) => {
-                                    self.process_negation(e);
-                                }
+                Some((task, iteration)) if iteration <= self.iteration => {
+                    for edge in self.edg.succ(&task) {
+                        match edge {
+                            Edge::Hyper(e) => {
+                                self.process_hyper(e);
                             }
-                            trace!("Worker finished task");
+                            Edge::Negation(e) => {
+                                self.process_negation(e);
+                            }
                         }
-                        self.broker
-                            .send_result(task.clone(), *self.assignment.get(&task).unwrap());
-                        curr_task = None;
-                },
+                        trace!("Worker finished task");
+                    }
+                    self.broker
+                        .send_result(task.clone(), *self.assignment.get(&task).unwrap());
+                    curr_task = None;
+                }
                 None => {
-                    if let Ok(Some((task, iteration ))) = self.broker.get_task() {
+                    if let Ok(Some((task, iteration))) = self.broker.get_task() {
                         curr_task = Some((task, iteration));
                         trace!("Worker received task");
                     }
@@ -177,7 +177,6 @@ impl<
             manager.send_updates(self.assignment().clone(), iteration);
             for vertex in component {
                 manager.queue_task(vertex.clone(), iteration);
-
             }
 
             let mut tasks_left: usize = component.len();

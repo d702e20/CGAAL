@@ -230,13 +230,12 @@ fn main_inner() -> Result<(), String> {
                     if threads > 1 {
                         // The numbers of worker is one less than threads
                         // since the master is running in its own thread.
-                        let worker_count = threads-1;
+                        let worker_count = threads - 1;
                         MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
                     } else if threads == 1 {
                         SinglethreadedGlobalAlgorithm::new(graph, v0).run()
                     } else {
-                        println!("The number of threads have to be positive");
-                        panic!("The number of threads have to be positive")
+                        Err("The number must be a positive integer")?
                     }
                 }
                 ModelAndFormula::Json { model, formula } => {
@@ -254,8 +253,7 @@ fn main_inner() -> Result<(), String> {
                     } else if threads == 1 {
                         SinglethreadedGlobalAlgorithm::new(graph, v0).run()
                     } else {
-                        println!("The number of threads have to be positive");
-                        panic!("The number of threads have to be positive")
+                        Err("The number must be a positive integer")?
                     }
                 }
             };
