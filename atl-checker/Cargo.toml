@@ -2,8 +2,6 @@
 name = "atl-checker"
 version = "0.1.0"
 authors = [
-    "d702e20 <d702e20@cs.aau.dk>",
-    "d802f21 <d802f21@cs.aau.dk>",
     "Asger Weirsøe <aweirs15@student.aau.dk>",
     "Falke Carlsen <falkeboc@cs.aau.dk>",
     "Jener Rasmussen <jener@jener.dk>",
