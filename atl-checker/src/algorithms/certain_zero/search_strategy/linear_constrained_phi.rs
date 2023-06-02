@@ -46,21 +46,21 @@ impl LinearConstrainedPhi {
     }
 }
 
-pub struct ConstrainedPhiMapper {
+pub struct ConstrainedPhiMaker {
     /// Cached LinearConstrainedPhi of propositions. The bool is true for negated propositions.
     proposition_cache: RefCell<HashMap<(Proposition, bool), LinearConstrainedPhi>>,
 }
 
-impl ConstrainedPhiMapper {
-    pub fn new() -> ConstrainedPhiMapper {
-        ConstrainedPhiMapper {
+impl ConstrainedPhiMaker {
+    pub fn new() -> ConstrainedPhiMaker {
+        ConstrainedPhiMaker {
             proposition_cache: RefCell::new(HashMap::new()),
         }
     }
 
     /// Map the given phi to a linear constrained phi. Propositions will be mapped based on the
     /// given game and they will be cached, so the same game should be used every time.
-    pub fn map(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
+    pub fn convert(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
         self.map_phi_to_constraints(game, phi, false)
     }
 

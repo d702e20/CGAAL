@@ -1113,7 +1113,6 @@ mod tests {
         // Test range with only negative number
         let input = br"[-20..-1]";
         let parser = type_range();
-        println!("{:?}", parser.parse(input));
         assert_eq!(
             parser.parse(input),
             Ok(TypeRange {
@@ -1307,7 +1306,6 @@ mod tests {
 
         endtemplate"#;
         let parser = template_decl();
-        println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
     }
 
@@ -1332,7 +1330,6 @@ mod tests {
         endtemplate
         "#;
         let parser = root();
-        println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
     }
 
