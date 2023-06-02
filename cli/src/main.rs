@@ -2,6 +2,7 @@
 extern crate git_version;
 extern crate num_cpus;
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -227,15 +228,15 @@ fn main_inner() -> Result<(), String> {
                         game_structure: model,
                     };
 
-                    if threads > 1 {
-                        // The numbers of worker is one less than threads
-                        // since the master is running in its own thread.
-                        let worker_count = threads - 1;
-                        MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
-                    } else if threads == 1 {
-                        SinglethreadedGlobalAlgorithm::new(graph, v0).run()
-                    } else {
-                        Err("The number must be a positive integer")?
+                    match threads.cmp(&1) {
+                        Ordering::Less => Err("The number must be a positive integer")?,
+                        Ordering::Equal => SinglethreadedGlobalAlgorithm::new(graph, v0).run(),
+                        Ordering::Greater => {
+                            // The numbers of worker is one less than threads
+                            // since the master is running in its own thread.
+                            let worker_count = threads - 1;
+                            MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
+                        }
                     }
                 }
                 ModelAndFormula::Json { model, formula } => {
@@ -248,12 +249,15 @@ fn main_inner() -> Result<(), String> {
                         game_structure: model,
                     };
 
-                    if threads > 1 {
-                        MultithreadedGlobalAlgorithm::new(graph, threads, v0).run()
-                    } else if threads == 1 {
-                        SinglethreadedGlobalAlgorithm::new(graph, v0).run()
-                    } else {
-                        Err("The number must be a positive integer")?
+                    match threads.cmp(&1) {
+                        Ordering::Less => Err("The number must be a positive integer")?,
+                        Ordering::Equal => SinglethreadedGlobalAlgorithm::new(graph, v0).run(),
+                        Ordering::Greater => {
+                            // The numbers of worker is one less than threads
+                            // since the master is running in its own thread.
+                            let worker_count = threads - 1;
+                            MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
+                        }
                     }
                 }
             };

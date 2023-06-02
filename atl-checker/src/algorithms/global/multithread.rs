@@ -122,6 +122,9 @@ pub struct MultithreadedGlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex
     v0: V,
     assignment: HashMap<V, bool>,
     dist: VecDeque<HashSet<V>>,
+    iteration: usize,
+    tasks_in_progress: usize,
+    changed: bool,
 }
 
 impl<
@@ -169,38 +172,24 @@ impl<
             });
         }
 
-        let mut iteration: usize = 0;
         let components = self.dist.clone();
         components.iter().rev().for_each(|component| {
-            let mut changed_flag = false;
-            iteration = iteration + 1;
-            manager.send_updates(self.assignment().clone(), iteration);
-            for vertex in component {
-                manager.queue_task(vertex.clone(), iteration);
-            }
-
-            let mut tasks_left: usize = component.len();
+            self.queue_tasks(component.clone(), &manager);
 
             loop {
-                if tasks_left == 0 {
-                    if !changed_flag {
+                if self.no_tasks_in_progress() {
+                    if !self.assignment_has_changed() {
                         break;
                     }
-                    iteration = iteration + 1;
-                    manager.send_updates(self.assignment().clone(), iteration);
-                    tasks_left = component.len();
-                    for vertex in component {
-                        manager.queue_task(vertex.clone(), iteration);
-                    }
-                    changed_flag = false;
+                    self.queue_tasks(component.clone(), &manager);
                 }
 
                 match manager.receive() {
                     Ok(msg) => {
                         if let Some(GMessage::Result { task, value }) = msg {
-                            changed_flag =
-                                max(self.update_assignment(task.clone(), value), changed_flag);
-                            tasks_left = tasks_left - 1;
+                            self.changed =
+                                max(self.update_assignment(task.clone(), value), self.changed);
+                            self.decrement_tasks_in_progress();
                         }
                     }
                     Err(err) => {
@@ -230,16 +219,45 @@ impl<
             v0,
             assignment,
             dist,
+            iteration: 0,
+            tasks_in_progress: 0,
+            changed: false,
         }
     }
     pub fn run(&mut self) -> bool {
         GlobalAlgorithm::<G, V>::run(self)
     }
+
+    fn queue_tasks(&mut self, component: HashSet<V>, manager: &GChannelBrokerManager<V>) {
+        self.increment_iteration();
+        manager.send_updates(self.assignment().clone(), self.iteration);
+        self.tasks_in_progress = component.len();
+        for vertex in component {
+            manager.queue_task(vertex.clone(), self.iteration);
+        }
+        self.changed = false;
+    }
+
+    fn no_tasks_in_progress(&self) -> bool {
+        self.tasks_in_progress == 0
+    }
+
+    fn assignment_has_changed(&self) -> bool {
+        self.changed
+    }
+
+    fn increment_iteration(&mut self) {
+        self.iteration += 1;
+    }
+
+    fn decrement_tasks_in_progress(&mut self) {
+        self.tasks_in_progress -= 1;
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use test_env_log::test;
+    use test_log::test;
     #[allow(unused_macros)]
     macro_rules! edg_multi_assert {
         ( $v:ident, $assign:expr ) => {

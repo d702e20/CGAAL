@@ -64,7 +64,7 @@ impl<
 
 #[cfg(test)]
 mod test {
-    use test_env_log::test;
+    use test_log::test;
     #[allow(unused_macros)]
     macro_rules! edg_assert {
         // Standard use, no names or worker count given
