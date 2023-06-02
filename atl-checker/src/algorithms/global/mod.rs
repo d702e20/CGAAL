@@ -32,7 +32,7 @@ impl<G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V> {
         components
             .iter()
             .rev()
-            .for_each(|component| while self.f(&component) {});
+            .for_each(|component| while self.f(component) {});
         *self.assignment.get(&self.v0).unwrap()
     }
 

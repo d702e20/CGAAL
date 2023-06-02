@@ -102,7 +102,7 @@ impl<'a> SymbolChecker<'a> {
                             ),
                         });
                     } else {
-                        self.symbols.get(&Owner::Global, &name).ok_or(SymbolError {
+                        self.symbols.get(&Owner::Global, name).ok_or(SymbolError {
                             msg: format!(
                                 "Expected constant expression. Found unknown constant '{}'.",
                                 name
@@ -121,15 +121,15 @@ impl<'a> SymbolChecker<'a> {
                     // The player exists, so now we fetch the symbol
                     let owner = Owner::Player(player_name.to_string());
                     self.symbols
-                        .get(&owner, &name)
+                        .get(&owner, name)
                         .ok_or(SymbolError {
                             msg: format!("Unknown identifier '{}.{}'. The player does not own a declaration of that name.", owner, name)
                         })?
                 } else {
                     // Player is omitted. Assume it is scope owner. If not, then try global.
                     self.symbols
-                        .get(&self.scope_owner, &name)
-                        .or_else(|| self.symbols.get(&Owner::Global, &name))
+                        .get(&self.scope_owner, name)
+                        .or_else(|| self.symbols.get(&Owner::Global, name))
                         .ok_or(SymbolError {
                             msg: format!(
                                 "Unknown identifier '{}', neither declared in player's scope or globally",
