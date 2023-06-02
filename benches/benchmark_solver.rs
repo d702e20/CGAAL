@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::atl::Phi;
