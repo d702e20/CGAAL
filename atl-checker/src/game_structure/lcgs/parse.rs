@@ -186,7 +186,7 @@ fn solve_binary_precedence(
             // and right-associative, then our rhs can consist of multiple expressions
             let mut next = es.peek();
             while let Some((op2, _)) = &next {
-                let Precedence(op2_prec, op2_ass) = precedence(&op2);
+                let Precedence(op2_prec, op2_ass) = precedence(op2);
                 if op_prec < op2_prec || (op_prec == op2_prec && op2_ass == RightToLeft) {
                     // Built right hand side using recursion
                     rhs = solve_binary_precedence(rhs, op2_prec, es);
@@ -1113,7 +1113,6 @@ mod tests {
         // Test range with only negative number
         let input = br"[-20..-1]";
         let parser = type_range();
-        println!("{:?}", parser.parse(input));
         assert_eq!(
             parser.parse(input),
             Ok(TypeRange {
@@ -1307,7 +1306,6 @@ mod tests {
 
         endtemplate"#;
         let parser = template_decl();
-        println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
     }
 
@@ -1332,7 +1330,6 @@ mod tests {
         endtemplate
         "#;
         let parser = root();
-        println!("{:?}", parser.parse(input));
         assert!(parser.parse(input).is_ok());
     }
 

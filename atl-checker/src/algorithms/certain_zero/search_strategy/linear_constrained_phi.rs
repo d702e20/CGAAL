@@ -46,21 +46,21 @@ impl LinearConstrainedPhi {
     }
 }
 
-pub struct ConstrainedPhiMapper {
+pub struct ConstrainedPhiMaker {
     /// Cached LinearConstrainedPhi of propositions. The bool is true for negated propositions.
     proposition_cache: RefCell<HashMap<(Proposition, bool), LinearConstrainedPhi>>,
 }
 
-impl ConstrainedPhiMapper {
-    pub fn new() -> ConstrainedPhiMapper {
-        ConstrainedPhiMapper {
+impl ConstrainedPhiMaker {
+    pub fn new() -> ConstrainedPhiMaker {
+        ConstrainedPhiMaker {
             proposition_cache: RefCell::new(HashMap::new()),
         }
     }
 
     /// Map the given phi to a linear constrained phi. Propositions will be mapped based on the
     /// given game and they will be cached, so the same game should be used every time.
-    pub fn map(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
+    pub fn convert(&self, game: &IntermediateLcgs, phi: &Phi) -> LinearConstrainedPhi {
         self.map_phi_to_constraints(game, phi, false)
     }
 
@@ -95,7 +95,7 @@ impl ConstrainedPhiMapper {
                     // We have not mapped this proposition yet
                     let decl = game.label_index_to_decl(*proposition);
                     if let DeclKind::Label(label) = &decl.kind {
-                        let mapped_expr = self.map_expr_to_constraints(&label.condition, negated);
+                        let mapped_expr = Self::map_expr_to_constraints(&label.condition, negated);
                         // Save result in cache
                         self.proposition_cache
                             .borrow_mut()
@@ -161,10 +161,10 @@ impl ConstrainedPhiMapper {
     }
 
     /// Takes an expression and maps it to a LinearConstrainedPhi
-    fn map_expr_to_constraints(&self, expr: &Expr, negated: bool) -> LinearConstrainedPhi {
+    fn map_expr_to_constraints(expr: &Expr, negated: bool) -> LinearConstrainedPhi {
         match &expr.kind {
             ExprKind::UnaryOp(UnaryOpKind::Not, sub_expr) => {
-                return self.map_expr_to_constraints(sub_expr, !negated);
+                return Self::map_expr_to_constraints(sub_expr, !negated);
             }
             ExprKind::BinaryOp(operator, lhs, rhs) => {
                 match operator {
@@ -185,8 +185,8 @@ impl ConstrainedPhiMapper {
                         };
                     }
                     BinaryOpKind::And => {
-                        let lhs_con = self.map_expr_to_constraints(lhs, negated);
-                        let rhs_con = self.map_expr_to_constraints(rhs, negated);
+                        let lhs_con = Self::map_expr_to_constraints(lhs, negated);
+                        let rhs_con = Self::map_expr_to_constraints(rhs, negated);
                         return if !negated {
                             LinearConstrainedPhi::And(Box::new(lhs_con), Box::new(rhs_con))
                         } else {
@@ -194,8 +194,8 @@ impl ConstrainedPhiMapper {
                         };
                     }
                     BinaryOpKind::Or => {
-                        let lhs_con = self.map_expr_to_constraints(lhs, negated);
-                        let rhs_con = self.map_expr_to_constraints(rhs, negated);
+                        let lhs_con = Self::map_expr_to_constraints(lhs, negated);
+                        let rhs_con = Self::map_expr_to_constraints(rhs, negated);
                         return if !negated {
                             LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con))
                         } else {
@@ -204,8 +204,8 @@ impl ConstrainedPhiMapper {
                     }
                     // P -> Q == not P v Q
                     BinaryOpKind::Implication => {
-                        let lhs_con = self.map_expr_to_constraints(lhs, !negated);
-                        let rhs_con = self.map_expr_to_constraints(rhs, negated);
+                        let lhs_con = Self::map_expr_to_constraints(lhs, !negated);
+                        let rhs_con = Self::map_expr_to_constraints(rhs, negated);
                         return if !negated {
                             LinearConstrainedPhi::Or(Box::new(lhs_con), Box::new(rhs_con))
                         } else {
@@ -226,10 +226,10 @@ impl ConstrainedPhiMapper {
             // https://en.wikipedia.org/wiki/Conditioned_disjunction
             // Q ? P : R == (Q -> P) and (not Q -> R) == (Q and P) or (not Q and R)
             ExprKind::TernaryIf(q, p, r) => {
-                let q = self.map_expr_to_constraints(q, negated);
+                let q = Self::map_expr_to_constraints(q, negated);
                 let not_q = q.negated();
-                let p = self.map_expr_to_constraints(p, negated);
-                let r = self.map_expr_to_constraints(r, negated);
+                let p = Self::map_expr_to_constraints(p, negated);
+                let r = Self::map_expr_to_constraints(r, negated);
                 return if !negated {
                     LinearConstrainedPhi::Or(
                         Box::new(LinearConstrainedPhi::And(Box::new(q), Box::new(p))),

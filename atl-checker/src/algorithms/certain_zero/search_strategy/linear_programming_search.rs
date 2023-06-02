@@ -1,5 +1,5 @@
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
-    ConstrainedPhiMapper, LinearConstrainedPhi,
+    ConstrainedPhiMaker, LinearConstrainedPhi,
 };
 use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
     ComparisonOp, LinearConstraint,
@@ -13,6 +13,7 @@ use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use minilp::{LinearExpr, OptimizationDirection, Problem, Variable};
 use priority_queue::PriorityQueue;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
@@ -34,9 +35,9 @@ pub struct LinearProgrammingSearch {
     /// Priority based on distance, lowest distance highest priority
     queue: PriorityQueue<Edge<AtlVertex>, i32>,
     game: IntermediateLcgs,
-    phi_mapper: ConstrainedPhiMapper,
+    constrained_phi_maker: ConstrainedPhiMaker,
     /// Caches the linear programming solution state and distance of ATL vertices
-    result_cache: HashMap<AtlVertex, (State, i32)>,
+    result_cache: HashMap<AtlVertex, i32>,
     /// Caches the LinearConstrainedPhi version of Phis
     phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance
@@ -48,7 +49,7 @@ impl LinearProgrammingSearch {
         LinearProgrammingSearch {
             queue: PriorityQueue::new(),
             game,
-            phi_mapper: ConstrainedPhiMapper::new(),
+            constrained_phi_maker: ConstrainedPhiMaker::new(),
             result_cache: HashMap::new(),
             phi_cache: HashMap::new(),
         }
@@ -84,15 +85,17 @@ impl LinearProgrammingSearch {
         let source = edge.source();
 
         // If we have seen this source before, get the result instantly
-        if let Some(sol) = self.result_cache.get(&source) {
-            return Some(sol.1);
+        if let Some(dist) = self.result_cache.get(source) {
+            return Some(*dist);
         }
 
         // If we have not seen this formula before, calculate constrained phi
-        if !self.phi_cache.contains_key(&source.formula()) {
+        if let Entry::Vacant(e) = self.phi_cache.entry(source.formula()) {
             // Convert the formula to a structure of constraints
-            let lcp = self.phi_mapper.map(&self.game, &*source.formula());
-            self.phi_cache.insert(source.formula(), lcp);
+            let lcp = self
+                .constrained_phi_maker
+                .convert(&self.game, &source.formula());
+            e.insert(lcp);
         }
 
         // Get constraints of this phi
@@ -101,79 +104,96 @@ impl LinearProgrammingSearch {
         let state = self.game.state_from_index(source.state());
 
         // Use linear programming to find closest state that satisfies the constraints
-        if let Some(sol) = self.get_optimal_distance(constrained_phi, &state) {
-            let dist = sol.1;
+        if let Some(dist) = self.get_optimal_distance(constrained_phi, &state) {
             // Cache the resulting solution
-            self.result_cache.insert(source.clone(), sol);
+            self.result_cache.insert(source.clone(), dist);
             return Some(dist);
         }
         // If we could not find a distance, return None
         None
     }
 
+    /// Returns the small distance from the given state to any state that satisfies
+    /// the given constrained phi, or None if no such state exists. NonLinear constraints
+    /// of phi is not considered.
     fn get_optimal_distance(
         &self,
         constrained_phi: &LinearConstrainedPhi,
         state: &State,
-    ) -> Option<(State, i32)> {
-        // The LinearConstrainedPhi contains multiple variants of the linear problem due to the ORs.
-        // So we iterate through them and find the best result
-        let mut best: Option<(State, i32)> = None;
+    ) -> Option<i32> {
+        // The LinearConstrainedPhi may contain multiple variants of the linear problem due to disjunctions,
+        // so we iterate through them and find the closest distance across all problems
+        let mut best: Option<i32> = None;
         for constraints in all_variants(constrained_phi) {
-            // We keep track of the symbols/variables encountered
-            let mut symbol_vars: HashMap<SymbolIdentifier, Variable> = HashMap::new();
             let mut problem = Problem::new(OptimizationDirection::Minimize);
 
+            // Every state variable is associated with two linear programming variables:
+            // - goal_var which represents the variable in the closest state satisfied the constraints, and
+            // - clamp_var which forces the value of goal_var to be close to the value in the current state
+            let mut symbol_vars: HashMap<SymbolIdentifier, Variable> = HashMap::new();
+            for state_var in self.game.get_vars() {
+                let decl = self.game.get_decl(&state_var).unwrap();
+                let DeclKind::StateVar(var_decl) = &decl.kind else { unreachable!() };
+                let range = (
+                    *var_decl.ir_range.start() as f64,
+                    *var_decl.ir_range.end() as f64,
+                );
+                let goal_var = problem.add_var(0.0, range);
+                let clamp_var = problem.add_var(1.0, (f64::NEG_INFINITY, f64::INFINITY));
+                symbol_vars.insert(state_var.clone(), goal_var);
+
+                let cur_val = state.0[&state_var] as f64;
+
+                // Add the constraints that forces the difference between goal_var and state_var to be small
+                // - x_i - s_i <= - q_i
+                let mut lin_expr_below = LinearExpr::empty();
+                lin_expr_below.add(goal_var, -1.0);
+                lin_expr_below.add(clamp_var, -1.0);
+                problem.add_constraint(lin_expr_below, minilp::ComparisonOp::Le, -cur_val);
+                // - x_i + s_i <= q_i
+                let mut lin_expr_above = LinearExpr::empty();
+                lin_expr_above.add(goal_var, 1.0);
+                lin_expr_above.add(clamp_var, -1.0);
+                problem.add_constraint(lin_expr_above, minilp::ComparisonOp::Le, cur_val);
+            }
+
+            // Now add every constraint induced by formula phi
             for constraint in &constraints {
                 if constraint.comparison == ComparisonOp::NotEqual {
                     // We skip not-equal constraints since the minilp cannot handle them.
-                    // They don't restrict the solution space in a meaning way anyway.
+                    // They don't restrict the solution space in a meaningful way anyway.
                     continue;
                 }
-                // Build constraint
-                let mut lin_expr = LinearExpr::empty();
-                // The contraint is offset by the given state. This is reflected by adding
-                // coefficient*value_of_symbol_in_state to the constant
-                let mut offset = -constraint.constant;
-                for (symbol, coefficient) in &constraint.terms {
-                    // Get symbol variable or register if missing
-                    let var = symbol_vars.entry(symbol.clone()).or_insert_with(|| {
-                        let decl = self.game.get_decl(symbol).unwrap();
-                        if let DeclKind::StateVar(var_decl) = &decl.kind {
-                            let range = (
-                                *var_decl.ir_range.start() as f64,
-                                *var_decl.ir_range.end() as f64,
-                            );
-                            problem.add_var(1.0, range)
-                        } else {
-                            panic!("Proposition contains a non-variable")
-                        }
-                    });
-                    lin_expr.add(*var, *coefficient);
-                    offset += *coefficient * state.0[&symbol] as f64;
-                }
 
-                problem.add_constraint(lin_expr, constraint.comparison.into(), offset);
+                // Build constraint on goal state
+                let mut lin_expr = LinearExpr::empty();
+                for (state_var, coefficient) in &constraint.terms {
+                    let goal_var = symbol_vars.get(state_var).unwrap();
+                    lin_expr.add(*goal_var, *coefficient);
+                }
+                problem.add_constraint(
+                    lin_expr,
+                    constraint.comparison.into(),
+                    -constraint.constant,
+                );
             }
 
             if let Ok(solution) = problem.solve() {
                 // Extract solution
-                let mut sol_state: HashMap<SymbolIdentifier, i32> = HashMap::new();
                 let mut man_dist = 0;
-                for (symbol, var) in symbol_vars {
-                    let v = solution[var] as i32;
-                    man_dist += (state.0[&symbol] - v).abs();
-                    sol_state.insert(symbol, v);
+                for (state_var, goal_var) in symbol_vars {
+                    let v = solution[goal_var] as i32;
+                    man_dist += (state.0[&state_var] - v).abs();
                 }
 
-                if let Some((_, old_best_dist)) = best {
+                if let Some(old_best_dist) = best {
                     if old_best_dist > man_dist {
                         // We found a better solution
-                        best = Some((State(sol_state), man_dist));
+                        best = Some(man_dist);
                     }
                 } else {
                     // We got our first possible a solution
-                    best = Some((State(sol_state), man_dist));
+                    best = Some(man_dist);
                 }
             }
         }

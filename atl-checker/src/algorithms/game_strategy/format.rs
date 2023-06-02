@@ -20,7 +20,6 @@ impl<'a, G: GameStructure> Display for PartialStrategyWithFormatting<'a, G> {
                 .iter()
                 .map(|p| self.game.player_name(*p))
                 .join_with(", ")
-                .to_string()
         )?;
         for (state, pmove) in &self.strategy.move_to_pick {
             writeln!(

@@ -28,10 +28,10 @@ pub fn solver(
     // Dispatching
     match (query, ss) {
         (ModelAndFormula::Json { .. }, SearchStrategyOption::Los) => {
-            return Err("Linear optimize search is not supported for JSON models".to_string())
+            Err("Linear optimize search is not supported for JSON models".to_string())
         }
         (ModelAndFormula::Json { .. }, SearchStrategyOption::Lps) => {
-            return Err("Linear programming search is not supported for JSON models".to_string())
+            Err("Linear programming search is not supported for JSON models".to_string())
         }
         (ModelAndFormula::Json { model, formula }, ss) => {
             let v0 = AtlVertex::Full {

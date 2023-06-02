@@ -169,6 +169,11 @@ impl IntermediateLcgs {
         res
     }
 
+    /// Returns the variables that make up a state
+    pub fn get_vars(&self) -> Vec<SymbolIdentifier> {
+        self.vars.clone()
+    }
+
     /// Returns a vector of players
     pub fn get_player(&self) -> Vec<Player> {
         self.players.clone()
@@ -211,7 +216,7 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, Er
                 // refer to other constants that are above them in the program.
                 // If they don't reduce to a single number, then the SymbolChecker
                 // produces an error.
-                let result = SymbolChecker::new(&symbols, Owner::Global, CheckMode::Const)
+                let result = SymbolChecker::new(symbols, Owner::Global, CheckMode::Const)
                     .check(&cons.definition)?;
                 debug_assert!(matches!(result.kind, ExprKind::Number(_)));
                 let name = cons.name.name().to_string();
@@ -278,11 +283,11 @@ fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, Er
         if let DeclKind::Player(player_decl) = decl.kind.borrow_mut() {
             player_decl.index = index;
 
-            let mut player = Player::new(index, &player_decl.name.name());
+            let mut player = Player::new(index, player_decl.name.name());
             let relabeler = Relabeler::new(&player_decl.relabeling);
 
             let template_decl = symbols
-                .get(&Owner::Global, &player_decl.template.name())
+                .get(&Owner::Global, player_decl.template.name())
                 .expect("Unknown template") // TODO Use custom error
                 .declaration
                 .borrow()
