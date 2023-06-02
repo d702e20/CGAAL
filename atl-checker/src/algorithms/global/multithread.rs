@@ -18,6 +18,22 @@ pub struct GWorker<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> {
     iteration: usize,
 }
 
+impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
+    pub fn new(edg: G, assignment: HashMap<V, bool>, broker: B) -> Self {
+        trace!("new global worker");
+        Self {
+            edg,
+            assignment,
+            broker,
+            iteration: 1,
+        }
+    }
+
+    pub fn run(&mut self) -> bool {
+        GlobalAlgorithm::<G, V>::run(self)
+    }
+}
+
 impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V>
     for GWorker<B, G, V>
 {
@@ -46,29 +62,18 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G,
         panic!("A GWorker doesnt have a dist vecdeque")
     }
     fn run(&mut self) -> bool {
-        self.run()
-    }
-}
-
-impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
-    pub fn new(edg: G, assignment: HashMap<V, bool>, broker: B) -> Self {
-        trace!("new global worker");
-        Self {
-            edg,
-            assignment,
-            broker,
-            iteration: 1,
-        }
-    }
-
-    pub fn run(&mut self) -> bool {
         let span = span!(Level::DEBUG, "worker run");
         let _enter = span.enter();
         trace!("worker start");
         emit_count!("worker start");
 
         let mut curr_task = None;
+        // The worker simple consumes the work queue until a termination notification is received
         loop {
+
+            // Check if there is updates or a termination notification is received.
+            // If there is updates update the assignment table and the current iteration.
+            // If it is a termination notification return.
             match self.broker.receive() {
                 Ok(msg) => {
                     if let Some(Updates {
@@ -87,6 +92,8 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
                 Err(err) => panic!("{}", err),
             }
 
+            // If the current iteration is corresponding to the iteration of the current task
+            // process the task and send the result back to the master
             match curr_task {
                 Some((task, iteration)) if iteration <= self.iteration => {
                     for edge in self.edg.succ(&task) {
@@ -104,6 +111,7 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
                         .send_result(task.clone(), *self.assignment.get(&task).unwrap());
                     curr_task = None;
                 }
+                // If we do not have any task assigned, try to grab one from the work queue
                 None => {
                     if let Ok(Some((task, iteration))) = self.broker.get_task() {
                         curr_task = Some((task, iteration));
@@ -125,6 +133,55 @@ pub struct MultithreadedGlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex
     iteration: usize,
     tasks_in_progress: usize,
     changed: bool,
+}
+
+impl<
+        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
+        V: Vertex + Send + Sync + 'static,
+    > MultithreadedGlobalAlgorithm<G, V>
+{
+    pub fn new(edg: G, worker_count: u64, v0: V) -> Self {
+        let mut assignment = HashMap::new();
+        assignment.insert(v0.clone(), false);
+        let dist = VecDeque::new();
+        Self {
+            edg,
+            worker_count,
+            v0,
+            assignment,
+            dist,
+            iteration: 0,
+            tasks_in_progress: 0,
+            changed: false,
+        }
+    }
+    pub fn run(&mut self) -> bool {
+        GlobalAlgorithm::<G, V>::run(self)
+    }
+
+    /// This function increment the current iteration, sends the assignment table to all workers,
+    /// queues all tasks in the task queue, and sets the changed flag to false
+    fn queue_tasks(&mut self, component: HashSet<V>, manager: &GChannelBrokerManager<V>) {
+        self.increment_iteration();
+        manager.send_updates(self.assignment().clone(), self.iteration);
+        self.tasks_in_progress = component.len();
+        for vertex in component {
+            manager.queue_task(vertex.clone(), self.iteration);
+        }
+        self.changed = false;
+    }
+    fn no_tasks_in_progress(&self) -> bool {
+        self.tasks_in_progress == 0
+    }
+    fn assignment_has_changed(&self) -> bool {
+        self.changed
+    }
+    fn increment_iteration(&mut self) {
+        self.iteration += 1;
+    }
+    fn decrement_tasks_in_progress(&mut self) {
+        self.tasks_in_progress -= 1;
+    }
 }
 
 impl<
@@ -157,9 +214,19 @@ impl<
         &mut self.dist
     }
 
+    /// This fires the multithreaded global algorithm,
+    /// by reapplying F_i until the assignments doesnt change.
+    /// It does so by spawning workers corresponding to the given worker_count,
+    /// and then for each F_i it requeues all vertices in the current component in the worker queue.
+    /// When the queue is empty
+    /// and all workers have responded it continues with next component.
+    /// It does so until the last component is reached
+    /// and no more updates are registered in which case it returns the assignment of the initial vertex
     fn run(&mut self) -> bool {
+        // Visiting the EDG and finding all components
         self.initialize();
 
+        // Spawning worker_count workers
         let (mut brokers, manager) = GChannelBroker::new(self.worker_count);
         for _ in 0..self.worker_count {
             let mut worker = GWorker::new(
@@ -172,11 +239,15 @@ impl<
             });
         }
 
+        // Iteration through all components starting from the components with the smallest distance
         let components = self.dist.clone();
         components.iter().rev().for_each(|component| {
             self.queue_tasks(component.clone(), &manager);
 
             loop {
+                // When there are changes and no tasks in progress requeue the component
+                // otherwise if there still are no tasks in progress but no changes
+                //  break out of the loop and start the next component
                 if self.no_tasks_in_progress() {
                     if !self.assignment_has_changed() {
                         break;
@@ -184,6 +255,8 @@ impl<
                     self.queue_tasks(component.clone(), &manager);
                 }
 
+                // The manager keeps track of the results of each task and updates its assignment
+                // table corresponding to the updates
                 match manager.receive() {
                     Ok(msg) => {
                         if let Some(GMessage::Result { task, value }) = msg {
@@ -199,59 +272,10 @@ impl<
             }
         });
 
+        // When all components have been processed the manger sends a termination notification to all workers
+        // and return the value of the intitial vertex
         manager.terminate();
         *self.assignment().get(&self.v0).unwrap()
-    }
-}
-
-impl<
-        G: ExtendedDependencyGraph<V> + Send + Sync + Clone + Debug + 'static,
-        V: Vertex + Send + Sync + 'static,
-    > MultithreadedGlobalAlgorithm<G, V>
-{
-    pub fn new(edg: G, worker_count: u64, v0: V) -> Self {
-        let mut assignment = HashMap::new();
-        assignment.insert(v0.clone(), false);
-        let dist = VecDeque::new();
-        Self {
-            edg,
-            worker_count,
-            v0,
-            assignment,
-            dist,
-            iteration: 0,
-            tasks_in_progress: 0,
-            changed: false,
-        }
-    }
-    pub fn run(&mut self) -> bool {
-        GlobalAlgorithm::<G, V>::run(self)
-    }
-
-    fn queue_tasks(&mut self, component: HashSet<V>, manager: &GChannelBrokerManager<V>) {
-        self.increment_iteration();
-        manager.send_updates(self.assignment().clone(), self.iteration);
-        self.tasks_in_progress = component.len();
-        for vertex in component {
-            manager.queue_task(vertex.clone(), self.iteration);
-        }
-        self.changed = false;
-    }
-
-    fn no_tasks_in_progress(&self) -> bool {
-        self.tasks_in_progress == 0
-    }
-
-    fn assignment_has_changed(&self) -> bool {
-        self.changed
-    }
-
-    fn increment_iteration(&mut self) {
-        self.iteration += 1;
-    }
-
-    fn decrement_tasks_in_progress(&mut self) {
-        self.tasks_in_progress -= 1;
     }
 }
 

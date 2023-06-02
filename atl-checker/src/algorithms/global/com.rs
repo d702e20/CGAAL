@@ -17,16 +17,22 @@ pub enum GMessage<V: Hash + Eq + PartialEq + Clone> {
 }
 
 pub trait GBroker<V: Hash + Eq + PartialEq + Clone> {
-    fn send_terminate(&self);
+    /// Sending a result of a processed task to the manager
     fn send_result(&self, task: V, value: bool);
+    /// Trying to receive a message for the manager if the channel is empty, a Ok(None) is returned
     fn receive(&self) -> Result<Option<GMessage<V>>, Box<dyn Error>>;
+    /// Trying to receive a task if the channel is empty, a Ok(None) is returned
     fn get_task(&self) -> Result<Option<(V, usize)>, Box<dyn Error>>;
 }
 
 pub trait GBrokerManager<V: Hash + Eq + PartialEq + Clone> {
+    /// Sending the assignment table to all workers including the current iteration
     fn send_updates(&self, assignments: HashMap<V, bool>, iterations: usize);
+    /// Queuing a task which includes the belonging iteration
     fn queue_task(&self, task: V, iteration: usize);
+    /// Trying to receive results from the workers
     fn receive(&self) -> Result<Option<GMessage<V>>, Box<dyn Error>>;
+    /// Send terminate message to all workers
     fn terminate(&self);
 }
 
@@ -86,12 +92,6 @@ pub struct GChannelBroker<V: Hash + Eq + PartialEq + Clone> {
 }
 
 impl<V: Hash + Eq + PartialEq + Clone> GBroker<V> for GChannelBroker<V> {
-    fn send_terminate(&self) {
-        self.updates
-            .send(GMessage::Terminate)
-            .expect("Failed to send terminate message");
-    }
-
     fn send_result(&self, task: V, value: bool) {
         self.updates
             .send(GMessage::Result { task, value })
