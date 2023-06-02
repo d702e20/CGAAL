@@ -228,7 +228,10 @@ fn main_inner() -> Result<(), String> {
                     };
 
                     if threads > 1 {
-                        MultithreadedGlobalAlgorithm::new(graph, threads, v0).run()
+                        // The numbers of worker is one less than threads
+                        // since the master is running in its own thread.
+                        let worker_count = threads-1;
+                        MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
                     } else if threads == 1 {
                         SinglethreadedGlobalAlgorithm::new(graph, v0).run()
                     } else {

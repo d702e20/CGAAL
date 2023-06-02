@@ -10,7 +10,7 @@ pub struct SinglethreadedGlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Verte
     /// The assignment for all vertices, we use this to keep track  of the current assignment
     assignment: HashMap<V, bool>,
     /// The distance of a vertex is represented as the index number of which set the vertex is located in
-    dist: VecDeque<HashSet<V>>,
+    component: VecDeque<HashSet<V>>,
 }
 
 impl<
@@ -36,11 +36,11 @@ impl<
     fn assignment_mut(&mut self) -> &mut HashMap<V, bool> {
         &mut self.assignment
     }
-    fn dist(&self) -> &VecDeque<HashSet<V>> {
-        &self.dist
+    fn components(&self) -> &VecDeque<HashSet<V>> {
+        &self.component
     }
-    fn dist_mut(&mut self) -> &mut VecDeque<HashSet<V>> {
-        &mut self.dist
+    fn components_mut(&mut self) -> &mut VecDeque<HashSet<V>> {
+        &mut self.component
     }
 }
 
@@ -57,7 +57,7 @@ impl<
             edg,
             v0,
             assignment: HashMap::<V, bool>::new(),
-            dist: VecDeque::<HashSet<V>>::new(),
+            component: VecDeque::<HashSet<V>>::new(),
         }
     }
 }

@@ -13,8 +13,8 @@ pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
     fn v0_mut(&mut self) -> &mut V;
     fn assignment(&self) -> &HashMap<V, bool>;
     fn assignment_mut(&mut self) -> &mut HashMap<V, bool>;
-    fn dist(&self) -> &VecDeque<HashSet<V>>;
-    fn dist_mut(&mut self) -> &mut VecDeque<HashSet<V>>;
+    fn components(&self) -> &VecDeque<HashSet<V>>;
+    fn components_mut(&mut self) -> &mut VecDeque<HashSet<V>>;
 
     /// Firing the global algorithm, which simply reapplies the F_i function explained in the paper
     /// until the assignment does not change anymore.
@@ -22,7 +22,7 @@ pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
     fn run(&mut self) -> bool {
         self.initialize();
 
-        let components = self.dist().clone();
+        let components = self.components().clone();
         components
             .iter()
             .rev()
@@ -98,7 +98,7 @@ pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
         let mut queue = VecDeque::<(Edge<V>, u32)>::new();
         let mut curr_dist = HashSet::<V>::new();
         curr_dist.insert(self.v0().clone());
-        self.dist_mut().push_front(curr_dist);
+        self.components_mut().push_front(curr_dist);
         let v = self.v0().clone();
         self.assignment_mut().insert(v, false);
 
@@ -152,11 +152,11 @@ pub trait GlobalAlgorithm<G: ExtendedDependencyGraph<V>, V: Vertex> {
 
     /// Inserts a vertex in the set at the index of curr_dist of dist.
     fn insert_in_curr_dist(&mut self, v: V, dist: u32) {
-        match self.dist_mut().get_mut(dist as usize) {
+        match self.components_mut().get_mut(dist as usize) {
             None => {
                 let mut curr_dist = HashSet::<V>::new();
                 curr_dist.insert(v);
-                self.dist_mut().insert(dist as usize, curr_dist);
+                self.components_mut().insert(dist as usize, curr_dist);
             }
             Some(set) => {
                 set.insert(v);

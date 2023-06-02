@@ -15,6 +15,7 @@ pub struct GWorker<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> {
     edg: G,
     assignment: HashMap<V, bool>,
     broker: B,
+    iteration: usize
 }
 
 impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G, V>
@@ -38,10 +39,10 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G,
     fn assignment_mut(&mut self) -> &mut HashMap<V, bool> {
         &mut self.assignment
     }
-    fn dist(&self) -> &VecDeque<HashSet<V>> {
+    fn components(&self) -> &VecDeque<HashSet<V>> {
         panic!("A GWorker doesnt have a dist vecdeque")
     }
-    fn dist_mut(&mut self) -> &mut VecDeque<HashSet<V>> {
+    fn components_mut(&mut self) -> &mut VecDeque<HashSet<V>> {
         panic!("A GWorker doesnt have a dist vecdeque")
     }
     fn run(&mut self) -> bool {
@@ -56,6 +57,7 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
             edg,
             assignment,
             broker,
+            iteration: 1
         }
     }
 
@@ -64,17 +66,19 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
         let _enter = span.enter();
         trace!("worker start");
         emit_count!("worker start");
+
+        let mut curr_task = None;
         loop {
             match self.broker.receive() {
                 Ok(msg) => {
                     if let Some(Updates {
                         updates: assignment,
+                                    iteration
                     }) = msg
                     {
                         trace!("Worker received updates");
-                        assignment.iter().for_each(|(k, v)| {
-                            self.update_assignment(k.clone(), *v);
-                        });
+                        self.assignment = assignment;
+                        self.iteration = iteration;
                     } else if let Some(Terminate) = msg {
                         trace!("Worker received terminate");
                         return true;
@@ -83,24 +87,30 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GWorker<B, G, V> {
                 Err(err) => panic!("{}", err),
             }
 
-            if let Ok(Some(task)) = self.broker.get_task() {
-                trace!("Worker received task");
-                if !self.assignment().contains_key(&task) {
-                    self.assignment_mut().insert(task.clone(), false);
-                }
-                for edge in self.edg.succ(&task) {
-                    match edge {
-                        Edge::Hyper(e) => {
-                            self.process_hyper(e);
+            match curr_task {
+                Some((task,iteration)) if iteration <= self.iteration => {
+                        for edge in self.edg.succ(&task) {
+                            match edge {
+                                Edge::Hyper(e) => {
+                                    self.process_hyper(e);
+                                }
+                                Edge::Negation(e) => {
+                                    self.process_negation(e);
+                                }
+                            }
+                            trace!("Worker finished task");
                         }
-                        Edge::Negation(e) => {
-                            self.process_negation(e);
-                        }
+                        self.broker
+                            .send_result(task.clone(), *self.assignment.get(&task).unwrap());
+                        curr_task = None;
+                },
+                None => {
+                    if let Ok(Some((task, iteration ))) = self.broker.get_task() {
+                        curr_task = Some((task, iteration));
+                        trace!("Worker received task");
                     }
-                    trace!("Worker finished task");
                 }
-                self.broker
-                    .send_result(task.clone(), *self.assignment.get(&task).unwrap());
+                _ => {}
             }
         }
     }
@@ -137,10 +147,10 @@ impl<
     fn assignment_mut(&mut self) -> &mut HashMap<V, bool> {
         &mut self.assignment
     }
-    fn dist(&self) -> &VecDeque<HashSet<V>> {
+    fn components(&self) -> &VecDeque<HashSet<V>> {
         &self.dist
     }
-    fn dist_mut(&mut self) -> &mut VecDeque<HashSet<V>> {
+    fn components_mut(&mut self) -> &mut VecDeque<HashSet<V>> {
         &mut self.dist
     }
 
@@ -159,34 +169,39 @@ impl<
             });
         }
 
+        let mut iteration: usize = 0;
         let components = self.dist.clone();
         components.iter().rev().for_each(|component| {
-            let mut tasks: HashMap<V, bool> = HashMap::new();
-            let mut changed_flag = true;
-
+            let mut changed_flag = false;
+            iteration = iteration + 1;
+            manager.send_updates(self.assignment().clone(), iteration);
             for vertex in component {
-                self.queue_task(vertex.clone(), &mut tasks, &manager);
+                manager.queue_task(vertex.clone(), iteration);
+
             }
 
+            let mut tasks_left: usize = component.len();
+
             loop {
-                if !tasks.values().any(|value| *value) {
-                    if manager.task_queue_is_empty() && !changed_flag {
+                if tasks_left == 0 {
+                    if !changed_flag {
                         break;
                     }
-
-                    manager.send_updates(self.assignment().clone());
+                    iteration = iteration + 1;
+                    manager.send_updates(self.assignment().clone(), iteration);
+                    tasks_left = component.len();
                     for vertex in component {
-                        self.queue_task(vertex.clone(), &mut tasks, &manager);
+                        manager.queue_task(vertex.clone(), iteration);
                     }
                     changed_flag = false;
                 }
 
                 match manager.receive() {
                     Ok(msg) => {
-                        if let GMessage::Result { task, value } = msg {
+                        if let Some(GMessage::Result { task, value }) = msg {
                             changed_flag =
                                 max(self.update_assignment(task.clone(), value), changed_flag);
-                            tasks.insert(task, false);
+                            tasks_left = tasks_left - 1;
                         }
                     }
                     Err(err) => {
@@ -221,16 +236,6 @@ impl<
     pub fn run(&mut self) -> bool {
         GlobalAlgorithm::<G, V>::run(self)
     }
-
-    fn queue_task(
-        &self,
-        task: V,
-        tasks: &mut HashMap<V, bool>,
-        manager: &GChannelBrokerManager<V>,
-    ) {
-        tasks.insert(task.clone(), true);
-        manager.queue_task(task);
-    }
 }
 
 #[cfg(test)]
@@ -244,7 +249,7 @@ mod test {
         // With custom names
         ( [$edg_name:ident, $vertex_name:ident] $v:ident, $assign:expr) => {
             assert_eq!(
-                crate::algorithms::global::multithread::MultithreadedGlobalAlgorithm::new($edg_name, 1,$vertex_name::$v).run(),
+                crate::algorithms::global::multithread::MultithreadedGlobalAlgorithm::new($edg_name, 8,$vertex_name::$v).run(),
                 $assign,
                 "Vertex {}",
                 stringify!($v)
