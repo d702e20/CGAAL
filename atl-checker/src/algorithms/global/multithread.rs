@@ -70,7 +70,6 @@ impl<B: GBroker<V>, G: ExtendedDependencyGraph<V>, V: Vertex> GlobalAlgorithm<G,
         let mut curr_task = None;
         // The worker simple consumes the work queue until a termination notification is received
         loop {
-
             // Check if there is updates or a termination notification is received.
             // If there is updates update the assignment table and the current iteration.
             // If it is a termination notification return.
