@@ -14,7 +14,7 @@ pub struct Span {
 
 impl Span {
     /// Returns and equivalent range
-    pub fn to_range(&self) -> Range<usize> {
+    pub fn to_range(self) -> Range<usize> {
         self.begin..self.end
     }
 
@@ -49,7 +49,7 @@ pub struct ParseError {
     msg: String,
 }
 
-/// The `ParseState` is a struct carried around during parsing contained extra information
+/// The `ParseState` is a struct carried around during parsing containing extra information
 /// about the state of the parser, such as the errors encountered
 #[derive(Debug, Default)]
 pub struct ParseState {
@@ -57,7 +57,7 @@ pub struct ParseState {
 }
 
 impl ParseState {
-    /// Saves and error to display when parsing is done
+    /// Saves an error to display when parsing is done
     pub fn report_err(&self, err: ParseError) {
         self.errors.borrow_mut().push(err)
     }
@@ -75,9 +75,9 @@ impl ParseState {
 /// This function is similar to `call` but allows passing one argument to the parser function.
 pub(crate) fn call1<'a, I, O, A, P: Fn(&'a A) -> Parser<I, O>>(
     parser: &'a P,
-    expr_parser: &'a A,
+    arg: &'a A,
 ) -> Parser<'a, I, O> {
-    Parser::new(move |input: &'_ [I], start: usize| (parser(expr_parser).method)(input, start))
+    Parser::new(move |input: &'_ [I], start: usize| (parser(arg).method)(input, start))
 }
 
 /// Create a lazy parser used for recursive definitions.
@@ -140,7 +140,7 @@ pub(crate) fn parse_or_abort<'a, I: Eq + Display, O: 'a>(
     )
 }
 
-/// Creates a parser that will run the given parser and then consume if synchronization token.
+/// Creates a parser that will run the given parser and then consume the synchronization token.
 /// If the given parser fails to parse, an error is reported using the given error message,
 /// and parsing will continue at the next occurrence of the synchronization token.
 pub(crate) fn parse_or_sync<'a, I: Eq + Display, O: 'a>(
