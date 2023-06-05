@@ -87,9 +87,7 @@ pub fn distributed_certain_zero<
     } else {
         // Receive (but discard) all assignments, such that the workers can terminate correctly
         for _ in 0..worker_count {
-            let _ = manager_broker
-                .receive_assignment()
-                .expect("Error receiving the assignment table");
+            let _ = manager_broker.receive_assignment();
         }
         CertainZeroResult::RootAssignment(root_assignment)
     }
