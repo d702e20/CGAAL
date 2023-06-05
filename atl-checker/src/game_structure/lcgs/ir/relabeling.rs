@@ -222,8 +222,8 @@ impl<'a> Relabeler<'a> {
         Ok(Expr {
             kind: ExprKind::BinaryOp(
                 op.clone(),
-                Box::new(self.relabel_expr(&lhs)?),
-                Box::new(self.relabel_expr(&rhs)?),
+                Box::new(self.relabel_expr(lhs)?),
+                Box::new(self.relabel_expr(rhs)?),
             ),
         })
     }
@@ -236,9 +236,9 @@ impl<'a> Relabeler<'a> {
     ) -> Result<Expr, RelabelError> {
         Ok(Expr {
             kind: ExprKind::TernaryIf(
-                Box::new(self.relabel_expr(&cond)?),
-                Box::new(self.relabel_expr(&true_expr)?),
-                Box::new(self.relabel_expr(&false_expr)?),
+                Box::new(self.relabel_expr(cond)?),
+                Box::new(self.relabel_expr(true_expr)?),
+                Box::new(self.relabel_expr(false_expr)?),
             ),
         })
     }

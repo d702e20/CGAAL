@@ -231,7 +231,7 @@ impl<'a, G: GameStructure> DeltaIterator<'a, G> {
     /// Create a new DeltaIterator
     pub(crate) fn new(game_structure: &'a G, state: State, moves: &'a PartialMove) -> Self {
         let known = HashSet::new();
-        let moves = PartialMoveIterator::new(&moves);
+        let moves = PartialMoveIterator::new(moves);
 
         Self {
             game_structure,

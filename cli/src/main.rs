@@ -124,7 +124,7 @@ fn main_inner() -> Result<(), String> {
             // Display the indexes for the players and labels
 
             let input_model_path = index_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&index_args)?;
+            let model_type = get_model_type_from_args(index_args)?;
 
             if model_type != ModelType::Lcgs {
                 return Err("The 'index' command is only valid for LCGS models".to_string());
@@ -152,7 +152,7 @@ fn main_inner() -> Result<(), String> {
 
             println!("\nLabels:");
             for label_symbol in &ir.get_labels() {
-                let label_decl = ir.get_decl(&label_symbol).unwrap();
+                let label_decl = ir.get_decl(label_symbol).unwrap();
                 if let DeclKind::Label(label) = &label_decl.kind {
                     if Owner::Global == label_symbol.owner {
                         println!("{} : {}", &label_symbol.name, label.index)
@@ -164,10 +164,10 @@ fn main_inner() -> Result<(), String> {
         }
         ("solver", Some(solver_args)) => {
             let input_model_path = solver_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&solver_args)?;
+            let model_type = get_model_type_from_args(solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
-            let formula_type = get_formula_type_from_args(&solver_args)?;
-            let search_strategy = get_search_strategy_from_args(&solver_args)?;
+            let formula_type = get_formula_type_from_args(solver_args)?;
+            let search_strategy = get_search_strategy_from_args(solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
             let game_strategy_path = solver_args.value_of("game_strategy");
@@ -200,10 +200,10 @@ fn main_inner() -> Result<(), String> {
                     std::process::exit(43);
                 }
             }
-            let model_type = get_model_type_from_args(&global_args)?;
+            let model_type = get_model_type_from_args(global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
-            let formula_type = get_formula_type_from_args(&global_args)?;
+            let formula_type = get_formula_type_from_args(global_args)?;
             let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
             let quiet = global_args.is_present("quiet");
 
@@ -238,9 +238,9 @@ fn main_inner() -> Result<(), String> {
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&analyse_args)?;
+            let model_type = get_model_type_from_args(analyse_args)?;
             let formula_path = analyse_args.value_of("formula").unwrap();
-            let formula_type = get_formula_type_from_args(&analyse_args)?;
+            let formula_type = get_formula_type_from_args(analyse_args)?;
 
             let output_arg = analyse_args.value_of("output").unwrap();
 
@@ -286,9 +286,9 @@ fn main_inner() -> Result<(), String> {
         ("graph", Some(graph_args)) => {
             {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
-                let model_type = get_model_type_from_args(&graph_args)?;
+                let model_type = get_model_type_from_args(graph_args)?;
                 let formula_path = graph_args.value_of("formula").unwrap();
-                let formula_type = get_formula_type_from_args(&graph_args)?;
+                let formula_type = get_formula_type_from_args(graph_args)?;
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
@@ -496,7 +496,7 @@ fn load(
 /// Define and parse command line arguments
 fn parse_arguments() -> ArgMatches<'static> {
     let version_text = format!("{} ({})", VERSION, GIT_VERSION);
-    let string = AUTHORS.replace(":", "\n");
+    let string = AUTHORS.replace(':', "\n");
     let mut app = App::new(PKG_NAME)
         .version(version_text.as_str())
         .author(string.as_str())

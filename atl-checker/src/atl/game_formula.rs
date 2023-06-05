@@ -48,8 +48,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 formula.in_context_of(self.game)
             ),
             Phi::EnforceNext { players, formula } => write!(
@@ -58,8 +57,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 formula.in_context_of(self.game)
             ),
             Phi::DespiteUntil {
@@ -72,8 +70,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 pre.in_context_of(self.game),
                 until.in_context_of(self.game)
             ),
@@ -87,8 +84,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 pre.in_context_of(self.game),
                 until.in_context_of(self.game)
             ),
@@ -98,8 +94,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 formula.in_context_of(self.game)
             ),
             Phi::EnforceEventually { players, formula } => write!(
@@ -108,8 +103,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 formula.in_context_of(self.game)
             ),
             Phi::DespiteInvariant { players, formula } => write!(
@@ -118,8 +112,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 formula.in_context_of(self.game)
             ),
             Phi::EnforceInvariant { players, formula } => write!(
@@ -128,8 +121,7 @@ impl<'a, G: GameStructure> Display for GamePhi<'a, G> {
                 players
                     .iter()
                     .map(|i| self.game.player_name(*i))
-                    .join_with(",")
-                    .to_string(),
+                    .join_with(","),
                 formula.in_context_of(self.game)
             ),
         }
