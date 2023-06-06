@@ -71,7 +71,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
             .get(to as usize)
             .expect("receiver id out of bounds")
             .send(msg)
-            .expect(&*format!("Send to worker {} failed", to));
+            .unwrap_or_else(|_| panic!("Send to worker {} failed", to));
     }
 
     fn return_result(&self, assignment: VertexAssignment) {
@@ -97,7 +97,7 @@ impl<V: Hash + Eq + PartialEq + Clone> Broker<V> for ChannelBroker<V> {
         for to in 0..self.workers.len() {
             let _err = self
                 .workers
-                .get(to as usize)
+                .get(to)
                 .expect("receiver id out of bounds")
                 .send(Message::Terminate);
         }

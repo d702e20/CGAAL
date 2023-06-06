@@ -76,7 +76,7 @@ pub fn distributed_certain_zero<
 
             for (vertex, v) in assignments {
                 let new_ass = match combined.get(&vertex) {
-                    Some(ass) => VertexAssignment::max(ass.clone(), v.clone()),
+                    Some(ass) => VertexAssignment::max(*ass, v),
                     None => v,
                 };
                 combined.insert(vertex, new_ass);
@@ -87,9 +87,7 @@ pub fn distributed_certain_zero<
     } else {
         // Receive (but discard) all assignments, such that the workers can terminate correctly
         for _ in 0..worker_count {
-            let _ = manager_broker
-                .receive_assignment()
-                .expect("Error receiving the assignment table");
+            let _ = manager_broker.receive_assignment();
         }
         CertainZeroResult::RootAssignment(root_assignment)
     }
@@ -564,7 +562,7 @@ impl<
         // Line 5-8
         for target in &edge.targets {
             // Line 5 condition
-            match self.assignment.get(&target) {
+            match self.assignment.get(target) {
                 Some(VertexAssignment::Undecided) => {
                     // UNDECIDED
                     // Line 7
@@ -669,10 +667,7 @@ impl<
             }
         }
 
-        self.unsafe_neg_edges
-            .get_mut(depth as usize)
-            .unwrap()
-            .push(edge);
+        self.unsafe_neg_edges.get_mut(depth).unwrap().push(edge);
     }
 
     /// Process a request from another worker. We either answer immediately if we know the
@@ -688,7 +683,7 @@ impl<
         );
         debug_assert!(self.is_owner(vertex));
         emit_count!("worker process_request");
-        if let Some(assignment) = self.assignment.get(&vertex) {
+        if let Some(assignment) = self.assignment.get(vertex) {
             // Final assignment of `vertex` is already known, reply immediately
             if assignment.is_certain() {
                 self.broker.send(
@@ -712,9 +707,9 @@ impl<
             self.depth.insert(vertex.clone(), max(local_depth, depth));
             self.mark_interest(vertex, requester);
 
-            if self.assignment.get(&vertex).is_none() {
+            if self.assignment.get(vertex).is_none() {
                 // UNEXPLORED
-                self.explore(&vertex);
+                self.explore(vertex);
             }
         }
     }
@@ -750,7 +745,7 @@ impl<
         //   race conditions
         if changed_assignment {
             // Line 4 - Notify other workers interested in this assignment
-            if let Some(interested) = self.interests.get(&vertex) {
+            if let Some(interested) = self.interests.get(vertex) {
                 for worker_id in interested {
                     self.broker.send(
                         *worker_id,
@@ -763,7 +758,7 @@ impl<
             }
 
             // Line 5 - Requeue edges that depend on this assignment
-            if let Some(depends) = self.depends.get(&vertex) {
+            if let Some(depends) = self.depends.get(vertex) {
                 for edge in depends.clone() {
                     trace!(?edge, "requeueing edge because target got assignment");
                     if self.prioritise_back_propagation {
