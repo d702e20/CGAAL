@@ -62,7 +62,7 @@ pub fn distributed_certain_zero<
         }) {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("Error spawning worker thread: {}", e);
+                eprintln!("Error spawning worker{}/{} thread: {}", i, worker_count, e);
                 panic::resume_unwind(Box::new(e))
             }
         }

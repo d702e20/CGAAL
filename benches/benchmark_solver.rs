@@ -2552,8 +2552,8 @@ criterion_group!(
 criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
 criterion_main!(
-    github_action_suite, // remember to disable when benchmarking
-                         //static_thread_case_studies,
+    //github_action_suite, // remember to disable when benchmarking
+                         static_thread_case_studies,
                          //rand_1p_1m_530d,
                          //rand_2p_1m_546d,
                          //rand_3p_1m_400d,
