@@ -182,7 +182,7 @@ impl InstabilityHeuristicSearch {
                 .map(|bidist| bidist.conjunctive_dist())
                 .unwrap_or(0),
             // Use vertex distance of target
-            Edge::Negation(e) => self.bidist_of_vertex(&e.target).collapse_min(),
+            Edge::Negation(e) => self.bidist_of_vertex(&e.target).disjunctive_dist(),
         }
     }
 
