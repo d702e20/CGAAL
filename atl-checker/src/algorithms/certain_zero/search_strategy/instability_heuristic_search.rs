@@ -1,9 +1,9 @@
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::ops;
 
 use priority_queue::PriorityQueue;
 
-use crate::algorithms::certain_zero::search_strategy::SearchStrategy;
+use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
@@ -31,12 +31,18 @@ impl BiTruthDist {
 
     /** BiTruthDist of a tautology, something that is always true */
     fn tautology() -> Self {
-        BiTruthDist { dtt: Some(0), dff: None }
+        BiTruthDist {
+            dtt: Some(0),
+            dff: None,
+        }
     }
 
     /** BiTruthDist of a contradiction, something that is always false */
     fn contradiction() -> Self {
-        BiTruthDist { dtt: None, dff: Some(0) }
+        BiTruthDist {
+            dtt: None,
+            dff: Some(0),
+        }
     }
 
     /** The smallest distance to a clause changing truth-value */
@@ -54,9 +60,15 @@ impl From<i32> for BiTruthDist {
     fn from(value: i32) -> Self {
         // Interpret negative values as distance to false
         if value < 0 {
-            BiTruthDist { dtt: Some(0), dff: Some(value) }
+            BiTruthDist {
+                dtt: Some(0),
+                dff: Some(value),
+            }
         } else {
-            BiTruthDist { dtt: Some(value), dff: Some(0) }
+            BiTruthDist {
+                dtt: Some(value),
+                dff: Some(0),
+            }
         }
     }
 }
@@ -108,7 +120,23 @@ impl ops::Not for BiTruthDist {
 
     fn not(self) -> Self::Output {
         // Flip distance to true and false
-        BiTruthDist { dtt: self.dff.map(|v| -v), dff: self.dtt.map(|v| -v) }
+        BiTruthDist {
+            dtt: self.dff.map(|v| -v),
+            dff: self.dtt.map(|v| -v),
+        }
+    }
+}
+
+/// A [SearchStrategyBuilder] for the [InstabilityHeuristicSearch] strategy.
+pub struct InstabilityHeuristicSearchBuilder {
+    pub game: IntermediateLcgs,
+}
+
+impl SearchStrategyBuilder<AtlVertex, InstabilityHeuristicSearch>
+    for InstabilityHeuristicSearchBuilder
+{
+    fn build(&self) -> InstabilityHeuristicSearch {
+        InstabilityHeuristicSearch::new(self.game.clone())
     }
 }
 
@@ -116,7 +144,7 @@ impl ops::Not for BiTruthDist {
 /// how stable the constituent formulae of an edge are. That is, we prioritize edges where
 /// one of the targets are close to being a different truth-value using the [BiTruthDist] metric.
 /// To achieve this, it takes advantage of how LCGS represents states.
-struct InstabilityHeuristicSearch {
+pub struct InstabilityHeuristicSearch {
     game: IntermediateLcgs,
     queue: PriorityQueue<Edge<AtlVertex>, u32>,
 }
@@ -155,12 +183,20 @@ impl InstabilityHeuristicSearch {
             Phi::False => BiTruthDist::contradiction(),
             Phi::Proposition(prop) => self.bidist_of_proposition(state, prop),
             Phi::Not(sub) => !self.bidist_of_state_phi(state, sub),
-            Phi::Or(rhs, lhs) => self.bidist_of_state_phi(state, rhs) | self.bidist_of_state_phi(state, lhs),
-            Phi::And(rhs, lhs) => self.bidist_of_state_phi(state, rhs) & self.bidist_of_state_phi(state, lhs),
+            Phi::Or(rhs, lhs) => {
+                self.bidist_of_state_phi(state, rhs) | self.bidist_of_state_phi(state, lhs)
+            }
+            Phi::And(rhs, lhs) => {
+                self.bidist_of_state_phi(state, rhs) & self.bidist_of_state_phi(state, lhs)
+            }
             Phi::DespiteNext { formula, .. } => self.bidist_of_state_phi(state, formula),
             Phi::EnforceNext { formula, .. } => self.bidist_of_state_phi(state, formula),
-            Phi::DespiteUntil { pre, until, .. } => self.bidist_of_state_phi(state, pre) | self.bidist_of_state_phi(state, until),
-            Phi::EnforceUntil { pre, until, .. } => self.bidist_of_state_phi(state, pre) | self.bidist_of_state_phi(state, until),
+            Phi::DespiteUntil { pre, until, .. } => {
+                self.bidist_of_state_phi(state, pre) | self.bidist_of_state_phi(state, until)
+            }
+            Phi::EnforceUntil { pre, until, .. } => {
+                self.bidist_of_state_phi(state, pre) | self.bidist_of_state_phi(state, until)
+            }
             Phi::DespiteEventually { formula, .. } => self.bidist_of_state_phi(state, formula),
             Phi::EnforceEventually { formula, .. } => self.bidist_of_state_phi(state, formula),
             Phi::DespiteInvariant { formula, .. } => self.bidist_of_state_phi(state, formula),
@@ -171,32 +207,52 @@ impl InstabilityHeuristicSearch {
     fn bidist_of_proposition(&self, state: &State, prop: &Proposition) -> BiTruthDist {
         let decl = self.game.label_index_to_decl(*prop);
         if let DeclKind::Label(label) = &decl.kind {
-            self.bidist_of_expr(state, &label.condition)
+            InstabilityHeuristicSearch::bidist_of_expr(state, &label.condition)
         } else {
             panic!("Non-propositions symbol in ATL formula")
         }
     }
 
-    fn bidist_of_expr(&self, state: &State, expr: &Expr) -> BiTruthDist {
+    fn bidist_of_expr(state: &State, expr: &Expr) -> BiTruthDist {
         // We handle boolean operators using the operators defined on BiTruthDist.
         // For comparisons, the difference is evaluated and used as distance.
         // For the remaining expressions, we evaluate them and use their negative distance to 0 (false).
         match &expr.kind {
             // Boolean operators
-            ExprKind::UnaryOp(UnaryOpKind::Not, e) => !self.bidist_of_expr(state, e),
-            ExprKind::BinaryOp(BinaryOpKind::And, lhs, rhs) => self.bidist_of_expr(state, lhs) & self.bidist_of_expr(state, rhs),
-            ExprKind::BinaryOp(BinaryOpKind::Or, lhs, rhs) => self.bidist_of_expr(state, lhs) | self.bidist_of_expr(state, rhs),
-            ExprKind::BinaryOp(BinaryOpKind::Xor, lhs, rhs) => (self.bidist_of_expr(state, lhs) & !self.bidist_of_expr(state, rhs)) | (!self.bidist_of_expr(state, lhs) & self.bidist_of_expr(state, rhs)),
-            ExprKind::BinaryOp(BinaryOpKind::Implication, lhs, rhs) => !self.bidist_of_expr(state, lhs) | self.bidist_of_expr(state, rhs),
+            ExprKind::UnaryOp(UnaryOpKind::Not, e) => {
+                !InstabilityHeuristicSearch::bidist_of_expr(state, e)
+            }
+            ExprKind::BinaryOp(BinaryOpKind::And, lhs, rhs) => {
+                InstabilityHeuristicSearch::bidist_of_expr(state, lhs)
+                    & InstabilityHeuristicSearch::bidist_of_expr(state, rhs)
+            }
+            ExprKind::BinaryOp(BinaryOpKind::Or, lhs, rhs) => {
+                InstabilityHeuristicSearch::bidist_of_expr(state, lhs)
+                    | InstabilityHeuristicSearch::bidist_of_expr(state, rhs)
+            }
+            ExprKind::BinaryOp(BinaryOpKind::Xor, lhs, rhs) => {
+                (InstabilityHeuristicSearch::bidist_of_expr(state, lhs)
+                    & !InstabilityHeuristicSearch::bidist_of_expr(state, rhs))
+                    | (!InstabilityHeuristicSearch::bidist_of_expr(state, lhs)
+                        & InstabilityHeuristicSearch::bidist_of_expr(state, rhs))
+            }
+            ExprKind::BinaryOp(BinaryOpKind::Implication, lhs, rhs) => {
+                !InstabilityHeuristicSearch::bidist_of_expr(state, lhs)
+                    | InstabilityHeuristicSearch::bidist_of_expr(state, rhs)
+            }
             // Comparisons
             ExprKind::BinaryOp(BinaryOpKind::LessThan | BinaryOpKind::LessOrEqual, lhs, rhs) => {
                 let evaluator = Evaluator::new(state);
                 BiTruthDist::from(evaluator.eval(lhs) - evaluator.eval(rhs))
-            },
-            ExprKind::BinaryOp(BinaryOpKind::GreaterThan | BinaryOpKind::GreaterOrEqual, lhs, rhs) => {
+            }
+            ExprKind::BinaryOp(
+                BinaryOpKind::GreaterThan | BinaryOpKind::GreaterOrEqual,
+                lhs,
+                rhs,
+            ) => {
                 let evaluator = Evaluator::new(state);
                 BiTruthDist::from(evaluator.eval(rhs) - evaluator.eval(lhs))
-            },
+            }
             ExprKind::BinaryOp(BinaryOpKind::Equality, lhs, rhs) => {
                 let evaluator = Evaluator::new(state);
                 let abs_diff = (evaluator.eval(rhs) - evaluator.eval(lhs)).abs();
@@ -205,7 +261,7 @@ impl InstabilityHeuristicSearch {
                 } else {
                     BiTruthDist::from(abs_diff) // abs_diff from true
                 }
-            },
+            }
             ExprKind::BinaryOp(BinaryOpKind::Inequality, lhs, rhs) => {
                 let evaluator = Evaluator::new(state);
                 let abs_diff = (evaluator.eval(rhs) - evaluator.eval(lhs)).abs();
@@ -214,7 +270,7 @@ impl InstabilityHeuristicSearch {
                 } else {
                     BiTruthDist::from(-abs_diff) // abs_diff from false
                 }
-            },
+            }
             // Others
             _ => {
                 let abs_val = Evaluator::new(state).eval(expr).abs();
