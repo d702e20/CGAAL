@@ -45,13 +45,27 @@ impl BiTruthDist {
         }
     }
 
-    /** The smallest distance to a clause changing truth-value */
-    fn collapse_min(self) -> u32 {
-        match (self.dtt, self.dff) {
-            (Some(t), Some(f)) => min(t.unsigned_abs(), f.unsigned_abs()),
-            (Some(t), None) => t.unsigned_abs(),
-            (None, Some(f)) => f.unsigned_abs(),
-            (None, None) => u32::MAX,
+    /** The smallest distance to a different truth value in this conjunction */
+    fn conjunctive_dist(self) -> u32 {
+        if !matches!(self.dtt, Some(0)) {
+            // Distance to true is non-zero, so at least one clause is false,
+            // and the conjunction is therefore false.
+            // Therefore, we return the distance to true.
+            self.dtt.map(|v| v.unsigned_abs()).unwrap_or(u32::MAX)
+        } else {
+            self.dff.map(|v| v.unsigned_abs()).unwrap_or(u32::MAX)
+        }
+    }
+
+    /** The smallest distance to a different truth value in this disjunction */
+    fn disjunctive_dist(self) -> u32 {
+        if !matches!(self.dff, Some(0)) {
+            // Distance to false is non-zero, so at least one clause is true,
+            // and the disjunction is therefore true.
+            // Therefore, we return the distance to false.
+            self.dff.map(|v| v.unsigned_abs()).unwrap_or(u32::MAX)
+        } else {
+            self.dtt.map(|v| v.unsigned_abs()).unwrap_or(u32::MAX)
         }
     }
 }
@@ -165,7 +179,7 @@ impl InstabilityHeuristicSearch {
                 .iter()
                 .map(|target| self.bidist_of_vertex(target))
                 .reduce(|rhs, lhs| rhs & lhs)
-                .map(|bidist| bidist.collapse_min())
+                .map(|bidist| bidist.conjunctive_dist())
                 .unwrap_or(0),
             // Use vertex distance of target
             Edge::Negation(e) => self.bidist_of_vertex(&e.target).collapse_min(),
