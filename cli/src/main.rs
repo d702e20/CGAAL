@@ -1,10 +1,8 @@
-mod args;
-mod solver;
-
 #[no_link]
 extern crate git_version;
 extern crate num_cpus;
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -15,13 +13,12 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use crate::args::CommonArgs;
-use crate::solver::solver;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult};
-use atl_checker::algorithms::global::GlobalAlgorithm;
+use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
+use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::AtlVertex;
@@ -34,6 +31,12 @@ use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
+
+use crate::args::CommonArgs;
+use crate::solver::solver;
+
+mod args;
+mod solver;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -124,7 +127,7 @@ fn main_inner() -> Result<(), String> {
             // Display the indexes for the players and labels
 
             let input_model_path = index_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&index_args)?;
+            let model_type = get_model_type_from_args(index_args)?;
 
             if model_type != ModelType::Lcgs {
                 return Err("The 'index' command is only valid for LCGS models".to_string());
@@ -152,7 +155,7 @@ fn main_inner() -> Result<(), String> {
 
             println!("\nLabels:");
             for label_symbol in &ir.get_labels() {
-                let label_decl = ir.get_decl(&label_symbol).unwrap();
+                let label_decl = ir.get_decl(label_symbol).unwrap();
                 if let DeclKind::Label(label) = &label_decl.kind {
                     if Owner::Global == label_symbol.owner {
                         println!("{} : {}", &label_symbol.name, label.index)
@@ -164,10 +167,10 @@ fn main_inner() -> Result<(), String> {
         }
         ("solver", Some(solver_args)) => {
             let input_model_path = solver_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&solver_args)?;
+            let model_type = get_model_type_from_args(solver_args)?;
             let formula_path = solver_args.value_of("formula").unwrap();
-            let formula_type = get_formula_type_from_args(&solver_args)?;
-            let search_strategy = get_search_strategy_from_args(&solver_args)?;
+            let formula_type = get_formula_type_from_args(solver_args)?;
+            let search_strategy = get_search_strategy_from_args(solver_args)?;
             let prioritise_back_propagation =
                 !solver_args.is_present("no_prioritised_back_propagation");
             let game_strategy_path = solver_args.value_of("game_strategy");
@@ -200,12 +203,17 @@ fn main_inner() -> Result<(), String> {
                     std::process::exit(43);
                 }
             }
-            let model_type = get_model_type_from_args(&global_args)?;
+            let model_type = get_model_type_from_args(global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
-            let formula_type = get_formula_type_from_args(&global_args)?;
+            let formula_type = get_formula_type_from_args(global_args)?;
             let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
             let quiet = global_args.is_present("quiet");
+
+            let threads = match global_args.value_of("threads") {
+                None => num_cpus::get() as u64,
+                Some(t_arg) => t_arg.parse().unwrap(),
+            };
 
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
@@ -219,7 +227,17 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph {
                         game_structure: model,
                     };
-                    GlobalAlgorithm::new(graph, v0).run()
+
+                    match threads.cmp(&1) {
+                        Ordering::Less => Err("The number must be a positive integer")?,
+                        Ordering::Equal => SinglethreadedGlobalAlgorithm::new(graph, v0).run(),
+                        Ordering::Greater => {
+                            // The numbers of worker is one less than threads
+                            // since the master is running in its own thread.
+                            let worker_count = threads - 1;
+                            MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
+                        }
+                    }
                 }
                 ModelAndFormula::Json { model, formula } => {
                     println!("Checking the formula: {}", formula.in_context_of(&model));
@@ -230,7 +248,17 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph {
                         game_structure: model,
                     };
-                    GlobalAlgorithm::new(graph, v0).run()
+
+                    match threads.cmp(&1) {
+                        Ordering::Less => Err("The number must be a positive integer")?,
+                        Ordering::Equal => SinglethreadedGlobalAlgorithm::new(graph, v0).run(),
+                        Ordering::Greater => {
+                            // The numbers of worker is one less than threads
+                            // since the master is running in its own thread.
+                            let worker_count = threads - 1;
+                            MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
+                        }
+                    }
                 }
             };
 
@@ -238,9 +266,9 @@ fn main_inner() -> Result<(), String> {
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
-            let model_type = get_model_type_from_args(&analyse_args)?;
+            let model_type = get_model_type_from_args(analyse_args)?;
             let formula_path = analyse_args.value_of("formula").unwrap();
-            let formula_type = get_formula_type_from_args(&analyse_args)?;
+            let formula_type = get_formula_type_from_args(analyse_args)?;
 
             let output_arg = analyse_args.value_of("output").unwrap();
 
@@ -286,9 +314,9 @@ fn main_inner() -> Result<(), String> {
         ("graph", Some(graph_args)) => {
             {
                 let input_model_path = graph_args.value_of("input_model").unwrap();
-                let model_type = get_model_type_from_args(&graph_args)?;
+                let model_type = get_model_type_from_args(graph_args)?;
                 let formula_path = graph_args.value_of("formula").unwrap();
-                let formula_type = get_formula_type_from_args(&graph_args)?;
+                let formula_type = get_formula_type_from_args(graph_args)?;
 
                 // Generic start function for use with `load` that starts the graph printer
                 fn print_model<G: GameStructure>(
@@ -496,7 +524,7 @@ fn load(
 /// Define and parse command line arguments
 fn parse_arguments() -> ArgMatches<'static> {
     let version_text = format!("{} ({})", VERSION, GIT_VERSION);
-    let string = AUTHORS.replace(":", "\n");
+    let string = AUTHORS.replace(':', "\n");
     let mut app = App::new(PKG_NAME)
         .version(version_text.as_str())
         .author(string.as_str())

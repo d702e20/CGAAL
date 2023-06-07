@@ -72,8 +72,8 @@ pub fn print_graph<V: Vertex, G: ExtendedDependencyGraph<V>, W: Write>(
                             .as_bytes(),
                         )?;
 
-                        if !visited.contains(&target) {
-                            print_vertex(&target, &mut output)?;
+                        if !visited.contains(target) {
+                            print_vertex(target, &mut output)?;
                             queue.push_back(target.clone());
                             visited.insert(target.clone());
                         }

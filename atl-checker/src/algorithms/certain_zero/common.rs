@@ -31,7 +31,7 @@ impl VertexAssignment {
 
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
-        return matches!(self, VertexAssignment::True | VertexAssignment::False);
+        matches!(self, VertexAssignment::True | VertexAssignment::False)
     }
 
     pub fn max(self, assignment: VertexAssignment) -> VertexAssignment {
