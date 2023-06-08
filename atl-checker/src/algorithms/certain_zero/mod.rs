@@ -56,13 +56,14 @@ pub fn distributed_certain_zero<
             prioritise_back_propagation,
         );
 
-        match thread.name(format!("worker{}", i)).spawn(move || {
+        match thread.name(format!("dz_worker_{}", i)).spawn(move || {
             trace!("worker thread start");
             worker.run();
         }) {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("Error spawning worker{}/{} thread: {}", i, worker_count, e);
+                eprintln!("Error spawning worker{}/{} thread with error: {}", i, worker_count, e);
+                // continue panicking
                 panic::resume_unwind(Box::new(e))
             }
         }
