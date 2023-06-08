@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::atl::Phi;
@@ -106,7 +107,7 @@ macro_rules! bench_lcgs_threads {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
 
-            for core_count in 1..num_cpus::get() + 1 {
+            for core_count in 1..32 + 1  {
                 let core_count = core_count as u64;
 
                 // Write header for stats if enabled
@@ -157,6 +158,7 @@ macro_rules! bench_lcgs_threads {
                     },
                 );
             }
+            group.finish();
         }
     };
 }
@@ -2232,9 +2234,9 @@ criterion_group!(
     ttt3_threads,
     ttt4_threads,
     ttt5_threads,
-    //rc1_threads,
-    //rc2_threads,
-    //rc3_threads, //rc benches takes 215s total
+    rc1_threads,
+    rc2_threads,
+    rc3_threads, //rc benches takes 215s total
     pa1_3proc_threads,
     pa2_3proc_threads,
     pa3_3proc_threads,
@@ -2252,7 +2254,6 @@ criterion_group!(
     gg5_circular_threads,
     gg6_circular_threads,
     gg7_circular_threads,
-    /*
     gg1_total_threads,
     gg2_total_threads,
     gg3_total_threads,
@@ -2260,7 +2261,6 @@ criterion_group!(
     gg5_total_threads,
     gg6_total_threads,
     gg7_total_threads, // gg_total benches takes avg 69s a piece (nice)
-    */
     rps1_threads,
     rps2_threads,
     mp1_threads,
@@ -2551,13 +2551,22 @@ criterion_group!(
 // tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
 criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
+// tiny test suite for threading on MCC
+criterion_group!(
+    mexi_thread_case_study,
+    mexican_standoff_3p_3hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_survive_threads,
+);
+
 criterion_main!(
     //github_action_suite, // remember to disable when benchmarking
-                         static_thread_case_studies,
-                         //rand_1p_1m_530d,
-                         //rand_2p_1m_546d,
-                         //rand_3p_1m_400d,
-                         //rand_3p_3m_405d,
-                         //rand_3p_4m_171d,
-                         //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
+    //static_thread_case_studies,
+    //mexi_thread_case_study,
+    multi_thread_case_studies,
+    //rand_1p_1m_530d,
+    //rand_2p_1m_546d,
+    //rand_3p_1m_400d,
+    //rand_3p_3m_405d,
+    //rand_3p_4m_171d,
+    //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
 ); // choose which group(s) to bench
