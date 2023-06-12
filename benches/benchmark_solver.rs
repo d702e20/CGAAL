@@ -2,15 +2,21 @@
 
 use atl_checker::algorithms::certain_zero::distributed_certain_zero;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
 use atl_checker::atl::Phi;
 use atl_checker::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::cmp::min;
 use std::sync::Arc;
 
-const PRIORITISE_BACK_PROPAGATION: bool = true; // change this for benches with no-backprop
+const PRIORITISE_BACK_PROPAGATION: bool = true;
+const SEARCH_STRATEGY: &str = "bfs";
 
 // CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
@@ -107,7 +113,15 @@ macro_rules! bench_lcgs_threads {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
 
-            for core_count in 1..32 + 1 {
+            eprintln!(
+                "Search strategy \'{}\' with backpropagation prioritisation: {}",
+                SEARCH_STRATEGY, PRIORITISE_BACK_PROPAGATION
+            );
+
+            // use machine cores as thread count, but max 32
+            let max_core_count: u64 = min(num_cpus::get() as u64, 32);
+
+            for core_count in 1..max_core_count + 1 {
                 let core_count = core_count as u64;
 
                 // Write header for stats if enabled
@@ -146,23 +160,61 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            /* strats:
-                            BreadthFirstSearchBuilder, DepthFirstSearchBuilder,
-                            DependencyHeuristicSearchBuilder,
-
-                            let copy = graph.game_structure.clone();
-                            LinearOptimizeSearchBuilder { game: copy }
-
-                            LinearProgrammingSearchBuilder { game: copy },
-                             */
-                            distributed_certain_zero(
-                                graph,
-                                v0,
-                                core_count,
-                                BreadthFirstSearchBuilder,
-                                PRIORITISE_BACK_PROPAGATION,
-                                false,
-                            );
+                            match SEARCH_STRATEGY {
+                                "bfs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        BreadthFirstSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "dfs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        DepthFirstSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "dhs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        DependencyHeuristicSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "los" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        LinearOptimizeSearchBuilder { game: copy },
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "lps" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        LinearProgrammingSearchBuilder { game: copy },
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                _ => panic!("Unknown search strategy {}", SEARCH_STRATEGY),
+                            };
                         });
                     },
                 );
