@@ -2,3 +2,5 @@ target
 /.idea
 model-checker.log
 Cargo.lock
+results/
+!results/*/*.tar.gz
