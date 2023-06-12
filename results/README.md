@@ -13,4 +13,4 @@ rc3_threads/2           time:   [27.420 s 27.489 s 27.555 s]
 rc3_threads/3           time:   [18.882 s 18.944 s 19.005 s]
 ```
 
-Runs are organised with prepended type (bfs, dfs, dependency_heuristic, etc) and its SLURM jobid for tracing.
+Runs are organised with prepended type (bfs, dfs, dependency_heuristic, etc) and its SLURM jobid for tracing. Use `tar -xvf {JOBID}.tar.gz` to access Criterion reports.

@@ -7,6 +7,7 @@ use atl_checker::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
+use cli::solver::solver;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::sync::Arc;
 
@@ -146,14 +147,33 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            distributed_certain_zero(
+                            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
+                            solver(
+                                model_and_formula,
+                                threads,
+                                search_strategy,
+                                prioritise_back_propagation,
+                                game_strategy_path,
+                                quiet,
+                            )?;
+
+                            /* strats:
+                            BreadthFirstSearchBuilder, DepthFirstSearchBuilder,
+                            DependencyHeuristicSearchBuilder,
+
+                            let copy = graph.game_structure.clone();
+                            LinearOptimizeSearchBuilder { game: copy }
+
+                            LinearProgrammingSearchBuilder { game: copy },
+                             */
+                            /*distributed_certain_zero(
                                 graph,
                                 v0,
                                 core_count,
                                 BreadthFirstSearchBuilder,
                                 PRIORITISE_BACK_PROPAGATION,
                                 false,
-                            );
+                            );*/
                         });
                     },
                 );
@@ -2561,8 +2581,8 @@ criterion_group!(
 criterion_main!(
     //github_action_suite, // remember to disable when benchmarking
     //static_thread_case_studies,
-    //mexi_thread_case_study,
-    multi_thread_case_studies,
+    mexi_thread_case_study,
+    //multi_thread_case_studies,
     //rand_1p_1m_530d,
     //rand_2p_1m_546d,
     //rand_3p_1m_400d,
