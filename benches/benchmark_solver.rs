@@ -14,9 +14,9 @@ use atl_checker::game_structure::EagerGameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::cmp::min;
 use std::sync::Arc;
+use std::env;
 
 const PRIORITISE_BACK_PROPAGATION: bool = true;
-const SEARCH_STRATEGY: &str = "bfs";
 
 // CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
@@ -113,9 +113,11 @@ macro_rules! bench_lcgs_threads {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
 
+            let search_strategy = env!("CGAAL_SEARCH_STRATEGY");
+
             eprintln!(
                 "Search strategy \'{}\' with backpropagation prioritisation: {}",
-                SEARCH_STRATEGY, PRIORITISE_BACK_PROPAGATION
+                search_strategy, PRIORITISE_BACK_PROPAGATION
             );
 
             // use machine cores as thread count, but max 32
@@ -160,7 +162,7 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            match SEARCH_STRATEGY {
+                            match search_strategy {
                                 "bfs" => {
                                     distributed_certain_zero(
                                         graph,
@@ -213,7 +215,7 @@ macro_rules! bench_lcgs_threads {
                                         false,
                                     );
                                 }
-                                _ => panic!("Unknown search strategy {}", SEARCH_STRATEGY),
+                                _ => panic!("Unknown search strategy {}", search_strategy),
                             };
                         });
                     },
