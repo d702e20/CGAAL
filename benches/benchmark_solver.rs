@@ -380,7 +380,7 @@ bench_lcgs!(
 bench_lcgs!(
     rps1,
     "rock_paper_scissors/rock_paper_scissors.lcgs",
-    "rock_paper_scissors/p1_always_wins_FALSE.json"
+    "rock_paper_scissors/p1_never_lose_FALSE.json"
 );
 
 bench_lcgs!(
@@ -2149,7 +2149,7 @@ bench_lcgs_threads!(
 bench_lcgs_threads!(
     rps1_threads,
     "rock_paper_scissors/rock_paper_scissors.lcgs",
-    "rock_paper_scissors/p1_always_wins_FALSE.json"
+    "rock_paper_scissors/p1_never_lose_FALSE.json"
 );
 
 bench_lcgs_threads!(
