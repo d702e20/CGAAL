@@ -7,7 +7,6 @@ use atl_checker::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
-use cli::solver::solver;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::sync::Arc;
 
@@ -108,7 +107,7 @@ macro_rules! bench_lcgs_threads {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
 
-            for core_count in 1..32 + 1  {
+            for core_count in 1..32 + 1 {
                 let core_count = core_count as u64;
 
                 // Write header for stats if enabled
@@ -147,16 +146,6 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
-                            solver(
-                                model_and_formula,
-                                threads,
-                                search_strategy,
-                                prioritise_back_propagation,
-                                game_strategy_path,
-                                quiet,
-                            )?;
-
                             /* strats:
                             BreadthFirstSearchBuilder, DepthFirstSearchBuilder,
                             DependencyHeuristicSearchBuilder,
@@ -166,14 +155,14 @@ macro_rules! bench_lcgs_threads {
 
                             LinearProgrammingSearchBuilder { game: copy },
                              */
-                            /*distributed_certain_zero(
+                            distributed_certain_zero(
                                 graph,
                                 v0,
                                 core_count,
                                 BreadthFirstSearchBuilder,
                                 PRIORITISE_BACK_PROPAGATION,
                                 false,
-                            );*/
+                            );
                         });
                     },
                 );
@@ -2579,14 +2568,14 @@ criterion_group!(
 );
 
 criterion_main!(
-    //github_action_suite, // remember to disable when benchmarking
-    //static_thread_case_studies,
-    mexi_thread_case_study,
-    //multi_thread_case_studies,
-    //rand_1p_1m_530d,
-    //rand_2p_1m_546d,
-    //rand_3p_1m_400d,
-    //rand_3p_3m_405d,
-    //rand_3p_4m_171d,
-    //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
+    github_action_suite, // remember to disable when benchmarking
+                         //static_thread_case_studies,
+                         //mexi_thread_case_study,
+                         //multi_thread_case_studies,
+                         //rand_1p_1m_530d,
+                         //rand_2p_1m_546d,
+                         //rand_3p_1m_400d,
+                         //rand_3p_3m_405d,
+                         //rand_3p_4m_171d,
+                         //rand_4p_4m_3000d //disable large test which results in no-space error on MCC
 ); // choose which group(s) to bench
