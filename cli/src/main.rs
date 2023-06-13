@@ -1,10 +1,8 @@
-mod args;
-mod solver;
-
 #[no_link]
 extern crate git_version;
 extern crate num_cpus;
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -15,13 +13,12 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use crate::args::CommonArgs;
-use crate::solver::solver;
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult};
-use atl_checker::algorithms::global::GlobalAlgorithm;
+use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
+use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::analyse::analyse;
 use atl_checker::atl::{AtlExpressionParser, Phi};
 use atl_checker::edg::atledg::vertex::AtlVertex;
@@ -34,6 +31,12 @@ use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use atl_checker::printer::print_graph;
+
+use crate::args::CommonArgs;
+use crate::solver::solver;
+
+mod args;
+mod solver;
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -207,6 +210,11 @@ fn main_inner() -> Result<(), String> {
             let model_and_formula = load(model_type, input_model_path, formula_path, formula_type)?;
             let quiet = global_args.is_present("quiet");
 
+            let threads = match global_args.value_of("threads") {
+                None => num_cpus::get() as u64,
+                Some(t_arg) => t_arg.parse().unwrap(),
+            };
+
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
                     if !quiet {
@@ -219,7 +227,17 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph {
                         game_structure: model,
                     };
-                    GlobalAlgorithm::new(graph, v0).run()
+
+                    match threads.cmp(&1) {
+                        Ordering::Less => Err("The number must be a positive integer")?,
+                        Ordering::Equal => SinglethreadedGlobalAlgorithm::new(graph, v0).run(),
+                        Ordering::Greater => {
+                            // The numbers of worker is one less than threads
+                            // since the master is running in its own thread.
+                            let worker_count = threads - 1;
+                            MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
+                        }
+                    }
                 }
                 ModelAndFormula::Json { model, formula } => {
                     println!("Checking the formula: {}", formula.in_context_of(&model));
@@ -230,7 +248,17 @@ fn main_inner() -> Result<(), String> {
                     let graph = AtlDependencyGraph {
                         game_structure: model,
                     };
-                    GlobalAlgorithm::new(graph, v0).run()
+
+                    match threads.cmp(&1) {
+                        Ordering::Less => Err("The number must be a positive integer")?,
+                        Ordering::Equal => SinglethreadedGlobalAlgorithm::new(graph, v0).run(),
+                        Ordering::Greater => {
+                            // The numbers of worker is one less than threads
+                            // since the master is running in its own thread.
+                            let worker_count = threads - 1;
+                            MultithreadedGlobalAlgorithm::new(graph, worker_count, v0).run()
+                        }
+                    }
                 }
             };
 
