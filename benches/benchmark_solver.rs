@@ -113,12 +113,19 @@ macro_rules! bench_lcgs_threads {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
 
-            let search_strategy = env!("CGAAL_SEARCH_STRATEGY");
-
-            eprintln!(
-                "Search strategy \'{}\' with backpropagation prioritisation: {}",
-                search_strategy, PRIORITISE_BACK_PROPAGATION
-            );
+            // read search strategy from env variable in order: compile, runtime, otherwise default
+            let mut search_strategy = String::from("bfs");
+            if let Ok(val) = env::var("CGAAL_SEARCH_STRATEGY") {
+                search_strategy = val;
+                eprintln!("(compile) Search strategy \'{}\' with backpropagation prioritisation: {}", search_strategy, PRIORITISE_BACK_PROPAGATION);
+            } else {
+                if let Some(val) = option_env!("CGAAL_SEARCH_STRATEGY") {
+                    search_strategy = val.to_string();
+                    eprintln!("(runtime) Search strategy \'{}\' with backpropagation prioritisation: {}", search_strategy, PRIORITISE_BACK_PROPAGATION);
+                } else {
+                    eprintln!("(default) Search strategy \'{}\' with backpropagation prioritisation: {}", search_strategy, PRIORITISE_BACK_PROPAGATION);
+                }
+            }
 
             // use machine cores as thread count, but max 32
             let max_core_count: u64 = min(num_cpus::get() as u64, 32);
@@ -162,7 +169,7 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            match search_strategy {
+                            match search_strategy.as_str() {
                                 "bfs" => {
                                     distributed_certain_zero(
                                         graph,
