@@ -13,8 +13,8 @@ use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::cmp::min;
-use std::sync::Arc;
 use std::env;
+use std::sync::Arc;
 
 const PRIORITISE_BACK_PROPAGATION: bool = true;
 
@@ -117,13 +117,22 @@ macro_rules! bench_lcgs_threads {
             let mut search_strategy = String::from("bfs");
             if let Ok(val) = env::var("CGAAL_SEARCH_STRATEGY") {
                 search_strategy = val;
-                eprintln!("(compile) Search strategy \'{}\' with backpropagation prioritisation: {}", search_strategy, PRIORITISE_BACK_PROPAGATION);
+                eprintln!(
+                    "(compile) Search strategy \'{}\' with backpropagation prioritisation: {}",
+                    search_strategy, PRIORITISE_BACK_PROPAGATION
+                );
             } else {
                 if let Some(val) = option_env!("CGAAL_SEARCH_STRATEGY") {
                     search_strategy = val.to_string();
-                    eprintln!("(runtime) Search strategy \'{}\' with backpropagation prioritisation: {}", search_strategy, PRIORITISE_BACK_PROPAGATION);
+                    eprintln!(
+                        "(runtime) Search strategy \'{}\' with backpropagation prioritisation: {}",
+                        search_strategy, PRIORITISE_BACK_PROPAGATION
+                    );
                 } else {
-                    eprintln!("(default) Search strategy \'{}\' with backpropagation prioritisation: {}", search_strategy, PRIORITISE_BACK_PROPAGATION);
+                    eprintln!(
+                        "(default) Search strategy \'{}\' with backpropagation prioritisation: {}",
+                        search_strategy, PRIORITISE_BACK_PROPAGATION
+                    );
                 }
             }
 
