@@ -2064,6 +2064,12 @@ bench_lcgs_threads!(
     "mexican_standoff/can_p1_guarantee_to_survive_FALSE.json"
 );
 
+bench_lcgs_threads!(
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
+    "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
+    "mexican_standoff/can_p1_suicide_FALSE.json"
+);
+
 // tic tac toe
 bench_lcgs_threads!(
     ttt1_threads,
@@ -2347,7 +2353,9 @@ criterion_group!(
 criterion_group!(
     multi_thread_case_studies,
     mexican_standoff_3p_3hp_lcgs_survive_threads,
+    mexican_standoff_3p_3hp_lcgs_suicide_threads,
     mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
     ttt1_threads,
     ttt2_threads,
     ttt3_threads,
@@ -2674,8 +2682,9 @@ criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 criterion_group!(
     mexi_thread_case_study,
     mexican_standoff_3p_3hp_lcgs_survive_threads,
-    mexican_standoff_5p_1hp_lcgs_survive_threads,
     mexican_standoff_3p_3hp_lcgs_suicide_threads,
+    mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
 );
 
 criterion_main!(
