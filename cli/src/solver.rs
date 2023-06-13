@@ -2,6 +2,7 @@ use crate::{ModelAndFormula, SearchStrategyOption};
 use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::{
@@ -32,6 +33,9 @@ pub fn solver(
         }
         (ModelAndFormula::Json { .. }, SearchStrategyOption::Lps) => {
             Err("Linear programming search is not supported for JSON models".to_string())
+        }
+        (ModelAndFormula::Json { .. }, SearchStrategyOption::Ihs) => {
+            Err("Instability heuristic search is not supported for JSON models".to_string())
         }
         (ModelAndFormula::Json { model, formula }, ss) => {
             let v0 = AtlVertex::Full {
@@ -69,7 +73,7 @@ pub fn solver(
                     game_strategy_path,
                     quiet,
                 ),
-                _ => unreachable!(),
+                _ => unreachable!("A search strategy has not been defined for json models"),
             }
         }
         (ModelAndFormula::Lcgs { model, formula }, ss) => {
@@ -132,6 +136,18 @@ pub fn solver(
                     game_strategy_path,
                     quiet,
                 ),
+                SearchStrategyOption::Ihs => {
+                    let copy = graph.game_structure.clone();
+                    solver_inner(
+                        graph,
+                        v0,
+                        threads,
+                        InstabilityHeuristicSearchBuilder { game: copy },
+                        prioritise_back_propagation,
+                        game_strategy_path,
+                        quiet,
+                    )
+                }
             }
         }
     }
