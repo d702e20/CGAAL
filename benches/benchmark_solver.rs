@@ -7,6 +7,8 @@ use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearc
 use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
+use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::atl::Phi;
 use atl_checker::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
 use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
@@ -14,6 +16,7 @@ use atl_checker::game_structure::lcgs::parse::parse_lcgs;
 use atl_checker::game_structure::EagerGameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::cmp::min;
+use std::cmp::Ordering;
 use std::env;
 use std::sync::Arc;
 
@@ -242,6 +245,25 @@ macro_rules! bench_lcgs_threads {
                                         PRIORITISE_BACK_PROPAGATION,
                                         false,
                                     );
+                                }
+                                "glo" => {
+                                    match core_count.cmp(&1) {
+                                        Ordering::Less => {
+                                            panic!("Cannot bench with less than 1 thread")
+                                        }
+                                        Ordering::Equal => {
+                                            SinglethreadedGlobalAlgorithm::new(graph, v0).run();
+                                        }
+                                        Ordering::Greater => {
+                                            // -1 worker, because master is running on its own thread
+                                            MultithreadedGlobalAlgorithm::new(
+                                                graph,
+                                                core_count - 1,
+                                                v0,
+                                            )
+                                            .run();
+                                        }
+                                    }
                                 }
                                 _ => panic!("Unknown search strategy {}", search_strategy),
                             };
@@ -2031,6 +2053,12 @@ bench_lcgs_threads!(
 );
 
 bench_lcgs_threads!(
+    mexican_standoff_3p_3hp_lcgs_suicide_threads,
+    "mexican_standoff/mexican_standoff_3p_3hp.lcgs",
+    "mexican_standoff/can_p1_suicide_FALSE.json"
+);
+
+bench_lcgs_threads!(
     mexican_standoff_5p_1hp_lcgs_survive_threads,
     "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
     "mexican_standoff/can_p1_guarantee_to_survive_FALSE.json"
@@ -2647,6 +2675,7 @@ criterion_group!(
     mexi_thread_case_study,
     mexican_standoff_3p_3hp_lcgs_survive_threads,
     mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_3p_3hp_lcgs_suicide_threads,
 );
 
 criterion_main!(
