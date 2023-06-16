@@ -34,7 +34,7 @@ impl<V: Vertex> SearchStrategy<V> for DepthFirstSearch<V> {
 pub struct DepthFirstSearchBuilder;
 
 impl<V: Vertex> SearchStrategyBuilder<V, DepthFirstSearch<V>> for DepthFirstSearchBuilder {
-    fn build(&self) -> DepthFirstSearch<V> {
+    fn build(&self, _root: &V) -> DepthFirstSearch<V> {
         DepthFirstSearch::new()
     }
 }

@@ -1,8 +1,9 @@
+use std::cell::{RefCell};
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
     all_variants, ConstrainedPhiMaker,
 };
 use crate::algorithms::certain_zero::search_strategy::linear_constraints::ComparisonOp;
-use crate::algorithms::certain_zero::search_strategy::SearchStrategy;
+use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
@@ -12,29 +13,23 @@ use minilp::{LinearExpr, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
 use std::collections::HashMap;
 
-/// The [LinearRepresentativeSearch] is a search strategy that uses linear programming and
-/// the LCGS's representation of states in order to prioritize the edges during the search.
-/// However, it will only solve the linear programming problem once for the root formula,
-/// and use the solution states as a representatives for the feasible regions of the formula.
-/// Edges are then prioritized based on their manhattan distance to the representative states.
-struct LinearRepresentativeSearch {
+/// A [SearchStrategyBuilder] for building the [LinearRepresentativeSearch] strategy.
+struct LinearRepresentativeSearchBuilder {
     game: IntermediateLcgs,
-    queue: PriorityQueue<Edge<AtlVertex>, u32>,
-    representatives: Vec<State>,
+    cached_representatives: RefCell<Option<Vec<State>>>,
 }
 
-impl LinearRepresentativeSearch {
-    fn new(game: IntermediateLcgs, representatives: Vec<State>) -> LinearRepresentativeSearch {
-        LinearRepresentativeSearch {
+impl LinearRepresentativeSearchBuilder {
+    fn new(game: IntermediateLcgs) -> LinearRepresentativeSearchBuilder {
+        LinearRepresentativeSearchBuilder {
             game,
-            queue: PriorityQueue::new(),
-            representatives,
+            cached_representatives: RefCell::new(None),
         }
     }
 
     /// Find and use the representative states for the feasible regions of phi.
-    fn set_representatives(&mut self, phi: &Phi) {
-        self.representatives.clear();
+    fn find_representatives(&self, phi: &Phi) -> Vec<State> {
+        let mut representatives = Vec::new();
         let linear_phi = ConstrainedPhiMaker::new().convert(&self.game, phi);
         for constraints in all_variants(&linear_phi) {
             let mut problem = Problem::new(OptimizationDirection::Minimize);
@@ -79,8 +74,41 @@ impl LinearRepresentativeSearch {
                     let v = solution[goal_var] as i32;
                     state.0.insert(state_var, v);
                 }
-                self.representatives.push(state);
+                representatives.push(state);
             }
+        }
+        representatives
+    }
+}
+
+impl SearchStrategyBuilder<AtlVertex, LinearRepresentativeSearch> for LinearRepresentativeSearchBuilder {
+    fn build(&self, root: &AtlVertex) -> LinearRepresentativeSearch {
+        // We assume that we only use this builder with the same root vertex
+        let mut cache = self.cached_representatives.borrow_mut();
+        let reps = cache.get_or_insert_with(|| {
+            self.find_representatives(root.formula().as_ref())
+        });
+        LinearRepresentativeSearch::new(self.game.clone(), reps.clone())
+    }
+}
+
+/// The [LinearRepresentativeSearch] is a search strategy that uses linear programming and
+/// the LCGS's representation of states in order to prioritize the edges during the search.
+/// However, it will only solve the linear programming problem once for the root formula,
+/// and use the solution states as a representatives for the feasible regions of the formula.
+/// Edges are then prioritized based on their manhattan distance to the representative states.
+struct LinearRepresentativeSearch {
+    game: IntermediateLcgs,
+    queue: PriorityQueue<Edge<AtlVertex>, u32>,
+    representatives: Vec<State>,
+}
+
+impl LinearRepresentativeSearch {
+    fn new(game: IntermediateLcgs, representatives: Vec<State>) -> LinearRepresentativeSearch {
+        LinearRepresentativeSearch {
+            game,
+            queue: PriorityQueue::new(),
+            representatives,
         }
     }
 

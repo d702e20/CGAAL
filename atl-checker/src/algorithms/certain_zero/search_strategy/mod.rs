@@ -46,5 +46,5 @@ pub trait SearchStrategy<V: Vertex> {
 /// This trait allows us to create a SearchStrategy instance for each worker in the certain zero
 /// algorithm, based on the settings given by the user.
 pub trait SearchStrategyBuilder<V: Vertex, S: SearchStrategy<V>> {
-    fn build(&self) -> S;
+    fn build(&self, root: &V) -> S;
 }

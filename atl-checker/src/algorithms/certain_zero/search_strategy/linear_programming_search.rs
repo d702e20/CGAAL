@@ -22,7 +22,7 @@ pub struct LinearProgrammingSearchBuilder {
 }
 
 impl SearchStrategyBuilder<AtlVertex, LinearProgrammingSearch> for LinearProgrammingSearchBuilder {
-    fn build(&self) -> LinearProgrammingSearch {
+    fn build(&self, _root: &AtlVertex) -> LinearProgrammingSearch {
         LinearProgrammingSearch::new(self.game.clone())
     }
 }
