@@ -66,6 +66,7 @@ pub enum SearchStrategyOption {
     Dfs,
     Dhs,
     Ihs,
+    Lrs,
 }
 
 impl SearchStrategyOption {
@@ -79,7 +80,10 @@ impl SearchStrategyOption {
         find_game_strategy: bool,
     ) -> ModelCheckResult {
         match self {
-            SearchStrategyOption::Los | SearchStrategyOption::Lps | SearchStrategyOption::Ihs => {
+            SearchStrategyOption::Los
+            | SearchStrategyOption::Lps
+            | SearchStrategyOption::Ihs
+            | SearchStrategyOption::Lrs => {
                 panic!("Cannot do generic model check with {:?}", self)
             }
             SearchStrategyOption::Bfs => model_check(
@@ -461,7 +465,8 @@ fn get_search_strategy_from_args(args: &ArgMatches) -> Result<SearchStrategyOpti
         Some("los") => Ok(SearchStrategyOption::Los),
         Some("lps") => Ok(SearchStrategyOption::Lps),
         Some("ihs") => Ok(SearchStrategyOption::Ihs),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are \"bfs\", \"dfs\", \"los\", \"dhs\", \"ihs\"  [default is \"bfs\"]", other)),
+        Some("lrs") => Ok(SearchStrategyOption::Lrs),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are bfs, dfs, lps, los, dhs, ihs, lrs  [default is 'bfs']", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
     }

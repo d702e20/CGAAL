@@ -5,6 +5,7 @@ use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearc
 use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::{
     SearchStrategy, SearchStrategyBuilder,
 };
@@ -36,6 +37,9 @@ pub fn solver(
         }
         (ModelAndFormula::Json { .. }, SearchStrategyOption::Ihs) => {
             Err("Instability heuristic search is not supported for JSON models".to_string())
+        }
+        (ModelAndFormula::Json { .. }, SearchStrategyOption::Lrs) => {
+            Err("Linear representative search is not supported for JSON models".to_string())
         }
         (ModelAndFormula::Json { model, formula }, ss) => {
             let v0 = AtlVertex::Full {
@@ -143,6 +147,18 @@ pub fn solver(
                         v0,
                         threads,
                         InstabilityHeuristicSearchBuilder { game: copy },
+                        prioritise_back_propagation,
+                        game_strategy_path,
+                        quiet,
+                    )
+                }
+                SearchStrategyOption::Lrs => {
+                    let copy = graph.game_structure.clone();
+                    solver_inner(
+                        graph,
+                        v0,
+                        threads,
+                        LinearRepresentativeSearchBuilder::new(copy),
                         prioritise_back_propagation,
                         game_strategy_path,
                         quiet,

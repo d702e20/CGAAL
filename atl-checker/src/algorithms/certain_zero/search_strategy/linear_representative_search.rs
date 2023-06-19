@@ -1,4 +1,3 @@
-use std::cell::{RefCell};
 use crate::algorithms::certain_zero::search_strategy::linear_constrained_phi::{
     all_variants, ConstrainedPhiMaker,
 };
@@ -11,16 +10,17 @@ use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use minilp::{LinearExpr, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 /// A [SearchStrategyBuilder] for building the [LinearRepresentativeSearch] strategy.
-struct LinearRepresentativeSearchBuilder {
+pub struct LinearRepresentativeSearchBuilder {
     game: IntermediateLcgs,
     cached_representatives: RefCell<Option<Vec<State>>>,
 }
 
 impl LinearRepresentativeSearchBuilder {
-    fn new(game: IntermediateLcgs) -> LinearRepresentativeSearchBuilder {
+    pub fn new(game: IntermediateLcgs) -> LinearRepresentativeSearchBuilder {
         LinearRepresentativeSearchBuilder {
             game,
             cached_representatives: RefCell::new(None),
@@ -81,13 +81,13 @@ impl LinearRepresentativeSearchBuilder {
     }
 }
 
-impl SearchStrategyBuilder<AtlVertex, LinearRepresentativeSearch> for LinearRepresentativeSearchBuilder {
+impl SearchStrategyBuilder<AtlVertex, LinearRepresentativeSearch>
+    for LinearRepresentativeSearchBuilder
+{
     fn build(&self, root: &AtlVertex) -> LinearRepresentativeSearch {
         // We assume that we only use this builder with the same root vertex
         let mut cache = self.cached_representatives.borrow_mut();
-        let reps = cache.get_or_insert_with(|| {
-            self.find_representatives(root.formula().as_ref())
-        });
+        let reps = cache.get_or_insert_with(|| self.find_representatives(root.formula().as_ref()));
         LinearRepresentativeSearch::new(self.game.clone(), reps.clone())
     }
 }
@@ -95,16 +95,16 @@ impl SearchStrategyBuilder<AtlVertex, LinearRepresentativeSearch> for LinearRepr
 /// The [LinearRepresentativeSearch] is a search strategy that uses linear programming and
 /// the LCGS's representation of states in order to prioritize the edges during the search.
 /// However, it will only solve the linear programming problem once for the root formula,
-/// and use the solution states as a representatives for the feasible regions of the formula.
-/// Edges are then prioritized based on their manhattan distance to the representative states.
-struct LinearRepresentativeSearch {
+/// and use the solution states as representatives for the feasible regions of the formula.
+/// Edges are then prioritized based on their Manhattan distance to the representative states.
+pub struct LinearRepresentativeSearch {
     game: IntermediateLcgs,
     queue: PriorityQueue<Edge<AtlVertex>, u32>,
     representatives: Vec<State>,
 }
 
 impl LinearRepresentativeSearch {
-    fn new(game: IntermediateLcgs, representatives: Vec<State>) -> LinearRepresentativeSearch {
+    pub fn new(game: IntermediateLcgs, representatives: Vec<State>) -> LinearRepresentativeSearch {
         LinearRepresentativeSearch {
             game,
             queue: PriorityQueue::new(),
@@ -113,7 +113,7 @@ impl LinearRepresentativeSearch {
     }
 
     /// Returns the distance between the given state and the closest representative state
-    fn dist_to_representative(&self, state: &State) -> u32 {
+    fn dist_to_representatives(&self, state: &State) -> u32 {
         self.representatives
             .iter()
             .map(|rep| {
@@ -136,7 +136,7 @@ impl SearchStrategy<AtlVertex> for LinearRepresentativeSearch {
     fn queue_new_edges(&mut self, edges: Vec<Edge<AtlVertex>>) {
         for edge in edges {
             let state = self.game.state_from_index(edge.source().state());
-            let dist = self.dist_to_representative(&state);
+            let dist = self.dist_to_representatives(&state);
             self.queue.push(edge, u32::MAX - dist);
         }
     }
