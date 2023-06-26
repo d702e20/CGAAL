@@ -211,13 +211,9 @@ fn solver_inner<
                 if !quiet {
                     println!("Game strategy was not computed due to error: {}", err);
                 }
+                std::process::exit(1);
             }
         }
     }
-
-    if result.satisfied {
-        std::process::exit(42);
-    } else {
-        std::process::exit(43);
-    }
+    std::process::exit(0);
 }

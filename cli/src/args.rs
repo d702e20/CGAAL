@@ -109,7 +109,7 @@ impl CommonArgs for App<'_, '_> {
                 .takes_value(false)
                 .long("quiet")
                 .help(
-                    "Suppress stdout and only return exitcode 42 for true result or 43 for false",
+                    "Suppress stdout",
                 ),
         )
     }

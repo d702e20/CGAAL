@@ -199,11 +199,7 @@ fn main_inner() -> Result<(), String> {
                 if !quiet_flag {
                     println!("Model satisfies formula: {}", result);
                 }
-                if result {
-                    std::process::exit(42);
-                } else {
-                    std::process::exit(43);
-                }
+                std::process::exit(0);
             }
             let model_type = get_model_type_from_args(global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
