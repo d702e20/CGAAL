@@ -108,9 +108,7 @@ impl CommonArgs for App<'_, '_> {
                 .short("q")
                 .takes_value(false)
                 .long("quiet")
-                .help(
-                    "Suppress stdout",
-                ),
+                .help("Suppress stdout"),
         )
     }
 }
