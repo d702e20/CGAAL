@@ -1,8 +1,5 @@
-extern crate lazy_static;
 extern crate pom;
 
-use std::borrow::Borrow;
-use std::collections::HashSet;
 use std::iter::Peekable;
 use std::str::{self, FromStr};
 use std::vec::Drain;
@@ -18,26 +15,20 @@ use crate::game_structure::lcgs::ast::*;
 use crate::game_structure::lcgs::precedence::Associativity::RightToLeft;
 use crate::game_structure::lcgs::precedence::{precedence, Precedence};
 
-use self::pom::set::Set;
 use self::pom::Error;
 
-// Required for static allocation of a hashset
-lazy_static! {
-    static ref RESERVED_KEYWORDS: HashSet<&'static str> = {
-        let mut set = HashSet::new();
-        set.insert("const");
-        set.insert("label");
-        set.insert("player");
-        set.insert("template");
-        set.insert("endtemplate");
-        set.insert("init");
-        set.insert("true");
-        set.insert("false");
-        set.insert("min");
-        set.insert("max");
-        set
-    };
-}
+const RESERVED_KEYWORDS: [&str; 10] = [
+    "const",
+    "label",
+    "player",
+    "template",
+    "endtemplate",
+    "init",
+    "true",
+    "false",
+    "min",
+    "max",
+];
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -122,7 +113,7 @@ fn name<'a>() -> Parser<'a, u8, String> {
         .collect()
         .convert(|s| String::from_utf8(s.to_vec()))
         .convert(|name| {
-            if RESERVED_KEYWORDS.contains(name.to_str().borrow()) {
+            if RESERVED_KEYWORDS.contains(&name.as_str()) {
                 Err(format!(
                     "Cannot use a reserved keyword as an identifier: {}",
                     name
