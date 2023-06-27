@@ -443,7 +443,7 @@ fn get_formula_type_from_args(args: &ArgMatches) -> Result<FormulaType, String> 
             } else {
                 Err("Cannot infer formula format from file the extension. You can specify it with '--formula_type=FORMULA_TYPE'".to_string())
             }
-        },
+        }
         Some(format) => Err(format!("Invalid formula type '{}' specified with --formula_type. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
@@ -574,7 +574,14 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_type_arg()
                 .add_formula_arg()
                 .add_formula_type_arg()
-                .add_quiet_arg(),
+                .add_quiet_arg()
+                .arg(
+                    Arg::with_name("threads")
+                        .short("r")
+                        .long("threads")
+                        .env("THREADS")
+                        .help("Number of threads to run solver on"),
+                ),
         );
 
     if cfg!(feature = "graph-printer") {
