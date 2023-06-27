@@ -189,7 +189,7 @@ fn solver_inner<
         println!(
             "Time elapsed model checking: {}ms ({})",
             now.elapsed().as_millis(),
-            format_duration(now.elapsed()).to_string()
+            format_duration(now.elapsed())
         );
         println!("Model satisfies formula: {}", &result.satisfied);
     }
