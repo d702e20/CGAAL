@@ -2,12 +2,14 @@
 extern crate git_version;
 extern crate num_cpus;
 
+use humantime::format_duration;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::exit;
 use std::sync::Arc;
+use std::time::Instant;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
@@ -213,6 +215,7 @@ fn main_inner() -> Result<(), String> {
                 Some(t_arg) => t_arg.parse().unwrap(),
             };
 
+            let now = Instant::now();
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
                     if !quiet {
@@ -259,6 +262,14 @@ fn main_inner() -> Result<(), String> {
                     }
                 }
             };
+
+            if !quiet {
+                println!(
+                    "Time elapsed model checking: {}ms ({})",
+                    now.elapsed().as_millis(),
+                    format_duration(now.elapsed())
+                );
+            }
 
             quiet_output_handle(result, quiet);
         }
