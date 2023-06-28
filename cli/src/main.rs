@@ -2,12 +2,14 @@
 extern crate git_version;
 extern crate num_cpus;
 
+use humantime::format_duration;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::exit;
 use std::sync::Arc;
+use std::time::Instant;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
@@ -203,11 +205,7 @@ fn main_inner() -> Result<(), String> {
                 if !quiet_flag {
                     println!("Model satisfies formula: {}", result);
                 }
-                if result {
-                    std::process::exit(42);
-                } else {
-                    std::process::exit(43);
-                }
+                std::process::exit(0);
             }
             let model_type = get_model_type_from_args(global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
@@ -221,6 +219,7 @@ fn main_inner() -> Result<(), String> {
                 Some(t_arg) => t_arg.parse().unwrap(),
             };
 
+            let now = Instant::now();
             let result = match model_and_formula {
                 ModelAndFormula::Lcgs { model, formula } => {
                     if !quiet {
@@ -267,6 +266,14 @@ fn main_inner() -> Result<(), String> {
                     }
                 }
             };
+
+            if !quiet {
+                println!(
+                    "Time elapsed model checking: {}ms ({})",
+                    now.elapsed().as_millis(),
+                    format_duration(now.elapsed())
+                );
+            }
 
             quiet_output_handle(result, quiet);
         }
@@ -451,7 +458,7 @@ fn get_formula_type_from_args(args: &ArgMatches) -> Result<FormulaType, String> 
             } else {
                 Err("Cannot infer formula format from file the extension. You can specify it with '--formula_type=FORMULA_TYPE'".to_string())
             }
-        },
+        }
         Some(format) => Err(format!("Invalid formula type '{}' specified with --formula_type. Use either \"atl\" or \"json\" [default is \"atl\"].", format)),
     }
 }
@@ -583,7 +590,14 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_input_model_type_arg()
                 .add_formula_arg()
                 .add_formula_type_arg()
-                .add_quiet_arg(),
+                .add_quiet_arg()
+                .arg(
+                    Arg::with_name("threads")
+                        .short("r")
+                        .long("threads")
+                        .env("THREADS")
+                        .help("Number of threads to run solver on"),
+                ),
         );
 
     if cfg!(feature = "graph-printer") {
