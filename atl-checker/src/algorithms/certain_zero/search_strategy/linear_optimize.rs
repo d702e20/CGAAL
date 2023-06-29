@@ -21,7 +21,7 @@ pub struct LinearOptimizeSearchBuilder {
 }
 
 impl SearchStrategyBuilder<AtlVertex, LinearOptimizeSearch> for LinearOptimizeSearchBuilder {
-    fn build(&self) -> LinearOptimizeSearch {
+    fn build(&self, _root: &AtlVertex) -> LinearOptimizeSearch {
         LinearOptimizeSearch::new(self.game.clone())
     }
 }

@@ -39,7 +39,7 @@ impl<V: Vertex> SearchStrategy<V> for BreadthFirstSearch<V> {
 pub struct BreadthFirstSearchBuilder;
 
 impl<V: Vertex> SearchStrategyBuilder<V, BreadthFirstSearch<V>> for BreadthFirstSearchBuilder {
-    fn build(&self) -> BreadthFirstSearch<V> {
+    fn build(&self, _root: &V) -> BreadthFirstSearch<V> {
         BreadthFirstSearch::new()
     }
 }
