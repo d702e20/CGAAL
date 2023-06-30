@@ -117,6 +117,7 @@ macro_rules! bench_lcgs_threads {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
+            group.sample_size(10);
 
             // read search strategy from env variable in order: compile, runtime, otherwise default
             let mut search_strategy = String::from("bfs");
