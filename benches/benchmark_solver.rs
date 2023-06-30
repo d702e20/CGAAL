@@ -7,6 +7,7 @@ use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearc
 use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
 use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::atl::Phi;
@@ -242,6 +243,17 @@ macro_rules! bench_lcgs_threads {
                                         v0,
                                         core_count,
                                         InstabilityHeuristicSearchBuilder { game: copy },
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "lrs" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        LinearRepresentativeSearchBuilder::new(copy),
                                         PRIORITISE_BACK_PROPAGATION,
                                         false,
                                     );
