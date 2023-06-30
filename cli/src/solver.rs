@@ -5,6 +5,7 @@ use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearc
 use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use atl_checker::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
 use atl_checker::algorithms::certain_zero::search_strategy::{
     SearchStrategy, SearchStrategyBuilder,
 };
@@ -12,10 +13,12 @@ use atl_checker::algorithms::game_strategy::{model_check, SpecificationProof};
 use atl_checker::edg::atledg::vertex::AtlVertex;
 use atl_checker::edg::atledg::AtlDependencyGraph;
 use atl_checker::game_structure::GameStructure;
+use humantime::format_duration;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
+use std::time::Instant;
 
 /// Solver subcommand
 pub fn solver(
@@ -36,6 +39,9 @@ pub fn solver(
         }
         (ModelAndFormula::Json { .. }, SearchStrategyOption::Ihs) => {
             Err("Instability heuristic search is not supported for JSON models".to_string())
+        }
+        (ModelAndFormula::Json { .. }, SearchStrategyOption::Lrs) => {
+            Err("Linear representative search is not supported for JSON models".to_string())
         }
         (ModelAndFormula::Json { model, formula }, ss) => {
             let v0 = AtlVertex::Full {
@@ -148,6 +154,18 @@ pub fn solver(
                         quiet,
                     )
                 }
+                SearchStrategyOption::Lrs => {
+                    let copy = graph.game_structure.clone();
+                    solver_inner(
+                        graph,
+                        v0,
+                        threads,
+                        LinearRepresentativeSearchBuilder::new(copy),
+                        prioritise_back_propagation,
+                        game_strategy_path,
+                        quiet,
+                    )
+                }
             }
         }
     }
@@ -166,6 +184,7 @@ fn solver_inner<
     game_strategy_path: Option<&str>,
     quiet: bool,
 ) -> Result<(), String> {
+    let now = Instant::now();
     let game_structure = edg.game_structure.clone();
     if !quiet {
         println!(
@@ -183,6 +202,11 @@ fn solver_inner<
     );
 
     if !quiet {
+        println!(
+            "Time elapsed model checking: {}ms ({})",
+            now.elapsed().as_millis(),
+            format_duration(now.elapsed())
+        );
         println!("Model satisfies formula: {}", &result.satisfied);
     }
 
@@ -211,13 +235,9 @@ fn solver_inner<
                 if !quiet {
                     println!("Game strategy was not computed due to error: {}", err);
                 }
+                std::process::exit(1);
             }
         }
     }
-
-    if result.satisfied {
-        std::process::exit(42);
-    } else {
-        std::process::exit(43);
-    }
+    std::process::exit(0);
 }

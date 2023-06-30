@@ -8,6 +8,7 @@ mod linear_constrained_phi;
 mod linear_constraints;
 pub mod linear_optimize;
 pub mod linear_programming_search;
+pub mod linear_representative_search;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
 /// certain zero algorithm.
@@ -45,5 +46,5 @@ pub trait SearchStrategy<V: Vertex> {
 /// This trait allows us to create a SearchStrategy instance for each worker in the certain zero
 /// algorithm, based on the settings given by the user.
 pub trait SearchStrategyBuilder<V: Vertex, S: SearchStrategy<V>> {
-    fn build(&self) -> S;
+    fn build(&self, root: &V) -> S;
 }

@@ -277,3 +277,44 @@ impl ConstrainedPhiMaker {
         LinearConstrainedPhi::NonLinear
     }
 }
+
+/// Returns all variants of linear problems that can be created from the given LinearConstrainedPhi.
+/// Each problem consists of a list of linear constraints. TODO: Make Iterator
+pub fn all_variants(phi: &LinearConstrainedPhi) -> Vec<Vec<LinearConstraint>> {
+    all_variants_rec(vec![vec![]], phi)
+}
+/// Recursive helper function to [all_variants].
+fn all_variants_rec(
+    mut variants: Vec<Vec<LinearConstraint>>,
+    phi: &LinearConstrainedPhi,
+) -> Vec<Vec<LinearConstraint>> {
+    match phi {
+        LinearConstrainedPhi::Or(lhs, rhs) => {
+            // Clone of the variants found so far. Recurse into the LHS with original variants and
+            // recurse into the RHS with the cloned variants. Then union the results of both branches.
+            let clone = variants.clone();
+            let mut res = all_variants_rec(variants, lhs);
+            res.extend(all_variants_rec(clone, rhs));
+            res
+        }
+        LinearConstrainedPhi::And(lhs, rhs) => {
+            // Recurse into the LHS. Use the resulting variants to recurse into the RHS.
+            variants = all_variants_rec(variants, lhs);
+            variants = all_variants_rec(variants, rhs);
+            variants
+        }
+        LinearConstrainedPhi::Constraint(constraint) => {
+            // Add this constraint to all variants found so far
+            for variant in variants.iter_mut() {
+                variant.push(constraint.clone());
+            }
+            variants
+        }
+        // No variants of this branch will ever be true, so we throw them all away
+        LinearConstrainedPhi::False => vec![],
+        // No changes to variants
+        LinearConstrainedPhi::True => variants,
+        // No changes to variants
+        LinearConstrainedPhi::NonLinear => variants,
+    }
+}

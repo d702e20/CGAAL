@@ -52,7 +52,7 @@ pub fn distributed_certain_zero<
             v0.clone(),
             brokers.pop().unwrap(),
             edg.clone(),
-            ss_builder.build(),
+            ss_builder.build(&v0),
             prioritise_back_propagation,
         );
 

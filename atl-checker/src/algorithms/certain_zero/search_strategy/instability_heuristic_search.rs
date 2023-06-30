@@ -149,7 +149,7 @@ pub struct InstabilityHeuristicSearchBuilder {
 impl SearchStrategyBuilder<AtlVertex, InstabilityHeuristicSearch>
     for InstabilityHeuristicSearchBuilder
 {
-    fn build(&self) -> InstabilityHeuristicSearch {
+    fn build(&self, _root: &AtlVertex) -> InstabilityHeuristicSearch {
         InstabilityHeuristicSearch::new(self.game.clone())
     }
 }
