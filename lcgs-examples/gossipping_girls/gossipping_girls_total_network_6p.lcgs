@@ -1,0 +1,101 @@
+// Gossiping girls total network
+// The case study also from MV in 6th semester.
+// Six girls, six secrets, each girl initially knows one secret (girl 1 knows secret 1, etc)
+// Any girl can call any other girl to exchange secrets.
+// If girl1 calls girl2, and girl2 also calls girl1, they will learn each others secrets.
+// They have to call each other (can be viewed as one calls, one answers)
+
+player p1 = girl[girl1=0, girl2=1, girl3=1, girl4=1, girl5=1, girl6=1, call_me=call_girl1];
+
+player p2 = girl[girl1=1, girl2=0, girl3=1, girl4=1, girl5=1, girl6=1, call_me=call_girl2];
+
+player p3 = girl[girl1=1, girl2=1, girl3=0, girl4=1, girl5=1, girl6=1, call_me=call_girl3];
+
+player p4 = girl[girl1=1, girl2=1, girl3=1, girl4=0, girl5=1, girl6=1, call_me=call_girl4];
+
+player p5 = girl[girl1=1, girl2=1, girl3=1, girl4=1, girl5=0, girl6=1, call_me=call_girl5];
+
+player p5 = girl[girl1=1, girl2=1, girl3=1, girl4=1, girl5=1, girl6=0, call_me=call_girl6];
+
+label less_than_10_steps = step < 10;
+step : [0..20] init 0;
+step' = min(step + 1,20);
+
+template girl
+    label omniscient = secret1 * secret2 * secret3 * secret4 * secret5 * secret6;
+
+    secret1 : [0..1] init !girl1;
+    secret1' =
+    max(
+    	((call_girl1 * p1.call_me) * p1.secret1),
+    	((call_girl2 * p2.call_me) * p2.secret1),
+    	((call_girl3 * p3.call_me) * p3.secret1),
+    	((call_girl4 * p4.call_me) * p4.secret1),
+    	((call_girl5 * p5.call_me) * p5.secret1),
+    	((call_girl6 * p6.call_me) * p6.secret1),
+    	secret1);
+
+    secret2 : [0..1] init !girl2;
+    secret2' =
+    max(
+    	((call_girl1 * p1.call_me) * p1.secret2),
+    	((call_girl2 * p2.call_me) * p2.secret2),
+    	((call_girl3 * p3.call_me) * p3.secret2),
+    	((call_girl4 * p4.call_me) * p4.secret2),
+    	((call_girl5 * p5.call_me) * p5.secret2),
+    	((call_girl6 * p6.call_me) * p6.secret2),
+    	secret2);
+
+    secret3 : [0..1] init !girl3;
+    secret3' =
+    max(
+    	((call_girl1 * p1.call_me) * p1.secret3),
+    	((call_girl2 * p2.call_me) * p2.secret3),
+    	((call_girl3 * p3.call_me) * p3.secret3),
+    	((call_girl4 * p4.call_me) * p4.secret3),
+    	((call_girl5 * p5.call_me) * p5.secret3),
+    	((call_girl6 * p6.call_me) * p6.secret3),
+    	secret3);
+
+    secret4 : [0..1] init !girl4;
+    secret4' =
+    max(
+    	((call_girl1 * p1.call_me) * p1.secret4),
+    	((call_girl2 * p2.call_me) * p2.secret4),
+    	((call_girl3 * p3.call_me) * p3.secret4),
+    	((call_girl4 * p4.call_me) * p4.secret4),
+    	((call_girl5 * p5.call_me) * p5.secret4),
+    	((call_girl6 * p6.call_me) * p6.secret4),
+    	secret4);
+
+    secret5 : [0..1] init !girl5;
+    secret5' =
+    max(
+    	((call_girl1 * p1.call_me) * p1.secret5),
+    	((call_girl2 * p2.call_me) * p2.secret5),
+    	((call_girl3 * p3.call_me) * p3.secret5),
+    	((call_girl4 * p4.call_me) * p4.secret5),
+    	((call_girl5 * p5.call_me) * p5.secret5),
+    	((call_girl6 * p6.call_me) * p6.secret5),
+    	secret5);
+
+    secret6 : [0..1] init !girl6;
+    secret6' =
+    max(
+    	((call_girl1 * p1.call_me) * p1.secret6),
+    	((call_girl2 * p2.call_me) * p2.secret6),
+    	((call_girl3 * p3.call_me) * p3.secret6),
+    	((call_girl4 * p4.call_me) * p4.secret6),
+    	((call_girl5 * p5.call_me) * p5.secret6),
+    	((call_girl6 * p6.call_me) * p6.secret6),
+    	secret5);
+
+    [call_girl1] girl1;
+    [call_girl2] girl2;
+    [call_girl3] girl3;
+    [call_girl4] girl4;
+    [call_girl5] girl5;
+    [call_girl6] girl6;
+endtemplate
+
+
