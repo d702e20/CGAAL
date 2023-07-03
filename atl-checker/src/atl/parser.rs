@@ -204,7 +204,7 @@ fn proposition<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
 
 /// Parses a negated ATL formula
 fn not<A: AtlExpressionParser>(expr_parser: &A) -> Parser<u8, Phi> {
-    (sym(b'!') * ws() * lazy(&phi, expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
+    (sym(b'!') * ws() * lazy(&primary, expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
 }
 
 /// Parses a boolean, either full uppercase or full lowercase
@@ -736,6 +736,65 @@ mod test {
                 formula: Arc::new(Phi::True)
             })
         )
+    }
+
+    #[test]
+    fn general_precedence_01() {
+        let formula = phi(&TestModel).parse(b"<<>> G true & false").unwrap();
+        let expected = Phi::EnforceInvariant {
+            players: vec![],
+            formula: Arc::new(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False))),
+        };
+        assert_eq!(formula, expected)
+    }
+
+    #[test]
+    fn general_precedence_02() {
+        let formula = phi(&TestModel).parse(b"!<<>> F !true & false").unwrap();
+        let expected = Phi::Not(Arc::new(Phi::EnforceEventually {
+            players: vec![],
+            formula: Arc::new(Phi::And(
+                Arc::new(Phi::Not(Arc::from(Phi::True))),
+                Arc::new(Phi::False),
+            )),
+        }));
+        assert_eq!(formula, expected)
+    }
+
+    #[test]
+    fn general_precedence_03() {
+        let formula = phi(&TestModel)
+            .parse(b"[[]] F false | <<>> G true")
+            .unwrap();
+        let expected = Phi::DespiteEventually {
+            players: vec![],
+            formula: Arc::new(Phi::Or(
+                Arc::new(Phi::False),
+                Arc::new(Phi::EnforceInvariant {
+                    players: vec![],
+                    formula: Arc::new(Phi::True),
+                }),
+            )),
+        };
+        assert_eq!(formula, expected)
+    }
+
+    #[test]
+    fn general_precedence_04() {
+        let formula = phi(&TestModel)
+            .parse(b"!false & [[]] F <<>> G false | true")
+            .unwrap();
+        let expected = Phi::And(
+            Arc::new(Phi::Not(Arc::new(Phi::False))),
+            Arc::new(Phi::DespiteEventually {
+                players: vec![],
+                formula: Arc::new(Phi::EnforceInvariant {
+                    players: vec![],
+                    formula: Arc::new(Phi::Or(Arc::new(Phi::False), Arc::new(Phi::True))),
+                }),
+            }),
+        );
+        assert_eq!(formula, expected)
     }
 
     #[test]

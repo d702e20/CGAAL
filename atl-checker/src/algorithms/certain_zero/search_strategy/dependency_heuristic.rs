@@ -121,7 +121,7 @@ pub struct DependencyHeuristicSearchBuilder;
 impl<V: Vertex> SearchStrategyBuilder<V, DependencyHeuristicSearch<V>>
     for DependencyHeuristicSearchBuilder
 {
-    fn build(&self) -> DependencyHeuristicSearch<V> {
+    fn build(&self, _root: &V) -> DependencyHeuristicSearch<V> {
         DependencyHeuristicSearch::new()
     }
 }

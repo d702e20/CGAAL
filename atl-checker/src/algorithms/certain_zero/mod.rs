@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
-use std::thread;
+use std::{panic, thread};
 
 use crate::algorithms::certain_zero::com::{Broker, BrokerManager, ChannelBroker};
 use crate::algorithms::certain_zero::common::{
@@ -45,19 +45,31 @@ pub fn distributed_certain_zero<
     let (mut brokers, manager_broker) = ChannelBroker::new(worker_count);
 
     for i in (0..worker_count).rev() {
+        let thread = thread::Builder::new();
         let mut worker = Worker::new(
             i,
             worker_count,
             v0.clone(),
             brokers.pop().unwrap(),
             edg.clone(),
-            ss_builder.build(),
+            ss_builder.build(&v0),
             prioritise_back_propagation,
         );
-        thread::spawn(move || {
+
+        match thread.name(format!("dz_worker_{}", i)).spawn(move || {
             trace!("worker thread start");
             worker.run();
-        });
+        }) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!(
+                    "Error spawning worker{}/{} thread with error: {}",
+                    i, worker_count, e
+                );
+                // continue panicking
+                panic::resume_unwind(Box::new(e))
+            }
+        }
     }
 
     let root_assignment = manager_broker
