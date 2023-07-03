@@ -424,25 +424,25 @@ bench_lcgs!(
 bench_lcgs!(
     gg1_circular,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
     gg2_circular,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
     gg3_circular,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
     gg4_circular,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
@@ -454,37 +454,37 @@ bench_lcgs!(
 bench_lcgs!(
     gg6_circular,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omniscient_before_10_steps_FALSE.json"
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs!(
     gg7_circular,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 bench_lcgs!(
     gg1_total,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
     gg2_total,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
     gg3_total,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
     gg4_total,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
@@ -496,13 +496,13 @@ bench_lcgs!(
 bench_lcgs!(
     gg6_total,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omniscient_before_10_steps_FALSE.json"
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs!(
     gg7_total,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 // rock paper scissors
@@ -2205,25 +2205,25 @@ bench_lcgs_threads!(
 bench_lcgs_threads!(
     gg1_circular_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg2_circular_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg3_circular_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg4_circular_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
@@ -2235,37 +2235,37 @@ bench_lcgs_threads!(
 bench_lcgs_threads!(
     gg6_circular_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omniscient_before_10_steps_FALSE.json"
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs_threads!(
     gg7_circular_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg1_total_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg2_total_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg3_total_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omniscient_before_10_steps_TRUE.json"
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
     gg4_total_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
@@ -2277,13 +2277,13 @@ bench_lcgs_threads!(
 bench_lcgs_threads!(
     gg6_total_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omniscient_before_10_steps_FALSE.json"
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs_threads!(
     gg7_total_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 // rock paper scissors

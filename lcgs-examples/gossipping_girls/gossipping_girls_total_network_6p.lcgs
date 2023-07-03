@@ -15,7 +15,7 @@ player p4 = girl[girl1=1, girl2=1, girl3=1, girl4=0, girl5=1, girl6=1, call_me=c
 
 player p5 = girl[girl1=1, girl2=1, girl3=1, girl4=1, girl5=0, girl6=1, call_me=call_girl5];
 
-player p5 = girl[girl1=1, girl2=1, girl3=1, girl4=1, girl5=1, girl6=0, call_me=call_girl6];
+player p6 = girl[girl1=1, girl2=1, girl3=1, girl4=1, girl5=1, girl6=0, call_me=call_girl6];
 
 label less_than_10_steps = step < 10;
 step : [0..20] init 0;
