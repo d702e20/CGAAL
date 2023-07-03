@@ -1,0 +1,69 @@
+// In this scenario, 4 robots exists on an NxN grid, starting on separate corners.
+// +----+----+----+----+
+// | r3 |    |    | r2 |
+// +----+----+----+----+
+// |    |    |    |    |
+// +----+----+----+----+
+// |    |    |    |    |
+// +----+----+----+----+
+// | r1 |    |    | r4 |
+// +----+----+----+----+
+// Each robot wants to move to the opposite corner of where they start, every step
+// either standing still or moving up, down, left, or right. However, if two robots
+// ever share the same position or move through each other, they crash into each other
+// and can no longer move.
+
+const N = 5;
+
+player r1 = robot [START_X=1, START_Y=1, TARGET_X=N, TARGET_Y=N, OTHER_1=r2, OTHER_2=r3, OTHER_3=r4];
+player r2 = robot [START_X=N, START_Y=N, TARGET_X=1, TARGET_Y=1, OTHER_1=r1, OTHER_2=r3, OTHER_3=r4];
+player r3 = robot [START_X=1, START_Y=N, TARGET_X=N, TARGET_Y=1, OTHER_1=r1, OTHER_2=r2, OTHER_3=r4];
+player r4 = robot [START_X=N, START_Y=1, TARGET_X=1, TARGET_Y=N, OTHER_1=r1, OTHER_2=r2, OTHER_3=r3];
+
+label any_crashes = r1.crash || r2.crash || r3.crash || r4.crash;
+
+template robot
+    x : [1 .. N] init START_X;
+    x' = x + move_right - move_left; // Not out bounds due to action conditions
+
+    y : [1 .. N] init START_Y;
+    y' = y + move_up - move_down; // Not out bounds due to action conditions
+
+    crash : [0..1] init 0;
+    crash' = crash
+        // Does this and OTHER_1 move to the same position?
+        || (x + move_right - move_left == OTHER_1.x + OTHER_1.move_right - OTHER_1.move_left
+            && y + move_up - move_down == OTHER_1.y + OTHER_1.move_up    - OTHER_1.move_down)
+        // Does this and OTHER_2 move to the same position?
+        || (x + move_right - move_left == OTHER_2.x + OTHER_2.move_right - OTHER_2.move_left
+            && y + move_up - move_down == OTHER_2.y + OTHER_2.move_up    - OTHER_2.move_down)
+        // Does this and OTHER_3 move to the same position?
+        || (x + move_right - move_left == OTHER_3.x + OTHER_3.move_right - OTHER_3.move_left
+            && y + move_up - move_down == OTHER_3.y + OTHER_3.move_up    - OTHER_3.move_down)
+        // Does this and OTHER_1 move through each other?
+        || (x + 1 == OTHER_1.x && move_right && OTHER_1.move_left)
+        || (x - 1 == OTHER_1.x && move_left  && OTHER_1.move_right)
+        || (y + 1 == OTHER_1.y && move_up    && OTHER_1.move_down)
+        || (y - 1 == OTHER_1.y && move_down  && OTHER_1.move_up)
+        // Does this and OTHER_2 move through each other?
+        || (x + 1 == OTHER_2.x && move_right && OTHER_2.move_left)
+        || (x - 1 == OTHER_2.x && move_left  && OTHER_2.move_right)
+        || (y + 1 == OTHER_2.y && move_up    && OTHER_2.move_down)
+        || (y - 1 == OTHER_2.y && move_down  && OTHER_2.move_up)
+        // Does this and OTHER_3 move through each other?
+        || (x + 1 == OTHER_3.x && move_right && OTHER_3.move_left)
+        || (x - 1 == OTHER_3.x && move_left  && OTHER_3.move_right)
+        || (y + 1 == OTHER_3.y && move_up    && OTHER_3.move_down)
+        || (y - 1 == OTHER_3.y && move_down  && OTHER_3.move_up)
+    ;
+
+    label at_start = x == START_X && y == START_Y;
+    label at_target = x == TARGET_X && y == TARGET_Y;
+    label crashed = crash;
+
+    [wait] 1;
+    [move_up] !crash && y < N;
+    [move_down] !crash && y > 1;
+    [move_right] !crash && x < N;
+    [move_left] !crash && x > 1;
+endtemplate
