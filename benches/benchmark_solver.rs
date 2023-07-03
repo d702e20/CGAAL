@@ -335,20 +335,56 @@ bench_lcgs!(
 
 // robot grid
 bench_lcgs!(
-    rc1,
+    rc3_1,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs!(
-    rc2,
+    rc3_2,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/everyone_starts_home_TRUE.json"
 );
 
 bench_lcgs!(
-    rc3,
+    rc3_3,
     "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs!(
+    rc4_1,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    rc4_2,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    rc4_3,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs!(
+    rc5_1,
+    "robot_grid/robot_grid_N5.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    rc5_2,
+    "robot_grid/robot_grid_N5.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    rc5_3,
+    "robot_grid/robot_grid_N5.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
 
@@ -2116,20 +2152,56 @@ bench_lcgs_threads!(
 
 // robot grid
 bench_lcgs_threads!(
-    rc1_threads,
+    rc3_1_threads,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    rc2_threads,
+    rc3_2_threads,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/everyone_starts_home_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    rc3_threads,
+    rc3_3_threads,
     "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    rc4_1_threads,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    rc4_2_threads,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    rc4_3_threads,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    rc5_1_threads,
+    "robot_grid/robot_grid_N5.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    rc5_2_threads,
+    "robot_grid/robot_grid_N5.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    rc5_3_threads,
+    "robot_grid/robot_grid_N5.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
 
@@ -2329,9 +2401,15 @@ criterion_group!(
     ttt3,
     ttt4,
     ttt5,
-    rc1,
-    rc2,
-    rc3, //rc benches takes 215s total
+    rc3_1,
+    rc3_2,
+    rc3_3,
+    rc4_1,
+    rc4_2,
+    rc4_3,
+    rc5_1,
+    rc5_2,
+    rc5_3,
     pa1_3proc,
     pa2_3proc,
     pa3_3proc,
@@ -2374,9 +2452,15 @@ criterion_group!(
     ttt3_threads,
     ttt4_threads,
     ttt5_threads,
-    rc1_threads,
-    rc2_threads,
-    rc3_threads, //rc benches takes 215s total
+    rc3_1_threads,
+    rc3_2_threads,
+    rc3_3_threads,
+    rc4_1_threads,
+    rc4_2_threads,
+    rc4_3_threads,
+    rc5_1_threads,
+    rc5_2_threads,
+    rc5_3_threads,
     pa1_3proc_threads,
     pa2_3proc_threads,
     pa3_3proc_threads,
