@@ -371,20 +371,38 @@ bench_lcgs!(
 );
 
 bench_lcgs!(
-    rc5_1,
-    "robot_grid/robot_grid_N5.lcgs",
+    prismlike_rc3_1,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs!(
-    rc5_2,
-    "robot_grid/robot_grid_N5.lcgs",
+    prismlike_rc3_2,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
     "robot_grid/everyone_starts_home_TRUE.json"
 );
 
 bench_lcgs!(
-    rc5_3,
-    "robot_grid/robot_grid_N5.lcgs",
+    prismlike_rc3_3,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc4_1,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc4_2,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc4_3,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
 
