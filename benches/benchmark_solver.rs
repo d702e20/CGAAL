@@ -422,85 +422,85 @@ bench_lcgs!(
 
 // gossiping girls
 bench_lcgs!(
-    gg1_circular,
+    gg4_circular1,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg2_circular,
+    gg4_circular2,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg3_circular,
+    gg4_circular3,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg4_circular,
+    gg4_circular4,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg5_circular,
+    gg4_circular5,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs!(
-    gg6_circular,
+    gg4_circular6,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs!(
-    gg7_circular,
+    gg4_circular7,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 bench_lcgs!(
-    gg1_total,
+    gg4_total1,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg2_total,
+    gg4_total2,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg3_total,
+    gg4_total3,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg4_total,
+    gg4_total4,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg5_total,
+    gg4_total5,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs!(
-    gg6_total,
+    gg4_total6,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs!(
-    gg7_total,
+    gg4_total7,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
@@ -2203,85 +2203,85 @@ bench_lcgs_threads!(
 
 // gossiping girls
 bench_lcgs_threads!(
-    gg1_circular_threads,
+    gg4_circular1_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg2_circular_threads,
+    gg4_circular2_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg3_circular_threads,
+    gg4_circular3_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg4_circular_threads,
+    gg4_circular4_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg5_circular_threads,
+    gg4_circular5_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg6_circular_threads,
+    gg4_circular6_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    gg7_circular_threads,
+    gg4_circular7_threads,
     "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg1_total_threads,
+    gg4_total1_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg2_total_threads,
+    gg4_total2_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg3_total_threads,
+    gg4_total3_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg4_total_threads,
+    gg4_total4_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg5_total_threads,
+    gg4_total5_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg6_total_threads,
+    gg4_total6_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    gg7_total_threads,
+    gg4_total7_threads,
     "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
@@ -2342,20 +2342,20 @@ criterion_group!(
     pa3_4proc,
     pa4_4proc,
     pa5_4proc,
-    gg1_circular,
-    gg2_circular,
-    gg3_circular,
-    gg4_circular,
-    gg5_circular,
-    gg6_circular,
-    gg7_circular,
-    gg1_total,
-    gg2_total,
-    gg3_total,
-    gg4_total,
-    gg5_total,
-    gg6_total,
-    gg7_total, // gg_total benches takes avg 69s a piece (nice)
+    gg4_circular1,
+    gg4_circular2,
+    gg4_circular3,
+    gg4_circular4,
+    gg4_circular5,
+    gg4_circular6,
+    gg4_circular7,
+    gg4_total1,
+    gg4_total2,
+    gg4_total3,
+    gg4_total4,
+    gg4_total5,
+    gg4_total6,
+    gg4_total7, // gg_total benches takes avg 69s a piece (nice)
     rps1,
     rps2,
     mp1,
@@ -2387,20 +2387,20 @@ criterion_group!(
     pa3_4proc_threads,
     pa4_4proc_threads,
     pa5_4proc_threads,
-    gg1_circular_threads,
-    gg2_circular_threads,
-    gg3_circular_threads,
-    gg4_circular_threads,
-    gg5_circular_threads,
-    gg6_circular_threads,
-    gg7_circular_threads,
-    gg1_total_threads,
-    gg2_total_threads,
-    gg3_total_threads,
-    gg4_total_threads,
-    gg5_total_threads,
-    gg6_total_threads,
-    gg7_total_threads, // gg_total benches takes avg 69s a piece (nice)
+    gg4_circular1_threads,
+    gg4_circular2_threads,
+    gg4_circular3_threads,
+    gg4_circular4_threads,
+    gg4_circular5_threads,
+    gg4_circular6_threads,
+    gg4_circular7_threads,
+    gg4_total1_threads,
+    gg4_total2_threads,
+    gg4_total3_threads,
+    gg4_total4_threads,
+    gg4_total5_threads,
+    gg4_total6_threads,
+    gg4_total7_threads, // gg_total benches takes avg 69s a piece (nice)
     rps1_threads,
     rps2_threads,
     mp1_threads,
