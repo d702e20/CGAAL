@@ -2206,20 +2206,38 @@ bench_lcgs_threads!(
 );
 
 bench_lcgs_threads!(
-    rc5_1_threads,
-    "robot_grid/robot_grid_N5.lcgs",
+    prismlike_rc3_1_threads,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    rc5_2_threads,
-    "robot_grid/robot_grid_N5.lcgs",
+    prismlike_rc3_2_threads,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
     "robot_grid/everyone_starts_home_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    rc5_3_threads,
-    "robot_grid/robot_grid_N5.lcgs",
+    prismlike_rc3_3_threads,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc4_1_threads,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc4_2_threads,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc4_3_threads,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
 
@@ -2425,9 +2443,12 @@ criterion_group!(
     rc4_1,
     rc4_2,
     rc4_3,
-    rc5_1,
-    rc5_2,
-    rc5_3,
+    prismlike_rc3_1,
+    prismlike_rc3_2,
+    prismlike_rc3_3,
+    prismlike_rc4_1,
+    prismlike_rc4_2,
+    prismlike_rc4_3,
     pa1_3proc,
     pa2_3proc,
     pa3_3proc,
@@ -2476,9 +2497,12 @@ criterion_group!(
     rc4_1_threads,
     rc4_2_threads,
     rc4_3_threads,
-    rc5_1_threads,
-    rc5_2_threads,
-    rc5_3_threads,
+    prismlike_rc3_1_threads,
+    prismlike_rc3_2_threads,
+    prismlike_rc3_3_threads,
+    prismlike_rc4_1_threads,
+    prismlike_rc4_2_threads,
+    prismlike_rc4_3_threads,
     pa1_3proc_threads,
     pa2_3proc_threads,
     pa3_3proc_threads,
