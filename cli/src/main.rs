@@ -15,10 +15,6 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult};
 use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::analyse::analyse;
@@ -69,51 +65,6 @@ pub enum SearchStrategyOption {
     Dhs,
     Ihs,
     Lrs,
-}
-
-impl SearchStrategyOption {
-    /// Run the distributed certain zero algorithm using the given search strategy
-    pub fn model_check<G: GameStructure + Send + Sync + Clone + Debug + 'static>(
-        &self,
-        edg: AtlDependencyGraph<G>,
-        v0: AtlVertex,
-        worker_count: u64,
-        prioritise_back_propagation: bool,
-        find_game_strategy: bool,
-    ) -> ModelCheckResult {
-        match self {
-            SearchStrategyOption::Los
-            | SearchStrategyOption::Lps
-            | SearchStrategyOption::Ihs
-            | SearchStrategyOption::Lrs => {
-                panic!("Cannot do generic model check with {:?}", self)
-            }
-            SearchStrategyOption::Bfs => model_check(
-                edg,
-                v0,
-                worker_count,
-                BreadthFirstSearchBuilder,
-                prioritise_back_propagation,
-                find_game_strategy,
-            ),
-            SearchStrategyOption::Dfs => model_check(
-                edg,
-                v0,
-                worker_count,
-                DepthFirstSearchBuilder,
-                prioritise_back_propagation,
-                find_game_strategy,
-            ),
-            SearchStrategyOption::Dhs => model_check(
-                edg,
-                v0,
-                worker_count,
-                DependencyHeuristicSearchBuilder,
-                prioritise_back_propagation,
-                find_game_strategy,
-            ),
-        }
-    }
 }
 
 #[tracing::instrument]
