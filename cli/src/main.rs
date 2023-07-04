@@ -200,13 +200,6 @@ fn main_inner() -> Result<(), String> {
             )?;
         }
         ("global", Some(global_args)) => {
-            /// Do less verbose output if quiet-flag is set and return status code
-            fn quiet_output_handle(result: bool, quiet_flag: bool) {
-                if !quiet_flag {
-                    println!("Model satisfies formula: {}", result);
-                }
-                std::process::exit(0);
-            }
             let model_type = get_model_type_from_args(global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
@@ -273,9 +266,10 @@ fn main_inner() -> Result<(), String> {
                     now.elapsed().as_millis(),
                     format_duration(now.elapsed())
                 );
+                println!("Model satisfies formula: {}", result);
             }
 
-            quiet_output_handle(result, quiet);
+            exit(0);
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -421,7 +415,7 @@ fn load_formula<A: AtlExpressionParser>(
     }
 }
 
-/// Determine the model type (either "json" or "lcgs") by reading the the
+/// Determine the model type (either "json" or "lcgs") by reading the
 /// --model_type argument or inferring it from the model's path extension.
 fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     match args.value_of("model_type") {
@@ -561,13 +555,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_search_strategy_arg()
                 .add_game_strategy_arg()
                 .add_quiet_arg()
-                .arg(
-                    Arg::with_name("threads")
-                        .short("r")
-                        .long("threads")
-                        .env("THREADS")
-                        .help("Number of threads to run solver on"),
-                ),
+                .add_threads_arg(),
         )
         .subcommand(
             SubCommand::with_name("index")
@@ -591,13 +579,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_arg()
                 .add_formula_type_arg()
                 .add_quiet_arg()
-                .arg(
-                    Arg::with_name("threads")
-                        .short("r")
-                        .long("threads")
-                        .env("THREADS")
-                        .help("Number of threads to run solver on"),
-                ),
+                .add_threads_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
