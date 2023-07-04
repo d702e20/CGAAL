@@ -1,5 +1,5 @@
 [package]
-name = "atl-checker"
+name = "cgaal-engine"
 version = "0.1.0"
 authors = [
     "Asger Weirsøe <aweirs15@student.aau.dk>",

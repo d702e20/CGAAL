@@ -1,18 +1,18 @@
 use crate::{ModelAndFormula, SearchStrategyOption};
-use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::{
+use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::{
     SearchStrategy, SearchStrategyBuilder,
 };
-use atl_checker::algorithms::game_strategy::{model_check, SpecificationProof};
-use atl_checker::edg::atledg::vertex::AtlVertex;
-use atl_checker::edg::atledg::AtlDependencyGraph;
-use atl_checker::game_structure::GameStructure;
+use cgaal_engine::algorithms::game_strategy::{model_check, SpecificationProof};
+use cgaal_engine::edg::atledg::vertex::AtlVertex;
+use cgaal_engine::edg::atledg::AtlDependencyGraph;
+use cgaal_engine::game_structure::GameStructure;
 use humantime::format_duration;
 use std::fmt::Debug;
 use std::fs::File;
