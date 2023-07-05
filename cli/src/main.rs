@@ -15,10 +15,6 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::game_strategy::{model_check, ModelCheckResult};
 use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use atl_checker::analyse::analyse;
@@ -69,51 +65,6 @@ pub enum SearchStrategyOption {
     Dhs,
     Ihs,
     Lrs,
-}
-
-impl SearchStrategyOption {
-    /// Run the distributed certain zero algorithm using the given search strategy
-    pub fn model_check<G: GameStructure + Send + Sync + Clone + Debug + 'static>(
-        &self,
-        edg: AtlDependencyGraph<G>,
-        v0: AtlVertex,
-        worker_count: u64,
-        prioritise_back_propagation: bool,
-        find_game_strategy: bool,
-    ) -> ModelCheckResult {
-        match self {
-            SearchStrategyOption::Los
-            | SearchStrategyOption::Lps
-            | SearchStrategyOption::Ihs
-            | SearchStrategyOption::Lrs => {
-                panic!("Cannot do generic model check with {:?}", self)
-            }
-            SearchStrategyOption::Bfs => model_check(
-                edg,
-                v0,
-                worker_count,
-                BreadthFirstSearchBuilder,
-                prioritise_back_propagation,
-                find_game_strategy,
-            ),
-            SearchStrategyOption::Dfs => model_check(
-                edg,
-                v0,
-                worker_count,
-                DepthFirstSearchBuilder,
-                prioritise_back_propagation,
-                find_game_strategy,
-            ),
-            SearchStrategyOption::Dhs => model_check(
-                edg,
-                v0,
-                worker_count,
-                DependencyHeuristicSearchBuilder,
-                prioritise_back_propagation,
-                find_game_strategy,
-            ),
-        }
-    }
 }
 
 #[tracing::instrument]
@@ -200,13 +151,6 @@ fn main_inner() -> Result<(), String> {
             )?;
         }
         ("global", Some(global_args)) => {
-            /// Do less verbose output if quiet-flag is set and return status code
-            fn quiet_output_handle(result: bool, quiet_flag: bool) {
-                if !quiet_flag {
-                    println!("Model satisfies formula: {}", result);
-                }
-                std::process::exit(0);
-            }
             let model_type = get_model_type_from_args(global_args)?;
             let input_model_path = global_args.value_of("input_model").unwrap();
             let formula_path = global_args.value_of("formula").unwrap();
@@ -273,9 +217,10 @@ fn main_inner() -> Result<(), String> {
                     now.elapsed().as_millis(),
                     format_duration(now.elapsed())
                 );
+                println!("Model satisfies formula: {}", result);
             }
 
-            quiet_output_handle(result, quiet);
+            exit(0);
         }
         ("analyse", Some(analyse_args)) => {
             let input_model_path = analyse_args.value_of("input_model").unwrap();
@@ -421,7 +366,7 @@ fn load_formula<A: AtlExpressionParser>(
     }
 }
 
-/// Determine the model type (either "json" or "lcgs") by reading the the
+/// Determine the model type (either "json" or "lcgs") by reading the
 /// --model_type argument or inferring it from the model's path extension.
 fn get_model_type_from_args(args: &ArgMatches) -> Result<ModelType, String> {
     match args.value_of("model_type") {
@@ -561,13 +506,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_search_strategy_arg()
                 .add_game_strategy_arg()
                 .add_quiet_arg()
-                .arg(
-                    Arg::with_name("threads")
-                        .short("r")
-                        .long("threads")
-                        .env("THREADS")
-                        .help("Number of threads to run solver on"),
-                ),
+                .add_threads_arg(),
         )
         .subcommand(
             SubCommand::with_name("index")
@@ -591,13 +530,7 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_arg()
                 .add_formula_type_arg()
                 .add_quiet_arg()
-                .arg(
-                    Arg::with_name("threads")
-                        .short("r")
-                        .long("threads")
-                        .env("THREADS")
-                        .help("Number of threads to run solver on"),
-                ),
+                .add_threads_arg(),
         );
 
     if cfg!(feature = "graph-printer") {
