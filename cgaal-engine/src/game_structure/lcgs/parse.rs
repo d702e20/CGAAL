@@ -223,10 +223,10 @@ fn binary_expr<'a>() -> Parser<'a, u8, Expr> {
 /// Parser that parses an expression with a unary operator
 /// or a primary expression, i.e. number, identifier, or a parenthesised expression
 fn primary_expr<'a>() -> Parser<'a, u8, Expr> {
-    let neg = (sym(b'-') * call(primary_expr)).map(|e| Expr {
+    let neg = (sym(b'-') * ws() * call(primary_expr)).map(|e| Expr {
         kind: UnaryOp(Negation, Box::new(e)),
     });
-    let not = (sym(b'!') * call(primary_expr)).map(|e| Expr {
+    let not = (sym(b'!') * ws() * call(primary_expr)).map(|e| Expr {
         kind: UnaryOp(Not, Box::new(e)),
     });
     let num = number();
@@ -855,6 +855,27 @@ mod tests {
                             }),
                         )
                     }),
+                )
+            })
+        );
+    }
+
+    #[test]
+    fn test_unary_02() {
+        // Multiple unary operators
+        let input = br"! 3 < - 2";
+        let parser = expr();
+        assert_eq!(
+            parser.parse(input),
+            Ok(Expr {
+                kind: BinaryOp(
+                    LessThan,
+                    Box::new(Expr {
+                        kind: UnaryOp(Not, Box::new(Expr { kind: Number(3) }))
+                    }),
+                    Box::new(Expr {
+                        kind: UnaryOp(Negation, Box::new(Expr { kind: Number(2) }))
+                    })
                 )
             })
         );

@@ -1,21 +1,21 @@
 #![allow(dead_code)]
 
-use atl_checker::algorithms::certain_zero::distributed_certain_zero;
-use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
-use atl_checker::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
-use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
-use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
-use atl_checker::atl::Phi;
-use atl_checker::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
-use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use atl_checker::game_structure::lcgs::parse::parse_lcgs;
-use atl_checker::game_structure::EagerGameStructure;
-use atl_checker::game_structure::GameStructure;
+use cgaal_engine::algorithms::certain_zero::distributed_certain_zero;
+use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
+use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
+use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
+use cgaal_engine::atl::Phi;
+use cgaal_engine::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
+use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
+use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::EagerGameStructure;
+use cgaal_engine::game_structure::GameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::cmp::min;
 use std::cmp::Ordering;
@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 const PRIORITISE_BACK_PROPAGATION: bool = true;
 
-// CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
+// CWD is cgaal-engine, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
 macro_rules! lcgs_model_path_prefix {
     () => {
