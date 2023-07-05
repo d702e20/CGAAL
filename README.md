@@ -5,7 +5,7 @@ It uses an on-the-fly evaluation method as opposed to calculating the fixed poin
 With this lazy method we avoid generating the whole graph, and it is therefore an order of magnitude faster in most cases.
 
 CGAAL also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
-its syntax is inspired by PRISM-lang, however, the concepts of synchronization and modules are very different.  
+its syntax is inspired by PRISM-lang. However, the concepts of synchronization and modules are very different.  
 
 ## Example of how to use
 
@@ -43,10 +43,10 @@ The ATL formula is given below in a file called `billy-can-stay-alive.atl`:
 <<billy>> G billy.alive
 ```
 
-We now call the atl-checker with the following arguments
+We now call CGAAL with the following arguments
 
 ```
-./atl-checker solver -m standoff.lcgs -f billy-can-stay-alive.atl
+./cgaal solver -m standoff.lcgs -f billy-can-stay-alive.atl
 ```
 
 The result turns out to be false. Billy cannot guarantee to stay alive.

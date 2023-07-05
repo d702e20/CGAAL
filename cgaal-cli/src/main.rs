@@ -15,20 +15,20 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use tracing::trace;
 
-use atl_checker::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
-use atl_checker::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
-use atl_checker::analyse::analyse;
-use atl_checker::atl::{AtlExpressionParser, Phi};
-use atl_checker::edg::atledg::vertex::AtlVertex;
-use atl_checker::edg::atledg::AtlDependencyGraph;
-use atl_checker::edg::ExtendedDependencyGraph;
-use atl_checker::game_structure::lcgs::ast::DeclKind;
-use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use atl_checker::game_structure::lcgs::ir::symbol_table::Owner;
-use atl_checker::game_structure::lcgs::parse::parse_lcgs;
-use atl_checker::game_structure::{EagerGameStructure, GameStructure};
+use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
+use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
+use cgaal_engine::analyse::analyse;
+use cgaal_engine::atl::{AtlExpressionParser, Phi};
+use cgaal_engine::edg::atledg::vertex::AtlVertex;
+use cgaal_engine::edg::atledg::AtlDependencyGraph;
+use cgaal_engine::edg::ExtendedDependencyGraph;
+use cgaal_engine::game_structure::lcgs::ast::DeclKind;
+use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
+use cgaal_engine::game_structure::lcgs::ir::symbol_table::Owner;
+use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
-use atl_checker::printer::print_graph;
+use cgaal_engine::printer::print_graph;
 
 use crate::args::CommonArgs;
 use crate::solver::solver;
@@ -357,7 +357,7 @@ fn load_formula<A: AtlExpressionParser>(
             exit(1);
         }),
         FormulaType::Atl => {
-            let result = atl_checker::atl::parse_phi(expr_parser, &raw_phi);
+            let result = cgaal_engine::atl::parse_phi(expr_parser, &raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
