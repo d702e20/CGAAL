@@ -2,8 +2,7 @@
   "enforce invariant": {
     "players": [
       0,
-      1,
-      2
+      1
     ],
     "formula": {
       "or": [
@@ -11,14 +10,7 @@
           "proposition": 0
         },
         {
-          "or": [
-            {
-              "proposition": 1
-            },
-            {
-              "proposition": 2
-            }
-          ]
+          "proposition": 1
         }
       ]
     }

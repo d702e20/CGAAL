@@ -13,6 +13,8 @@ pub(crate) type State = usize;
 pub(crate) type Action = usize;
 
 pub trait GameStructure {
+    fn initial_state_index(&self) -> State;
+
     fn max_player(&self) -> usize;
 
     fn labels(&self, state: State) -> HashSet<Proposition>;

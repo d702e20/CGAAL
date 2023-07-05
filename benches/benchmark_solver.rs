@@ -15,6 +15,7 @@ use cgaal_engine::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
 use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::game_structure::EagerGameStructure;
+use cgaal_engine::game_structure::GameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::cmp::min;
 use std::cmp::Ordering;

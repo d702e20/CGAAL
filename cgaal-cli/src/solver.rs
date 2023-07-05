@@ -46,7 +46,7 @@ pub fn solver(
         }
         (ModelAndFormula::Json { model, formula }, ss) => {
             let v0 = AtlVertex::Full {
-                state: 0,
+                state: model.initial_state_index(),
                 formula: Arc::from(formula),
             };
             let graph = AtlDependencyGraph {
