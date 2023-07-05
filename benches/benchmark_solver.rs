@@ -79,8 +79,6 @@ macro_rules! bench_lcgs {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
             // Write header for stats if enabled
-
-
             #[cfg(feature = "use-counts")]
             eprintln!(concat!("[stats] bench_run_start: ", stringify!($name)));
             c.bench_function(stringify!($name), |b| {
@@ -119,8 +117,6 @@ macro_rules! bench_lcgs {
 macro_rules! bench_lcgs_threads {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
-            println!("{},{},{}", stringify!($name), stringify!($model), stringify!($formula));
-            return;
             let mut group = c.benchmark_group(stringify!($name));
             group.sample_size(10);
 
@@ -2832,10 +2828,10 @@ criterion_group!(
 );
 
 criterion_main!(
-    //github_action_suite, // remember to disable when benchmarking
+    github_action_suite, // remember to disable when benchmarking
                          //static_thread_case_studies,
                          //mexi_thread_case_study,
-                         multi_thread_case_studies,
+                         //multi_thread_case_studies,
                          //rand_1p_1m_530d,
                          //rand_2p_1m_546d,
                          //rand_3p_1m_400d,
