@@ -6,7 +6,7 @@ use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::atledg::AtlDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PartialStrategy {
@@ -39,9 +39,10 @@ pub fn compute_partial_strategy<G: GameStructure>(
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> PartialStrategy {
+    let mut visited = HashSet::new();
     let mut move_to_pick = HashMap::new();
 
-    compute_partial_strategy_rec(graph, v0, assignments, &mut move_to_pick);
+    compute_partial_strategy_rec(graph, v0, assignments, &mut visited, &mut move_to_pick);
 
     PartialStrategy {
         players: v0.formula().players().unwrap().into(),
@@ -54,13 +55,27 @@ fn compute_partial_strategy_rec<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     vertex: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
+    visited: &mut HashSet<State>,
+    move_to_pick: &mut HashMap<State, PartialMove>,
+) {
+    visited.insert(vertex.state());
+    compute_partial_strategy_rec_inner(graph, vertex, assignments, visited, move_to_pick);
+    visited.remove(&vertex.state());
+}
+
+/// Recursive helper function to [compute_partial_strategy].
+fn compute_partial_strategy_rec_inner<G: GameStructure>(
+    graph: &AtlDependencyGraph<G>,
+    vertex: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
+    visited: &mut HashSet<State>,
     move_to_pick: &mut HashMap<State, PartialMove>,
 ) {
     match vertex {
         AtlVertex::Full { state, formula } => {
             if move_to_pick.get(state).is_some() {
                 // We have already found the move to pick in this state
-                return;
+                unreachable!("We should never need visit a state twice");
             }
 
             match formula.as_ref() {
@@ -85,12 +100,15 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     // negation edge to an DespiteUntil. Let's visit that one instead.
                     let edges = graph.annotated_succ(vertex);
                     if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
-                        compute_partial_strategy_rec(
+                        compute_partial_strategy_rec_inner(
                             graph,
                             &edge.target,
                             assignments,
+                            visited,
                             move_to_pick,
                         );
+                    } else {
+                        unreachable!("Invariant formulae has exactly one negation edge")
                     }
                 }
                 Phi::EnforceEventually { .. } | Phi::EnforceUntil { .. } => {
@@ -113,11 +131,11 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     // Find the first hyper-edge where all targets are true
                     for edge in edges_drain {
                         if let AnnotatedEdge::Hyper(edge) = edge {
-                            let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                                matches!(assignments.get(t), Some(VertexAssignment::True))
+                            let all_targets_true_and_unvisited = edge.targets.iter().all(|(t, _)| {
+                                matches!(assignments.get(t), Some(VertexAssignment::True)) && !visited.contains(&t.state())
                             });
 
-                            if all_targets_true {
+                            if all_targets_true_and_unvisited {
                                 // We have found the partial move that will guarantee the property
                                 move_to_pick.insert(*state, edge.annotation.unwrap());
 
@@ -127,6 +145,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                                         graph,
                                         &target,
                                         assignments,
+                                        visited,
                                         move_to_pick,
                                     );
                                 }
@@ -158,12 +177,15 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                     // negation edge to an EnforceUntil. Let's visit that one instead.
                     let edges = graph.annotated_succ(vertex);
                     if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
-                        compute_partial_strategy_rec(
+                        compute_partial_strategy_rec_inner(
                             graph,
                             &edge.target,
                             assignments,
+                            visited,
                             move_to_pick,
                         );
+                    } else {
+                        unreachable!("Invariant formulae has exactly one negation edge")
                     }
                 }
                 Phi::DespiteEventually { .. } => {
@@ -198,6 +220,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                                         graph,
                                         &target.0,
                                         assignments,
+                                        visited,
                                         move_to_pick,
                                     );
                                     return;
@@ -244,6 +267,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
                                         graph,
                                         &target.0,
                                         assignments,
+                                        visited,
                                         move_to_pick,
                                     );
                                     return;
@@ -262,7 +286,7 @@ fn compute_partial_strategy_rec<G: GameStructure>(
             for edge in graph.annotated_succ(vertex) {
                 if let AnnotatedEdge::Hyper(edge) = edge {
                     for target in edge.targets {
-                        compute_partial_strategy_rec(graph, &target.0, assignments, move_to_pick);
+                        compute_partial_strategy_rec_inner(graph, &target.0, assignments, visited, move_to_pick);
                     }
                 }
             }

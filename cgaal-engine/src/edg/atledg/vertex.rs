@@ -54,6 +54,10 @@ impl AtlVertex {
             AtlVertex::Partial { formula, .. } => formula.clone(),
         }
     }
+
+    pub fn is_full(&self) -> bool {
+        matches!(self, AtlVertex::Full { .. })
+    }
 }
 
 impl Vertex for AtlVertex {}
