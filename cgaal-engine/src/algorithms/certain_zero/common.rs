@@ -1,4 +1,3 @@
-use crate::edg::Edge;
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::fmt::{Display, Formatter};
@@ -71,34 +70,6 @@ impl Display for VertexAssignment {
             VertexAssignment::Undecided => write!(f, "undecided"),
             VertexAssignment::False => write!(f, "false"),
             VertexAssignment::True => write!(f, "true"),
-        }
-    }
-}
-
-impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
-    /// Returns true if this is a hyper edge
-    pub fn is_hyper(&self) -> bool {
-        matches!(self, Edge::Hyper(_))
-    }
-
-    /// Returns true if this is a negation edge
-    pub fn is_negation(&self) -> bool {
-        !self.is_hyper()
-    }
-
-    /// Returns the source vertex of this edge
-    pub fn source(&self) -> &V {
-        match self {
-            Edge::Hyper(e) => &e.source,
-            Edge::Negation(e) => &e.source,
-        }
-    }
-
-    /// Returns the targets vertices of this edge
-    pub fn targets(&self) -> Vec<&V> {
-        match self {
-            Edge::Hyper(e) => e.targets.iter().collect(),
-            Edge::Negation(e) => vec![&e.target],
         }
     }
 }

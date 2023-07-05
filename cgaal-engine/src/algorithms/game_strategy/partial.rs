@@ -75,7 +75,7 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
         AtlVertex::Full { state, formula } => {
             if move_to_pick.get(state).is_some() {
                 // We have already found the move to pick in this state
-                unreachable!("We should never need visit a state twice");
+                return;
             }
 
             match formula.as_ref() {
@@ -102,7 +102,7 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
                     if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
                         compute_partial_strategy_rec_inner(
                             graph,
-                            &edge.target,
+                            &edge.target.0,
                             assignments,
                             visited,
                             move_to_pick,
@@ -179,7 +179,7 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
                     if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
                         compute_partial_strategy_rec_inner(
                             graph,
-                            &edge.target,
+                            &edge.target.0,
                             assignments,
                             visited,
                             move_to_pick,
@@ -189,32 +189,24 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
                     }
                 }
                 Phi::DespiteEventually { .. } => {
+                    // Given that we are looking for a strategy for in this vertex, it must be
+                    // the case that the coalition can ensure that the subformula never holds.
+                    // Hence, this vertex is assigned undecided and we are looking for a
+                    // cycle of undecided DespiteEventually vertices.
+
                     let edges = graph.annotated_succ(vertex);
+
                     // We skip the first edge with the subformula target. We know that it is false.
-                    #[cfg(debug_assertions)]
-                    {
-                        if let AnnotatedEdge::Hyper(e) = edges.get(0).unwrap() {
-                            let t = e.targets.get(0).unwrap();
-                            let a = assignments.get(&t.0);
-                            match a {
-                                Some(VertexAssignment::False) => {}
-                                _ => panic!(
-                                    "First edge of despite was not false contrary to assumption"
-                                ),
-                            }
-                        }
-                    }
+                    debug_assert_eq!(assignments.get(&edges[0].targets()[0].0), Some(VertexAssignment::False).as_ref());
+
                     for edge in edges.iter().skip(1) {
                         if let AnnotatedEdge::Hyper(edge) = edge {
-                            // We expect to find infinite computations that never hits the `until` formula.
-                            // This means there will be a cycle of undecided configurations.
                             // Find the first target assigned undecided.
                             for target in &edge.targets {
                                 if matches!(
                                     assignments.get(&target.0),
                                     Some(VertexAssignment::Undecided)
                                 ) {
-                                    // Target is a partial configuration annotated with the move we need
                                     move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
                                     compute_partial_strategy_rec(
                                         graph,
@@ -230,38 +222,28 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
                     }
                 }
                 Phi::DespiteUntil { .. } => {
-                    let edges = graph.annotated_succ(vertex);
-                    // We skip the first edge with the `until` formula target. We know that it is false.
-                    #[cfg(debug_assertions)]
-                    {
-                        if let AnnotatedEdge::Hyper(e) = edges.get(0).unwrap() {
-                            let t = e.targets.get(0).unwrap();
-                            let a = assignments.get(&t.0);
-                            match a {
-                                Some(VertexAssignment::False) => {}
-                                _ => panic!(
-                                    "First edge of despite was not false contrary to assumption"
-                                ),
-                            }
-                        }
-                    }
-                    for edge in edges.iter().skip(1) {
-                        if let AnnotatedEdge::Hyper(edge) = edge {
-                            // If the `pre` formula is also false, then we don't need to check further
-                            let pre = edge.targets.get(0).unwrap();
-                            if let Some(VertexAssignment::False) = assignments.get(&pre.0) {
-                                return;
-                            }
+                    // Given that we are looking for a strategy for in this vertex, it must be
+                    // the case that the coalition can ensure that either
+                    // - the until-subformula never holds, or
+                    // - eventually neither the pre-subformula and the until-subformula holds.
+                    // In the former case, this vertex is assigned undecided and we are looking
+                    // for a cycle of undecided DespiteUntil vertices. In the latter case,
+                    // this vertex is assigned false, and we are looking for a path/branch of
+                    // false DespiteUntil vertices.
 
-                            // We expect to find infinite computations that never hits the `until` formula.
-                            // This means there will be a cycle of undecided configurations.
-                            // Find the first target assigned undecided.
-                            for target in edge.targets.iter().skip(1) {
+                    let edges = graph.annotated_succ(vertex);
+
+                    // We skip the first edge with the subformula target. We know that it is false.
+                    debug_assert_eq!(assignments.get(&edges[0].targets()[0].0), Some(VertexAssignment::False).as_ref());
+
+                    if matches!(assignments.get(vertex), Some(VertexAssignment::Undecided)) {
+                        for edge in edges.iter().skip(1) {
+                            // Skip the pre-subformula and find the first target assigned undecided.
+                            for target in edge.targets().iter().skip(1) {
                                 if matches!(
                                     assignments.get(&target.0),
                                     Some(VertexAssignment::Undecided)
                                 ) {
-                                    // Target is annotated with the move we need
                                     move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
                                     compute_partial_strategy_rec(
                                         graph,
@@ -274,6 +256,40 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
                                 }
                             }
                         }
+                    } else {
+                        for edge in edges.iter().skip(1) {
+                            // Either the pre-subformula is false, or there exists a move such
+                            // that the DespiteUntil formula is false at all possible destinations.
+                            // Find the first target assigned false.
+                            't: for target in edge.targets() {
+                                if matches!(
+                                    assignments.get(&target.0),
+                                    Some(VertexAssignment::False)
+                                ) {
+                                    if target.0.formula().is_despite() {
+                                        // There may be cycle back to the DespiteUntil vertex.
+                                        // We prevent this by ensuring the target has no visited
+                                        // successors.
+                                        for edge in graph.annotated_succ(&target.0) {
+                                            for target in edge.targets() {
+                                                if visited.contains(&target.0.state()) {
+                                                    continue 't;
+                                                }
+                                            }
+                                        }
+                                        move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
+                                        compute_partial_strategy_rec(
+                                            graph,
+                                            &target.0,
+                                            assignments,
+                                            visited,
+                                            move_to_pick,
+                                        );
+                                    }
+                                    return;
+                                }
+                            }
+                        }
                     }
                 }
                 _ => panic!("The formula does not require a strategy"),
@@ -281,11 +297,26 @@ fn compute_partial_strategy_rec_inner<G: GameStructure>(
         }
         AtlVertex::Partial { .. } => {
             // Partial vertices are only used by despite formulae.
-            // The full vertices handles finding the moves so we just need to visit all
-            // targets of all the edges to proceed with the computation in the successor states.
-            for edge in graph.annotated_succ(vertex) {
-                if let AnnotatedEdge::Hyper(edge) = edge {
-                    for target in edge.targets {
+            // If this vertex is undecided, then we just need to find a undecided child.
+            // If this vertex is false, then we need to visit all children.
+            if matches!(assignments.get(&vertex), Some(VertexAssignment::Undecided)) {
+                for edge in graph.annotated_succ(vertex) {
+                    for target in edge.targets() {
+                        if matches!(assignments.get(&target.0), Some(VertexAssignment::Undecided)) {
+                            compute_partial_strategy_rec_inner(
+                                graph,
+                                &target.0,
+                                assignments,
+                                visited,
+                                move_to_pick,
+                            );
+                            return;
+                        }
+                    }
+                }
+            } else {
+                for edge in graph.annotated_succ(vertex) {
+                    for target in edge.targets() {
                         compute_partial_strategy_rec_inner(graph, &target.0, assignments, visited, move_to_pick);
                     }
                 }

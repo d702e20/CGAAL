@@ -51,11 +51,10 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<AtlVertex, Option<Partia
                 Phi::Not(phi) => {
                     vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
-                        annotation: None,
-                        target: AtlVertex::Full {
+                        target: (AtlVertex::Full {
                             state: *state,
                             formula: phi.clone(),
-                        },
+                        }, None),
                     })]
                 }
                 Phi::Or(left, right) => {
@@ -372,8 +371,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<AtlVertex, Option<Partia
                 } => {
                     vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
-                        annotation: None,
-                        target: AtlVertex::Full {
+                        target: (AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point domain
                             formula: Arc::new(Phi::EnforceUntil {
@@ -381,7 +379,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<AtlVertex, Option<Partia
                                 pre: Arc::new(Phi::True),
                                 until: Arc::new(Phi::Not(subformula.clone())),
                             }),
-                        },
+                        }, None),
                     })]
                 }
                 Phi::EnforceInvariant {
@@ -390,8 +388,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<AtlVertex, Option<Partia
                 } => {
                     vec![AnnotatedEdge::Negation(AnnotatedNegationEdge {
                         source: vert.clone(),
-                        annotation: None,
-                        target: AtlVertex::Full {
+                        target: (AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point
                             formula: Arc::new(Phi::DespiteUntil {
@@ -399,7 +396,7 @@ impl<G: GameStructure> AnnotatedExtendedDependencyGraph<AtlVertex, Option<Partia
                                 pre: Arc::new(Phi::True),
                                 until: Arc::new(Phi::Not(subformula.clone())),
                             }),
-                        },
+                        }, None),
                     })]
                 }
             },
