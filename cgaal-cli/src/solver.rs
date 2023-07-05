@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// Solver subcommand
+/// Will exit on success
 pub fn solver(
     query: ModelAndFormula,
     threads: u64,

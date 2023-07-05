@@ -11,6 +11,7 @@ pub(crate) trait CommonArgs {
     fn add_search_strategy_arg(self) -> Self;
     fn add_game_strategy_arg(self) -> Self;
     fn add_quiet_arg(self) -> Self;
+    fn add_threads_arg(self) -> Self;
 }
 
 /// Add the common arguments to clap::App
@@ -109,6 +110,17 @@ impl CommonArgs for App<'_, '_> {
                 .takes_value(false)
                 .long("quiet")
                 .help("Suppress stdout"),
+        )
+    }
+
+    /// Adds "-r"/"--threads" as an argument
+    fn add_threads_arg(self) -> Self {
+        self.arg(
+            Arg::with_name("threads")
+                .short("r")
+                .long("threads")
+                .env("THREADS")
+                .help("Number of threads to use"),
         )
     }
 }

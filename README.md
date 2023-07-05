@@ -43,7 +43,7 @@ The ATL formula is given below in a file called `billy-can-stay-alive.atl`:
 <<billy>> G billy.alive
 ```
 
-We now call cgaal with the following arguments
+We now call CGAAL with the following arguments
 
 ```
 ./cgaal solver -m standoff.lcgs -f billy-can-stay-alive.atl
