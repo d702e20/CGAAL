@@ -438,6 +438,7 @@ mod test {
             ])),
         ]);
         let game_structure = EagerGameStructure {
+            initial_state: 0,
             player_count: 5,
             labeling: vec![],
             transitions: vec![transitions],

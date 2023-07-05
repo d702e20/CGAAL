@@ -183,11 +183,6 @@ impl IntermediateLcgs {
     pub fn get_labels(&self) -> Vec<SymbolIdentifier> {
         self.labels.clone()
     }
-
-    /// Returns the initial state index of the LCGS game
-    pub fn initial_state_index(&self) -> usize {
-        self.index_of_state(&self.initial_state())
-    }
 }
 
 /// Names of declarations. First component is players and their fields. Second component
@@ -440,6 +435,10 @@ impl Display for State {
 }
 
 impl GameStructure for IntermediateLcgs {
+    fn initial_state_index(&self) -> usize {
+        self.index_of_state(&self.initial_state())
+    }
+
     fn max_player(&self) -> usize {
         self.players.len()
     }

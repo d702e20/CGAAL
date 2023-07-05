@@ -8,6 +8,9 @@ use std::str::{self};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {
+    /// Initial state
+    #[serde(default)]
+    pub initial_state: State,
     /// K, number of players
     pub player_count: usize,
     /// Maps states to Vec of atomic proposition, aka the labeling function
@@ -37,6 +40,10 @@ impl EagerGameStructure {
 }
 
 impl GameStructure for EagerGameStructure {
+    fn initial_state_index(&self) -> State {
+        self.initial_state
+    }
+
     fn max_player(&self) -> usize {
         self.player_count
     }
