@@ -9,7 +9,7 @@ use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representati
 use cgaal_engine::algorithms::certain_zero::search_strategy::{
     SearchStrategy, SearchStrategyBuilder,
 };
-use cgaal_engine::algorithms::game_strategy::{model_check, SpecificationProof};
+use cgaal_engine::algorithms::game_strategy::{model_check, WitnessStrategy};
 use cgaal_engine::edg::atledg::vertex::AtlVertex;
 use cgaal_engine::edg::atledg::AtlDependencyGraph;
 use cgaal_engine::game_structure::GameStructure;
@@ -216,19 +216,24 @@ fn solver_inner<
         let proof_res = result.proof.unwrap();
         match proof_res {
             Ok(proof) => match proof {
-                SpecificationProof::Strategy(strategy) => {
+                WitnessStrategy::Strategy(strategy) => {
                     let mut file = File::create(game_strategy_path).map_err(|err| {
                         format!("Failed to create game strategy output file.\n{}", err)
                     })?;
                     write!(file, "{}", strategy.in_context_of(&game_structure))
                         .map_err(|err| format!("Failed to write game strategy file. {}", err))?;
                     if !quiet {
-                        println!("Proving game strategy was saved to {}", game_strategy_path);
+                        println!("Witness strategy was saved to {}", game_strategy_path);
                     }
                 }
-                SpecificationProof::NoStrategyNeeded => {
+                WitnessStrategy::NoStrategyExist => {
                     if !quiet {
-                        println!("No game strategy was computed since a strategy is not needed to prove the given query.");
+                        println!("No witness strategy was computed since no strategy exist.");
+                    }
+                }
+                WitnessStrategy::NoStrategyNeeded => {
+                    if !quiet {
+                        println!("No witness strategy was computed since a strategy is not needed to prove the given query.");
                     }
                 }
             },

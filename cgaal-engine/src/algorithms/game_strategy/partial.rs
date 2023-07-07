@@ -5,6 +5,7 @@ use crate::edg::annotated_edg::{AnnotatedEdge, AnnotatedExtendedDependencyGraph}
 use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::atledg::AtlDependencyGraph;
+use crate::edg::ExtendedDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
 use std::collections::{HashMap, HashSet};
 
@@ -31,296 +32,234 @@ impl PartialStrategy {
     }
 }
 
-/// Computes the PartialStrategy that the given players can use to enforce or break
-/// the given property. In other words, the behaviour of this function is undefined, if the
-/// ATL formula of v0 is an unsatisfied enforce property or a satisfied despite property.
-pub fn compute_partial_strategy<G: GameStructure>(
+/// Compute the moves of the witness strategy.
+/// This function handles the case where the formula is an enforce formula assigned true.
+/// Result is not minimal, but it is correct.
+pub fn find_strategy_moves_true_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
-) -> PartialStrategy {
-    let mut visited = HashSet::new();
-    let mut move_to_pick = HashMap::new();
+) -> HashMap<State, PartialMove> {
+    debug_assert!(v0.formula().is_enforce());
+    debug_assert_eq!(assignments[&v0], VertexAssignment::True);
 
-    compute_partial_strategy_rec(graph, v0, assignments, &mut visited, &mut move_to_pick);
-
-    PartialStrategy {
-        players: v0.formula().players().unwrap().into(),
-        move_to_pick,
+    if v0.formula().is_invariant() {
+        // EnforceInvariant has negation edge to DespiteEventually assigned undecided
+        let edges = graph.succ(v0);
+        let target = &edges[0].targets()[0];
+        return find_strategy_moves_undecided_case(graph, target, assignments);
     }
-}
 
-/// Recursive helper function to [compute_partial_strategy].
-fn compute_partial_strategy_rec<G: GameStructure>(
-    graph: &AtlDependencyGraph<G>,
-    vertex: &AtlVertex,
-    assignments: &HashMap<AtlVertex, VertexAssignment>,
-    visited: &mut HashSet<State>,
-    move_to_pick: &mut HashMap<State, PartialMove>,
-) {
-    visited.insert(vertex.state());
-    compute_partial_strategy_rec_inner(graph, vertex, assignments, visited, move_to_pick);
-    visited.remove(&vertex.state());
-}
+    // Vertices that have been found to be part of the strategy
+    let mut found = HashSet::<AtlVertex>::new();
+    // Which move to pick for each state
+    let mut move_to_pick = HashMap::<State, PartialMove>::new();
+    // Vertices that may be part of strategy
+    let mut verts_with_coalitions = Vec::<AtlVertex>::with_capacity(32);
 
-/// Recursive helper function to [compute_partial_strategy].
-fn compute_partial_strategy_rec_inner<G: GameStructure>(
-    graph: &AtlDependencyGraph<G>,
-    vertex: &AtlVertex,
-    assignments: &HashMap<AtlVertex, VertexAssignment>,
-    visited: &mut HashSet<State>,
-    move_to_pick: &mut HashMap<State, PartialMove>,
-) {
-    match vertex {
-        AtlVertex::Full { state, formula } => {
-            if move_to_pick.get(state).is_some() {
-                // We have already found the move to pick in this state
-                return;
-            }
-
-            match formula.as_ref() {
-                Phi::EnforceNext { .. } => {
-                    // Find the first hyper-edge where all targets are true
-                    for edge in graph.annotated_succ(vertex) {
-                        if let AnnotatedEdge::Hyper(edge) = edge {
-                            let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                                matches!(assignments.get(t), Some(VertexAssignment::True))
-                            });
-
-                            if all_targets_true {
-                                // We have found the partial move that will guarantee the property
-                                move_to_pick.insert(*state, edge.annotation.unwrap());
-                                return;
-                            }
-                        }
-                    }
+    // Iterate assignments to find coalitions assigned true.
+    // If their first edge is true, their strategy is trivial,
+    // Otherwise we register them for the loop below.
+    for (vert, ass) in assignments.iter() {
+        if ass.is_true() && vert.formula().is_enforce() {
+            let edges = graph.succ(vert);
+            let phi2 = &edges[0].targets()[0];
+            if assignments[phi2].is_true() {
+                if vert == v0 {
+                    return HashMap::new();
                 }
-                Phi::EnforceInvariant { .. } => {
-                    // Invariants belong to the maximum fixed point domain, so it only has one
-                    // negation edge to an DespiteUntil. Let's visit that one instead.
-                    let edges = graph.annotated_succ(vertex);
-                    if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
-                        compute_partial_strategy_rec_inner(
-                            graph,
-                            &edge.target.0,
-                            assignments,
-                            visited,
-                            move_to_pick,
-                        );
-                    } else {
-                        unreachable!("Invariant formulae has exactly one negation edge")
-                    }
-                }
-                Phi::EnforceEventually { .. } | Phi::EnforceUntil { .. } => {
-                    let mut edges = graph.annotated_succ(vertex);
-                    let mut edges_drain = edges.drain(..);
-
-                    // Check if subformula is true in this state. We can do this by checking if the
-                    // target of the first edge is true
-                    if let Some(AnnotatedEdge::Hyper(edge)) = edges_drain.next() {
-                        let all_targets_true = edge.targets.iter().all(|(t, _)| {
-                            matches!(assignments.get(t), Some(VertexAssignment::True))
-                        });
-
-                        if all_targets_true {
-                            // No need for more moves
-                            return;
-                        }
-                    }
-
-                    // Find the first hyper-edge where all targets are true
-                    for edge in edges_drain {
-                        if let AnnotatedEdge::Hyper(edge) = edge {
-                            let all_targets_true_and_unvisited = edge.targets.iter().all(|(t, _)| {
-                                matches!(assignments.get(t), Some(VertexAssignment::True)) && !visited.contains(&t.state())
-                            });
-
-                            if all_targets_true_and_unvisited {
-                                // We have found the partial move that will guarantee the property
-                                move_to_pick.insert(*state, edge.annotation.unwrap());
-
-                                // Recurse to find the moves of the next states
-                                for (target, _) in edge.targets {
-                                    compute_partial_strategy_rec(
-                                        graph,
-                                        &target,
-                                        assignments,
-                                        visited,
-                                        move_to_pick,
-                                    );
-                                }
-                                return;
-                            }
-                        }
-                    }
-                }
-                Phi::DespiteNext { .. } => {
-                    // There is only one hyper-edge
-                    for edge in graph.annotated_succ(vertex) {
-                        if let AnnotatedEdge::Hyper(edge) = edge {
-                            // Find the first target assigned false
-                            for target in edge.targets {
-                                if matches!(
-                                    assignments.get(&target.0),
-                                    Some(VertexAssignment::False)
-                                ) {
-                                    // Target is annotated with the move we need
-                                    move_to_pick.insert(*state, target.1.unwrap());
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                Phi::DespiteInvariant { .. } => {
-                    // Invariants belong to the maximum fixed point domain, so it only has one
-                    // negation edge to an EnforceUntil. Let's visit that one instead.
-                    let edges = graph.annotated_succ(vertex);
-                    if let Some(AnnotatedEdge::Negation(edge)) = edges.get(0) {
-                        compute_partial_strategy_rec_inner(
-                            graph,
-                            &edge.target.0,
-                            assignments,
-                            visited,
-                            move_to_pick,
-                        );
-                    } else {
-                        unreachable!("Invariant formulae has exactly one negation edge")
-                    }
-                }
-                Phi::DespiteEventually { .. } => {
-                    // Given that we are looking for a strategy for in this vertex, it must be
-                    // the case that the coalition can ensure that the subformula never holds.
-                    // Hence, this vertex is assigned undecided and we are looking for a
-                    // cycle of undecided DespiteEventually vertices.
-
-                    let edges = graph.annotated_succ(vertex);
-
-                    // We skip the first edge with the subformula target. We know that it is false.
-                    debug_assert_eq!(assignments.get(&edges[0].targets()[0].0), Some(VertexAssignment::False).as_ref());
-
-                    for edge in edges.iter().skip(1) {
-                        if let AnnotatedEdge::Hyper(edge) = edge {
-                            // Find the first target assigned undecided.
-                            for target in &edge.targets {
-                                if matches!(
-                                    assignments.get(&target.0),
-                                    Some(VertexAssignment::Undecided)
-                                ) {
-                                    move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
-                                    compute_partial_strategy_rec(
-                                        graph,
-                                        &target.0,
-                                        assignments,
-                                        visited,
-                                        move_to_pick,
-                                    );
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                Phi::DespiteUntil { .. } => {
-                    // Given that we are looking for a strategy for in this vertex, it must be
-                    // the case that the coalition can ensure that either
-                    // - the until-subformula never holds, or
-                    // - eventually neither the pre-subformula and the until-subformula holds.
-                    // In the former case, this vertex is assigned undecided and we are looking
-                    // for a cycle of undecided DespiteUntil vertices. In the latter case,
-                    // this vertex is assigned false, and we are looking for a path/branch of
-                    // false DespiteUntil vertices.
-
-                    let edges = graph.annotated_succ(vertex);
-
-                    // We skip the first edge with the subformula target. We know that it is false.
-                    debug_assert_eq!(assignments.get(&edges[0].targets()[0].0), Some(VertexAssignment::False).as_ref());
-
-                    if matches!(assignments.get(vertex), Some(VertexAssignment::Undecided)) {
-                        for edge in edges.iter().skip(1) {
-                            // Skip the pre-subformula and find the first target assigned undecided.
-                            for target in edge.targets().iter().skip(1) {
-                                if matches!(
-                                    assignments.get(&target.0),
-                                    Some(VertexAssignment::Undecided)
-                                ) {
-                                    move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
-                                    compute_partial_strategy_rec(
-                                        graph,
-                                        &target.0,
-                                        assignments,
-                                        visited,
-                                        move_to_pick,
-                                    );
-                                    return;
-                                }
-                            }
-                        }
-                    } else {
-                        for edge in edges.iter().skip(1) {
-                            // Either the pre-subformula is false, or there exists a move such
-                            // that the DespiteUntil formula is false at all possible destinations.
-                            // Find the first target assigned false.
-                            't: for target in edge.targets() {
-                                if matches!(
-                                    assignments.get(&target.0),
-                                    Some(VertexAssignment::False)
-                                ) {
-                                    if target.0.formula().is_despite() {
-                                        // There may be cycle back to the DespiteUntil vertex.
-                                        // We prevent this by ensuring the target has no visited
-                                        // successors.
-                                        for edge in graph.annotated_succ(&target.0) {
-                                            for target in edge.targets() {
-                                                if visited.contains(&target.0.state()) {
-                                                    continue 't;
-                                                }
-                                            }
-                                        }
-                                        move_to_pick.insert(*state, target.1.as_ref().unwrap().clone());
-                                        compute_partial_strategy_rec(
-                                            graph,
-                                            &target.0,
-                                            assignments,
-                                            visited,
-                                            move_to_pick,
-                                        );
-                                    }
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => panic!("The formula does not require a strategy"),
-            }
-        }
-        AtlVertex::Partial { .. } => {
-            // Partial vertices are only used by despite formulae.
-            // If this vertex is undecided, then we just need to find a undecided child.
-            // If this vertex is false, then we need to visit all children.
-            if matches!(assignments.get(&vertex), Some(VertexAssignment::Undecided)) {
-                for edge in graph.annotated_succ(vertex) {
-                    for target in edge.targets() {
-                        if matches!(assignments.get(&target.0), Some(VertexAssignment::Undecided)) {
-                            compute_partial_strategy_rec_inner(
-                                graph,
-                                &target.0,
-                                assignments,
-                                visited,
-                                move_to_pick,
-                            );
-                            return;
-                        }
-                    }
-                }
+                found.insert(vert.clone());
             } else {
-                for edge in graph.annotated_succ(vertex) {
-                    for target in edge.targets() {
-                        compute_partial_strategy_rec_inner(graph, &target.0, assignments, visited, move_to_pick);
+                verts_with_coalitions.push(vert.clone());
+            }
+        }
+    }
+
+    // Iterate remaining coalitions to build branch with strategy
+    loop {
+        'next: for vert in &verts_with_coalitions {
+            if move_to_pick.get(&vert.state()).is_none() {
+                let edges = graph.annotated_succ(vert);
+                for edge in &edges[1..] {
+                    let all_targets_has_strat = edge.targets().iter().all(|(target, anno)| {
+                        assignments[target].is_true() && (anno.is_none() || found.contains(target))
+                    });
+
+                    if !all_targets_has_strat {
+                        continue;
+                    }
+
+                    // We found the partial move that will guarantee the property
+                    move_to_pick.insert(vert.state(), edge.annotation().unwrap().clone().unwrap());
+                    found.insert(vert.clone());
+
+                    if vert == v0 {
+                        // We are done
+                        return move_to_pick;
+                    }
+
+                    continue 'next;
+                }
+            }
+        }
+    }
+}
+
+/// Compute the moves of the witness strategy.
+/// This function handles the case where the formula is a despite formula assigned false.
+/// Result is not minimal, but it is correct.
+pub fn find_strategy_moves_false_case<G: GameStructure>(
+    graph: &AtlDependencyGraph<G>,
+    v0: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
+) -> HashMap<State, PartialMove> {
+    debug_assert!(v0.formula().is_despite());
+    debug_assert_eq!(assignments[&v0], VertexAssignment::False);
+
+    if v0.formula().is_invariant() {
+        // DespiteInvariant has negation edge to EnforceEventually assigned true
+        let edges = graph.succ(v0);
+        let target = &edges[0].targets()[0];
+        return find_strategy_moves_true_case(graph, target, assignments);
+    }
+
+    // Vertices that have been found to be part of the strategy
+    let mut found = HashSet::<AtlVertex>::new();
+    // Which move to pick for each state
+    let mut move_to_pick = HashMap::<State, PartialMove>::new();
+    // Vertices that may be part of strategy
+    let mut verts_with_coalitions = Vec::<AtlVertex>::with_capacity(32);
+
+    // Iterate assignments to find coalitions assigned false.
+    // If the first target of their second edge is false, their strategy is trivial,
+    // Otherwise we register them for the loop below.
+    for (vert, ass) in assignments.iter() {
+        if ass.is_false() && vert.is_full() && vert.formula().is_despite() {
+            let edges = graph.succ(vert);
+            let phi1 = &edges[1].targets()[0];
+            if assignments[phi1].is_false() { // FIXME: No assigment
+                if vert == v0 {
+                    return HashMap::new();
+                }
+                found.insert(vert.clone());
+            } else {
+                verts_with_coalitions.push(vert.clone());
+            }
+        }
+    }
+
+    // Iterate remaining coalitions to build branch with strategy
+    loop {
+        'next: for vert in &verts_with_coalitions {
+            if move_to_pick.get(&vert.state()).is_none() {
+                let edges = graph.annotated_succ(vert);
+                for edge in &edges[1..] {
+                    for (target, mov) in &edge.targets()[1..] {
+                        if assignments[target].is_false() {
+                            for e in graph.succ(target) {
+                                if e.targets().iter().all(|t| found.contains(t)) {
+                                    // We found the partial move that can break phi1
+                                    move_to_pick.insert(vert.state(), mov.clone().unwrap());
+                                    found.insert(vert.clone());
+                                    println!("@ {:?} {:?}", vert.state(), mov.clone().unwrap());
+
+                                    if vert == v0 {
+                                        // We are done
+                                        return move_to_pick;
+                                    }
+
+                                    continue 'next;
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+/// Compute the moves of the witness strategy.
+/// This function handles the case where the formula is an DespiteUntil formula assigned undecided.
+/// Result is not minimal, but it is correct.
+pub fn find_strategy_moves_undecided_case<G: GameStructure>(
+    graph: &AtlDependencyGraph<G>,
+    v0: &AtlVertex,
+    assignments: &HashMap<AtlVertex, VertexAssignment>,
+) -> HashMap<State, PartialMove> {
+    debug_assert!(v0.formula().is_despite());
+    debug_assert_eq!(assignments[&v0], VertexAssignment::Undecided);
+
+    // Vertices that have been found to be part of the strategy
+    let mut found = HashSet::<AtlVertex>::new();
+    // Which move to pick for each state
+    let mut move_to_pick = HashMap::<State, PartialMove>::new();
+    // Vertices that will be part of strategy
+    let mut verts_with_coalitions = Vec::<AtlVertex>::with_capacity(32);
+
+    // Iterate assignments to find coalitions assigned false or undecided.
+    // If the first target of their second edge is phi1 and false, their strategy is trivial,
+    // Otherwise we register them for the loop below.
+    for (vert, ass) in assignments.iter() {
+        if !ass.is_true() && vert.is_full() && vert.formula().is_despite() {
+            let edges = graph.succ(vert);
+            let maybe_phi1 = &edges[1].targets()[0];
+            if !maybe_phi1.formula().is_despite() && assignments[maybe_phi1].is_false() {
+                if vert == v0 {
+                    return HashMap::new();
+                }
+                found.insert(vert.clone());
+            } else {
+                verts_with_coalitions.push(vert.clone());
+            }
+        }
+    }
+
+    // Iterate remaining coalitions to find moves for the associated states.
+    // No early termination since enemy may not play optimally, in which case we also
+    // need to find the moves that break phi1 instead
+    let mut remaining = verts_with_coalitions.len();
+    while remaining > 0 {
+        'next: for vert in &verts_with_coalitions {
+            if move_to_pick.get(&vert.state()).is_none() {
+                let edges = graph.annotated_succ(vert);
+                if assignments[vert].is_false() {
+                    // We are in a branch, where the coalition can force ph1 to be false eventually
+                    for edge in &edges[1..] {
+                        for (target, mov) in &edge.targets()[1..] {
+                            if assignments[target].is_false() {
+                                for e in graph.succ(target) {
+                                    if e.targets().iter().all(|t| found.contains(t)) {
+                                        // We found the partial move that can break phi1
+                                        move_to_pick.insert(vert.state(), mov.clone().unwrap());
+                                        found.insert(vert.clone());
+                                        remaining -= 1;
+
+                                        continue 'next;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // We are in a branch of undecided lassos, where the coalition can force phi2 to never be true
+                    // Edge to phi1 may exist, and is true if is does
+                    for (target, mov) in edges[1].targets() {
+                        if !assignments[target].is_certain() {
+                            // We do not need to ensure that we have found the strategy for the
+                            // successors yet since the branch does not have to end in certainty.
+                            // Hence, we found the partial move that for this state.
+                            move_to_pick.insert(vert.state(), mov.clone().unwrap());
+                            found.insert(vert.clone());
+                            remaining -= 1;
+
+                            continue 'next;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    move_to_pick
 }

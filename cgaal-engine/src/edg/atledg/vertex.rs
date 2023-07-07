@@ -55,6 +55,13 @@ impl AtlVertex {
         }
     }
 
+    pub fn partial_move(&self) -> Option<&PartialMove> {
+        match self {
+            AtlVertex::Full { .. } => None,
+            AtlVertex::Partial { partial_move, .. } => Some(partial_move),
+        }
+    }
+
     pub fn is_full(&self) -> bool {
         matches!(self, AtlVertex::Full { .. })
     }

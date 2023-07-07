@@ -28,6 +28,11 @@ impl VertexAssignment {
         matches!(self, VertexAssignment::True)
     }
 
+    /// Returns true if the assignment is false, otherwise false
+    pub fn is_false(&self) -> bool {
+        matches!(self, VertexAssignment::False)
+    }
+
     /// Returns true if the assignment is either true or false.
     pub fn is_certain(self) -> bool {
         matches!(self, VertexAssignment::True | VertexAssignment::False)

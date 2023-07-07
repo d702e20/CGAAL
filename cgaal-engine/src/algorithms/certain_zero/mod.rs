@@ -341,7 +341,7 @@ impl<
                 } => {
                     trace!("Late termination");
                     emit_count!("worker late_termination");
-                    self.broker.return_result(VertexAssignment::False)
+                    self.broker.return_result(VertexAssignment::Undecided)
                 }
                 // No one has seen safe tasks, but some workers have unsafe negation edges.
                 MsgToken {
@@ -988,9 +988,9 @@ mod test {
             B => -> {C};
             C => -> {B};
         ];
-        assert_with_otf_algo!(A, False);
-        assert_with_otf_algo!(B, False);
-        assert_with_otf_algo!(C, False);
+        assert_with_otf_algo!(A, Undecided);
+        assert_with_otf_algo!(B, Undecided);
+        assert_with_otf_algo!(C, Undecided);
     }
 
     #[test]
@@ -1013,8 +1013,8 @@ mod test {
             C => -> {D};
             D => -> {};
         ];
-        assert_with_otf_algo!(A, False);
-        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(A, Undecided);
+        assert_with_otf_algo!(B, Undecided);
         assert_with_otf_algo!(C, True);
         assert_with_otf_algo!(D, True);
     }
@@ -1055,8 +1055,8 @@ mod test {
         assert_with_otf_algo!(A, False);
         assert_with_otf_algo!(B, True);
         assert_with_otf_algo!(C, True);
-        assert_with_otf_algo!(D, False);
-        assert_with_otf_algo!(E, False);
+        assert_with_otf_algo!(D, Undecided);
+        assert_with_otf_algo!(E, Undecided);
     }
 
     #[test]
@@ -1080,7 +1080,7 @@ mod test {
             B => -> {B};
         ];
         assert_with_otf_algo!(A, True);
-        assert_with_otf_algo!(B, False);
+        assert_with_otf_algo!(B, Undecided);
     }
 
     #[test]
@@ -1098,7 +1098,7 @@ mod test {
         assert_with_otf_algo!(C, True);
         assert_with_otf_algo!(D, False);
         assert_with_otf_algo!(E, True);
-        assert_with_otf_algo!(F, False);
+        assert_with_otf_algo!(F, Undecided);
     }
 
     #[test]
