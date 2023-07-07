@@ -315,10 +315,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point domain
-                            formula: Arc::new(Phi::EnforceUntil {
+                            formula: Arc::new(Phi::EnforceEventually {
                                 players: players.clone(),
-                                pre: Arc::new(Phi::True),
-                                until: Arc::new(Phi::Not(subformula.clone())),
+                                formula: Arc::new(Phi::Not(subformula.clone())),
                             }),
                         },
                     })]
@@ -332,10 +331,9 @@ impl<G: GameStructure> ExtendedDependencyGraph<AtlVertex> for AtlDependencyGraph
                         target: AtlVertex::Full {
                             state: *state,
                             // Modified formula, switching to minimum-fixed point
-                            formula: Arc::new(Phi::DespiteUntil {
+                            formula: Arc::new(Phi::DespiteEventually {
                                 players: players.clone(),
-                                pre: Arc::new(Phi::True),
-                                until: Arc::new(Phi::Not(subformula.clone())),
+                                formula: Arc::new(Phi::Not(subformula.clone())),
                             }),
                         },
                     })]
