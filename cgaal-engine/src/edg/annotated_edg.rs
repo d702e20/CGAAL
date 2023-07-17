@@ -27,7 +27,7 @@ pub enum AnnotatedEdge<V: Hash + Eq + PartialEq + Clone, A: Annotation> {
     Negation(AnnotatedNegationEdge<V, A>),
 }
 
-impl <V: Hash + Eq + PartialEq + Clone, A: Annotation> AnnotatedEdge<V, A> {
+impl<V: Hash + Eq + PartialEq + Clone, A: Annotation> AnnotatedEdge<V, A> {
     pub fn source(&self) -> &V {
         match self {
             AnnotatedEdge::Hyper(h) => &h.source,

@@ -3,8 +3,7 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::algorithms::certain_zero::{distributed_certain_zero, CertainZeroResult};
 use crate::algorithms::game_strategy::error::Error;
 use crate::algorithms::game_strategy::partial::{
-    find_strategy_moves_false_case,
-    find_strategy_moves_true_case,
+    find_strategy_moves_false_case, find_strategy_moves_true_case,
     find_strategy_moves_undecided_case, PartialStrategy,
 };
 use crate::edg::atledg::vertex::AtlVertex;
@@ -83,7 +82,6 @@ pub fn compute_game_strategy<G: GameStructure>(
     let formula = v0.formula();
 
     if formula.has_nested_path_qualifiers() {
-        // Unsupported
         return Err(Error::UnsupportedFormula);
     }
 
@@ -93,24 +91,24 @@ pub fn compute_game_strategy<G: GameStructure>(
         }
         VertexAssignment::True if formula.is_despite() => {
             return Ok(WitnessStrategy::NoStrategyExist)
-        },
+        }
         VertexAssignment::False if formula.is_enforce() => {
             return Ok(WitnessStrategy::NoStrategyExist)
-        },
+        }
         VertexAssignment::False if formula.is_despite() => {
             find_strategy_moves_false_case(graph, v0, assignments)
         }
         VertexAssignment::Undecided if formula.is_despite() => {
             find_strategy_moves_undecided_case(graph, v0, assignments)
         }
-        _ if !(formula.is_despite() || !formula.is_enforce()) => {
+        _ if !(formula.is_despite() || formula.is_enforce()) => {
             return Ok(WitnessStrategy::NoStrategyNeeded)
         }
         _ => unreachable!(),
     };
 
     Ok(WitnessStrategy::Strategy(PartialStrategy {
-        players: formula.players().unwrap().iter().copied().collect(),
+        players: formula.players().unwrap().into(),
         move_to_pick,
     }))
 }

@@ -1,13 +1,13 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::algorithms::certain_zero::common::VertexAssignment;
 use crate::algorithms::game_strategy::format::PartialStrategyWithFormatting;
-use crate::atl::Phi;
-use crate::edg::annotated_edg::{AnnotatedEdge, AnnotatedExtendedDependencyGraph};
+use crate::edg::annotated_edg::AnnotatedExtendedDependencyGraph;
 use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::atledg::AtlDependencyGraph;
 use crate::edg::ExtendedDependencyGraph;
 use crate::game_structure::{GameStructure, Player, State};
-use std::collections::{HashMap, HashSet};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PartialStrategy {
@@ -34,14 +34,14 @@ impl PartialStrategy {
 
 /// Compute the moves of the witness strategy.
 /// This function handles the case where the formula is an enforce formula assigned true.
-/// Result is not minimal, but it is correct.
+/// Result is not minimal.
 pub fn find_strategy_moves_true_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> HashMap<State, PartialMove> {
     debug_assert!(v0.formula().is_enforce());
-    debug_assert_eq!(assignments[&v0], VertexAssignment::True);
+    debug_assert_eq!(assignments[v0], VertexAssignment::True);
 
     if v0.formula().is_invariant() {
         // EnforceInvariant has negation edge to DespiteEventually assigned undecided
@@ -107,14 +107,14 @@ pub fn find_strategy_moves_true_case<G: GameStructure>(
 
 /// Compute the moves of the witness strategy.
 /// This function handles the case where the formula is a despite formula assigned false.
-/// Result is not minimal, but it is correct.
+/// Result is not minimal.
 pub fn find_strategy_moves_false_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> HashMap<State, PartialMove> {
     debug_assert!(v0.formula().is_despite());
-    debug_assert_eq!(assignments[&v0], VertexAssignment::False);
+    debug_assert_eq!(assignments[v0], VertexAssignment::False);
 
     if v0.formula().is_invariant() {
         // DespiteInvariant has negation edge to EnforceEventually assigned true
@@ -137,7 +137,8 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
         if ass.is_false() && vert.is_full() && vert.formula().is_despite() {
             let edges = graph.succ(vert);
             let phi1 = &edges[1].targets()[0];
-            if assignments[phi1].is_false() { // FIXME: No assigment
+            if assignments[phi1].is_false() {
+                // FIXME: No assigment
                 if vert == v0 {
                     return HashMap::new();
                 }
@@ -181,14 +182,14 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
 
 /// Compute the moves of the witness strategy.
 /// This function handles the case where the formula is an DespiteUntil formula assigned undecided.
-/// Result is not minimal, but it is correct.
+/// Result is not minimal.
 pub fn find_strategy_moves_undecided_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
 ) -> HashMap<State, PartialMove> {
     debug_assert!(v0.formula().is_despite());
-    debug_assert_eq!(assignments[&v0], VertexAssignment::Undecided);
+    debug_assert_eq!(assignments[v0], VertexAssignment::Undecided);
 
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();

@@ -30,7 +30,7 @@ pub enum Edge<V: Hash + Eq + PartialEq + Clone> {
     Negation(NegationEdge<V>),
 }
 
-impl <V: Hash + Eq + PartialEq + Clone> Edge<V> {
+impl<V: Hash + Eq + PartialEq + Clone> Edge<V> {
     /// Returns true if this is a hyper edge
     pub fn is_hyper(&self) -> bool {
         matches!(self, Edge::Hyper(_))

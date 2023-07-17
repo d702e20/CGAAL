@@ -111,7 +111,10 @@ impl Phi {
 
     /// Returns true if the formula variant is either DespiteInvariant or EnforceInvariant.
     pub fn is_invariant(&self) -> bool {
-        matches!(self, Phi::EnforceInvariant { .. } | Phi::DespiteInvariant { .. })
+        matches!(
+            self,
+            Phi::EnforceInvariant { .. } | Phi::DespiteInvariant { .. }
+        )
     }
 
     /// Returns true if formula does not contain any path qualifiers

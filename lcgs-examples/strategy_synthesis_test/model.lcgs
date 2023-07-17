@@ -1,0 +1,18 @@
+
+player p1 = thing;
+player p2 = thing;
+
+template thing
+    a : [0..2] init 0;
+    a' = gt1 + !gt1 * min(a + inc, 2);
+
+    label at_0 = a == 0;
+    label at_1 = a == 1;
+    label at_2 = a == 2;
+
+    [wait] 1;
+    [gt1] 1;
+    [inc] 1;
+endtemplate
+
+label p2_ahead = p1.a < p2.a;
