@@ -13,6 +13,18 @@ pub enum PartialMoveChoice {
     Specific(usize),
 }
 
+impl PartialMoveChoice {
+    pub fn unwrap_range(&self) -> usize {
+        let PartialMoveChoice::Range(r) = self else { unreachable!() };
+        *r
+    }
+
+    pub fn unwrap_specific(&self) -> usize {
+        let PartialMoveChoice::Specific(r) = self else { unreachable!() };
+        *r
+    }
+}
+
 impl Display for PartialMoveChoice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
