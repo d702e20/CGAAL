@@ -142,40 +142,11 @@ macro_rules! assert_partial_strat_moves {
     };
 }
 
-#[test]
-fn strat_syn_no_strat_needed() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_NO_STRATEGY_NEEDED).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(ass.get(&v0).unwrap().is_true());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::NoStrategyNeeded));
-}
-
-#[test]
-fn strat_syn_unsupported_formula() {
-    let ast = parse_lcgs(GAME).unwrap();
+macro_rules! strat_synthesis_test {
+    ($game:expr, $phi:expr, $($rest:tt)*) => {
+        let ast = parse_lcgs($game).unwrap();
         let game = IntermediateLcgs::create(ast).unwrap();
-        let phi = parse_phi(&game, FORMULA_UNSUPPORTED).unwrap();
+        let phi = parse_phi(&game, $phi).unwrap();
         let v0 = AtlVertex::Full {
             state: game.initial_state_index(),
             formula: phi.into(),
@@ -184,105 +155,112 @@ fn strat_syn_unsupported_formula() {
             game_structure: game,
         };
         let czr = distributed_certain_zero(
-                edg.clone(),
-                v0.clone(),
-                WORKER_COUNT,
-                BreadthFirstSearchBuilder,
-                true,
-                true,
-            );
+            edg.clone(),
+            v0.clone(),
+            WORKER_COUNT,
+            BreadthFirstSearchBuilder,
+            true,
+            true,
+        );
         let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
 
-        assert!(ass.get(&v0).unwrap().is_true());
+        strat_synthesis_test!(@ &v0, &edg, &ass, $($rest)*);
+    };
+    (@ $v0:expr, $edg:expr, $ass:expr, TRUE, $($strat:tt)*) => {
+        assert!($ass.get($v0).unwrap().is_true(), "Root assignment should be true, was {:?}", $ass.get($v0));
+        strat_synthesis_test!(@@ $v0, $edg, $ass, $($strat)*);
+    };
+    (@ $v0:expr, $edg:expr, $ass:expr, FALSE, $($rest:tt)*) => {
+        assert!($ass.get($v0).unwrap().is_false(), "Root assignment should be false, was {:?}", $ass.get($v0));
+        strat_synthesis_test!(@@ $v0, $edg, $ass, $($rest)*);
+    };
+    (@ $v0:expr, $edg:expr, $ass:expr, UNDECIDED, $($rest:tt)*) => {
+        assert!(!$ass.get($v0).unwrap().is_certain(), "Root assignment should be undecided, was {:?}", $ass.get($v0));
+        strat_synthesis_test!(@@ $v0, $edg, $ass, $($rest)*);
+    };
+    (@@ $v0:expr, $edg:expr, $ass:expr, Strategy: $($moves:tt)*) => {
+        let strat = compute_game_strategy($edg, $v0, $ass).unwrap();
+        assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
 
-        assert!(matches!(compute_game_strategy(&edg, &v0, &ass), Err(Error::UnsupportedFormula)));
+        let WitnessStrategy::Strategy(PartialStrategy {
+            players,
+            move_to_pick,
+        }) = strat else { unreachable!() };
+
+        assert_eq!(players.as_slice(), [0]);
+        assert_partial_strat_moves!(move_to_pick; $($moves)*);
+    };
+    (@@ $v0:expr, $edg:expr, $ass:expr, NoStrategyExist) => {
+        let strat = compute_game_strategy($edg, $v0, $ass).unwrap();
+        assert!(matches!(&strat, WitnessStrategy::NoStrategyExist));
+    };
+    (@@ $v0:expr, $edg:expr, $ass:expr, NoStrategyNeeded) => {
+        let strat = compute_game_strategy($edg, $v0, $ass).unwrap();
+        assert!(matches!(&strat, WitnessStrategy::NoStrategyNeeded));
+    };
+    (@@ $v0:expr, $edg:expr, $ass:expr, Unsupported) => {
+        assert!(matches!(compute_game_strategy($edg, $v0, $ass), Err(Error::UnsupportedFormula)));
+    }
 }
 
-#[ignore] // TODO
+#[test]
+fn test_strat_syn_no_strat_needed() {
+    strat_synthesis_test!(
+        GAME,
+        "p1.at_0",
+        TRUE,
+        NoStrategyNeeded
+    );
+}
+
+#[test]
+fn strat_syn_unsupported_formula() {
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> F (<<p2>> G false)",
+        UNDECIDED,
+        Unsupported
+    );
+}
+
+#[ignore]
 #[test]
 fn strat_syn_enforce_next_true() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_ENFORCE_NEXT_TRUE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(ass.get(&v0).unwrap().is_true());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> X p1.at_1",
+        TRUE,
+        Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
         STATE_01 => @;
         STATE_02 => @;
-        STATE_10 => @, ACT_P1_GT1, ACT_P1_INC;
+        STATE_10 => @;
         STATE_11 => @;
-        STATE_12 => @, ACT_P1_GT1;
-        STATE_20 => @, ACT_P1_GT1, ACT_P1_INC;
+        STATE_12 => @;
+        STATE_20 => @;
         STATE_21 => @;
-        STATE_22 => @, ACT_P1_GT1;
+        STATE_22 => @;
+    );
+}
+
+#[ignore]
+#[test]
+fn strat_syn_enforce_next_false() {
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> X p1.at_2",
+        TRUE,
+        NoStrategyExist
     );
 }
 
 #[test]
 fn strat_syn_enforce_eventually_true() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_ENFORCE_EVENTUALLY_TRUE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(ass.get(&v0).unwrap().is_true());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> F p1.at_2",
+        TRUE,
+        Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
         STATE_01 => ACT_P1_INC;
         STATE_02 => @;
@@ -292,45 +270,26 @@ fn strat_syn_enforce_eventually_true() {
         STATE_20 => @, ACT_P1_GT1, ACT_P1_INC;
         STATE_21 => @, ACT_P1_INC;
         STATE_22 => @;
+    );
+}
+
+#[test]
+fn strat_syn_enforce_eventually_undecided() {
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> F false",
+        UNDECIDED,
+        NoStrategyExist
     );
 }
 
 #[test]
 fn strat_syn_enforce_until_true() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_ENFORCE_UNTIL_TRUE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(ass.get(&v0).unwrap().is_true());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> (!p2_ahead U p1.at_2)",
+        TRUE,
+        Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
         STATE_01 => ACT_P1_INC;
         STATE_02 => @;
@@ -344,41 +303,22 @@ fn strat_syn_enforce_until_true() {
 }
 
 #[test]
-fn strat_syn_enforce_invariantly_true() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_ENFORCE_INVARIANTLY_TRUE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
+fn strat_syn_enforce_until_undecided() {
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> (p1.at_0 U p1.at_2)",
+        UNDECIDED,
+        NoStrategyExist
     );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
+}
 
-    assert!(ass.get(&v0).unwrap().is_true());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+#[test]
+fn strat_syn_enforce_invariant_true() {
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> G p1.at_0",
+        TRUE,
+        Strategy:
         STATE_00 => ACT_P1_WAIT;
         STATE_01 => @;
         STATE_02 => @;
@@ -391,43 +331,34 @@ fn strat_syn_enforce_invariantly_true() {
     );
 }
 
+#[test]
+fn strat_syn_enforce_invariant_false() {
+    strat_synthesis_test!(
+        GAME,
+        "<<p1>> G p2.at_0",
+        FALSE,
+        NoStrategyExist
+    );
+}
+
+#[test]
+fn strat_syn_despite_next_true() {
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] X p2.at_1",
+        TRUE,
+        NoStrategyExist
+    );
+}
+
 #[ignore] // TODO
 #[test]
 fn strat_syn_despite_next_false() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_DESPITE_NEXT_FALSE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(ass.get(&v0).unwrap().is_false());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] X p1.at_1",
+        FALSE,
+        Strategy:
         STATE_00 => ACT_P1_WAIT;
         STATE_01 => @;
         STATE_02 => @;
@@ -441,41 +372,22 @@ fn strat_syn_despite_next_false() {
 }
 
 #[test]
-fn strat_syn_despite_until_undecided() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_DESPITE_UNTIL_UNDECIDED).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
+fn strat_syn_despite_eventually_true() {
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] F p2.at_2",
+        TRUE,
+        NoStrategyExist
     );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
+}
 
-    assert!(!ass.get(&v0).unwrap().is_certain());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-            players,
-            move_to_pick,
-        }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+#[test]
+fn strat_syn_despite_eventually_undecided() {
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] F p2_ahead",
+        UNDECIDED,
+        Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
         STATE_01 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
         STATE_02 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
@@ -488,43 +400,24 @@ fn strat_syn_despite_until_undecided() {
     );
 }
 
-#[ignore] // TODO
+#[test]
+fn strat_syn_despite_until_true() {
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] (p2.at_0 U p2.at_1)",
+        TRUE,
+        NoStrategyExist
+    );
+}
+
+#[ignore]
 #[test]
 fn strat_syn_despite_until_false() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_DESPITE_UNTIL_FALSE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(ass.get(&v0).unwrap().is_false());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] (!p1.at_2 U false)",
+        FALSE,
+        Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
         STATE_01 => ACT_P1_INC;
         STATE_02 => @;
@@ -532,56 +425,27 @@ fn strat_syn_despite_until_false() {
         STATE_11 => ACT_P1_INC;
         STATE_12 => @;
         STATE_20 => @, ACT_P1_GT1, ACT_P1_INC;
-        STATE_21 => @, ACT_P1_INC;
+        STATE_21 => @, ACT_P1_INC; // FIXME: ALgorithm thinks WAIT is ok
         STATE_22 => @;
     );
 }
 
 #[test]
-fn strat_syn_despite_eventually_undecided() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_DESPITE_EVENTUALLY_UNDECIDED).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
-
-    assert!(!ass.get(&v0).unwrap().is_certain());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
-        STATE_00 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
-        STATE_01 => ACT_P1_WAIT, ACT_P1_GT1;
-        STATE_02 => @;
-        STATE_10 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
-        STATE_11 => ACT_P1_WAIT, ACT_P1_GT1;
-        STATE_12 => @;
-        STATE_20 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
-        STATE_21 => ACT_P1_WAIT, ACT_P1_GT1;
-        STATE_22 => @;
+fn strat_syn_despite_until_undecided() {
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] (true U p2_ahead)",
+        UNDECIDED,
+        Strategy:
+        STATE_00 => ACT_P1_GT1, ACT_P1_INC;
+        STATE_01 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
+        STATE_02 => ACT_P1_WAIT, ACT_P1_GT1, ACT_P1_INC;
+        STATE_10 => @;
+        STATE_11 => ACT_P1_INC;
+        STATE_12 => ACT_P1_WAIT, ACT_P1_INC;
+        STATE_20 => @;
+        STATE_21 => @;
+        STATE_22 => ACT_P1_WAIT, ACT_P1_INC;
     );
 }
 

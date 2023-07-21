@@ -101,6 +101,9 @@ pub fn compute_game_strategy<G: GameStructure>(
         VertexAssignment::Undecided if formula.is_despite() => {
             find_strategy_moves_undecided_case(graph, v0, assignments)
         }
+        VertexAssignment::Undecided if formula.is_enforce() => {
+            return Ok(WitnessStrategy::NoStrategyExist)
+        }
         _ if !(formula.is_despite() || formula.is_enforce()) => {
             return Ok(WitnessStrategy::NoStrategyNeeded)
         }
