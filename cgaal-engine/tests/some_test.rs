@@ -5,8 +5,7 @@ use cgaal_engine::{
             CertainZeroResult,
         },
         game_strategy::{
-            compute_game_strategy, partial::PartialStrategy, WitnessStrategy,
-            error::Error,
+            compute_game_strategy, error::Error, partial::PartialStrategy, WitnessStrategy,
         },
     },
     atl::parse_phi,
@@ -39,7 +38,7 @@ endtemplate
 label p2_ahead = p1.a < p2.a;
 ";
 
-// States, STATE_<p2.a><p1.a>
+// States, format is STATE_<p2.a><p1.a>
 const STATE_00: usize = 0;
 const STATE_01: usize = 1;
 const STATE_02: usize = 2;
@@ -53,26 +52,6 @@ const STATE_22: usize = 8;
 const ACT_P1_WAIT: usize = 0;
 const ACT_P1_GT1: usize = 1;
 const ACT_P1_INC: usize = 2;
-
-const FORMULA_NO_STRATEGY_NEEDED: &str = "p1.at_0";
-const FORMULA_UNSUPPORTED: &str = "<<p1>> F (<<p2>> F p1.at_2)";
-const FORMULA_ENFORCE_NEXT_TRUE: &str = "<<p1>> X p1.at_1";
-const FORMULA_ENFORCE_NEXT_FALSE: &str = "<<p1>> X p1.at_2";
-const FORMULA_ENFORCE_UNTIL_TRUE: &str = "<<p1>> (true U p1.at_2)";
-const FORMULA_ENFORCE_UNTIL_FALSE: &str = "<<p1>> (p2.at_0 U false)";
-const FORMULA_ENFORCE_EVENTUALLY_TRUE: &str = "<<p1>> F p1.at_2";
-const FORMULA_ENFORCE_EVENTUALLY_FALSE: &str = "<<p1>> F false";
-const FORMULA_ENFORCE_INVARIANTLY_TRUE: &str = "<<p1>> G p1.at_0";
-const FORMULA_ENFORCE_INVARIANTLY_FALSE: &str = "<<p1>> G p2.at_0";
-const FORMULA_DESPITE_NEXT_TRUE: &str = "[[p1]] X !p2.at_2";
-const FORMULA_DESPITE_NEXT_FALSE: &str = "[[p1]] X p1.at_1";
-const FORMULA_DESPITE_UNTIL_TRUE: &str = "[[p1]] (true U p2.at_2)";
-const FORMULA_DESPITE_UNTIL_UNDECIDED: &str = "[[p1]] (true U p2_ahead)";
-const FORMULA_DESPITE_UNTIL_FALSE: &str = "[[p1]] (!p1.at_2 U false)";
-const FORMULA_DESPITE_EVENTUALLY_TRUE: &str = "[[p1]] F p2.at_2";
-const FORMULA_DESPITE_EVENTUALLY_UNDECIDED: &str = "[[p1]] F p1.at_2";
-const FORMULA_DESPITE_INVARIANTLY_TRUE: &str = "[[p1]] G p2.at_2";
-const FORMULA_DESPITE_INVARIANTLY_FALSE: &str = "[[p1]] G !p1.at_2";
 
 const WORKER_COUNT: u64 = 4;
 
@@ -142,6 +121,30 @@ macro_rules! assert_partial_strat_moves {
     };
 }
 
+/// This macro builds the inners of a strategy synthesis unit test.
+/// As arguments it expects: A LCGS string, a formula, the assignment of the root node,
+/// and either Stratety/NoStrategyExists/NoStrategyNeeded/Unsupported, depending on
+/// whether a strategy exists to witness the root assignment.
+/// If a strategy exists, then the strategy is given in the format described by [assert_partial_strat_moves!].
+/// 
+/// Example:
+/// ```ignore
+/// strat_synthesis_test!(
+///    GAME,
+///    "<<p1>> F p1.at_2",
+///    TRUE,
+///    Strategy:
+///    STATE_00 => ACT_P1_GT1, ACT_P1_INC;
+///    STATE_01 => ACT_P1_INC;
+///    STATE_02 => @;
+///    STATE_10 => @, ACT_P1_GT1, ACT_P1_INC;
+///    STATE_11 => ACT_P1_INC;
+///    STATE_12 => @;
+///    STATE_20 => @, ACT_P1_GT1, ACT_P1_INC;
+///    STATE_21 => @, ACT_P1_INC;
+///    STATE_22 => @;
+///);
+/// ```
 macro_rules! strat_synthesis_test {
     ($game:expr, $phi:expr, $($rest:tt)*) => {
         let ast = parse_lcgs($game).unwrap();
@@ -205,22 +208,12 @@ macro_rules! strat_synthesis_test {
 
 #[test]
 fn test_strat_syn_no_strat_needed() {
-    strat_synthesis_test!(
-        GAME,
-        "p1.at_0",
-        TRUE,
-        NoStrategyNeeded
-    );
+    strat_synthesis_test!(GAME, "p1.at_0", TRUE, NoStrategyNeeded);
 }
 
 #[test]
 fn strat_syn_unsupported_formula() {
-    strat_synthesis_test!(
-        GAME,
-        "<<p1>> F (<<p2>> G false)",
-        UNDECIDED,
-        Unsupported
-    );
+    strat_synthesis_test!(GAME, "<<p1>> F (<<p2>> G false)", UNDECIDED, Unsupported);
 }
 
 #[ignore]
@@ -246,12 +239,7 @@ fn strat_syn_enforce_next_true() {
 #[ignore]
 #[test]
 fn strat_syn_enforce_next_false() {
-    strat_synthesis_test!(
-        GAME,
-        "<<p1>> X p1.at_2",
-        TRUE,
-        NoStrategyExist
-    );
+    strat_synthesis_test!(GAME, "<<p1>> X p1.at_2", TRUE, NoStrategyExist);
 }
 
 #[test]
@@ -275,12 +263,7 @@ fn strat_syn_enforce_eventually_true() {
 
 #[test]
 fn strat_syn_enforce_eventually_undecided() {
-    strat_synthesis_test!(
-        GAME,
-        "<<p1>> F false",
-        UNDECIDED,
-        NoStrategyExist
-    );
+    strat_synthesis_test!(GAME, "<<p1>> F false", UNDECIDED, NoStrategyExist);
 }
 
 #[test]
@@ -333,22 +316,12 @@ fn strat_syn_enforce_invariant_true() {
 
 #[test]
 fn strat_syn_enforce_invariant_false() {
-    strat_synthesis_test!(
-        GAME,
-        "<<p1>> G p2.at_0",
-        FALSE,
-        NoStrategyExist
-    );
+    strat_synthesis_test!(GAME, "<<p1>> G p2.at_0", FALSE, NoStrategyExist);
 }
 
 #[test]
 fn strat_syn_despite_next_true() {
-    strat_synthesis_test!(
-        GAME,
-        "[[p1]] X p2.at_1",
-        TRUE,
-        NoStrategyExist
-    );
+    strat_synthesis_test!(GAME, "[[p1]] X p2.at_1", TRUE, NoStrategyExist);
 }
 
 #[ignore] // TODO
@@ -373,12 +346,7 @@ fn strat_syn_despite_next_false() {
 
 #[test]
 fn strat_syn_despite_eventually_true() {
-    strat_synthesis_test!(
-        GAME,
-        "[[p1]] F p2.at_2",
-        TRUE,
-        NoStrategyExist
-    );
+    strat_synthesis_test!(GAME, "[[p1]] F p2.at_2", TRUE, NoStrategyExist);
 }
 
 #[test]
@@ -402,12 +370,7 @@ fn strat_syn_despite_eventually_undecided() {
 
 #[test]
 fn strat_syn_despite_until_true() {
-    strat_synthesis_test!(
-        GAME,
-        "[[p1]] (p2.at_0 U p2.at_1)",
-        TRUE,
-        NoStrategyExist
-    );
+    strat_synthesis_test!(GAME, "[[p1]] (p2.at_0 U p2.at_1)", TRUE, NoStrategyExist);
 }
 
 #[ignore]
@@ -450,41 +413,17 @@ fn strat_syn_despite_until_undecided() {
 }
 
 #[test]
-fn strat_syn_despite_invariantly_false() {
-    let ast = parse_lcgs(GAME).unwrap();
-    let game = IntermediateLcgs::create(ast).unwrap();
-    let phi = parse_phi(&game, FORMULA_DESPITE_INVARIANTLY_FALSE).unwrap();
-    let v0 = AtlVertex::Full {
-        state: game.initial_state_index(),
-        formula: phi.into(),
-    };
-    let edg = AtlDependencyGraph {
-        game_structure: game,
-    };
-    let czr = distributed_certain_zero(
-        edg.clone(),
-        v0.clone(),
-        WORKER_COUNT,
-        BreadthFirstSearchBuilder,
-        true,
-        true,
-    );
-    let CertainZeroResult::AllFoundAssignments(ass) = czr else { unreachable!() };
+fn strat_syn_despite_invariant_true() {
+    strat_synthesis_test!(GAME, "[[p1]] G p2.at_0", TRUE, NoStrategyExist);
+}
 
-    assert!(ass.get(&v0).unwrap().is_false());
-
-    let strat = compute_game_strategy(&edg, &v0, &ass).unwrap();
-
-    assert!(matches!(&strat, WitnessStrategy::Strategy(_)));
-
-    let WitnessStrategy::Strategy(PartialStrategy {
-        players,
-        move_to_pick,
-    }) = strat else { unreachable!() };
-
-    assert_eq!(players.as_slice(), [0]);
-    assert_partial_strat_moves!(
-        move_to_pick;
+#[test]
+fn strat_syn_despite_invariant_false() {
+    strat_synthesis_test!(
+        GAME,
+        "[[p1]] G !p1.at_2",
+        FALSE,
+        Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
         STATE_01 => ACT_P1_INC;
         STATE_02 => @;
