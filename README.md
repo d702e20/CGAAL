@@ -7,6 +7,9 @@ With this lazy method we avoid generating the whole graph, and it is therefore a
 CGAAL also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
 its syntax is inspired by PRISM-lang. However, the concepts of synchronization and modules are very different.  
 
+## Requirements
+The minimum supported Rust version (MSRV) is 1.65.0.
+
 ## Example of how to use
 
 Let's say we want to check if a cowboy can guarantee staying alive in a 3-way Mexican standoff.
