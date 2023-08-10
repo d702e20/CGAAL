@@ -376,13 +376,13 @@ fn strat_syn_despite_until_false() {
         FALSE,
         Strategy:
         STATE_00 => ACT_P1_GT1, ACT_P1_INC;
-        STATE_01 => ACT_P1_INC; // FIXME: Algorithm thinks GT1 and WAIT is ok
+        STATE_01 => ACT_P1_INC;
         STATE_02 => @;
         STATE_10 => @, ACT_P1_GT1, ACT_P1_INC;
-        STATE_11 => ACT_P1_INC; // FIXME: Algorithm thinks GT1 is ok
+        STATE_11 => ACT_P1_INC;
         STATE_12 => @;
         STATE_20 => @, ACT_P1_GT1, ACT_P1_INC;
-        STATE_21 => @, ACT_P1_INC; // FIXME: Algorithm thinks WAIT is ok
+        STATE_21 => @, ACT_P1_INC;
         STATE_22 => @;
     );
 }
