@@ -148,6 +148,8 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
         }
     }
 
+    debug_assert!(v0.formula().is_until()); // Eventually formula cannot be assigned false
+
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();
     // Which move to pick for each state
@@ -163,7 +165,6 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
             let edges = graph.succ(vert);
             let phi1 = &edges[1].targets()[0];
             if assignments[phi1].is_false() {
-                // FIXME: No assignment
                 if vert == v0 {
                     return HashMap::new();
                 }
@@ -179,24 +180,21 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
         'next: for vert in &verts_with_coalitions {
             if move_to_pick.get(&vert.state()).is_none() {
                 let edges = graph.annotated_succ(vert);
-                for edge in &edges[1..] {
-                    for (target, mov) in &edge.targets()[1..] {
-                        if assignments[target].is_false() {
-                            for e in graph.succ(target) {
-                                if e.targets().iter().all(|t| found.contains(t)) {
-                                    // We found the partial move that can break phi1
-                                    move_to_pick.insert(vert.state(), mov.clone().unwrap());
-                                    found.insert(vert.clone());
-                                    println!("@ {:?} {:?}", vert.state(), mov.clone().unwrap());
+                for (target, mov) in &edges[1].targets()[1..] {
+                    if assignments[target].is_false() {
+                        let edges_from_partial = graph.succ(target);
+                        let all_dest_has_found_strat = edges_from_partial.iter().all(|e| found.contains(&e.targets()[0]));
+                        if all_dest_has_found_strat {
+                            // We found the partial move that can break phi1
+                            move_to_pick.insert(vert.state(), mov.clone().unwrap());
+                            found.insert(vert.clone());
 
-                                    if vert == v0 {
-                                        // We are done
-                                        return move_to_pick;
-                                    }
-
-                                    continue 'next;
-                                }
+                            if vert == v0 {
+                                // We are done
+                                return move_to_pick;
                             }
+
+                            continue 'next;
                         }
                     }
                 }
