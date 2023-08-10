@@ -16,8 +16,6 @@ use cgaal_engine::{
     },
 };
 
-mod common;
-
 const GAME: &str = "
 player p1 = thing;
 player p2 = thing;
@@ -56,8 +54,8 @@ const ACT_P1_INC: usize = 2;
 const WORKER_COUNT: u64 = 4;
 
 /// This macro is used to assert that a partial strategy is correct.
-/// Validating this is tricky due to the partial-ness: Not all states needs to be assigned a move,
-/// but if it is assigned a move, that move must be valid.
+/// Validating a strategy is tricky due to the partial-ness: Not all states needs to be
+/// assigned a move, but if it is assigned a move, that move must be valid.
 /// Additionally, there can be more than one valid move.
 /// This macro allows us to easily express which moves are valid in each state and whether
 /// some move is required or not in each state.
@@ -126,7 +124,7 @@ macro_rules! assert_partial_strat_moves {
 /// and either Stratety/NoStrategyExists/NoStrategyNeeded/Unsupported, depending on
 /// whether a strategy exists to witness the root assignment.
 /// If a strategy exists, then the strategy is given in the format described by [assert_partial_strat_moves!].
-/// 
+///
 /// Example:
 /// ```ignore
 /// strat_synthesis_test!(
