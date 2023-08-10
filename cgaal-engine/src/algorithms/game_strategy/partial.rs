@@ -53,14 +53,19 @@ pub fn find_strategy_moves_true_case<G: GameStructure>(
     if v0.formula().is_next() {
         // Find first edge with all targets true
         for edge in graph.annotated_succ(v0) {
-            let all_targets_true = edge.targets().iter().all(|(target, _)| assignments[target].is_true());
+            let all_targets_true = edge
+                .targets()
+                .iter()
+                .all(|(target, _)| assignments[target].is_true());
             if all_targets_true {
                 let mut move_to_pick = HashMap::<State, PartialMove>::new();
                 move_to_pick.insert(v0.state(), edge.annotation().unwrap().clone().unwrap());
                 return move_to_pick;
             }
         }
-        unreachable!("True-assigned next formula should have at least one edge with all targets true");
+        unreachable!(
+            "True-assigned next formula should have at least one edge with all targets true"
+        );
     }
 
     // Vertices that have been found to be part of the strategy
@@ -183,7 +188,9 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
                 for (target, mov) in &edges[1].targets()[1..] {
                     if assignments[target].is_false() {
                         let edges_from_partial = graph.succ(target);
-                        let all_dest_has_found_strat = edges_from_partial.iter().all(|e| found.contains(&e.targets()[0]));
+                        let all_dest_has_found_strat = edges_from_partial
+                            .iter()
+                            .all(|e| found.contains(&e.targets()[0]));
                         if all_dest_has_found_strat {
                             // We found the partial move that can break phi1
                             move_to_pick.insert(vert.state(), mov.clone().unwrap());
