@@ -50,6 +50,19 @@ pub fn find_strategy_moves_true_case<G: GameStructure>(
         return find_strategy_moves_undecided_case(graph, target, assignments);
     }
 
+    if v0.formula().is_next() {
+        // Find first edge with all targets true
+        for edge in graph.annotated_succ(v0) {
+            let all_targets_true = edge.targets().iter().all(|(target, _)| assignments[target].is_true());
+            if all_targets_true {
+                let mut move_to_pick = HashMap::<State, PartialMove>::new();
+                move_to_pick.insert(v0.state(), edge.annotation().unwrap().clone().unwrap());
+                return move_to_pick;
+            }
+        }
+        unreachable!("True-assigned next formula should have at least one edge with all targets true");
+    }
+
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();
     // Which move to pick for each state
@@ -123,6 +136,18 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
         return find_strategy_moves_true_case(graph, target, assignments);
     }
 
+    if v0.formula().is_next() {
+        // Find first target assigned false
+        let edges = graph.succ(v0);
+        for target in edges[0].targets() {
+            if assignments[target].is_false() {
+                let mut move_to_pick = HashMap::<State, PartialMove>::new();
+                move_to_pick.insert(v0.state(), target.partial_move().unwrap().clone());
+                return move_to_pick;
+            }
+        }
+    }
+
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();
     // Which move to pick for each state
@@ -138,7 +163,7 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
             let edges = graph.succ(vert);
             let phi1 = &edges[1].targets()[0];
             if assignments[phi1].is_false() {
-                // FIXME: No assigment
+                // FIXME: No assignment
                 if vert == v0 {
                     return HashMap::new();
                 }

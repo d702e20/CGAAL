@@ -214,7 +214,6 @@ fn strat_syn_unsupported_formula() {
     strat_synthesis_test!(GAME, "<<p1>> F (<<p2>> G false)", UNDECIDED, Unsupported);
 }
 
-#[ignore]
 #[test]
 fn strat_syn_enforce_next_true() {
     strat_synthesis_test!(
@@ -234,10 +233,9 @@ fn strat_syn_enforce_next_true() {
     );
 }
 
-#[ignore]
 #[test]
 fn strat_syn_enforce_next_false() {
-    strat_synthesis_test!(GAME, "<<p1>> X p1.at_2", TRUE, NoStrategyExist);
+    strat_synthesis_test!(GAME, "<<p1>> X p1.at_2", FALSE, NoStrategyExist);
 }
 
 #[test]
@@ -322,7 +320,6 @@ fn strat_syn_despite_next_true() {
     strat_synthesis_test!(GAME, "[[p1]] X p2.at_1", TRUE, NoStrategyExist);
 }
 
-#[ignore] // TODO
 #[test]
 fn strat_syn_despite_next_false() {
     strat_synthesis_test!(
