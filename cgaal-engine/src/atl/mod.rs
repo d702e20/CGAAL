@@ -109,6 +109,24 @@ impl Phi {
         )
     }
 
+    /// Returns true if the formula variant is either DespiteInvariant or EnforceInvariant.
+    pub fn is_invariant(&self) -> bool {
+        matches!(
+            self,
+            Phi::EnforceInvariant { .. } | Phi::DespiteInvariant { .. }
+        )
+    }
+
+    /// Returns true if the formula variant is either EnforceNext or DespiteNext.
+    pub fn is_next(&self) -> bool {
+        matches!(self, Phi::EnforceNext { .. } | Phi::DespiteNext { .. })
+    }
+
+    /// Returns true if the formula variant is either EnforceUntil or DespiteUntil.
+    pub fn is_until(&self) -> bool {
+        matches!(self, Phi::EnforceUntil { .. } | Phi::DespiteUntil { .. })
+    }
+
     /// Returns true if formula does not contain any path qualifiers
     pub fn has_no_path_qualifiers(&self) -> bool {
         self.path_qualifier_count() == 0
