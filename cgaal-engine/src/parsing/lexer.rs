@@ -1,35 +1,7 @@
+use crate::parsing::span::Span;
+use crate::parsing::token::{Token, TokenKind};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Token {
-    // Delimiters
-    Lparen,
-    Rparen,
-    Lbrace,
-    Rbrace,
-    Langle,
-    Rangle,
-
-    // Operators
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    EqEq,
-    Neq,
-    Geq,
-    Leq,
-
-    // Other symbols
-    Eq,
-
-    // Literals
-    Num(i32),
-    Word(String),
-
-    // Utility
-    Err,
-}
-
+#[derive(Clone, Eq, PartialEq)]
 struct Lexer<'a> {
     input: &'a [u8],
     pos: usize,
@@ -37,10 +9,7 @@ struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a [u8]) -> Self {
-        Lexer {
-            input,
-            pos: 0,
-        }
+        Lexer { input, pos: 0 }
     }
 
     fn skip_ws(&mut self) {
@@ -59,18 +28,22 @@ impl<'a> Lexer<'a> {
     }
 
     #[inline]
-    fn token(&mut self, len: usize, token: Token) -> Token {
+    fn token(&mut self, len: usize, token: TokenKind) -> Token {
+        let span = Span::new(self.pos, self.pos + len);
         self.pos += len;
-        token
+        Token::new(token, span)
     }
 
     fn lex_alpha(&mut self) -> Token {
         let mut len = 1;
-        while self.peek(len).map_or(false, |c| c.is_ascii_alphanumeric() || c == b'_') {
+        while self
+            .peek(len)
+            .map_or(false, |c| c.is_ascii_alphanumeric() || c == b'_')
+        {
             len += 1;
         }
         let word = std::str::from_utf8(&self.input[self.pos..self.pos + len]).unwrap();
-        self.token(len, Token::Word(word.to_string()))
+        self.token(len, TokenKind::Word(word.to_string()))
     }
 
     fn lex_num(&mut self) -> Token {
@@ -82,7 +55,7 @@ impl<'a> Lexer<'a> {
             .unwrap()
             .parse()
             .unwrap();
-        self.token(len, Token::Num(val))
+        self.token(len, TokenKind::Num(val))
     }
 }
 
@@ -92,38 +65,64 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.skip_ws();
         let tk = match self.peek(0)? {
-            b'(' => self.token(1, Token::Lparen),
-            b')' => self.token(1, Token::Rparen),
-            b'{' => self.token(1, Token::Lbrace),
-            b'}' => self.token(1, Token::Rbrace),
-            b'<' => if self.peek(1) == Some(b'=') {
-                self.token(2, Token::Leq)
-            } else {
-                self.token(1, Token::Langle)
-            },
-            b'>' => if self.peek(1) == Some(b'=') {
-                self.token(2, Token::Geq)
-            } else {
-                self.token(1, Token::Rangle)
-            },
-            b'+' => self.token(1, Token::Plus),
-            b'-' => self.token(1, Token::Minus),
-            b'*' => self.token(1, Token::Star),
-            b'/' => self.token(1, Token::Slash),
-            b'=' => if self.peek(1) == Some(b'=') {
-                self.token(2, Token::EqEq)
-            } else {
-                self.token(1, Token::Eq)
-            },
-            b'!' => if self.peek(1) == Some(b'=') {
-                self.token(2, Token::Neq)
-            } else {
-                self.token(1, Token::Err)
-            },
+            b'(' => self.token(1, TokenKind::Lparen),
+            b')' => self.token(1, TokenKind::Rparen),
+            b'{' => self.token(1, TokenKind::Lbrace),
+            b'}' => self.token(1, TokenKind::Rbrace),
+            b'<' => {
+                if self.peek(1) == Some(b'=') {
+                    self.token(2, TokenKind::Leq)
+                } else {
+                    self.token(1, TokenKind::Langle)
+                }
+            }
+            b'>' => {
+                if self.peek(1) == Some(b'=') {
+                    self.token(2, TokenKind::Geq)
+                } else {
+                    self.token(1, TokenKind::Rangle)
+                }
+            }
+            b'+' => self.token(1, TokenKind::Plus),
+            b'-' => self.token(1, TokenKind::Minus),
+            b'*' => self.token(1, TokenKind::Star),
+            b'/' => self.token(1, TokenKind::Slash),
+            b'=' => {
+                if self.peek(1) == Some(b'=') {
+                    self.token(2, TokenKind::EqEq)
+                } else {
+                    self.token(1, TokenKind::Eq)
+                }
+            }
+            b'!' => {
+                if self.peek(1) == Some(b'=') {
+                    self.token(2, TokenKind::Neq)
+                } else {
+                    self.token(1, TokenKind::Err)
+                }
+            }
             b'a'..=b'z' | b'A'..=b'Z' => self.lex_alpha(),
             b'0'..=b'9' => self.lex_num(),
-            _ => self.token(1, Token::Err),
+            _ => self.token(1, TokenKind::Err),
         };
         Some(tk)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parsing::lexer::Lexer;
+    use std::fmt::Write;
+
+    #[test]
+    fn lexing001() {
+        let input = "==4 /* - x (var01 > 0)";
+        let lexer = Lexer::new(input.as_bytes());
+        let mut res = String::new();
+        lexer.for_each(|tk| write!(res, "{tk:?}").unwrap());
+        assert_eq!(
+            "'=='(0,2)'4'(2,3)'/'(4,5)'*'(5,6)'-'(7,8)'x'(9,10)'('(11,12)'var01'(12,17)'>'(18,19)'0'(20,21)')'(21,22)",
+            &res
+        )
     }
 }

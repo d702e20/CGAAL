@@ -1,33 +1,11 @@
 mod lexer;
+mod span;
+mod token;
 
+use crate::parsing::span::Span;
 use pom::parser::*;
 use std::cell::RefCell;
-use std::cmp::{max, min};
 use std::fmt::Display;
-use std::ops::Range;
-
-/// A `Span` describes the position of a slice of text in the original program.
-/// Usually used to describe what text an AST node was created from.
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub struct Span {
-    pub begin: usize,
-    pub end: usize,
-}
-
-impl Span {
-    /// Returns and equivalent range
-    pub fn to_range(self) -> Range<usize> {
-        self.begin..self.end
-    }
-
-    /// Merge two spans into a new span that contains the original spans and everything in between
-    pub fn merge(&self, other: Span) -> Span {
-        Span {
-            begin: min(self.begin, other.begin),
-            end: max(self.end, other.end),
-        }
-    }
-}
 
 /// A trait that allows us to extent parser with a helper function that extracts the span of
 /// the parsed piece of text
@@ -75,6 +53,7 @@ impl ParseState {
 
 /// Create a lazy parser used for recursive definitions.
 /// This function is similar to `call` but allows passing one argument to the parser function.
+#[allow(unused)]
 pub(crate) fn call1<'a, I, O, A, P: Fn(&'a A) -> Parser<I, O>>(
     parser: &'a P,
     arg: &'a A,
@@ -95,6 +74,7 @@ pub(crate) fn call2<'a, I, O, A, B, P: Fn(&'a A, &'a B) -> Parser<'a, I, O>>(
 /// Creates a parser that will run the given parser.
 /// If the given parser fails to parse, an error is reported using the given error message,
 /// and parsing will continue with no input consumed.
+#[allow(unused)]
 pub(crate) fn parse_or_skip<'a, I: Eq + Display, O: 'a>(
     parse_state: &'a ParseState,
     parser: Parser<'a, I, O>,
@@ -120,6 +100,7 @@ pub(crate) fn parse_or_skip<'a, I: Eq + Display, O: 'a>(
 /// Creates a parser that will run the given parser.
 /// If the given parser fails to parse, an error is reported using the given error message,
 /// and parsing will continue at EOF.
+#[allow(unused)]
 pub(crate) fn parse_or_abort<'a, I: Eq + Display, O: 'a>(
     parse_state: &'a ParseState,
     parser: Parser<'a, I, O>,
@@ -145,6 +126,7 @@ pub(crate) fn parse_or_abort<'a, I: Eq + Display, O: 'a>(
 /// Creates a parser that will run the given parser and then consume the synchronization token.
 /// If the given parser fails to parse, an error is reported using the given error message,
 /// and parsing will continue at the next occurrence of the synchronization token.
+#[allow(unused)]
 pub(crate) fn parse_or_sync<'a, I: Eq + Display, O: 'a>(
     parse_state: &'a ParseState,
     parser: Parser<'a, I, O>,

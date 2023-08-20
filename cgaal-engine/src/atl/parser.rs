@@ -910,7 +910,7 @@ mod test {
 
     #[test]
     fn general_precedence_01() {
-        let formula = phi(&TestModel).parse(b"<<>> G true & false").unwrap();
+        let formula = parse_phi(&TestModel, "<<>> G true & false").unwrap();
         let expected = Phi::EnforceInvariant {
             players: vec![],
             formula: Arc::new(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False))),
@@ -920,7 +920,7 @@ mod test {
 
     #[test]
     fn general_precedence_02() {
-        let formula = phi(&TestModel).parse(b"!<<>> F !true & false").unwrap();
+        let formula = parse_phi(&TestModel, "!<<>> F !true & false").unwrap();
         let expected = Phi::Not(Arc::new(Phi::EnforceEventually {
             players: vec![],
             formula: Arc::new(Phi::And(
@@ -933,9 +933,7 @@ mod test {
 
     #[test]
     fn general_precedence_03() {
-        let formula = phi(&TestModel)
-            .parse(b"[[]] F false | <<>> G true")
-            .unwrap();
+        let formula = parse_phi(&TestModel, "[[]] F false | <<>> G true").unwrap();
         let expected = Phi::DespiteEventually {
             players: vec![],
             formula: Arc::new(Phi::Or(
@@ -951,9 +949,7 @@ mod test {
 
     #[test]
     fn general_precedence_04() {
-        let formula = phi(&TestModel)
-            .parse(b"!false & [[]] F <<>> G false | true")
-            .unwrap();
+        let formula = parse_phi(&TestModel, "!false & [[]] F <<>> G false | true").unwrap();
         let expected = Phi::And(
             Arc::new(Phi::Not(Arc::new(Phi::False))),
             Arc::new(Phi::DespiteEventually {
