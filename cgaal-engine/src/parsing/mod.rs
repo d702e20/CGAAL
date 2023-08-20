@@ -1,3 +1,5 @@
+mod lexer;
+
 use pom::parser::*;
 use std::cell::RefCell;
 use std::cmp::{max, min};
