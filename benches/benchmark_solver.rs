@@ -1,16 +1,30 @@
-use atl_checker::algorithms::certain_zero::distributed_certain_zero;
-use atl_checker::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
-use atl_checker::atl::Phi;
-use atl_checker::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
-use atl_checker::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use atl_checker::game_structure::lcgs::parse::parse_lcgs;
-use atl_checker::game_structure::EagerGameStructure;
+#![allow(dead_code)]
+
+use cgaal_engine::algorithms::certain_zero::distributed_certain_zero;
+use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
+use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
+use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
+use cgaal_engine::atl::Phi;
+use cgaal_engine::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
+use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
+use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::EagerGameStructure;
+use cgaal_engine::game_structure::GameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::cmp::min;
+use std::cmp::Ordering;
+use std::env;
 use std::sync::Arc;
 
-const PRIORITISE_BACK_PROPAGATION: bool = true; // change this for benches with no-backprop
+const PRIORITISE_BACK_PROPAGATION: bool = true;
 
-// CWD is atl-checker, use relative paths - implemented as macro, since concat! only works for tokens
+// CWD is cgaal-engine, use relative paths - implemented as macro, since concat! only works for tokens
 // workaround src: https://github.com/rust-lang/rust/issues/31383
 macro_rules! lcgs_model_path_prefix {
     () => {
@@ -104,8 +118,35 @@ macro_rules! bench_lcgs_threads {
     ($name:ident, $model:expr, $formula:expr) => {
         fn $name(c: &mut Criterion) {
             let mut group = c.benchmark_group(stringify!($name));
+            group.sample_size(10);
 
-            for core_count in 1..num_cpus::get() + 1 {
+            // read search strategy from env variable in order: compile, runtime, otherwise default
+            let mut search_strategy = String::from("bfs");
+            if let Ok(val) = env::var("CGAAL_SEARCH_STRATEGY") {
+                search_strategy = val;
+                eprintln!(
+                    "(compile) Search strategy \'{}\' with backpropagation prioritisation: {}",
+                    search_strategy, PRIORITISE_BACK_PROPAGATION
+                );
+            } else {
+                if let Some(val) = option_env!("CGAAL_SEARCH_STRATEGY") {
+                    search_strategy = val.to_string();
+                    eprintln!(
+                        "(runtime) Search strategy \'{}\' with backpropagation prioritisation: {}",
+                        search_strategy, PRIORITISE_BACK_PROPAGATION
+                    );
+                } else {
+                    eprintln!(
+                        "(default) Search strategy \'{}\' with backpropagation prioritisation: {}",
+                        search_strategy, PRIORITISE_BACK_PROPAGATION
+                    );
+                }
+            }
+
+            // use machine cores as thread count, but max 32
+            let max_core_count: u64 = min(num_cpus::get() as u64, 32);
+
+            for core_count in 1..max_core_count + 1 {
                 let core_count = core_count as u64;
 
                 // Write header for stats if enabled
@@ -144,18 +185,107 @@ macro_rules! bench_lcgs_threads {
                                 formula,
                             };
 
-                            distributed_certain_zero(
-                                graph,
-                                v0,
-                                core_count,
-                                BreadthFirstSearchBuilder,
-                                PRIORITISE_BACK_PROPAGATION,
-                                false,
-                            );
+                            match search_strategy.as_str() {
+                                "bfs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        BreadthFirstSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "dfs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        DepthFirstSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "dhs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        DependencyHeuristicSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "los" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        LinearOptimizeSearchBuilder { game: copy },
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "lps" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        LinearProgrammingSearchBuilder { game: copy },
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "ihs" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        InstabilityHeuristicSearchBuilder { game: copy },
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "lrs" => {
+                                    let copy = graph.game_structure.clone();
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        LinearRepresentativeSearchBuilder::new(copy),
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "glo" => {
+                                    match core_count.cmp(&1) {
+                                        Ordering::Less => {
+                                            panic!("Cannot bench with less than 1 thread")
+                                        }
+                                        Ordering::Equal => {
+                                            SinglethreadedGlobalAlgorithm::new(graph, v0).run();
+                                        }
+                                        Ordering::Greater => {
+                                            // -1 worker, because master is running on its own thread
+                                            MultithreadedGlobalAlgorithm::new(
+                                                graph,
+                                                core_count - 1,
+                                                v0,
+                                            )
+                                            .run();
+                                        }
+                                    }
+                                }
+                                _ => panic!("Unknown search strategy {}", search_strategy),
+                            };
                         });
                     },
                 );
             }
+            group.finish();
         }
     };
 }
@@ -206,20 +336,74 @@ bench_lcgs!(
 
 // robot grid
 bench_lcgs!(
-    rc1,
+    rc3_1,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs!(
-    rc2,
+    rc3_2,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/everyone_starts_home_TRUE.json"
 );
 
 bench_lcgs!(
-    rc3,
+    rc3_3,
     "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs!(
+    rc4_1,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    rc4_2,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    rc4_3,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc3_1,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc3_2,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc3_3,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc4_1,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc4_2,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs!(
+    prismlike_rc4_3,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
 
@@ -293,94 +477,94 @@ bench_lcgs!(
 
 // gossiping girls
 bench_lcgs!(
-    gg1_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omicient_before_10_steps_TRUE.json"
+    gg4_circular1,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg2_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_circular2,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg3_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_circular3,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg4_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    gg4_circular4,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg5_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
+    gg4_circular5,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs!(
-    gg6_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omicient_before_10_steps_FALSE.json"
+    gg4_circular6,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs!(
-    gg7_circular,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    gg4_circular7,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 bench_lcgs!(
-    gg1_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omicient_before_10_steps_TRUE.json"
+    gg4_total1,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg2_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_total2,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg3_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_total3,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg4_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    gg4_total4,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs!(
-    gg5_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    gg4_total5,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs!(
-    gg6_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omicient_before_10_steps_FALSE.json"
+    gg4_total6,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs!(
-    gg7_total,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    gg4_total7,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 // rock paper scissors
 bench_lcgs!(
     rps1,
     "rock_paper_scissors/rock_paper_scissors.lcgs",
-    "rock_paper_scissors/p1_always_wins_FALSE.json"
+    "rock_paper_scissors/p1_never_lose_FALSE.json"
 );
 
 bench_lcgs!(
@@ -1937,9 +2121,21 @@ bench_lcgs_threads!(
 );
 
 bench_lcgs_threads!(
+    mexican_standoff_3p_3hp_lcgs_suicide_threads,
+    "mexican_standoff/mexican_standoff_3p_3hp.lcgs",
+    "mexican_standoff/can_p1_suicide_FALSE.json"
+);
+
+bench_lcgs_threads!(
     mexican_standoff_5p_1hp_lcgs_survive_threads,
     "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
     "mexican_standoff/can_p1_guarantee_to_survive_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
+    "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
+    "mexican_standoff/can_p1_suicide_FALSE.json"
 );
 
 // tic tac toe
@@ -1975,20 +2171,74 @@ bench_lcgs_threads!(
 
 // robot grid
 bench_lcgs_threads!(
-    rc1_threads,
+    rc3_1_threads,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    rc2_threads,
+    rc3_2_threads,
     "robot_grid/robot_grid_N3.lcgs",
     "robot_grid/everyone_starts_home_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    rc3_threads,
+    rc3_3_threads,
     "robot_grid/robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    rc4_1_threads,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    rc4_2_threads,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    rc4_3_threads,
+    "robot_grid/robot_grid_N4.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc3_1_threads,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc3_2_threads,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc3_3_threads,
+    "robot_grid/prismlike_robot_grid_N3.lcgs",
+    "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc4_1_threads,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/can_r1_and_r2_swap_with_help_from_r3_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc4_2_threads,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
+    "robot_grid/everyone_starts_home_TRUE.json"
+);
+
+bench_lcgs_threads!(
+    prismlike_rc4_3_threads,
+    "robot_grid/prismlike_robot_grid_N4.lcgs",
     "robot_grid/exist_path_to_targets_with_no_crashes_TRUE.json"
 );
 
@@ -2062,94 +2312,94 @@ bench_lcgs_threads!(
 
 // gossiping girls
 bench_lcgs_threads!(
-    gg1_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omicient_before_10_steps_TRUE.json"
+    gg4_circular1_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg2_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_circular2_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg3_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_circular3_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg4_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    gg4_circular4_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg5_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
+    gg4_circular5_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg6_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omicient_before_10_steps_FALSE.json"
+    gg4_circular6_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    gg7_circular_threads,
-    "gossipping_girls/gossipping_girls_circular.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    gg4_circular7_threads,
+    "gossipping_girls/gossipping_girls_circular_4p.lcgs",
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg1_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_girls_ensure_that_all_girls_gets_omicient_before_10_steps_TRUE.json"
+    gg4_total1_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_p1234_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg2_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_girls_ensure_that_only_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_total2_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_ensure_that_only_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg3_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_girls_ensure_that_player_one_gets_omicient_before_10_steps_TRUE.json"
+    gg4_total3_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_ensure_p1_gets_omniscient_before_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg4_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/all_omniscient_but_first_after_10_steps_TRUE.json"
+    gg4_total4_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1234_omniscient_but_first_after_10_steps_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg5_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
+    gg4_total5_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
     "gossipping_girls/eventually_10_steps_are_passed_TRUE.json"
 );
 
 bench_lcgs_threads!(
-    gg6_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/girl_one_gurantee_to_become_omicient_before_10_steps_FALSE.json"
+    gg4_total6_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p1_gurantee_omniscient_before_10_steps_FALSE.json"
 );
 
 bench_lcgs_threads!(
-    gg7_total_threads,
-    "gossipping_girls/gossipping_girls_total_network.lcgs",
-    "gossipping_girls/guarantee_all_girls_eventually_become_omniscient_but_not_girl_one_TRUE.json"
+    gg4_total7_threads,
+    "gossipping_girls/gossipping_girls_total_network_4p.lcgs",
+    "gossipping_girls/p234_eventually_omniscient_without_p1_TRUE.json"
 );
 
 // rock paper scissors
 bench_lcgs_threads!(
     rps1_threads,
     "rock_paper_scissors/rock_paper_scissors.lcgs",
-    "rock_paper_scissors/p1_always_wins_FALSE.json"
+    "rock_paper_scissors/p1_never_lose_FALSE.json"
 );
 
 bench_lcgs_threads!(
@@ -2188,9 +2438,18 @@ criterion_group!(
     ttt3,
     ttt4,
     ttt5,
-    rc1,
-    rc2,
-    rc3, //rc benches takes 215s total
+    rc3_1,
+    rc3_2,
+    rc3_3,
+    rc4_1,
+    rc4_2,
+    rc4_3,
+    prismlike_rc3_1,
+    prismlike_rc3_2,
+    prismlike_rc3_3,
+    prismlike_rc4_1,
+    prismlike_rc4_2,
+    prismlike_rc4_3,
     pa1_3proc,
     pa2_3proc,
     pa3_3proc,
@@ -2201,20 +2460,20 @@ criterion_group!(
     pa3_4proc,
     pa4_4proc,
     pa5_4proc,
-    gg1_circular,
-    gg2_circular,
-    gg3_circular,
-    gg4_circular,
-    gg5_circular,
-    gg6_circular,
-    gg7_circular,
-    gg1_total,
-    gg2_total,
-    gg3_total,
-    gg4_total,
-    gg5_total,
-    gg6_total,
-    gg7_total, // gg_total benches takes avg 69s a piece (nice)
+    gg4_circular1,
+    gg4_circular2,
+    gg4_circular3,
+    gg4_circular4,
+    gg4_circular5,
+    gg4_circular6,
+    gg4_circular7,
+    gg4_total1,
+    gg4_total2,
+    gg4_total3,
+    gg4_total4,
+    gg4_total5,
+    gg4_total6,
+    gg4_total7, // gg_total benches takes avg 69s a piece (nice)
     rps1,
     rps2,
     mp1,
@@ -2225,15 +2484,26 @@ criterion_group!(
 criterion_group!(
     multi_thread_case_studies,
     mexican_standoff_3p_3hp_lcgs_survive_threads,
+    mexican_standoff_3p_3hp_lcgs_suicide_threads,
     mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
     ttt1_threads,
     ttt2_threads,
     ttt3_threads,
     ttt4_threads,
     ttt5_threads,
-    //rc1_threads,
-    //rc2_threads,
-    //rc3_threads, //rc benches takes 215s total
+    rc3_1_threads,
+    rc3_2_threads,
+    rc3_3_threads,
+    rc4_1_threads,
+    rc4_2_threads,
+    rc4_3_threads,
+    prismlike_rc3_1_threads,
+    prismlike_rc3_2_threads,
+    prismlike_rc3_3_threads,
+    prismlike_rc4_1_threads,
+    prismlike_rc4_2_threads,
+    prismlike_rc4_3_threads,
     pa1_3proc_threads,
     pa2_3proc_threads,
     pa3_3proc_threads,
@@ -2244,22 +2514,20 @@ criterion_group!(
     pa3_4proc_threads,
     pa4_4proc_threads,
     pa5_4proc_threads,
-    gg1_circular_threads,
-    gg2_circular_threads,
-    gg3_circular_threads,
-    gg4_circular_threads,
-    gg5_circular_threads,
-    gg6_circular_threads,
-    gg7_circular_threads,
-    /*
-    gg1_total_threads,
-    gg2_total_threads,
-    gg3_total_threads,
-    gg4_total_threads,
-    gg5_total_threads,
-    gg6_total_threads,
-    gg7_total_threads, // gg_total benches takes avg 69s a piece (nice)
-    */
+    gg4_circular1_threads,
+    gg4_circular2_threads,
+    gg4_circular3_threads,
+    gg4_circular4_threads,
+    gg4_circular5_threads,
+    gg4_circular6_threads,
+    gg4_circular7_threads,
+    gg4_total1_threads,
+    gg4_total2_threads,
+    gg4_total3_threads,
+    gg4_total4_threads,
+    gg4_total5_threads,
+    gg4_total6_threads,
+    gg4_total7_threads, // gg_total benches takes avg 69s a piece (nice)
     rps1_threads,
     rps2_threads,
     mp1_threads,
@@ -2550,9 +2818,20 @@ criterion_group!(
 // tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
 criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
+// tiny test suite for threading on MCC
+criterion_group!(
+    mexi_thread_case_study,
+    mexican_standoff_3p_3hp_lcgs_survive_threads,
+    mexican_standoff_3p_3hp_lcgs_suicide_threads,
+    mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
+);
+
 criterion_main!(
     github_action_suite, // remember to disable when benchmarking
                          //static_thread_case_studies,
+                         //mexi_thread_case_study,
+                         //multi_thread_case_studies,
                          //rand_1p_1m_530d,
                          //rand_2p_1m_546d,
                          //rand_3p_1m_400d,

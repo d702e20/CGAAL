@@ -1,0 +1,29 @@
+[package]
+name = "cgaal"
+version = "1.0.0"
+authors = [
+    "d702e20 <d702e20@cs.aau.dk>",
+    "d802f21 <d802f21@cs.aau.dk>",
+    "Asger Weirsøe <aweirs15@student.aau.dk>",
+    "Falke Carlsen <falke.cs@gmail.com>",
+    "Jener Rasmussen <jener@jener.dk>",
+    "Lars Bo Frydenskov <lfryde17@student.aau.dk>",
+    "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
+    "Nicolaj Østerby Jensen <naje17@student.aau.dk>",
+]
+edition = "2021"
+
+[features]
+default = ["graph-printer"]
+graph-printer = []
+
+[dependencies]
+num_cpus = "1.13.1"
+git-version = "0.3.5"
+clap = "2.34.0"
+tracing = "0.1"
+tracing-subscriber = "0.2.17"
+serde_json = "1.0.83"
+regex = { version = "1", features = ["unicode-case"] }
+humantime = "2.1.0"
+cgaal-engine = { path = "../cgaal-engine", version = "1.0.0" }
