@@ -43,7 +43,20 @@ impl<'a> Lexer<'a> {
             len += 1;
         }
         let word = std::str::from_utf8(&self.input[self.pos..self.pos + len]).unwrap();
-        self.token(len, TokenKind::Word(word.to_string()))
+        let kind = match word {
+            "const" => TokenKind::KwConst,
+            "label" => TokenKind::KwLabel,
+            "player" => TokenKind::KwPlayer,
+            "template" => TokenKind::KwTemplate,
+            "endtemplate" => TokenKind::KwEndTemplate,
+            "init" => TokenKind::KwInit,
+            "min" => TokenKind::KwMin,
+            "max" => TokenKind::KwMax,
+            "true" => TokenKind::True,
+            "false" => TokenKind::False,
+            _ => TokenKind::Word(word.to_string()),
+        };
+        self.token(len, kind)
     }
 
     fn lex_num(&mut self) -> Token {
@@ -69,38 +82,57 @@ impl<'a> Iterator for Lexer<'a> {
             b')' => self.token(1, TokenKind::Rparen),
             b'{' => self.token(1, TokenKind::Lbrace),
             b'}' => self.token(1, TokenKind::Rbrace),
-            b'<' => {
-                if self.peek(1) == Some(b'=') {
-                    self.token(2, TokenKind::Leq)
-                } else {
-                    self.token(1, TokenKind::Langle)
-                }
+            b'<' => match self.peek(1) {
+                Some(b'<') => self.token(2, TokenKind::Llangle),
+                Some(b'=') => self.token(2, TokenKind::Leq),
+                _ => self.token(1, TokenKind::Langle),
+            },
+            b'>' => match self.peek(1) {
+                Some(b'>') => self.token(2, TokenKind::Rrangle),
+                Some(b'=') => self.token(2, TokenKind::Geq),
+                _ => self.token(1, TokenKind::Rangle),
+            },
+            b'[' => match self.peek(1) {
+                Some(b'[') => self.token(2, TokenKind::Llbracket),
+                _ => self.token(1, TokenKind::Lbracket),
             }
-            b'>' => {
-                if self.peek(1) == Some(b'=') {
-                    self.token(2, TokenKind::Geq)
-                } else {
-                    self.token(1, TokenKind::Rangle)
-                }
+            b']' => match self.peek(1) {
+                Some(b']') => self.token(2, TokenKind::Rrbracket),
+                _ => self.token(1, TokenKind::Rbracket),
             }
             b'+' => self.token(1, TokenKind::Plus),
-            b'-' => self.token(1, TokenKind::Minus),
+            b'-' => match self.peek(1) {
+                Some(b'>') => self.token(2, TokenKind::Arrow),
+                _ => self.token(1, TokenKind::Minus),
+            },
             b'*' => self.token(1, TokenKind::Star),
             b'/' => self.token(1, TokenKind::Slash),
-            b'=' => {
-                if self.peek(1) == Some(b'=') {
-                    self.token(2, TokenKind::EqEq)
-                } else {
-                    self.token(1, TokenKind::Eq)
-                }
+            b'&' => match self.peek(1) {
+                Some(b'&') => self.token(2, TokenKind::AmpAmp),
+                _ => self.token(1, TokenKind::Err),
             }
-            b'!' => {
-                if self.peek(1) == Some(b'=') {
-                    self.token(2, TokenKind::Neq)
-                } else {
-                    self.token(1, TokenKind::Err)
-                }
+            b'|' => match self.peek(1) {
+                Some(b'|') => self.token(2, TokenKind::PipePipe),
+                _ => self.token(1, TokenKind::Err),
             }
+            b'^' => self.token(1, TokenKind::Hat),
+            b'?' => self.token(1, TokenKind::Question),
+            b'!' => match self.peek(1) {
+                Some(b'=') => self.token(2, TokenKind::Neq),
+                _ => self.token(1, TokenKind::Bang),
+            }
+            b'=' => match self.peek(1) {
+                Some(b'=') => self.token(2, TokenKind::Eq),
+                _ => self.token(1, TokenKind::Assign),
+            }
+            b',' => self.token(1, TokenKind::Comma),
+            b'.' => match self.peek(1) {
+                Some(b'.') => self.token(2, TokenKind::DotDot),
+                _ => self.token(1, TokenKind::Dot),
+            }
+            b';' => self.token(1, TokenKind::Semi),
+            b':' => self.token(1, TokenKind::Colon),
+            b'\'' => self.token(1, TokenKind::Prime),
             b'a'..=b'z' | b'A'..=b'Z' => self.lex_alpha(),
             b'0'..=b'9' => self.lex_num(),
             _ => self.token(1, TokenKind::Err),
@@ -115,14 +147,20 @@ mod tests {
     use std::fmt::Write;
 
     #[test]
-    fn lexing001() {
+    fn lexing_001() {
         let input = "==4 /* - x (var01 > 0)";
         let lexer = Lexer::new(input.as_bytes());
         let mut res = String::new();
         lexer.for_each(|tk| write!(res, "{tk:?}").unwrap());
-        assert_eq!(
-            "'=='(0,2)'4'(2,3)'/'(4,5)'*'(5,6)'-'(7,8)'x'(9,10)'('(11,12)'var01'(12,17)'>'(18,19)'0'(20,21)')'(21,22)",
-            &res
-        )
+        assert_eq!(&res, "'=='(0,2)'4'(2,3)'/'(4,5)'*'(5,6)'-'(7,8)'x'(9,10)'('(11,12)'var01'(12,17)'>'(18,19)'0'(20,21)')'(21,22)")
+    }
+
+    #[test]
+    fn lexing_002() {
+        let input = "  !player ->i [..]<< init>>";
+        let lexer = Lexer::new(input.as_bytes());
+        let mut res = String::new();
+        lexer.for_each(|tk| write!(res, "{tk:?}").unwrap());
+        assert_eq!(&res, "'!'(2,3)'player'(3,9)'->'(10,12)'i'(12,13)'['(14,15)'..'(15,17)']'(17,18)'<<'(18,20)'init'(21,25)'>>'(25,27)")
     }
 }
