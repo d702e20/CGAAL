@@ -7,10 +7,10 @@ use std::sync::Arc;
 mod eager;
 pub mod lcgs;
 
-pub(crate) type Proposition = usize;
-pub(crate) type Player = usize;
-pub(crate) type State = usize;
-pub(crate) type Action = usize;
+pub type Proposition = usize;
+pub type Player = usize;
+pub type State = usize;
+pub type Action = usize;
 
 pub trait GameStructure {
     fn initial_state_index(&self) -> State;

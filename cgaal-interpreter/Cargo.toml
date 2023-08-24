@@ -1,0 +1,19 @@
+[package]
+name = "cgaal-interpreter"
+version = "0.0.1"
+authors = [
+    "d702e20 <d702e20@cs.aau.dk>",
+    "d802f21 <d802f21@cs.aau.dk>",
+    "Asger Weirsøe <aweirs15@student.aau.dk>",
+    "Falke Carlsen <falke.cs@gmail.com>",
+    "Jener Rasmussen <jener@jener.dk>",
+    "Lars Bo Frydenskov <lfryde17@student.aau.dk>",
+    "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
+    "Nicolaj Østerby Jensen <naje17@student.aau.dk>",
+]
+
+edition = "2021"
+
+[dependencies]
+phf = { version = "0.11", features = ["macros"] }
+cgaal-engine = { path = "../cgaal-engine", version = "1.0.0" }

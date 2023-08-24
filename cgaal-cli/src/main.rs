@@ -3,6 +3,7 @@ extern crate git_version;
 extern crate num_cpus;
 
 use humantime::format_duration;
+use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
@@ -29,6 +30,8 @@ use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use cgaal_engine::printer::print_graph;
+
+use cgaal_interpreter::interpreter::CGAALInterpreter;
 
 use crate::args::CommonArgs;
 use crate::solver::solver;
@@ -327,6 +330,20 @@ fn main_inner() -> Result<(), String> {
                 }
             }
         }
+        ("interpreter", Some(interpreter_args)) => {
+            let input_model_path = interpreter_args.value_of("input_model").unwrap();
+            let model_type = get_model_type_from_args(interpreter_args)?;
+            match load_model(model_type, input_model_path)? {
+                Model::Lcgs { model } => {
+                    let mut interpreter = CGAALInterpreter::new(model);
+                    interpreter.run();
+                }
+                Model::Json { model } => {
+                    let mut interpreter = CGAALInterpreter::new(model);
+                    interpreter.run();
+                }
+            }
+        }
         _ => (),
     };
     Ok(())
@@ -436,13 +453,11 @@ pub enum ModelAndFormula {
     },
 }
 
-/// Loads a model and a formula from files
-fn load(
-    model_type: ModelType,
-    game_structure_path: &str,
-    formula_path: &str,
-    formula_format: FormulaType,
-) -> Result<ModelAndFormula, String> {
+pub enum Model {
+    Lcgs { model: IntermediateLcgs },
+    Json { model: EagerGameStructure },
+}
+fn load_model(model_type: ModelType, game_structure_path: &str) -> Result<Model, String> {
     // Open the input model file
     let mut file = File::open(game_structure_path)
         .map_err(|err| format!("Failed to open input model.\n{}", err))?;
@@ -452,16 +467,13 @@ fn load(
         .map_err(|err| format!("Failed to read input model.\n{}", err))?;
 
     // Depending on which model_type is specified, use the relevant parsing logic
-    match model_type {
+    return match model_type {
         ModelType::Json => {
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
-            let phi = load_formula(formula_path, formula_format, &game_structure);
-
-            Ok(ModelAndFormula::Json {
+            Ok(Model::Json {
                 model: game_structure,
-                formula: phi,
             })
         }
         ModelType::Lcgs => {
@@ -471,14 +483,32 @@ fn load(
             let game_structure = IntermediateLcgs::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
-            let phi = load_formula(formula_path, formula_format, &game_structure);
-
-            Ok(ModelAndFormula::Lcgs {
+            Ok(Model::Lcgs {
                 model: game_structure,
-                formula: phi,
             })
         }
-    }
+    };
+}
+
+/// Loads a model and a formula from files
+fn load(
+    model_type: ModelType,
+    game_structure_path: &str,
+    formula_path: &str,
+    formula_format: FormulaType,
+) -> Result<ModelAndFormula, String> {
+    let game_structure = load_model(model_type, game_structure_path)?;
+
+    return match game_structure {
+        Model::Json { model } => {
+            let formula = load_formula(formula_path, formula_format, &model);
+            Ok(ModelAndFormula::Json { model, formula })
+        }
+        Model::Lcgs { model } => {
+            let formula = load_formula(formula_path, formula_format, &model);
+            Ok(ModelAndFormula::Lcgs { model, formula })
+        }
+    };
 }
 
 /// Define and parse command line arguments
