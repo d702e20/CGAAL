@@ -22,12 +22,6 @@ impl<G: GameStructure + Clone> CGAALInterpreter<G> {
         }
     }
 
-    pub fn new_empty() -> Self {
-        Self {
-            cgs: None,
-            curr_state: None,
-        }
-    }
 
     pub fn run(&mut self) {
         loop {
