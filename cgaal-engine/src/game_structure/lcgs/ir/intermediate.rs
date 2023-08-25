@@ -541,7 +541,7 @@ impl GameStructure for IntermediateLcgs {
 }
 
 impl AtlExpressionParser for IntermediateLcgs {
-    fn player_parser(&self, state: &ParseState) -> Parser<u8, game_structure::Player> {
+    fn player_parser(&self, state: &ParseState<u8>) -> Parser<u8, game_structure::Player> {
         // In ATL, players are referred to using their name, i.e. an identifier
         identifier().convert(move |name| {
             // We check if a declaration with the given name exists,
@@ -562,7 +562,7 @@ impl AtlExpressionParser for IntermediateLcgs {
         })
     }
 
-    fn proposition_parser(&self, state: &ParseState) -> Parser<u8, Proposition> {
+    fn proposition_parser(&self, state: &ParseState<u8>) -> Parser<u8, Proposition> {
         // In ATL, propositions are either "something" where "something" must be a label declared
         // in the global scope, or "someone.something" where "something" is a label owned by
         // a player of name "someone".

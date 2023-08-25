@@ -1,7 +1,7 @@
+mod errors;
 mod lexer;
 mod span;
 mod token;
-mod errors;
 
 use crate::parsing::span::Span;
 use pom::parser::*;
@@ -33,11 +33,12 @@ pub struct ParseError {
 /// The `ParseState` is a struct carried around during parsing containing extra information
 /// about the state of the parser, such as the errors encountered
 #[derive(Debug, Default)]
-pub struct ParseState {
+pub struct ParseState<I> {
     errors: RefCell<Vec<ParseError>>,
+    sync_tokens: RefCell<Vec<I>>,
 }
 
-impl ParseState {
+impl<I> ParseState<I> {
     /// Saves an error to display when parsing is done
     pub fn report_err(&self, err: ParseError) {
         self.errors.borrow_mut().push(err)
@@ -77,7 +78,7 @@ pub(crate) fn call2<'a, I, O, A, B, P: Fn(&'a A, &'a B) -> Parser<'a, I, O>>(
 /// and parsing will continue with no input consumed.
 #[allow(unused)]
 pub(crate) fn parse_or_skip<'a, I: Eq + Display, O: 'a>(
-    parse_state: &'a ParseState,
+    parse_state: &'a ParseState<I>,
     parser: Parser<'a, I, O>,
     err_msg: &'a str,
 ) -> Parser<'a, I, Option<O>> {
@@ -103,7 +104,7 @@ pub(crate) fn parse_or_skip<'a, I: Eq + Display, O: 'a>(
 /// and parsing will continue at EOF.
 #[allow(unused)]
 pub(crate) fn parse_or_abort<'a, I: Eq + Display, O: 'a>(
-    parse_state: &'a ParseState,
+    parse_state: &'a ParseState<I>,
     parser: Parser<'a, I, O>,
     err_msg: &'a str,
 ) -> Parser<'a, I, Option<O>> {
@@ -128,14 +129,15 @@ pub(crate) fn parse_or_abort<'a, I: Eq + Display, O: 'a>(
 /// If the given parser fails to parse, an error is reported using the given error message,
 /// and parsing will continue at the next occurrence of the synchronization token.
 #[allow(unused)]
-pub(crate) fn parse_or_sync<'a, I: Eq + Display, O: 'a>(
-    parse_state: &'a ParseState,
+pub(crate) fn parse_or_sync<'a, I: Copy + Eq + Display, O: 'a>(
+    parse_state: &'a ParseState<I>,
     parser: Parser<'a, I, O>,
     sync: I,
     err_msg: &'a str,
 ) -> Parser<'a, I, Option<O>> {
-    Parser::new(
-        move |input: &'_ [I], start: usize| match (parser.method)(input, start) {
+    Parser::new(move |input: &'_ [I], start: usize| {
+        parse_state.sync_tokens.borrow_mut().push(sync);
+        let res = match (parser.method)(input, start) {
             Ok((out, pos)) => {
                 if input.get(pos) == Some(&sync) {
                     Ok((Some(out), pos + 1))
@@ -143,19 +145,23 @@ pub(crate) fn parse_or_sync<'a, I: Eq + Display, O: 'a>(
                     parse_state.report_err(ParseError {
                         span: Span {
                             begin: pos,
-                            end: input.len(),
+                            end: pos + 1,
                         },
-                        msg: format!("Missing {}", sync),
+                        msg: format!("Missing '{}'", sync),
                     });
-                    Ok((Some(out), input.len()))
+                    Ok((Some(out), pos))
                 }
             }
             Err(_) => {
                 let sync_pos = input[start..]
                     .iter()
-                    .position(|i| i == &sync)
+                    .position(|c| c == &sync)
                     .map(|p| p + start + 1)
-                    .unwrap_or(input.len());
+                    .or(input[start..]
+                        .iter()
+                        .position(|c| parse_state.sync_tokens.borrow().contains(c))
+                        .map(|p| p + start)
+                    ).unwrap_or(input.len());
                 parse_state.report_err(ParseError {
                     span: Span {
                         begin: start,
@@ -165,8 +171,10 @@ pub(crate) fn parse_or_sync<'a, I: Eq + Display, O: 'a>(
                 });
                 Ok((None, sync_pos))
             }
-        },
-    )
+        };
+        parse_state.sync_tokens.borrow_mut().pop();
+        res
+    })
 }
 
 #[cfg(test)]
@@ -233,25 +241,51 @@ mod test {
 
     #[test]
     fn parse_or_sync_001() {
+        // parse_or_sync works on happy path
         let state = ParseState::default();
-        let foo = seq(b"foo");
-        let parser = sym(b'(') * parse_or_sync(&state, foo, b')', "error") - end();
+        let inner = seq(b"foo");
+        let parser = sym(b'(') * parse_or_sync(&state, inner, b')', "error") - seq(b"ok") - end();
 
-        // Input is expected string "(foo)"
-        let res = parser.parse(b"(foo)").expect("Parser must not fail");
+        let res = parser.parse(b"(foo)ok").expect("Parser must not fail");
         assert_eq!(b"foo", res.unwrap());
         assert!(state.errors.borrow().is_empty());
     }
 
     #[test]
     fn parse_or_sync_002() {
+        // parse_or_sync synchronizes when inner parser fails
         let state = ParseState::default();
-        let foo = seq(b"foo");
-        let parser = sym(b'(') * parse_or_sync(&state, foo, b')', "error") - end();
+        let inner = seq(b"foo");
+        let parser = sym(b'(') * parse_or_sync(&state, inner, b')', "error") - seq(b"ok") - end();
 
-        // Input is unexpected, but parser will recover
-        let res = parser.parse(b"(bar)").expect("Parser must not fail");
+        let res = parser.parse(b"(bar)ok").expect("Parser must not fail");
         assert!(res.is_none());
+        assert_eq!(1, state.errors.borrow().len());
+    }
+
+    #[test]
+    fn parse_or_sync_003() {
+        // nested parse_or_sync synchronizes when inner parser fails
+        let state = ParseState::default();
+        let inner = seq(b"foo");
+        let middle = sym(b'(') * parse_or_sync(&state, inner, b')', "error");
+        let parser = sym(b'(') * parse_or_sync(&state, middle, b')', "error") - seq(b"ok") - end();
+
+        let res = parser.parse(b"((bar))ok").expect("Parser must not fail");
+        assert!(res.is_some()); // Outer parser succeeds despite inner parser failing
+        assert_eq!(1, state.errors.borrow().len());
+    }
+
+    #[test]
+    fn parse_or_sync_004() {
+        // nested parse_or_sync synchronizes at first sync token
+        let state = ParseState::default();
+        let inner = seq(b"foo");
+        let middle = sym(b'[') * parse_or_sync(&state, inner, b']', "error");
+        let parser = sym(b'(') * parse_or_sync(&state, middle, b')', "error") - seq(b"ok") - end();
+
+        let res = parser.parse(b"([bar)ok").expect("Parser must not fail");
+        assert!(res.is_some()); // Outer parser succeeds despite inner parser failing
         assert_eq!(1, state.errors.borrow().len());
     }
 }

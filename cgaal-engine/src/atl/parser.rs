@@ -30,9 +30,9 @@ pub fn parse_phi<'a, 'b: 'a, A: AtlExpressionParser>(
 /// in json, players and propositions are numbers.
 pub trait AtlExpressionParser {
     /// A parser that parses a player name
-    fn player_parser(&self, state: &ParseState) -> Parser<u8, Player>;
+    fn player_parser(&self, state: &ParseState<u8>) -> Parser<u8, Player>;
     /// A parser that parses a proposition name
-    fn proposition_parser(&self, state: &ParseState) -> Parser<u8, Proposition>;
+    fn proposition_parser(&self, state: &ParseState<u8>) -> Parser<u8, Proposition>;
 }
 
 /// Whitespace
@@ -42,7 +42,7 @@ fn ws<'a>() -> Parser<'a, u8, ()> {
 
 /// Parses an ATL formula (without whitespace around it)
 pub(crate) fn conjunction<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     let conjunc = (disjunction(state, expr_parser) - ws() - sym(b'&') - ws()
@@ -53,7 +53,7 @@ pub(crate) fn conjunction<'a, A: AtlExpressionParser>(
 
 /// Parses an ATL term (Can't contain AND and without whitespace around it)
 fn disjunction<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     let disjunc = (primary(state, expr_parser) - ws() - sym(b'|') - ws()
@@ -64,7 +64,7 @@ fn disjunction<'a, A: AtlExpressionParser>(
 
 /// Parses a primary ATL formula (no ANDs or ORs)
 fn primary<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     paren(state, expr_parser)
@@ -83,7 +83,7 @@ fn primary<'a, A: AtlExpressionParser>(
 
 /// Parses an ATL formula in parenthesis
 fn paren<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     sym(b'(') * ws() * call2(&conjunction, state, expr_parser) - ws() - sym(b')')
@@ -91,7 +91,7 @@ fn paren<'a, A: AtlExpressionParser>(
 
 /// Parses an enforce-coalition (path qualifier)
 fn enforce_coalition<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Vec<usize>> {
     seq(b"<<") * ws() * players(state, expr_parser) - ws() - seq(b">>")
@@ -99,7 +99,7 @@ fn enforce_coalition<'a, A: AtlExpressionParser>(
 
 /// Parses a despite-coalition (path qualifier)
 fn despite_coalition<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Vec<usize>> {
     seq(b"[[") * ws() * players(state, expr_parser) - ws() - seq(b"]]")
@@ -107,7 +107,7 @@ fn despite_coalition<'a, A: AtlExpressionParser>(
 
 /// Parses an path formula starting with the NEXT (X) operator
 fn next<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     sym(b'X') * ws() * call2(&conjunction, state, expr_parser)
@@ -115,7 +115,7 @@ fn next<'a, A: AtlExpressionParser>(
 
 /// Parses an path formula with the UNTIL operator
 fn until<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, (Phi, Phi)> {
     sym(b'(') * ws() * call2(&conjunction, state, expr_parser) - ws() - sym(b'U') - ws()
@@ -126,7 +126,7 @@ fn until<'a, A: AtlExpressionParser>(
 
 /// Parses an path formula starting with the EVENTUALLY (F/finally) operator
 fn eventually<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     sym(b'F') * ws() * call2(&conjunction, state, expr_parser)
@@ -134,7 +134,7 @@ fn eventually<'a, A: AtlExpressionParser>(
 
 /// Parses an path formula starting with the INVARIANT (G/global) operator
 fn invariant<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     sym(b'G') * ws() * call2(&conjunction, state, expr_parser)
@@ -142,7 +142,7 @@ fn invariant<'a, A: AtlExpressionParser>(
 
 /// Parses an ENFORCE-NEXT ATL formula
 fn enforce_next<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (enforce_coalition(state, expr_parser) - ws() + next(state, expr_parser)).map(|(players, phi)| {
@@ -155,7 +155,7 @@ fn enforce_next<'a, A: AtlExpressionParser>(
 
 /// Parses an ENFORCE-UNTIL ATL formula
 fn enforce_until<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (enforce_coalition(state, expr_parser) - ws() + until(state, expr_parser)).map(
@@ -169,7 +169,7 @@ fn enforce_until<'a, A: AtlExpressionParser>(
 
 /// Parses an ENFORCE-EVENTUALLY ATL formula
 fn enforce_eventually<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (enforce_coalition(state, expr_parser) - ws() + eventually(state, expr_parser)).map(
@@ -182,7 +182,7 @@ fn enforce_eventually<'a, A: AtlExpressionParser>(
 
 /// Parses an ENFORCE-INVARIANT ATL formula
 fn enforce_invariant<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (enforce_coalition(state, expr_parser) - ws() + invariant(state, expr_parser)).map(
@@ -195,7 +195,7 @@ fn enforce_invariant<'a, A: AtlExpressionParser>(
 
 /// Parses an DESPITE-NEXT ATL formula
 fn despite_next<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (despite_coalition(state, expr_parser) - ws() + next(state, expr_parser)).map(|(players, phi)| {
@@ -208,7 +208,7 @@ fn despite_next<'a, A: AtlExpressionParser>(
 
 /// Parses an DESPITE-UNTIL ATL formula
 fn despite_until<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (despite_coalition(state, expr_parser) - ws() + until(state, expr_parser)).map(
@@ -222,7 +222,7 @@ fn despite_until<'a, A: AtlExpressionParser>(
 
 /// Parses an DESPITE-EVENTUALLY ATL formula
 fn despite_eventually<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (despite_coalition(state, expr_parser) - ws() + eventually(state, expr_parser)).map(
@@ -235,7 +235,7 @@ fn despite_eventually<'a, A: AtlExpressionParser>(
 
 /// Parses an DESPITE-INVARIANT ATL formula
 fn despite_invariant<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (despite_coalition(state, expr_parser) - ws() + invariant(state, expr_parser)).map(
@@ -248,7 +248,7 @@ fn despite_invariant<'a, A: AtlExpressionParser>(
 
 /// Parses a proposition using the given [ATLExpressionParser].
 fn proposition<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     expr_parser.proposition_parser(state).map(Phi::Proposition)
@@ -256,7 +256,7 @@ fn proposition<'a, A: AtlExpressionParser>(
 
 /// Parses a negated ATL formula
 fn not<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Phi> {
     (sym(b'!') * ws() * call2(&primary, state, expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
@@ -272,7 +272,7 @@ fn boolean<'a>() -> Parser<'a, u8, Phi> {
 
 /// Parses a comma-separated list of players using the given [ATLExpressionParser].
 fn players<'a, A: AtlExpressionParser>(
-    state: &'a ParseState,
+    state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Vec<Player>> {
     list(expr_parser.player_parser(state), ws() * sym(b',') * ws())
@@ -332,18 +332,18 @@ mod test {
     struct TestModel;
 
     impl AtlExpressionParser for TestModel {
-        fn player_parser(&self, state: &ParseState) -> Parser<u8, Player> {
+        fn player_parser(&self, state: &ParseState<u8>) -> Parser<u8, Player> {
             number()
         }
 
-        fn proposition_parser(&self, state: &ParseState) -> Parser<u8, Proposition> {
+        fn proposition_parser(&self, state: &ParseState<u8>) -> Parser<u8, Proposition> {
             number()
         }
     }
 
     #[test]
     fn paren_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert!(!state.has_errors());
         assert_eq!(paren(&state, &TestModel).parse(b"(true)"), Ok(Phi::True));
     }
@@ -351,7 +351,7 @@ mod test {
     /// Test for a single player
     #[test]
     fn enforce_players_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_coalition(&state, &TestModel).parse(b"<<1>>"),
             Ok(vec![1usize])
@@ -362,7 +362,7 @@ mod test {
     /// Test for two players
     #[test]
     fn enforce_players_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_coalition(&state, &TestModel).parse(b"<<4,9>>"),
             Ok(vec![4usize, 9usize])
@@ -373,7 +373,7 @@ mod test {
     /// Test for three players
     #[test]
     fn enforce_players_3() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_coalition(&state, &TestModel).parse(b"<<203,23,4>>"),
             Ok(vec![203usize, 23usize, 4usize])
@@ -384,7 +384,7 @@ mod test {
     /// The list of players is allowed to have whitespace after the separator
     #[test]
     fn enforce_players_4() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_coalition(&state, &TestModel).parse(b"<<203,  23>>"),
             Ok(vec![203usize, 23usize])
@@ -395,7 +395,7 @@ mod test {
     /// Test for no players, should be valid
     #[test]
     fn enforce_players_5() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_coalition(&state, &TestModel).parse(b"<<>>"),
             Ok(vec![])
@@ -406,7 +406,7 @@ mod test {
     /// Test for a single player
     #[test]
     fn despite_players_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_coalition(&state, &TestModel).parse(b"[[1]]"),
             Ok(vec![1usize])
@@ -417,7 +417,7 @@ mod test {
     /// Test for two players
     #[test]
     fn despite_players_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_coalition(&state, &TestModel).parse(b"[[4,9]]"),
             Ok(vec![4usize, 9usize])
@@ -428,7 +428,7 @@ mod test {
     /// Test for three players
     #[test]
     fn despite_players_3() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_coalition(&state, &TestModel).parse(b"[[203,23,4]]"),
             Ok(vec![203usize, 23usize, 4usize])
@@ -439,7 +439,7 @@ mod test {
     /// The list of players is allowed to have whitespace after the seperator
     #[test]
     fn despite_players_4() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_coalition(&state, &TestModel).parse(b"[[203,  23]]"),
             Ok(vec![203usize, 23usize])
@@ -450,7 +450,7 @@ mod test {
     /// Test for no players, should be valid
     #[test]
     fn despite_players_5() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_coalition(&state, &TestModel).parse(b"[[]]"),
             Ok(vec![])
@@ -460,21 +460,21 @@ mod test {
 
     #[test]
     fn next_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(next(&state, &TestModel).parse(b"X true"), Ok(Phi::True));
         assert!(!state.has_errors());
     }
 
     #[test]
     fn next_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(next(&state, &TestModel).parse(b"Xtrue"), Ok(Phi::True));
         assert!(!state.has_errors());
     }
 
     #[test]
     fn until_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             until(&state, &TestModel).parse(b"( true U true )"),
             Ok((Phi::True, Phi::True))
@@ -484,7 +484,7 @@ mod test {
 
     #[test]
     fn until_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             until(&state, &TestModel).parse(b"(trueUtrue)"),
             Ok((Phi::True, Phi::True))
@@ -494,7 +494,7 @@ mod test {
 
     #[test]
     fn eventually_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             eventually(&state, &TestModel).parse(b"F true"),
             Ok(Phi::True)
@@ -504,7 +504,7 @@ mod test {
 
     #[test]
     fn eventually_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             eventually(&state, &TestModel).parse(b"Ftrue"),
             Ok(Phi::True)
@@ -514,7 +514,7 @@ mod test {
 
     #[test]
     fn invariant_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             invariant(&state, &TestModel).parse(b"G true"),
             Ok(Phi::True)
@@ -524,14 +524,14 @@ mod test {
 
     #[test]
     fn invariant_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(invariant(&state, &TestModel).parse(b"Gtrue"), Ok(Phi::True));
         assert!(!state.has_errors());
     }
 
     #[test]
     fn enforce_next_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_next(&state, &TestModel).parse(b"<<1 , 2>> X true"),
             Ok(Phi::EnforceNext {
@@ -544,7 +544,7 @@ mod test {
 
     #[test]
     fn enforce_next_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_next(&state, &TestModel).parse(b"<<1,2>>Xtrue"),
             Ok(Phi::EnforceNext {
@@ -557,7 +557,7 @@ mod test {
 
     #[test]
     fn enforce_until_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_until(&state, &TestModel).parse(b"<<1 , 2>> ( true U true )"),
             Ok(Phi::EnforceUntil {
@@ -571,7 +571,7 @@ mod test {
 
     #[test]
     fn enforce_until_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_until(&state, &TestModel).parse(b"<<1,2>>(trueUtrue)"),
             Ok(Phi::EnforceUntil {
@@ -585,7 +585,7 @@ mod test {
 
     #[test]
     fn enforce_eventually_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_eventually(&state, &TestModel).parse(b"<<1 , 2>> F true"),
             Ok(Phi::EnforceEventually {
@@ -598,7 +598,7 @@ mod test {
 
     #[test]
     fn enforce_eventually_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_eventually(&state, &TestModel).parse(b"<<1,2>>Ftrue"),
             Ok(Phi::EnforceEventually {
@@ -611,7 +611,7 @@ mod test {
 
     #[test]
     fn enforce_invariant_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_invariant(&state, &TestModel).parse(b"<<1 , 2>> G true"),
             Ok(Phi::EnforceInvariant {
@@ -624,7 +624,7 @@ mod test {
 
     #[test]
     fn enforce_invariant_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             enforce_invariant(&state, &TestModel).parse(b"<<1,2>>Gtrue"),
             Ok(Phi::EnforceInvariant {
@@ -637,7 +637,7 @@ mod test {
 
     #[test]
     fn despite_next_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_next(&state, &TestModel).parse(b"[[1 , 2]] X true"),
             Ok(Phi::DespiteNext {
@@ -650,7 +650,7 @@ mod test {
 
     #[test]
     fn despite_next_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_next(&state, &TestModel).parse(b"[[1,2]]Xtrue"),
             Ok(Phi::DespiteNext {
@@ -663,7 +663,7 @@ mod test {
 
     #[test]
     fn despite_until_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_until(&state, &TestModel).parse(b"[[1 , 2]] ( true U true )"),
             Ok(Phi::DespiteUntil {
@@ -677,7 +677,7 @@ mod test {
 
     #[test]
     fn despite_until_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_until(&state, &TestModel).parse(b"[[1,2]](trueUtrue)"),
             Ok(Phi::DespiteUntil {
@@ -691,7 +691,7 @@ mod test {
 
     #[test]
     fn despite_eventually_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_eventually(&state, &TestModel).parse(b"[[1 , 2]] F true"),
             Ok(Phi::DespiteEventually {
@@ -704,7 +704,7 @@ mod test {
 
     #[test]
     fn despite_eventually_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_eventually(&state, &TestModel).parse(b"[[1,2]]Ftrue"),
             Ok(Phi::DespiteEventually {
@@ -717,7 +717,7 @@ mod test {
 
     #[test]
     fn despite_invariant_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_invariant(&state, &TestModel).parse(b"[[1 , 2]] G true"),
             Ok(Phi::DespiteInvariant {
@@ -730,7 +730,7 @@ mod test {
 
     #[test]
     fn despite_invariant_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             despite_invariant(&state, &TestModel).parse(b"[[1,2]]Gtrue"),
             Ok(Phi::DespiteInvariant {
@@ -743,7 +743,7 @@ mod test {
 
     #[test]
     fn proposition_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             proposition(&state, &TestModel).parse(b"1"),
             Ok(Phi::Proposition(1usize))
@@ -753,7 +753,7 @@ mod test {
 
     #[test]
     fn proposition_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             proposition(&state, &TestModel).parse(b"1432"),
             Ok(Phi::Proposition(1432usize))
@@ -763,14 +763,14 @@ mod test {
 
     #[test]
     fn proposition_3() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert!(proposition(&state, &TestModel).parse(b"abc").is_err());
         assert!(!state.has_errors());
     }
 
     #[test]
     fn not_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             not(&state, &TestModel).parse(b"! true"),
             Ok(Phi::Not(Arc::new(Phi::True)))
@@ -780,7 +780,7 @@ mod test {
 
     #[test]
     fn not_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             not(&state, &TestModel).parse(b"!true"),
             Ok(Phi::Not(Arc::new(Phi::True)))
@@ -790,7 +790,7 @@ mod test {
 
     #[test]
     fn and_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             conjunction(&state, &TestModel).parse(b"true & false"),
             Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
@@ -800,7 +800,7 @@ mod test {
 
     #[test]
     fn and_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             conjunction(&state, &TestModel).parse(b"true&false"),
             Ok(Phi::And(Arc::new(Phi::True), Arc::new(Phi::False)))
@@ -811,7 +811,7 @@ mod test {
     #[test]
     fn and_3() {
         // Right recursive?
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             conjunction(&state, &TestModel).parse(b"true&false&true"),
             Ok(Phi::And(
@@ -824,7 +824,7 @@ mod test {
 
     #[test]
     fn or_1() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             disjunction(&state, &TestModel).parse(b"true | false"),
             Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
@@ -834,7 +834,7 @@ mod test {
 
     #[test]
     fn or_2() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             disjunction(&state, &TestModel).parse(b"true|false"),
             Ok(Phi::Or(Arc::new(Phi::True), Arc::new(Phi::False)))
@@ -845,7 +845,7 @@ mod test {
     #[test]
     fn or_3() {
         // Right recursive?
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             disjunction(&state, &TestModel).parse(b"true|false |true"),
             Ok(Phi::Or(
@@ -858,7 +858,7 @@ mod test {
 
     #[test]
     fn test_and_or_precedence_01() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             conjunction(&state, &TestModel).parse(b"true & false | true | false & true"),
             Ok(Phi::And(
@@ -897,7 +897,7 @@ mod test {
 
     #[test]
     fn test_phi_01() {
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         assert_eq!(
             conjunction(&state, &TestModel).parse(b"<<0>> F true"),
             Ok(Phi::EnforceEventually {
@@ -976,7 +976,7 @@ mod test {
         let lcgs = IntermediateLcgs::create(parse_lcgs(lcgs_program).unwrap()).unwrap();
 
         let atl_formula = "<<p1>>";
-        let state = ParseState::default();
+        let state = ParseState::<u8>::default();
         let phi = enforce_coalition(&state, &lcgs).parse(&atl_formula.as_bytes());
         assert_eq!(phi, Ok(vec![0]));
         assert!(!state.has_errors());

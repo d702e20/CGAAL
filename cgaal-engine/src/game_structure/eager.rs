@@ -90,7 +90,7 @@ impl GameStructure for EagerGameStructure {
 }
 
 impl AtlExpressionParser for EagerGameStructure {
-    fn player_parser(&self, state: &ParseState) -> Parser<u8, Player> {
+    fn player_parser(&self, state: &ParseState<u8>) -> Parser<u8, Player> {
         // In EagerGameStructure ATL, players are just their index
         number().convert(move |i| {
             if i <= self.max_player() {
@@ -101,7 +101,7 @@ impl AtlExpressionParser for EagerGameStructure {
         })
     }
 
-    fn proposition_parser(&self, state: &ParseState) -> Parser<u8, Proposition> {
+    fn proposition_parser(&self, state: &ParseState<u8>) -> Parser<u8, Proposition> {
         // In EagerGameStructure ATL, proposition are just their index.
         // All numbers are valid propositions, but they might not be true anywhere.
         number()
