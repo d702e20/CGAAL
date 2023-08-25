@@ -1,6 +1,7 @@
 mod lexer;
 mod span;
 mod token;
+mod errors;
 
 use crate::parsing::span::Span;
 use pom::parser::*;
