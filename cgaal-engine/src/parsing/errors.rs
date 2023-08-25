@@ -11,7 +11,11 @@ impl ErrorLog {
         Default::default()
     }
 
-    pub fn log(&mut self, entry: ErrorEntry) {
+    pub fn log(&mut self, span: Span, msg: String) {
+        self.errors.push(ErrorEntry::new(span, msg));
+    }
+
+    pub fn log_entry(&mut self, entry: ErrorEntry) {
         self.errors.push(entry);
     }
 
@@ -111,7 +115,7 @@ mod tests {
         ";
         let mut log = ErrorLog::new();
         let i = input.find("robot").unwrap();
-        log.log(ErrorEntry::new(Span::new(i, i + 5), "Unknown identifier 'robot'".to_string()));
+        log.log(Span::new(i, i + 5), "Unknown identifier 'robot'".to_string());
         let mut out = String::new();
         log.write_detailed(input, &mut out).unwrap();
         assert_eq!(
@@ -131,7 +135,7 @@ mod tests {
         ";
         let mut log = ErrorLog::new();
         let span = Span::new(input.find("123").unwrap(), input.find(";").unwrap());
-        log.log(ErrorEntry::new(span, "RHS of '+' must be integer, found bool".to_string()));
+        log.log(span, "RHS of '+' must be integer, found bool".to_string());
         let mut out = String::new();
         log.write_detailed(input, &mut out).unwrap();
         assert_eq!(
