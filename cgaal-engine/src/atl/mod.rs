@@ -10,6 +10,7 @@ use crate::game_structure::{GameStructure, Player, Proposition};
 
 pub mod game_formula;
 pub mod parser;
+pub mod ast;
 
 /// Alternating-time Temporal Logic formula
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
