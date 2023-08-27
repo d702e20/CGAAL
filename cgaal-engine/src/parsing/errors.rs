@@ -23,6 +23,10 @@ impl ErrorLog {
         self.errors.push(ErrorEntry::msg_only(msg));
     }
 
+    pub fn len(&self) -> usize {
+        self.errors.len()
+    }
+
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
@@ -102,7 +106,7 @@ impl ErrorEntry {
 
 #[cfg(test)]
 mod tests {
-    use crate::parsing::errors::{ErrorEntry, ErrorLog};
+    use crate::parsing::errors::ErrorLog;
     use crate::parsing::span::Span;
 
     #[test]

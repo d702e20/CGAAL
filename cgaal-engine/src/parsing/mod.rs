@@ -3,14 +3,16 @@ mod lexer;
 pub mod span;
 mod token;
 
+use crate::parsing::errors::ErrorLog;
 use crate::parsing::span::Span;
 use pom::parser::*;
 use std::cell::RefCell;
 use std::fmt::Display;
+use crate::atl::{identifier, number};
 
 /// A trait that allows us to extent parser with a helper function that extracts the span of
 /// the parsed piece of text
-trait WithSpan<'a, I, O: 'a> {
+pub trait WithSpan<'a, I, O: 'a> {
     fn with_span(self) -> Parser<'a, I, (Span, O)>;
 }
 
@@ -23,34 +25,12 @@ impl<'a, I, O: 'a> WithSpan<'a, I, O> for Parser<'a, I, O> {
     }
 }
 
-/// An error containing problematic text span and an error message
-#[derive(Debug)]
-pub struct ParseError {
-    span: Span,
-    msg: String,
-}
-
 /// The `ParseState` is a struct carried around during parsing containing extra information
 /// about the state of the parser, such as the errors encountered
 #[derive(Debug, Default)]
 pub struct ParseState<I> {
-    errors: RefCell<Vec<ParseError>>,
+    pub errors: RefCell<ErrorLog>,
     sync_tokens: RefCell<Vec<I>>,
-}
-
-impl<I> ParseState<I> {
-    /// Saves an error to display when parsing is done
-    pub fn report_err(&self, err: ParseError) {
-        self.errors.borrow_mut().push(err)
-    }
-
-    pub fn has_errors(&self) -> bool {
-        !self.errors.borrow().is_empty()
-    }
-
-    pub fn errors_as_str(&self, input: &str) -> String {
-        unimplemented!("Nicely formatted errors")
-    }
 }
 
 /// Create a lazy parser used for recursive definitions.
@@ -86,13 +66,11 @@ pub(crate) fn parse_or_skip<'a, I: Eq + Display, O: 'a>(
         move |input: &'_ [I], start: usize| match (parser.method)(input, start) {
             Ok((out, pos)) => Ok((Some(out), pos)),
             Err(_) => {
-                parse_state.report_err(ParseError {
-                    span: Span {
-                        begin: start,
-                        end: start + 1,
-                    },
-                    msg: err_msg.to_string(),
-                });
+                let span = Span::new(start, start + 1);
+                parse_state
+                    .errors
+                    .borrow_mut()
+                    .log(span, err_msg.to_string());
                 Ok((None, start))
             }
         },
@@ -112,44 +90,61 @@ pub(crate) fn parse_or_abort<'a, I: Eq + Display, O: 'a>(
         move |input: &'_ [I], start: usize| match (parser.method)(input, start) {
             Ok((out, pos)) => Ok((Some(out), pos)),
             Err(_) => {
-                parse_state.report_err(ParseError {
-                    span: Span {
-                        begin: start,
-                        end: input.len(),
-                    },
-                    msg: err_msg.to_string(),
-                });
+                let span = Span::new(start, input.len());
+                parse_state
+                    .errors
+                    .borrow_mut()
+                    .log(span, err_msg.to_string());
                 Ok((None, input.len()))
             }
         },
     )
 }
 
+pub(crate) fn recover<'a, I: Eq, O: 'a>(state: &'a ParseState<I>) -> Parser<'a, I, Result<(), Span>> {
+    Parser::new(|input: &'_ [I], start: usize| {
+        let sync_pos = input[start..]
+            .iter()
+            .position(|c| state.sync_tokens.borrow().contains(c))
+            .map(|p| p + start)
+            .unwrap_or(input.len());
+        let span = Span::new(start, sync_pos);
+        Ok((Err(span), sync_pos))
+    })
+}
+
+pub(crate) fn unexpected_abort<'a, O: 'a + Clone>(state: &'a ParseState<u8>, res: O) -> Parser<'a, u8, O> {
+    (identifier().discard() | number().discard() | any().discard()).with_span()
+        .map(move |(span, _)| {
+            state.errors.borrow_mut().log(span, "Unexpected token".to_string());
+            res.clone()
+        }) - any().repeat(..)
+}
+
 /// Creates a parser that will run the given parser and then consume the synchronization token.
 /// If the given parser fails to parse, an error is reported using the given error message,
 /// and parsing will continue at the next occurrence of the synchronization token.
+/// The resulting Err will contained the skipped span.
 #[allow(unused)]
 pub(crate) fn parse_or_sync<'a, I: Copy + Eq + Display, O: 'a>(
     parse_state: &'a ParseState<I>,
     parser: Parser<'a, I, O>,
     sync: I,
     err_msg: &'a str,
-) -> Parser<'a, I, Option<O>> {
+) -> Parser<'a, I, Result<O, Span>> {
     Parser::new(move |input: &'_ [I], start: usize| {
         parse_state.sync_tokens.borrow_mut().push(sync);
         let res = match (parser.method)(input, start) {
             Ok((out, pos)) => {
                 if input.get(pos) == Some(&sync) {
-                    Ok((Some(out), pos + 1))
+                    Ok((Ok(out), pos + 1))
                 } else {
-                    parse_state.report_err(ParseError {
-                        span: Span {
-                            begin: pos,
-                            end: pos + 1,
-                        },
-                        msg: format!("Missing '{}'", sync),
-                    });
-                    Ok((Some(out), pos))
+                    let span = Span::new(pos, pos + 1);
+                    parse_state
+                        .errors
+                        .borrow_mut()
+                        .log(span, format!("Missing '{}'", sync));
+                    Ok((Ok(out), pos))
                 }
             }
             Err(_) => {
@@ -160,16 +155,14 @@ pub(crate) fn parse_or_sync<'a, I: Copy + Eq + Display, O: 'a>(
                     .or(input[start..]
                         .iter()
                         .position(|c| parse_state.sync_tokens.borrow().contains(c))
-                        .map(|p| p + start)
-                    ).unwrap_or(input.len());
-                parse_state.report_err(ParseError {
-                    span: Span {
-                        begin: start,
-                        end: sync_pos,
-                    },
-                    msg: err_msg.to_string(),
-                });
-                Ok((None, sync_pos))
+                        .map(|p| p + start))
+                    .unwrap_or(input.len());
+                let span = Span::new(start, sync_pos);
+                parse_state
+                    .errors
+                    .borrow_mut()
+                    .log(span, err_msg.to_string());
+                Ok((Err(span), sync_pos))
             }
         };
         parse_state.sync_tokens.borrow_mut().pop();

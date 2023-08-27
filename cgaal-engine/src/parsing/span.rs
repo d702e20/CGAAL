@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 use std::fmt::{Display, Formatter};
-use std::ops::Range;
+use std::ops::{Add, Range};
 
 /// A `Span` describes the position of a slice of text in the original program.
 /// Usually used to describe what text an AST node was created from.
@@ -44,6 +44,14 @@ impl From<Span> for Range<usize> {
 impl From<Range<usize>> for Span {
     fn from(range: Range<usize>) -> Self {
         Span::new(range.start, range.end)
+    }
+}
+
+impl Add for Span {
+    type Output = Span;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        self.merge(rhs)
     }
 }
 

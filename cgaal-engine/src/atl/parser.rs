@@ -1,12 +1,13 @@
 use std::str::{self, FromStr};
 use std::sync::Arc;
 
+use crate::atl::ast::{AstAtl, AstAtlKind};
+use crate::atl::Phi;
 use pom::parser::{end, Parser};
 use pom::parser::{list, one_of, seq, sym};
 
-use super::Phi;
 use crate::game_structure::{Player, Proposition};
-use crate::parsing::{call2, ParseState};
+use crate::parsing::{call2, parse_or_sync, ParseState, WithSpan};
 
 /// Parse an ATL formula
 pub fn parse_phi<'a, 'b: 'a, A: AtlExpressionParser>(
@@ -14,14 +15,21 @@ pub fn parse_phi<'a, 'b: 'a, A: AtlExpressionParser>(
     input: &'a str,
 ) -> Result<Phi, String> {
     let state = ParseState::default();
+    println!("Parsing ...");
     let formula = ws() * conjunction(&state, expr_parser) - ws() - end();
     let phi = formula
         .parse(input.as_bytes())
         .expect("Parser may not fail");
-    if state.has_errors() {
-        Err(state.errors_as_str(input))
+    if state.errors.borrow().has_errors() {
+        let mut error_report = String::new();
+        state
+            .errors
+            .borrow()
+            .write_detailed(input, &mut error_report)
+            .unwrap();
+        Err(error_report)
     } else {
-        Ok(phi)
+        Ok(phi.convert())
     }
 }
 
@@ -44,10 +52,10 @@ fn ws<'a>() -> Parser<'a, u8, ()> {
 pub(crate) fn conjunction<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
+) -> Parser<'a, u8, AstAtl> {
     let conjunc = (disjunction(state, expr_parser) - ws() - sym(b'&') - ws()
         + call2(&conjunction, state, expr_parser))
-    .map(|(lhs, rhs)| Phi::And(Arc::new(lhs), Arc::new(rhs)));
+    .map(|(lhs, rhs)| AstAtl::new(lhs.span + rhs.span, AstAtlKind::And(lhs.into(), rhs.into())));
     conjunc | disjunction(state, expr_parser)
 }
 
@@ -55,10 +63,10 @@ pub(crate) fn conjunction<'a, A: AtlExpressionParser>(
 fn disjunction<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
+) -> Parser<'a, u8, AstAtl> {
     let disjunc = (primary(state, expr_parser) - ws() - sym(b'|') - ws()
         + call2(&disjunction, state, expr_parser))
-    .map(|(lhs, rhs)| Phi::Or(Arc::new(lhs), Arc::new(rhs)));
+    .map(|(lhs, rhs)| AstAtl::new(lhs.span + rhs.span, AstAtlKind::Or(lhs.into(), rhs.into())));
     disjunc | primary(state, expr_parser)
 }
 
@@ -66,7 +74,7 @@ fn disjunction<'a, A: AtlExpressionParser>(
 fn primary<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
+) -> Parser<'a, u8, AstAtl> {
     paren(state, expr_parser)
         | boolean()
         | proposition(state, expr_parser)
@@ -85,8 +93,11 @@ fn primary<'a, A: AtlExpressionParser>(
 fn paren<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    sym(b'(') * ws() * call2(&conjunction, state, expr_parser) - ws() - sym(b')')
+) -> Parser<'a, u8, AstAtl> {
+    let inner = ws() * call2(&conjunction, state, expr_parser) - ws();
+    sym(b'(')
+        * parse_or_sync(state, inner, b')', "Invalid ATL formula")
+            .map(|res| res.unwrap_or_else(|span| AstAtl::new(span, AstAtlKind::Error)))
 }
 
 /// Parses an enforce-coalition (path qualifier)
@@ -94,7 +105,10 @@ fn enforce_coalition<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Vec<usize>> {
-    seq(b"<<") * ws() * players(state, expr_parser) - ws() - seq(b">>")
+    let inner = ws() * players(state, expr_parser) - ws();
+    // FIXME: Hacky sync token can cause parser crashes
+    (seq(b"<<") * parse_or_sync(state, inner, b'>', "Invalid player coalition") - sym(b'>'))
+        .map(|res| res.unwrap_or_else(|_| Vec::new()))
 }
 
 /// Parses a despite-coalition (path qualifier)
@@ -102,14 +116,17 @@ fn despite_coalition<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
 ) -> Parser<'a, u8, Vec<usize>> {
-    seq(b"[[") * ws() * players(state, expr_parser) - ws() - seq(b"]]")
+    let inner = ws() * players(state, expr_parser) - ws();
+    // FIXME: Hacky sync token can cause parser crashes
+    (seq(b"[[") * parse_or_sync(state, inner, b']', "Invalid player coalition") - sym(b']'))
+        .map(|res| res.unwrap_or_else(|_| Vec::new()))
 }
 
 /// Parses an path formula starting with the NEXT (X) operator
 fn next<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
+) -> Parser<'a, u8, AstAtl> {
     sym(b'X') * ws() * call2(&conjunction, state, expr_parser)
 }
 
@@ -117,7 +134,7 @@ fn next<'a, A: AtlExpressionParser>(
 fn until<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, (Phi, Phi)> {
+) -> Parser<'a, u8, (AstAtl, AstAtl)> {
     sym(b'(') * ws() * call2(&conjunction, state, expr_parser) - ws() - sym(b'U') - ws()
         + call2(&conjunction, state, expr_parser)
         - ws()
@@ -128,7 +145,7 @@ fn until<'a, A: AtlExpressionParser>(
 fn eventually<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
+) -> Parser<'a, u8, AstAtl> {
     sym(b'F') * ws() * call2(&conjunction, state, expr_parser)
 }
 
@@ -136,7 +153,7 @@ fn eventually<'a, A: AtlExpressionParser>(
 fn invariant<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
+) -> Parser<'a, u8, AstAtl> {
     sym(b'G') * ws() * call2(&conjunction, state, expr_parser)
 }
 
@@ -144,130 +161,149 @@ fn invariant<'a, A: AtlExpressionParser>(
 fn enforce_next<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (enforce_coalition(state, expr_parser) - ws() + next(state, expr_parser)).map(|(players, phi)| {
-        Phi::EnforceNext {
-            players,
-            formula: Arc::new(phi),
-        }
-    })
+) -> Parser<'a, u8, AstAtl> {
+    (enforce_coalition(state, expr_parser) - ws() + next(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, expr))| {
+            AstAtl::new(
+                span,
+                AstAtlKind::EnforceNext {
+                    players,
+                    expr: expr.into(),
+                },
+            )
+        })
 }
 
 /// Parses an ENFORCE-UNTIL ATL formula
 fn enforce_until<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (enforce_coalition(state, expr_parser) - ws() + until(state, expr_parser)).map(
-        |(players, (l, r))| Phi::EnforceUntil {
-            players,
-            pre: Arc::new(l),
-            until: Arc::new(r),
-        },
-    )
+) -> Parser<'a, u8, AstAtl> {
+    (enforce_coalition(state, expr_parser) - ws() + until(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, (l, r)))| {
+            AstAtl::new(
+                span,
+                AstAtlKind::EnforceUntil {
+                    players,
+                    pre_expr: Arc::new(l),
+                    end_expr: Arc::new(r),
+                },
+            )
+        })
 }
 
 /// Parses an ENFORCE-EVENTUALLY ATL formula
 fn enforce_eventually<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (enforce_coalition(state, expr_parser) - ws() + eventually(state, expr_parser)).map(
-        |(players, phi)| Phi::EnforceEventually {
-            players,
-            formula: Arc::new(phi),
-        },
-    )
+) -> Parser<'a, u8, AstAtl> {
+    (enforce_coalition(state, expr_parser) - ws() + eventually(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, expr))| {
+            AstAtl::new(
+                span,
+                AstAtlKind::EnforceEventually {
+                    players,
+                    expr: Arc::new(expr),
+                },
+            )
+        })
 }
 
 /// Parses an ENFORCE-INVARIANT ATL formula
 fn enforce_invariant<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (enforce_coalition(state, expr_parser) - ws() + invariant(state, expr_parser)).map(
-        |(players, phi)| Phi::EnforceInvariant {
+) -> Parser<'a, u8, AstAtl> {
+    (enforce_coalition(state, expr_parser) - ws() + invariant(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, expr))| AstAtl::new(span, AstAtlKind::EnforceInvariantly {
             players,
-            formula: Arc::new(phi),
-        },
-    )
+            expr: Arc::new(expr),
+        }))
 }
 
 /// Parses an DESPITE-NEXT ATL formula
 fn despite_next<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (despite_coalition(state, expr_parser) - ws() + next(state, expr_parser)).map(|(players, phi)| {
-        Phi::DespiteNext {
+) -> Parser<'a, u8, AstAtl> {
+    (despite_coalition(state, expr_parser) - ws() + next(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, phi))| AstAtl::new(span, AstAtlKind::DespiteNext {
             players,
-            formula: Arc::new(phi),
-        }
-    })
+            expr: Arc::new(phi),
+        }))
 }
 
 /// Parses an DESPITE-UNTIL ATL formula
 fn despite_until<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (despite_coalition(state, expr_parser) - ws() + until(state, expr_parser)).map(
-        |(players, (l, r))| Phi::DespiteUntil {
+) -> Parser<'a, u8, AstAtl> {
+    (despite_coalition(state, expr_parser) - ws() + until(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, (l, r)))| AstAtl::new(span, AstAtlKind::DespiteUntil {
             players,
-            pre: Arc::new(l),
-            until: Arc::new(r),
-        },
-    )
+            pre_expr: Arc::new(l),
+            end_expr: Arc::new(r),
+        }))
 }
 
 /// Parses an DESPITE-EVENTUALLY ATL formula
 fn despite_eventually<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (despite_coalition(state, expr_parser) - ws() + eventually(state, expr_parser)).map(
-        |(players, phi)| Phi::DespiteEventually {
+) -> Parser<'a, u8, AstAtl> {
+    (despite_coalition(state, expr_parser) - ws() + eventually(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, phi))| AstAtl::new(span, AstAtlKind::DespiteEventually {
             players,
-            formula: Arc::new(phi),
-        },
-    )
+            expr: Arc::new(phi),
+        }))
 }
 
 /// Parses an DESPITE-INVARIANT ATL formula
 fn despite_invariant<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (despite_coalition(state, expr_parser) - ws() + invariant(state, expr_parser)).map(
-        |(players, phi)| Phi::DespiteInvariant {
+) -> Parser<'a, u8, AstAtl> {
+    (despite_coalition(state, expr_parser) - ws() + invariant(state, expr_parser))
+        .with_span()
+        .map(|(span, (players, phi))| AstAtl::new(span, AstAtlKind::DespiteInvariantly {
             players,
-            formula: Arc::new(phi),
-        },
-    )
+            expr: Arc::new(phi),
+        }))
 }
 
 /// Parses a proposition using the given [ATLExpressionParser].
 fn proposition<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    expr_parser.proposition_parser(state).map(Phi::Proposition)
+) -> Parser<'a, u8, AstAtl> {
+    expr_parser
+        .proposition_parser(state)
+        .with_span()
+        .map(|(span, p)| AstAtl::new(span, AstAtlKind::Proposition(p)))
 }
 
 /// Parses a negated ATL formula
 fn not<'a, A: AtlExpressionParser>(
     state: &'a ParseState<u8>,
     expr_parser: &'a A,
-) -> Parser<'a, u8, Phi> {
-    (sym(b'!') * ws() * call2(&primary, state, expr_parser)).map(|phi| Phi::Not(Arc::new(phi)))
+) -> Parser<'a, u8, AstAtl> {
+    (sym(b'!') * ws() * call2(&primary, state, expr_parser))
+        .with_span()
+        .map(|(span, expr)| AstAtl::new(span, AstAtlKind::Not(Arc::new(expr))))
 }
 
 /// Parses a boolean, either full uppercase or full lowercase
-fn boolean<'a>() -> Parser<'a, u8, Phi> {
-    seq(b"true").map(|_| Phi::True)
-        | seq(b"TRUE").map(|_| Phi::True)
-        | seq(b"false").map(|_| Phi::False)
-        | seq(b"FALSE").map(|_| Phi::False)
+fn boolean<'a>() -> Parser<'a, u8, AstAtl> {
+    let tru = (seq(b"true") | seq(b"TRUE")).map(|_| AstAtlKind::True);
+    let fal = (seq(b"false") | seq(b"FALSE")).map(|_| AstAtlKind::False);
+    (tru | fal).with_span().map(|(span, kind)| AstAtl::new(span, kind))
 }
 
 /// Parses a comma-separated list of players using the given [ATLExpressionParser].
@@ -318,10 +354,10 @@ mod test {
     use pom::parser::Parser;
 
     use crate::atl::parser::{
-        boolean, conjunction, despite_eventually, despite_invariant, despite_next, despite_coalition,
-        despite_until, disjunction, enforce_eventually, enforce_invariant, enforce_next,
-        enforce_coalition, enforce_until, eventually, invariant, next, not, number, paren,
-        proposition, until, AtlExpressionParser,
+        boolean, conjunction, despite_coalition, despite_eventually, despite_invariant,
+        despite_next, despite_until, disjunction, enforce_coalition, enforce_eventually,
+        enforce_invariant, enforce_next, enforce_until, eventually, invariant, next, not, number,
+        paren, proposition, until, AtlExpressionParser,
     };
     use crate::atl::{parse_phi, Phi};
     use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
