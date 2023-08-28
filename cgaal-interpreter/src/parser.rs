@@ -25,7 +25,7 @@ impl Parser for CGAALParser {
                     );
                     lexer.advance();
                 }
-                return Op::Move { moves };
+                Op::Move { moves }
             }
             _ => panic!("Expected a valid command"),
         }

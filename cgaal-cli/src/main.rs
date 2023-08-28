@@ -3,7 +3,6 @@ extern crate git_version;
 extern crate num_cpus;
 
 use humantime::format_duration;
-use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
@@ -467,7 +466,7 @@ fn load_model(model_type: ModelType, game_structure_path: &str) -> Result<Model,
         .map_err(|err| format!("Failed to read input model.\n{}", err))?;
 
     // Depending on which model_type is specified, use the relevant parsing logic
-    return match model_type {
+    match model_type {
         ModelType::Json => {
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
@@ -487,7 +486,7 @@ fn load_model(model_type: ModelType, game_structure_path: &str) -> Result<Model,
                 model: game_structure,
             })
         }
-    };
+    }
 }
 
 /// Loads a model and a formula from files
@@ -499,7 +498,7 @@ fn load(
 ) -> Result<ModelAndFormula, String> {
     let game_structure = load_model(model_type, game_structure_path)?;
 
-    return match game_structure {
+    match game_structure {
         Model::Json { model } => {
             let formula = load_formula(formula_path, formula_format, &model);
             Ok(ModelAndFormula::Json { model, formula })
@@ -508,7 +507,7 @@ fn load(
             let formula = load_formula(formula_path, formula_format, &model);
             Ok(ModelAndFormula::Lcgs { model, formula })
         }
-    };
+    }
 }
 
 /// Define and parse command line arguments

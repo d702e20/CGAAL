@@ -27,7 +27,7 @@ impl Lexer for CGAALLexer {
 
     fn new(input: &str) -> Self {
         Self {
-            input: Vec::from(input.chars().collect::<Vec<char>>()),
+            input: input.chars().collect::<Vec<char>>(),
             buffer: Vec::new(),
             curr_token: Token::Start,
         }
