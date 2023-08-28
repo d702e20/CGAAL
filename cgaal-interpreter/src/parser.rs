@@ -13,6 +13,10 @@ impl Parser for CGAALParser {
         let mut lexer = CGAALLexer::new(input);
         lexer.advance();
         match lexer.curr_token() {
+            Token::Start => {
+                lexer.advance();
+                Op::Skip
+            }
             Token::Move => {
                 let mut moves = Vec::new();
                 lexer.advance();
@@ -27,7 +31,15 @@ impl Parser for CGAALParser {
                 }
                 Op::Move { moves }
             }
-            _ => panic!("Expected a valid command"),
+            Token::Players => {
+                lexer.advance();
+                Op::Players
+            }
+            _ => panic!(
+                "Expected a valid command, the buffer is: {}, and Token is: {}",
+                lexer.get_value(),
+                lexer.curr_token()
+            ),
         }
     }
 }

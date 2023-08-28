@@ -329,7 +329,7 @@ fn main_inner() -> Result<(), String> {
                 }
             }
         }
-        ("interpreter", Some(interpreter_args)) => {
+        ("interpret", Some(interpreter_args)) => {
             let input_model_path = interpreter_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(interpreter_args)?;
             match load_model(model_type, input_model_path)? {
@@ -560,6 +560,11 @@ fn parse_arguments() -> ArgMatches<'static> {
                 .add_formula_type_arg()
                 .add_quiet_arg()
                 .add_threads_arg(),
+        )
+        .subcommand(
+            SubCommand::with_name("interpret")
+                .about("Starts interactive interpreter terminal")
+                .add_input_model_arg(),
         );
 
     if cfg!(feature = "graph-printer") {

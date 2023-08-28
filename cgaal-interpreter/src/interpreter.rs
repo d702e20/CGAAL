@@ -1,4 +1,4 @@
-use crate::op::run;
+use crate::op::Op;
 use crate::parser::{CGAALParser, Parser};
 use cgaal_engine::game_structure::GameStructure;
 use cgaal_engine::game_structure::State;
@@ -27,7 +27,7 @@ impl<G: GameStructure + Clone> CGAALInterpreter<G> {
             io::stdin()
                 .read_line(&mut buffer)
                 .expect("Couldn't read from stdin");
-            match run(
+            match Op::run(
                 self.cgs.borrow_mut(),
                 self.curr_state,
                 CGAALParser::parse(&buffer),
@@ -41,6 +41,7 @@ impl<G: GameStructure + Clone> CGAALInterpreter<G> {
                         .expect("Couldn't write to stdout");
                 }
             }
+            io::stdout().flush().expect("Couldn't write to stdout");
         }
     }
 }
