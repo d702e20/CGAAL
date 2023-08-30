@@ -5,13 +5,14 @@ use std::fmt::Formatter;
 #[derive(Clone, Eq, PartialEq)]
 pub enum Token {
     Start,
-    EOF,
-    EOL,
+    Eof,
+    Eol,
     Identifier,
     Number,
     Move,
     Players,
-    //    Player,
+    Player,
+    Display,
     //    Transitions,
     //    Moves,
     //    State,
@@ -21,13 +22,15 @@ pub enum Token {
 /// Static map from their respective symbols to their corresponding Token
 pub static TOKENS: phf::Map<&'static str, Token> = phf_map! {
     "TOKEN::START" => Token::Start,
-    "TOKEN::EOF" => Token::EOF,
-    "TOKEN::EOL" => Token::EOL,
+    "TOKEN::EOF" => Token::Eof,
+    "TOKEN::EOL" => Token::Eol,
     "TOKEN::IDENTIFIER" => Token::Identifier,
     "TOKEN::NUMBER" => Token::Number,
     "move" => Token::Move,
     "number" => Token::Number,
     "players" => Token::Players,
+    "player" => Token::Player,
+    "display" => Token::Display,
 };
 
 impl Token {
@@ -36,6 +39,9 @@ impl Token {
         TOKENS.get(symbol).cloned()
     }
 
+    /// Finding the first key-value pair, where the value matches the Token.
+    /// Be aware that it is possible that the same token have multiple keys, and therefore
+    /// this function returns the first match.
     pub fn to_string(&self) -> Option<String> {
         TOKENS.into_iter().find_map(|(key, value)| {
             if value == self {
