@@ -2,6 +2,7 @@
 extern crate git_version;
 extern crate num_cpus;
 
+use std::borrow::Borrow;
 use humantime::format_duration;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -31,6 +32,7 @@ use cgaal_engine::game_structure::{EagerGameStructure, GameStructure};
 use cgaal_engine::printer::print_graph;
 
 use cgaal_interpreter::interpreter::CGAALInterpreter;
+use cgaal_interpreter::displayer::{Displayer, ICGAAL};
 
 use crate::args::CommonArgs;
 use crate::solver::solver;
@@ -332,13 +334,14 @@ fn main_inner() -> Result<(), String> {
         ("interpret", Some(interpreter_args)) => {
             let input_model_path = interpreter_args.value_of("input_model").unwrap();
             let model_type = get_model_type_from_args(interpreter_args)?;
+            let displayer = ICGAAL::new();
             match load_model(model_type, input_model_path)? {
                 Model::Lcgs { model } => {
-                    let mut interpreter = CGAALInterpreter::new(model);
+                    let mut interpreter = CGAALInterpreter::new(model, displayer.borrow());
                     interpreter.run();
                 }
                 Model::Json { model } => {
-                    let mut interpreter = CGAALInterpreter::new(model);
+                    let mut interpreter = CGAALInterpreter::new(model, displayer.borrow());
                     interpreter.run();
                 }
             }

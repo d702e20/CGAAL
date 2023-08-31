@@ -1,10 +1,13 @@
+use crate::lexer::{CGAALLexer, Lexer};
 use crate::op::Op;
 use crate::token::Token;
 use cgaal_engine::game_structure::{Action, Player, Proposition};
-use crate::lexer::{CGAALLexer, Lexer};
+use std::fmt;
+use std::fmt::Formatter;
 
 /// All the interesting types are implemented as usize.The TypedValue enum is provided
 /// to help keep track of the types of the indexes.
+#[derive(Clone)]
 pub enum TypedValue {
     Action(Option<String>, Option<Action>),
     Player(Option<String>, Option<Player>),
@@ -26,6 +29,22 @@ impl TypedValue {
         match self {
             TypedValue::Action(_, i) | TypedValue::Player(_, i) | TypedValue::Label(_, i) => {
                 i.is_some()
+            }
+        }
+    }
+}
+
+impl fmt::Display for TypedValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            TypedValue::Action(_, _) => {
+                write!(f, "Action")
+            }
+            TypedValue::Player(_, _) => {
+                write!(f, "Player")
+            }
+            TypedValue::Label(_, _) => {
+                write!(f, "Label")
             }
         }
     }
@@ -74,11 +93,16 @@ impl CGAALParser {
     fn display(&mut self) -> Result<Op, String> {
         self.lexer.advance();
         match self.lexer.curr_token() {
-            Token::Players => Ok(Op::DisplayPlayers),
+            Token::Labels => Ok(Op::DisplayAll {
+                value: TypedValue::Label(None, None),
+            }),
+            Token::Players => Ok(Op::DisplayAll {
+                value: TypedValue::Player(None, None),
+            }),
             Token::Player => {
                 self.lexer.advance();
                 match self.player() {
-                    Ok(player) => Ok(Op::DisplayPlayer { player }),
+                    Ok(player) => Ok(Op::Display { value: player }),
                     Err(err) => Err(err),
                 }
             }

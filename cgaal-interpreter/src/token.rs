@@ -13,13 +13,14 @@ pub enum Token {
     Players,
     Player,
     Display,
+    Labels,
     //    Transitions,
     //    Moves,
     //    State,
     //    Action,
 }
 
-/// Static map from their respective symbols to their corresponding Token
+/// Static map from their respective symbols to their corresponding Token.
 pub static TOKENS: phf::Map<&'static str, Token> = phf_map! {
     "TOKEN::START" => Token::Start,
     "TOKEN::EOF" => Token::Eof,
@@ -30,7 +31,9 @@ pub static TOKENS: phf::Map<&'static str, Token> = phf_map! {
     "number" => Token::Number,
     "players" => Token::Players,
     "player" => Token::Player,
+    "Labels" =>  Token::Labels,
     "display" => Token::Display,
+    "show" => Token::Display,
 };
 
 impl Token {
