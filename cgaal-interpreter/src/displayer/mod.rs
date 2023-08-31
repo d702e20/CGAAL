@@ -2,7 +2,7 @@ use crate::parser::TypedValue;
 use cgaal_engine::game_structure::{Action, GameStructure, Proposition};
 
 pub enum ViewType {
-    AllActions {
+    AllMoves {
         players: Vec<ViewType>,
     },
     AllLabels {
@@ -20,7 +20,7 @@ pub enum ViewType {
         index: Proposition,
         name: String,
     },
-    Action {
+    Move {
         index: usize,
         name: String,
     },
@@ -34,7 +34,31 @@ pub struct ICGAAL {}
 
 impl Displayer for ICGAAL {
     fn display(&self, view: ViewType) {
-        todo!()
+        match view {
+            ViewType::AllMoves { players } => {
+                for player in players {
+                    if let ViewType::Player {
+                        index,
+                        name,
+                        actions,
+                    } = player
+                    {
+                        print!("{}: ", name);
+                        for action in actions {
+                            if let ViewType::Move { index, name, .. } = action {
+                                print! {"{} ", name}
+                            }
+                        }
+                        println!();
+                    }
+                }
+            }
+            ViewType::AllLabels { .. } => {}
+            ViewType::AllPlayers { .. } => {}
+            ViewType::Player { .. } => {}
+            ViewType::Label { .. } => {}
+            ViewType::Move { .. } => {}
+        }
     }
 }
 

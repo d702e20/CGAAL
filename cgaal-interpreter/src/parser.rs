@@ -9,7 +9,7 @@ use std::fmt::Formatter;
 /// to help keep track of the types of the indexes.
 #[derive(Clone)]
 pub enum TypedValue {
-    Action(Option<String>, Option<Action>),
+    Move(Option<String>, Option<Action>),
     Player(Option<String>, Option<Player>),
     Label(Option<String>, Option<Proposition>),
 }
@@ -18,7 +18,7 @@ impl TypedValue {
     /// Check if there exists a identifier for the TypedValue
     pub fn has_name(&self) -> bool {
         match self {
-            TypedValue::Action(s, _) | TypedValue::Player(s, _) | TypedValue::Label(s, _) => {
+            TypedValue::Move(s, _) | TypedValue::Player(s, _) | TypedValue::Label(s, _) => {
                 s.is_some()
             }
         }
@@ -27,7 +27,7 @@ impl TypedValue {
     /// Checks if there exists a index for the TypedValue
     pub fn has_value(&self) -> bool {
         match self {
-            TypedValue::Action(_, i) | TypedValue::Player(_, i) | TypedValue::Label(_, i) => {
+            TypedValue::Move(_, i) | TypedValue::Player(_, i) | TypedValue::Label(_, i) => {
                 i.is_some()
             }
         }
@@ -37,7 +37,7 @@ impl TypedValue {
 impl fmt::Display for TypedValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            TypedValue::Action(_, _) => {
+            TypedValue::Move(_, _) => {
                 write!(f, "Action")
             }
             TypedValue::Player(_, _) => {
@@ -93,6 +93,9 @@ impl CGAALParser {
     fn display(&mut self) -> Result<Op, String> {
         self.lexer.advance();
         match self.lexer.curr_token() {
+            Token::Moves => Ok(Op::DisplayAll {
+                value: TypedValue::Move(None, None),
+            }),
             Token::Labels => Ok(Op::DisplayAll {
                 value: TypedValue::Label(None, None),
             }),

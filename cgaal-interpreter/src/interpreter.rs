@@ -46,8 +46,6 @@ impl<'a, G: GameStructure + Clone> CGAALInterpreter<'a, G> {
                 .read_line(&mut buffer)
                 .expect("Couldn't read from stdin");
 
-            let cgs = &self.cgs.clone();
-            let state = self.curr_state;
             let parse_res = parser.parse(&buffer);
             if let Ok(op) = parse_res {
                 match self.resolve(op) {
@@ -69,7 +67,7 @@ impl<'a, G: GameStructure + Clone> CGAALInterpreter<'a, G> {
         }
     }
 
-    pub fn resolve(&mut self,op: Op) -> Result<State, String> {
+    pub fn resolve(&mut self, op: Op) -> Result<State, String> {
         match op {
             // Do nothing
             Op::Skip => Ok(self.curr_state),
@@ -77,8 +75,8 @@ impl<'a, G: GameStructure + Clone> CGAALInterpreter<'a, G> {
             Op::Move { moves } => Ok(self.cgs.transitions(self.curr_state, moves)),
             Op::DisplayAll { value } => {
                 match value {
-                    TypedValue::Action(_, _) => match self.construct_players_view() {
-                        Ok(players) => self.displayer.display(ViewType::AllActions { players }),
+                    TypedValue::Move(_, _) => match self.construct_players_view() {
+                        Ok(players) => self.displayer.display(ViewType::AllMoves { players }),
                         Err(err) => return Err(err),
                     },
                     TypedValue::Player(_, _) => match self.construct_players_view() {
@@ -95,14 +93,10 @@ impl<'a, G: GameStructure + Clone> CGAALInterpreter<'a, G> {
                         });
                         self.displayer.display(ViewType::AllLabels { labels });
                     }
-
                 }
                 Ok(self.curr_state)
-
-            },
-            Op::Display { value } => {
-                Ok(self.curr_state)
             }
+            Op::Display { value } => Ok(self.curr_state),
         }
     }
 
@@ -119,9 +113,9 @@ impl<'a, G: GameStructure + Clone> CGAALInterpreter<'a, G> {
         for i in 0..self.cgs.max_player() {
             let mut actions = Vec::new();
             for j in 0..move_count[i] {
-                actions.push(ViewType::Action {
+                actions.push(ViewType::Move {
                     index: j,
-                    name: self.cgs.action_name(self.curr_state , i, j),
+                    name: self.cgs.action_name(self.curr_state, i, j),
                 })
             }
             players.push(ViewType::Player {

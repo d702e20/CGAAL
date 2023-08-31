@@ -2,8 +2,8 @@
 extern crate git_version;
 extern crate num_cpus;
 
-use std::borrow::Borrow;
 use humantime::format_duration;
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs::File;
@@ -31,8 +31,8 @@ use cgaal_engine::game_structure::{EagerGameStructure, GameStructure};
 #[cfg(feature = "graph-printer")]
 use cgaal_engine::printer::print_graph;
 
-use cgaal_interpreter::interpreter::CGAALInterpreter;
 use cgaal_interpreter::displayer::{Displayer, ICGAAL};
+use cgaal_interpreter::interpreter::CGAALInterpreter;
 
 use crate::args::CommonArgs;
 use crate::solver::solver;

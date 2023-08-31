@@ -10,6 +10,9 @@ pub enum Token {
     Identifier,
     Number,
     Move,
+    Moves,
+    Action,
+    Actions,
     Players,
     Player,
     Display,
@@ -17,7 +20,6 @@ pub enum Token {
     //    Transitions,
     //    Moves,
     //    State,
-    //    Action,
 }
 
 /// Static map from their respective symbols to their corresponding Token.
@@ -28,6 +30,7 @@ pub static TOKENS: phf::Map<&'static str, Token> = phf_map! {
     "TOKEN::IDENTIFIER" => Token::Identifier,
     "TOKEN::NUMBER" => Token::Number,
     "move" => Token::Move,
+    "moves" => Token::Moves,
     "number" => Token::Number,
     "players" => Token::Players,
     "player" => Token::Player,
