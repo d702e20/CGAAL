@@ -2,7 +2,7 @@ use crate::parsing::span::Span;
 use crate::parsing::token::{Token, TokenKind};
 
 #[derive(Clone, Eq, PartialEq)]
-struct Lexer<'a> {
+pub struct Lexer<'a> {
     input: &'a [u8],
     pos: usize,
 }

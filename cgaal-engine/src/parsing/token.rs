@@ -3,8 +3,8 @@ use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Token {
-    span: Span,
-    kind: TokenKind,
+    pub span: Span,
+    pub kind: TokenKind,
 }
 
 impl Token {
