@@ -7,14 +7,6 @@ use crate::parsing::token::{Token, TokenKind};
 use std::iter::Peekable;
 use std::sync::Arc;
 
-const SYNC_TOKEN_HIERARCHY: [TokenKind; 5] = [
-    TokenKind::Rrbracket,
-    TokenKind::Rrangle,
-    TokenKind::Rparen,
-    TokenKind::Semi,
-    TokenKind::KwEndTemplate,
-];
-
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
     pub errors: ErrorLog,
@@ -32,10 +24,11 @@ impl<'a> Parser<'a> {
         match self.lexer.next() {
             None => {}
             Some(tok) => {
-                self.errors.log(tok.span, format!("Unexpected token '{}', expected EOF", tok.kind));
+                self.errors
+                    .log(tok.span, format!("Unexpected '{}', expected EOF", tok.kind));
             }
         }
-        while let Some(_) = self.lexer.next() {};
+        while let Some(_) = self.lexer.next() {}
     }
 
     pub fn expr(&mut self, min_prec: u8) -> Expr {
@@ -93,7 +86,7 @@ impl<'a> Parser<'a> {
                 let tok = self.lexer.next().unwrap();
                 self.errors.log(
                     tok.span,
-                    format!("Unexpected token '{}', expected path expression", tok.kind),
+                    format!("Unexpected '{}', expected path expression", tok.kind),
                 );
                 Expr::new_error()
             }
@@ -124,7 +117,7 @@ impl<'a> Parser<'a> {
                 let tok = self.lexer.next().unwrap();
                 self.errors.log(
                     tok.span,
-                    format!("Unexpected token '{}', expected expression term", tok.kind),
+                    format!("Unexpected '{}', expected expression term", tok.kind),
                 );
                 Expr::new_error()
             }
@@ -141,7 +134,7 @@ impl<'a> Parser<'a> {
             return Expr::new_error();
         };
         let expr = self.expr(0);
-        let Ok(end) = self.expect_and_consume(TokenKind::Rparen) else {
+        let Ok(end) = self.expect_consume_or_recover(TokenKind::Rparen) else {
             return Expr::new_error();
         };
         Expr::new(begin + end, ExprKind::Paren(Arc::new(expr)))
@@ -216,26 +209,36 @@ impl<'a> Parser<'a> {
     }
 
     fn next_is(&mut self, kind: TokenKind) -> bool {
-        matches!(self.lexer.peek().map(|t| t.kind()), Some(k) if k == &kind)
+        matches!(self.lexer.peek(), Some(tok) if tok.kind == kind)
     }
 
     fn expect_and_consume(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
-        match self.lexer.peek().map(|t| t.kind()) {
-            Some(k) if k == &kind => Ok(self.lexer.next().unwrap().span),
-            Some(_) => {
-                let tok = self.lexer.next().unwrap();
+        match self.lexer.next() {
+            Some(tok) if tok.kind == kind => Ok(tok.span),
+            Some(tok) => {
                 self.errors.log(
                     tok.span,
-                    format!("Expected '{}', found '{}'", kind, tok.kind),
+                    format!("Unexpected '{}', expected '{}'", tok.kind, kind),
                 );
                 Err(Unexpected(Some(tok)))
             }
             None => {
                 self.errors
-                    .log_msg(format!("Expected '{}', found EOF", kind));
-                Err(Unexpected(self.lexer.peek().cloned()))
+                    .log_msg(format!("Unexpected EOF, expected '{}'", kind));
+                Err(Unexpected(None))
             }
         }
+    }
+
+    fn expect_consume_or_recover(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
+        self.expect_and_consume(kind.clone()).or_else(|err| {
+            while let Some(tok) = self.lexer.next() {
+                if tok.kind == kind {
+                    return Ok(tok.span);
+                }
+            }
+            Err(err)
+        })
     }
 }
 

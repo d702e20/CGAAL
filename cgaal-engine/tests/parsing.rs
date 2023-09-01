@@ -263,7 +263,7 @@ fn erroneous_expr_002() {
     parser.errors.write_detailed(input, &mut out).unwrap();
     assert_eq!(
         out,
-        "\u{1b}[93m1:5 Error:\u{1b}[0m Unexpected token 'bar', expected EOF\n\
+        "\x1b[93m1:5 Error:\x1b[0m Unexpected 'bar', expected EOF\n\
         | foo bar\n\
         |     ^^^\n"
     );
@@ -283,4 +283,88 @@ fn erroneous_expr_003() {
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
+    assert_eq!(
+        out,
+        "\x1b[93m1:6 Error:\x1b[0m Unexpected 'false', expected ')'\n\
+        | (foo false) && true\n\
+        |      ^^^^^\n"
+    );
+    assert_eq!(
+        expr,
+        Expr::new(
+            Span::new(0, 19),
+            ExprKind::Binary(
+                BinaryOpKind::And,
+                Expr::new(
+                    Span::new(0, 11),
+                    ExprKind::Paren(
+                        Expr::new(Span::new(1, 4), ExprKind::Ident("foo".to_string()),).into()
+                    )
+                )
+                .into(),
+                Expr::new(Span::new(15, 19), ExprKind::True).into()
+            )
+        )
+    );
+}
+
+#[test]
+fn erroneous_expr_004() {
+    let input = "(true";
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer);
+    let expr = parser.expr(0);
+    parser.expect_end();
+    assert!(parser.errors.has_errors());
+    let mut out = String::new();
+    parser.errors.write_detailed(input, &mut out).unwrap();
+    assert_eq!(
+        out,
+        "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected ')'\n"
+    );
+    assert_eq!(expr, Expr::new_error());
+}
+
+#[test]
+fn erroneous_expr_005() {
+    let input = "(foo bar";
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer);
+    let expr = parser.expr(0);
+    parser.expect_end();
+    assert!(parser.errors.has_errors());
+    let mut out = String::new();
+    parser.errors.write_detailed(input, &mut out).unwrap();
+    assert_eq!(
+        out,
+        "\x1b[93m1:6 Error:\x1b[0m Unexpected 'bar', expected ')'\n\
+        | (foo bar\n\
+        |      ^^^\n"
+    );
+    assert_eq!(expr, Expr::new_error());
+}
+
+#[test]
+fn erroneous_expr_006() {
+    let input = " ( << p1 err goal)";
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer);
+    let expr = parser.expr(0);
+    parser.expect_end();
+    assert!(parser.errors.has_errors());
+    let mut out = String::new();
+    parser.errors.write_detailed(input, &mut out).unwrap();
+    assert_eq!(
+        out,
+        "\x1b[93m1:10 Error:\x1b[0m Unexpected 'err', expected '>>'\n\
+        |  ( << p1 err goal)\n\
+        |          ^^^\n"
+    );
+    assert_eq!(
+        expr,
+        Expr::new(
+            Span::new(1, 19),
+            ExprKind::Paren(Expr::new_error().into())
+        )
+    );
 }
