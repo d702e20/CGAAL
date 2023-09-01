@@ -147,7 +147,7 @@ macro_rules! strat_synthesis_test {
     ($game:expr, $phi:expr, $($rest:tt)*) => {
         let ast = parse_lcgs($game).unwrap();
         let game = IntermediateLcgs::create(ast).unwrap();
-        let phi = parse_phi(&game, $phi).unwrap();
+        let phi = parse_phi($phi).unwrap();
         let v0 = AtlVertex::Full {
             state: game.initial_state_index(),
             formula: phi.into(),

@@ -28,12 +28,22 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn end(&mut self) {
+        match self.lexer.next() {
+            None => {}
+            Some(tok) => {
+                self.errors.log(tok.span, format!("Unexpected token '{}', expected EOF", tok.kind));
+            }
+        }
+        while let Some(_) = self.lexer.next() {};
+    }
+
     pub fn expr(&mut self, min_prec: u8) -> Expr {
         // Pratt parsing/precedence climbing: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#climbing
         let mut lhs = self.term();
         let span_start = lhs.span;
         loop {
-            let Some(op): Option<BinaryOpKind> = self.lexer.peek().and_then(|t| (*t.kind()).try_into().ok()) else { return lhs };
+            let Some(op): Option<BinaryOpKind> = self.lexer.peek().and_then(|t| t.kind().clone().try_into().ok()) else { return lhs };
             if op.precedence() < min_prec {
                 return lhs;
             }
@@ -56,22 +66,42 @@ impl<'a> Parser<'a> {
                 };
                 let rhs = self.expr(0);
                 let end = self.expect_and_consume(TokenKind::Rparen).unwrap();
-                Expr::new(begin + end, ExprKind::Binary(BinaryOpKind::Until, lhs.into(), rhs.into()))
-            },
+                Expr::new(
+                    begin + end,
+                    ExprKind::Binary(BinaryOpKind::Until, lhs.into(), rhs.into()),
+                )
+            }
             Some(TokenKind::Word(w)) if w == "F" => {
                 let begin = self.lexer.next().unwrap().span;
                 let expr = self.expr(0);
-                Expr::new(begin + expr.span, ExprKind::Unary(UnaryOpKind::Eventually, expr.into()))
-            },
+                Expr::new(
+                    begin + expr.span,
+                    ExprKind::Unary(UnaryOpKind::Eventually, expr.into()),
+                )
+            }
 
             Some(TokenKind::Word(w)) if w == "G" => {
                 let begin = self.lexer.next().unwrap().span;
                 let expr = self.expr(0);
-                Expr::new(begin + expr.span, ExprKind::Unary(UnaryOpKind::Invariantly, expr.into()))
-            },
+                Expr::new(
+                    begin + expr.span,
+                    ExprKind::Unary(UnaryOpKind::Invariantly, expr.into()),
+                )
+            }
             // Unexpected
-            Some(t) => Err(Unexpected(self.lexer.next())),
-            None => Err(Unexpected(None)),
+            Some(_) => {
+                let tok = self.lexer.next().unwrap();
+                self.errors.log(
+                    tok.span,
+                    format!("Unexpected token '{}', expected path expression", tok.kind),
+                );
+                Expr::new_error()
+            }
+            None => {
+                self.errors
+                    .log_msg("Unexpected EOF, expected path expression".to_string());
+                Expr::new_error()
+            }
         }
     }
 
@@ -90,17 +120,28 @@ impl<'a> Parser<'a> {
             Some(TokenKind::Llangle) => self.enforce_coalition(),
             Some(TokenKind::Llbracket) => self.despite_coalition(),
             // Unexpected
-            Some(t) => Err(Unexpected(self.lexer.next())),
-            None => Err(Unexpected(None)),
+            Some(_) => {
+                let tok = self.lexer.next().unwrap();
+                self.errors.log(
+                    tok.span,
+                    format!("Unexpected token '{}', expected expression term", tok.kind),
+                );
+                Expr::new_error()
+            }
+            None => {
+                self.errors
+                    .log_msg("Unexpected EOF, expected expression term".to_string());
+                Expr::new_error()
+            }
         }
     }
 
     pub fn paren(&mut self) -> Expr {
-        let Ok(begin) = self.expect_and_consume(TokenKind::Llangle) else {
+        let Ok(begin) = self.expect_and_consume(TokenKind::Lparen) else {
             return Expr::new_error();
         };
         let expr = self.expr(0);
-        let Ok(end) = self.expect_and_consume(TokenKind::Rrangle) else {
+        let Ok(end) = self.expect_and_consume(TokenKind::Rparen) else {
             return Expr::new_error();
         };
         Expr::new(begin + end, ExprKind::Paren(Arc::new(expr)))
@@ -154,11 +195,14 @@ impl<'a> Parser<'a> {
     pub fn players(&mut self) -> Vec<Expr> {
         let mut players = vec![];
         loop {
-            match self.lexer.peek().map(|t| t.kind()) {
-                Some(TokenKind::Word(w)) => {
-                    let tok = self.lexer.next().unwrap();
-                    let p = Expr::new(tok.span, ExprKind::Ident(w.to_string()));
+            match self.lexer.peek() {
+                Some(Token {
+                    span,
+                    kind: TokenKind::Word(w),
+                }) => {
+                    let p = Expr::new(span.clone(), ExprKind::Ident(w.to_string()));
                     players.push(p);
+                    self.lexer.next().unwrap();
                 }
                 _ => break,
             }

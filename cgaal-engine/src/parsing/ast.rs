@@ -3,7 +3,7 @@ use crate::parsing::span::Span;
 use std::sync::Arc;
 use crate::parsing::token::TokenKind;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
@@ -19,7 +19,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprKind {
     True,
     False,
@@ -64,9 +64,9 @@ impl BinaryOpKind {
 
     pub fn precedence(&self) -> u8 {
         match self {
-            BinaryOpKind::Or => 0,
-            BinaryOpKind::And => 1,
-            BinaryOpKind::Until => 2,
+            BinaryOpKind::And => 2,
+            BinaryOpKind::Or => 1,
+            BinaryOpKind::Until => 0,
         }
     }
 }
@@ -83,7 +83,7 @@ impl TryFrom<TokenKind> for BinaryOpKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Coalition {
     pub span: Span,
     pub players: Vec<Expr>,

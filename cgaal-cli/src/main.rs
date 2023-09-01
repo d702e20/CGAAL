@@ -18,7 +18,7 @@ use tracing::trace;
 use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use cgaal_engine::analyse::analyse;
-use cgaal_engine::atl::{AtlExpressionParser, Phi};
+use cgaal_engine::atl::Phi;
 use cgaal_engine::edg::atledg::vertex::AtlVertex;
 use cgaal_engine::edg::atledg::AtlDependencyGraph;
 use cgaal_engine::edg::ExtendedDependencyGraph;
@@ -335,10 +335,9 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula<A: AtlExpressionParser>(
+fn load_formula(
     path: &str,
     formula_type: FormulaType,
-    expr_parser: &A,
 ) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
@@ -357,7 +356,7 @@ fn load_formula<A: AtlExpressionParser>(
             exit(1);
         }),
         FormulaType::Atl => {
-            let result = cgaal_engine::atl::parse_phi(expr_parser, &raw_phi);
+            let result = cgaal_engine::atl::parse_phi(&raw_phi);
             result.unwrap_or_else(|err| {
                 eprintln!("Invalid ATL formula provided:\n\n{}", err);
                 exit(1)
@@ -457,7 +456,7 @@ fn load(
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
-            let phi = load_formula(formula_path, formula_format, &game_structure);
+            let phi = load_formula(formula_path, formula_format);
 
             Ok(ModelAndFormula::Json {
                 model: game_structure,
@@ -471,7 +470,7 @@ fn load(
             let game_structure = IntermediateLcgs::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
-            let phi = load_formula(formula_path, formula_format, &game_structure);
+            let phi = load_formula(formula_path, formula_format);
 
             Ok(ModelAndFormula::Lcgs {
                 model: game_structure,
