@@ -28,7 +28,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn end(&mut self) {
+    pub fn expect_end(&mut self) {
         match self.lexer.next() {
             None => {}
             Some(tok) => {

@@ -9,7 +9,7 @@ fn basic_expr_001() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(
         parser.errors.is_empty(),
         "ErrorLog is not empty: {:?}",
@@ -34,7 +34,7 @@ fn basic_expr_002() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(
         parser.errors.is_empty(),
         "ErrorLog is not empty: {:?}",
@@ -67,7 +67,7 @@ fn basic_expr_003() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(
         parser.errors.is_empty(),
         "ErrorLog is not empty: {:?}",
@@ -124,7 +124,7 @@ fn atl_expr_001() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(
         parser.errors.is_empty(),
         "ErrorLog is not empty: {:?}",
@@ -160,7 +160,7 @@ fn atl_expr_002() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(
         parser.errors.is_empty(),
         "ErrorLog is not empty: {:?}",
@@ -196,7 +196,7 @@ fn atl_expr_003() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(
         parser.errors.is_empty(),
         "ErrorLog is not empty: {:?}",
@@ -230,13 +230,24 @@ fn erroneous_expr_001() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
     assert_eq!(
         out,
         "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected expression term\n"
+    );
+    assert_eq!(
+        expr,
+        Expr::new(
+            Span::new(0, 4),
+            ExprKind::Binary(
+                BinaryOpKind::And,
+                Expr::new(Span::new(0, 4), ExprKind::True).into(),
+                Expr::new_error().into()
+            )
+        )
     );
 }
 
@@ -246,7 +257,7 @@ fn erroneous_expr_002() {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
     let expr = parser.expr(0);
-    parser.end();
+    parser.expect_end();
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
@@ -256,4 +267,20 @@ fn erroneous_expr_002() {
         | foo bar\n\
         |     ^^^\n"
     );
+    assert_eq!(
+        expr,
+        Expr::new(Span::new(0, 3), ExprKind::Ident("foo".to_string()))
+    );
+}
+
+#[test]
+fn erroneous_expr_003() {
+    let input = "(foo false) && true";
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer);
+    let expr = parser.expr(0);
+    parser.expect_end();
+    assert!(parser.errors.has_errors());
+    let mut out = String::new();
+    parser.errors.write_detailed(input, &mut out).unwrap();
 }
