@@ -95,11 +95,11 @@ impl<'a> Iterator for Lexer<'a> {
             b'[' => match self.peek(1) {
                 Some(b'[') => self.token(2, TokenKind::Llbracket),
                 _ => self.token(1, TokenKind::Lbracket),
-            }
+            },
             b']' => match self.peek(1) {
                 Some(b']') => self.token(2, TokenKind::Rrbracket),
                 _ => self.token(1, TokenKind::Rbracket),
-            }
+            },
             b'+' => self.token(1, TokenKind::Plus),
             b'-' => match self.peek(1) {
                 Some(b'>') => self.token(2, TokenKind::Arrow),
@@ -110,26 +110,26 @@ impl<'a> Iterator for Lexer<'a> {
             b'&' => match self.peek(1) {
                 Some(b'&') => self.token(2, TokenKind::AmpAmp),
                 _ => self.token(1, TokenKind::Err),
-            }
+            },
             b'|' => match self.peek(1) {
                 Some(b'|') => self.token(2, TokenKind::PipePipe),
                 _ => self.token(1, TokenKind::Err),
-            }
+            },
             b'^' => self.token(1, TokenKind::Hat),
             b'?' => self.token(1, TokenKind::Question),
             b'!' => match self.peek(1) {
                 Some(b'=') => self.token(2, TokenKind::Neq),
                 _ => self.token(1, TokenKind::Bang),
-            }
+            },
             b'=' => match self.peek(1) {
                 Some(b'=') => self.token(2, TokenKind::Eq),
                 _ => self.token(1, TokenKind::Assign),
-            }
+            },
             b',' => self.token(1, TokenKind::Comma),
             b'.' => match self.peek(1) {
                 Some(b'.') => self.token(2, TokenKind::DotDot),
                 _ => self.token(1, TokenKind::Dot),
-            }
+            },
             b';' => self.token(1, TokenKind::Semi),
             b':' => self.token(1, TokenKind::Colon),
             b'\'' => self.token(1, TokenKind::Prime),

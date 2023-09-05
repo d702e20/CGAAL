@@ -78,9 +78,7 @@ fn number<'a>() -> Parser<'a, u8, Expr> {
         .collect()
         .convert(str::from_utf8)
         .convert(i32::from_str);
-    parsed
-        .map(|v| Expr { kind: Number(v) })
-        .name("number")
+    parsed.map(|v| Expr { kind: Number(v) }).name("number")
 }
 
 /// Parser that parses a symbol name. It must start with an alpha character, but subsequent

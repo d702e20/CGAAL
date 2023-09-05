@@ -1,5 +1,6 @@
-use std::cmp::{max, min};
 use crate::parsing::span::Span;
+use std::cmp::{max, min};
+use std::fmt::Write;
 
 #[derive(Debug, Default)]
 pub struct ErrorLog {
@@ -35,7 +36,8 @@ impl ErrorLog {
         self.errors.is_empty()
     }
 
-    pub fn write_detailed(&self, orig_input: &str, f: &mut dyn std::fmt::Write) -> std::fmt::Result {
+    pub fn to_string(&self, orig_input: &str) -> String {
+        let mut out = String::new();
         for entry in &self.errors {
             match &entry.span {
                 Some(span) => {
@@ -62,17 +64,18 @@ impl ErrorLog {
                         }
                         i += 1;
                     }
-                    writeln!(f, "\x1b[93m{}:{} Error:\x1b[0m {}", line, col, entry.msg)?;
+                    writeln!(out, "\x1b[93m{}:{} Error:\x1b[0m {}", line, col, entry.msg).unwrap();
 
                     // Print the lines with the error, and underline the error span
                     while line_start < span.end && i <= chars.len() {
                         if i == chars.len() || chars[i] == b'\n' {
-                            writeln!(f, "| {}", &orig_input[line_start..i])?;
+                            writeln!(out, "| {}", &orig_input[line_start..i]).unwrap();
                             let highlight_start = max(line_start, span.begin);
                             let highlight_end = min(i, span.end);
-                            write!(f, "| ")?;
-                            write!(f, "{}", " ".repeat(highlight_start - line_start))?;
-                            writeln!(f, "{}", "^".repeat(highlight_end - highlight_start))?;
+                            write!(out, "| ").unwrap();
+                            write!(out, "{}", " ".repeat(highlight_start - line_start)).unwrap();
+                            writeln!(out, "{}", "^".repeat(highlight_end - highlight_start))
+                                .unwrap();
                             line += 1;
                             line_start = i + 1;
                         }
@@ -80,11 +83,11 @@ impl ErrorLog {
                     }
                 }
                 None => {
-                    writeln!(f, "\x1b[93m@ Error:\x1b[0m {}", entry.msg)?;
+                    writeln!(out, "\x1b[93m@ Error:\x1b[0m {}", entry.msg).unwrap();
                 }
             }
         }
-        Ok(())
+        out
     }
 }
 
@@ -96,7 +99,10 @@ pub struct ErrorEntry {
 
 impl ErrorEntry {
     pub fn new(span: Span, msg: String) -> Self {
-        ErrorEntry { span: Some(span), msg }
+        ErrorEntry {
+            span: Some(span),
+            msg,
+        }
     }
 
     pub fn msg_only(msg: String) -> Self {
@@ -119,7 +125,10 @@ mod tests {
         ";
         let mut log = ErrorLog::new();
         let i = input.find("robot").unwrap();
-        log.log(Span::new(i, i + 5), "Unknown identifier 'robot'".to_string());
+        log.log(
+            Span::new(i, i + 5),
+            "Unknown identifier 'robot'".to_string(),
+        );
         let mut out = String::new();
         log.write_detailed(input, &mut out).unwrap();
         assert_eq!(

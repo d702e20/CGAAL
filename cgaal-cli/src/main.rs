@@ -335,10 +335,7 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula(
-    path: &str,
-    formula_type: FormulaType,
-) -> Phi {
+fn load_formula(path: &str, formula_type: FormulaType) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);

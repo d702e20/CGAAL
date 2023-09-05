@@ -8,7 +8,7 @@ fn basic_expr_001() {
     let input = "true && false";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0).expect("Failed to parse expression");
+    let expr = parser.expr(0).expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -33,7 +33,7 @@ fn basic_expr_002() {
     let input = "true && false || true";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0).expect("Failed to parse expression");
+    let expr = parser.expr(0).expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -66,7 +66,7 @@ fn basic_expr_003() {
     let input = "foo || true && bar || (true || false)";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0).expect("Failed to parse expression");
+    let expr = parser.expr(0).expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -123,7 +123,7 @@ fn atl_expr_001() {
     let input = "<<p1>> F goal";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0).expect("failed to parse expression");
+    let expr = parser.expr(0).expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -159,7 +159,7 @@ fn atl_expr_002() {
     let input = "[[p1, p2]] G safe";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0).expect("failed to parse expression");
+    let expr = parser.expr(0).expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -195,7 +195,7 @@ fn atl_expr_003() {
     let input = "<<>> (safe U goal)";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0).expect("failed to parse expression");
+    let expr = parser.expr(0).expect("Error should be recoverable");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -231,8 +231,7 @@ fn erroneous_expr_001() {
     let mut parser = Parser::new(lexer);
     assert!(parser.expr(0).is_err());
     assert!(parser.errors.has_errors());
-    let mut out = String::new();
-    parser.errors.write_detailed(input, &mut out).unwrap();
+    let out = parser.errors.to_string(input);
     assert_eq!(
         out,
         "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected expression term\n"
@@ -244,13 +243,10 @@ fn erroneous_expr_002() {
     let input = "foo bar";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser
-        .expr(0)
-        .expect("Failed to recover while parsing expression");
+    let expr = parser.expr(0).expect("Error should be recoverable");
     parser.expect_end();
     assert!(parser.errors.has_errors());
-    let mut out = String::new();
-    parser.errors.write_detailed(input, &mut out).unwrap();
+    let out = parser.errors.to_string(input);
     assert_eq!(
         out,
         "\x1b[93m1:5 Error:\x1b[0m Unexpected 'bar', expected EOF\n\
@@ -268,13 +264,10 @@ fn erroneous_expr_003() {
     let input = "(foo false) && true";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser
-        .expr(0)
-        .expect("Failed to recover while parsing expression");
+    let expr = parser.expr(0).expect("Error should be recoverable");
     parser.expect_end();
     assert!(parser.errors.has_errors());
-    let mut out = String::new();
-    parser.errors.write_detailed(input, &mut out).unwrap();
+    let out = parser.errors.to_string(input);
     assert_eq!(
         out,
         "\x1b[93m1:6 Error:\x1b[0m Unexpected 'false', expected ')'\n\
@@ -301,8 +294,7 @@ fn erroneous_expr_004() {
     let mut parser = Parser::new(lexer);
     assert!(parser.expr(0).is_err());
     assert!(parser.errors.has_errors());
-    let mut out = String::new();
-    parser.errors.write_detailed(input, &mut out).unwrap();
+    let out = parser.errors.to_string(input);
     assert_eq!(
         out,
         "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected ')'\n"
@@ -316,8 +308,7 @@ fn erroneous_expr_005() {
     let mut parser = Parser::new(lexer);
     assert!(parser.expr(0).is_err());
     assert!(parser.errors.has_errors());
-    let mut out = String::new();
-    parser.errors.write_detailed(input, &mut out).unwrap();
+    let out = parser.errors.to_string(input);
     assert_eq!(
         out,
         "\x1b[93m1:6 Error:\x1b[0m Unexpected 'bar', expected ')'\n\
@@ -331,13 +322,10 @@ fn erroneous_expr_006() {
     let input = " ( << p1 foo goal)";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser
-        .expr(0)
-        .expect("Failed to recover while parsing expression");
+    let expr = parser.expr(0).expect("Error should be recoverable");
     parser.expect_end();
     assert!(parser.errors.has_errors());
-    let mut out = String::new();
-    parser.errors.write_detailed(input, &mut out).unwrap();
+    let out = parser.errors.to_string(input);
     assert_eq!(
         out,
         "\x1b[93m1:10 Error:\x1b[0m Unexpected 'foo', expected ',' or '>>'\n\

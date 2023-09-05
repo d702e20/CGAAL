@@ -1,7 +1,7 @@
 use crate::game_structure::Proposition;
 use crate::parsing::span::Span;
-use std::sync::Arc;
 use crate::parsing::token::TokenKind;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expr {
@@ -53,9 +53,8 @@ pub enum BinaryOpKind {
 
 impl BinaryOpKind {
     pub fn associativity(&self) -> Associativity {
-        match self {
-            _ => Associativity::LeftToRight,
-        }
+        // All operators are left-associative so far
+        Associativity::LeftToRight
     }
 
     pub fn is_right_associative(&self) -> bool {
@@ -78,7 +77,7 @@ impl TryFrom<TokenKind> for BinaryOpKind {
         match value {
             TokenKind::AmpAmp => Ok(BinaryOpKind::And),
             TokenKind::PipePipe => Ok(BinaryOpKind::Or),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

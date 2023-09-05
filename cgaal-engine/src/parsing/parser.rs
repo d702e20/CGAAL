@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
                     .log(tok.span, format!("Unexpected '{}', expected EOF", tok.kind));
             }
         }
-        while let Some(_) = self.lexer.next() {}
+        for _ in self.lexer.by_ref() {};
     }
 
     pub fn expr(&mut self, min_prec: u8) -> Result<Expr, ParseError> {
@@ -177,7 +177,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn paren(&mut self) -> Result<Expr, ParseError> {
-        let begin = self.expect_and_consume(TokenKind::Lparen)?;
+        let begin = self.token(TokenKind::Lparen)?;
         recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())
             .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
     }
@@ -207,7 +207,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn enforce_coalition(&mut self) -> Result<Expr, ParseError> {
-        let begin = self.expect_and_consume(TokenKind::Llangle)?;
+        let begin = self.token(TokenKind::Llangle)?;
         let (end, players) = recover!(self, self.coalition_players(), TokenKind::Rrangle, vec![])?;
         let expr = self.path_expr()?;
         Ok(Expr::new(
@@ -222,7 +222,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn despite_coalition(&mut self) -> Result<Expr, ParseError> {
-        let begin = self.expect_and_consume(TokenKind::Llbracket)?;
+        let begin = self.token(TokenKind::Llbracket)?;
         let (end, players) =
             recover!(self, self.coalition_players(), TokenKind::Rrbracket, vec![])?;
         let expr = self.path_expr()?;
@@ -239,15 +239,16 @@ impl<'a> Parser<'a> {
 
     pub fn coalition_players(&mut self) -> Result<Vec<Expr>, ParseError> {
         let mut players = vec![];
+        #[allow(clippy::while_let_loop)]
         loop {
             match self.lexer.peek() {
                 Some(Token {
-                    span,
-                    kind: TokenKind::Word(w),
+                    kind: TokenKind::Word(_),
+                    ..
                 }) => {
-                    let p = Expr::new(span.clone(), ExprKind::Ident(w.to_string()));
+                    let tok = self.lexer.next().unwrap();
+                    let p = Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string()));
                     players.push(p);
-                    self.lexer.next().unwrap();
                 }
                 _ => break,
             }
@@ -287,28 +288,7 @@ impl<'a> Parser<'a> {
         Ok(players)
     }
 
-    fn next_is(&mut self, kind: TokenKind) -> bool {
-        matches!(self.lexer.peek(), Some(tok) if tok.kind == kind)
-    }
-
-    fn expect(&mut self, kind: TokenKind) -> Result<(), ParseError> {
-        match self.lexer.peek() {
-            None => {
-                self.errors
-                    .log_msg(format!("Unexpected EOF, expected '{}'", kind));
-                Err(ParseError)
-            }
-            Some(tok) => {
-                self.errors.log(
-                    tok.span,
-                    format!("Unexpected '{}', expected '{}'", tok.kind, kind),
-                );
-                Err(ParseError)
-            }
-        }
-    }
-
-    fn expect_and_consume(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
+    fn token(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
         match self.lexer.next() {
             Some(tok) if tok.kind == kind => Ok(tok.span),
             Some(tok) => {
