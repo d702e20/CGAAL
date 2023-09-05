@@ -8,7 +8,7 @@ fn basic_expr_001() {
     let input = "true && false";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser.expr(0).expect("Failed to parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -33,7 +33,7 @@ fn basic_expr_002() {
     let input = "true && false || true";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser.expr(0).expect("Failed to parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -66,7 +66,7 @@ fn basic_expr_003() {
     let input = "foo || true && bar || (true || false)";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser.expr(0).expect("Failed to parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -123,7 +123,7 @@ fn atl_expr_001() {
     let input = "<<p1>> F goal";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser.expr(0).expect("failed to parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -159,7 +159,7 @@ fn atl_expr_002() {
     let input = "[[p1, p2]] G safe";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser.expr(0).expect("failed to parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -195,7 +195,7 @@ fn atl_expr_003() {
     let input = "<<>> (safe U goal)";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser.expr(0).expect("failed to parse expression");
     parser.expect_end();
     assert!(
         parser.errors.is_empty(),
@@ -229,25 +229,13 @@ fn erroneous_expr_001() {
     let input = "true && ";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
-    parser.expect_end();
+    assert!(parser.expr(0).is_err());
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
     assert_eq!(
         out,
         "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected expression term\n"
-    );
-    assert_eq!(
-        expr,
-        Expr::new(
-            Span::new(0, 4),
-            ExprKind::Binary(
-                BinaryOpKind::And,
-                Expr::new(Span::new(0, 4), ExprKind::True).into(),
-                Expr::new_error().into()
-            )
-        )
     );
 }
 
@@ -256,7 +244,9 @@ fn erroneous_expr_002() {
     let input = "foo bar";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser
+        .expr(0)
+        .expect("Failed to recover while parsing expression");
     parser.expect_end();
     assert!(parser.errors.has_errors());
     let mut out = String::new();
@@ -278,7 +268,9 @@ fn erroneous_expr_003() {
     let input = "(foo false) && true";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser
+        .expr(0)
+        .expect("Failed to recover while parsing expression");
     parser.expect_end();
     assert!(parser.errors.has_errors());
     let mut out = String::new();
@@ -295,13 +287,7 @@ fn erroneous_expr_003() {
             Span::new(0, 19),
             ExprKind::Binary(
                 BinaryOpKind::And,
-                Expr::new(
-                    Span::new(0, 11),
-                    ExprKind::Paren(
-                        Expr::new(Span::new(1, 4), ExprKind::Ident("foo".to_string()),).into()
-                    )
-                )
-                .into(),
+                Expr::new(Span::new(0, 11), ExprKind::Paren(Expr::new_error().into(),)).into(),
                 Expr::new(Span::new(15, 19), ExprKind::True).into()
             )
         )
@@ -313,8 +299,7 @@ fn erroneous_expr_004() {
     let input = "(true";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
-    parser.expect_end();
+    assert!(parser.expr(0).is_err());
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
@@ -322,7 +307,6 @@ fn erroneous_expr_004() {
         out,
         "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected ')'\n"
     );
-    assert_eq!(expr, Expr::new_error());
 }
 
 #[test]
@@ -330,8 +314,7 @@ fn erroneous_expr_005() {
     let input = "(foo bar";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
-    parser.expect_end();
+    assert!(parser.expr(0).is_err());
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
@@ -341,30 +324,28 @@ fn erroneous_expr_005() {
         | (foo bar\n\
         |      ^^^\n"
     );
-    assert_eq!(expr, Expr::new_error());
 }
 
 #[test]
 fn erroneous_expr_006() {
-    let input = " ( << p1 err goal)";
+    let input = " ( << p1 foo goal)";
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer);
-    let expr = parser.expr(0);
+    let expr = parser
+        .expr(0)
+        .expect("Failed to recover while parsing expression");
     parser.expect_end();
     assert!(parser.errors.has_errors());
     let mut out = String::new();
     parser.errors.write_detailed(input, &mut out).unwrap();
     assert_eq!(
         out,
-        "\x1b[93m1:10 Error:\x1b[0m Unexpected 'err', expected '>>'\n\
-        |  ( << p1 err goal)\n\
+        "\x1b[93m1:10 Error:\x1b[0m Unexpected 'foo', expected ',' or '>>'\n\
+        |  ( << p1 foo goal)\n\
         |          ^^^\n"
     );
     assert_eq!(
         expr,
-        Expr::new(
-            Span::new(1, 19),
-            ExprKind::Paren(Expr::new_error().into())
-        )
+        Expr::new(Span::new(1, 18), ExprKind::Paren(Expr::new_error().into()))
     );
 }

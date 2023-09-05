@@ -1,15 +1,60 @@
 use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, UnaryOpKind};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
-use crate::parsing::parser::ParseError::Unexpected;
 use crate::parsing::span::Span;
 use crate::parsing::token::{Token, TokenKind};
 use std::iter::Peekable;
 use std::sync::Arc;
 
+macro_rules! recover {
+    ($self:expr, $val:expr, $recover_token:expr, $err_val:expr) => {{
+        $self.recovery_tokens.push($recover_token);
+        let res = match $val {
+            Ok(v) => {
+                match $self.lexer.peek() {
+                    Some(Token { kind, .. }) if kind == &$recover_token => {
+                        // Happy path
+                        let tok = $self.lexer.next().unwrap();
+                        $self.recovery_tokens.pop();
+                        Ok((tok.span, v))
+                    }
+                    Some(Token { kind, span }) => {
+                        $self.errors.log(
+                            *span,
+                            format!("Unexpected '{}', expected '{}'", kind, $recover_token),
+                        );
+                        Err(ParseError)
+                    }
+                    _ => {
+                        $self
+                            .errors
+                            .log_msg(format!("Unexpected EOF, expected '{}'", $recover_token));
+                        Err(ParseError)
+                    }
+                }
+            }
+            Err(_) => Err(ParseError),
+        };
+        res.or_else(|_| {
+            // Unhappy path
+            // Try recover
+            $self.skip_until_recovery();
+            $self.recovery_tokens.pop();
+            match $self.lexer.peek() {
+                Some(Token { kind, .. }) if kind == &$recover_token => {
+                    let tok = $self.lexer.next().unwrap();
+                    Ok((tok.span, $err_val))
+                }
+                _ => Err(ParseError),
+            }
+        })
+    }};
+}
+
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
     pub errors: ErrorLog,
+    recovery_tokens: Vec<TokenKind>,
 }
 
 impl<'a> Parser<'a> {
@@ -17,6 +62,7 @@ impl<'a> Parser<'a> {
         Parser {
             lexer: lexer.peekable(),
             errors: ErrorLog::new(),
+            recovery_tokens: vec![],
         }
     }
 
@@ -31,55 +77,56 @@ impl<'a> Parser<'a> {
         while let Some(_) = self.lexer.next() {}
     }
 
-    pub fn expr(&mut self, min_prec: u8) -> Expr {
+    pub fn expr(&mut self, min_prec: u8) -> Result<Expr, ParseError> {
         // Pratt parsing/precedence climbing: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#climbing
-        let mut lhs = self.term();
+        let mut lhs = self.term()?;
         let span_start = lhs.span;
         loop {
-            let Some(op): Option<BinaryOpKind> = self.lexer.peek().and_then(|t| t.kind().clone().try_into().ok()) else { return lhs };
+            let Some(op): Option<BinaryOpKind> = self.lexer.peek().and_then(|t| t.kind().clone().try_into().ok()) else { return Ok(lhs) };
             if op.precedence() < min_prec {
-                return lhs;
+                return Ok(lhs);
             }
             self.lexer.next();
             let new_prec = op.precedence() + if op.is_right_associative() { 0 } else { 1 };
-            let rhs = self.expr(new_prec);
+            let rhs = self.expr(new_prec)?;
             let span = span_start + rhs.span;
             let kind = ExprKind::Binary(op, lhs.into(), rhs.into());
             lhs = Expr::new(span, kind);
         }
     }
 
-    pub fn path_expr(&mut self) -> Expr {
+    pub fn path_expr(&mut self) -> Result<Expr, ParseError> {
         match self.lexer.peek().map(|t| t.kind()) {
             Some(TokenKind::Lparen) => {
                 let begin = self.lexer.next().unwrap().span;
-                let lhs = self.expr(BinaryOpKind::Until.precedence());
-                let Ok(_) = self.expect_and_consume(TokenKind::Word("U".to_string())) else {
-                    return Expr::new_error();
-                };
-                let rhs = self.expr(0);
-                let end = self.expect_and_consume(TokenKind::Rparen).unwrap();
-                Expr::new(
+                let (_, lhs) = recover!(
+                    self,
+                    self.expr(BinaryOpKind::Until.precedence()),
+                    TokenKind::Word("U".to_string()),
+                    Expr::new_error()
+                )?;
+                let (end, rhs) =
+                    recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())?;
+                Ok(Expr::new(
                     begin + end,
                     ExprKind::Binary(BinaryOpKind::Until, lhs.into(), rhs.into()),
-                )
+                ))
             }
             Some(TokenKind::Word(w)) if w == "F" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0);
-                Expr::new(
+                let expr = self.expr(0)?;
+                Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Eventually, expr.into()),
-                )
+                ))
             }
-
             Some(TokenKind::Word(w)) if w == "G" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0);
-                Expr::new(
+                let expr = self.expr(0)?;
+                Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Invariantly, expr.into()),
-                )
+                ))
             }
             // Unexpected
             Some(_) => {
@@ -88,104 +135,109 @@ impl<'a> Parser<'a> {
                     tok.span,
                     format!("Unexpected '{}', expected path expression", tok.kind),
                 );
-                Expr::new_error()
+                Err(ParseError)
             }
             None => {
                 self.errors
                     .log_msg("Unexpected EOF, expected path expression".to_string());
-                Expr::new_error()
+                Err(ParseError)
             }
         }
     }
 
-    pub fn term(&mut self) -> Expr {
+    pub fn term(&mut self) -> Result<Expr, ParseError> {
         match self.lexer.peek().map(|t| t.kind()) {
             Some(TokenKind::Lparen) => self.paren(),
             Some(TokenKind::True) => {
                 let tok = self.lexer.next().unwrap();
-                Expr::new(tok.span, ExprKind::True)
+                Ok(Expr::new(tok.span, ExprKind::True))
             }
             Some(TokenKind::False) => {
                 let tok = self.lexer.next().unwrap();
-                Expr::new(tok.span, ExprKind::False)
+                Ok(Expr::new(tok.span, ExprKind::False))
             }
             Some(TokenKind::Word(_)) => self.ident(),
             Some(TokenKind::Llangle) => self.enforce_coalition(),
             Some(TokenKind::Llbracket) => self.despite_coalition(),
             // Unexpected
             Some(_) => {
-                let tok = self.lexer.next().unwrap();
+                let tok = self.lexer.peek().unwrap();
                 self.errors.log(
                     tok.span,
                     format!("Unexpected '{}', expected expression term", tok.kind),
                 );
-                Expr::new_error()
+                Err(ParseError)
             }
             None => {
                 self.errors
                     .log_msg("Unexpected EOF, expected expression term".to_string());
-                Expr::new_error()
+                Err(ParseError)
             }
         }
     }
 
-    pub fn paren(&mut self) -> Expr {
-        let Ok(begin) = self.expect_and_consume(TokenKind::Lparen) else {
-            return Expr::new_error();
-        };
-        let expr = self.expr(0);
-        let Ok(end) = self.expect_consume_or_recover(TokenKind::Rparen) else {
-            return Expr::new_error();
-        };
-        Expr::new(begin + end, ExprKind::Paren(Arc::new(expr)))
+    pub fn paren(&mut self) -> Result<Expr, ParseError> {
+        let begin = self.expect_and_consume(TokenKind::Lparen)?;
+        recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())
+            .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
     }
 
-    pub fn ident(&mut self) -> Expr {
-        let tok = self.lexer.next().unwrap();
-        Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string()))
+    pub fn ident(&mut self) -> Result<Expr, ParseError> {
+        match self.lexer.peek() {
+            Some(Token {
+                kind: TokenKind::Word(_),
+                ..
+            }) => {
+                let tok = self.lexer.next().unwrap();
+                Ok(Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string())))
+            }
+            Some(tok) => {
+                self.errors.log(
+                    tok.span,
+                    format!("Unexpected '{}', expected identifier", tok.kind),
+                );
+                Err(ParseError)
+            }
+            None => {
+                self.errors
+                    .log_msg("Unexpected EOF, expected identifier".to_string());
+                Err(ParseError)
+            }
+        }
     }
 
-    pub fn enforce_coalition(&mut self) -> Expr {
-        let Ok(coal_begin) = self.expect_and_consume(TokenKind::Llangle) else {
-            return Expr::new_error();
-        };
-        let players = self.players();
-        let Ok(coal_end) = self.expect_and_consume(TokenKind::Rrangle) else {
-            return Expr::new_error();
-        };
-        let expr = self.path_expr();
-        Expr::new(
-            coal_begin + expr.span,
+    pub fn enforce_coalition(&mut self) -> Result<Expr, ParseError> {
+        let begin = self.expect_and_consume(TokenKind::Llangle)?;
+        let (end, players) = recover!(self, self.coalition_players(), TokenKind::Rrangle, vec![])?;
+        let expr = self.path_expr()?;
+        Ok(Expr::new(
+            begin + expr.span,
             ExprKind::Coalition(Coalition::new(
-                coal_begin + coal_end,
+                begin + end,
                 players,
                 CoalitionKind::Enforce,
                 Arc::new(expr),
             )),
-        )
+        ))
     }
 
-    pub fn despite_coalition(&mut self) -> Expr {
-        let Ok(coal_begin) = self.expect_and_consume(TokenKind::Llbracket) else {
-            return Expr::new_error();
-        };
-        let players = self.players();
-        let Ok(coal_end) = self.expect_and_consume(TokenKind::Rrbracket) else {
-            return Expr::new_error();
-        };
-        let expr = self.path_expr();
-        Expr::new(
-            coal_begin + expr.span,
+    pub fn despite_coalition(&mut self) -> Result<Expr, ParseError> {
+        let begin = self.expect_and_consume(TokenKind::Llbracket)?;
+        let (end, players) =
+            recover!(self, self.coalition_players(), TokenKind::Rrbracket, vec![])?;
+        let expr = self.path_expr()?;
+        Ok(Expr::new(
+            begin + expr.span,
             ExprKind::Coalition(Coalition::new(
-                coal_begin + coal_end,
+                begin + end,
                 players,
                 CoalitionKind::Despite,
                 Arc::new(expr),
             )),
-        )
+        ))
     }
 
-    pub fn players(&mut self) -> Vec<Expr> {
+    pub fn coalition_players(&mut self) -> Result<Vec<Expr>, ParseError> {
         let mut players = vec![];
         loop {
             match self.lexer.peek() {
@@ -199,17 +251,61 @@ impl<'a> Parser<'a> {
                 }
                 _ => break,
             }
-            if self.next_is(TokenKind::Comma) {
-                self.lexer.next();
-            } else {
-                break;
+            match self.lexer.peek() {
+                Some(Token {
+                    kind: TokenKind::Comma,
+                    ..
+                }) => {
+                    self.lexer.next().unwrap();
+                }
+                Some(Token {
+                    kind: TokenKind::Rrangle | TokenKind::Rrbracket,
+                    ..
+                }) => break,
+                Some(tok) => {
+                    self.errors.log(
+                        tok.span,
+                        format!(
+                            "Unexpected '{}', expected '{}' or '{}'",
+                            tok.kind,
+                            TokenKind::Comma,
+                            self.recovery_tokens.last().unwrap()
+                        ),
+                    );
+                    return Err(ParseError);
+                }
+                _ => {
+                    self.errors.log_msg(format!(
+                        "Unexpected EOF, expected '{}' or '{}'",
+                        TokenKind::Comma,
+                        self.recovery_tokens.last().unwrap()
+                    ));
+                    return Err(ParseError);
+                }
             }
         }
-        players
+        Ok(players)
     }
 
     fn next_is(&mut self, kind: TokenKind) -> bool {
         matches!(self.lexer.peek(), Some(tok) if tok.kind == kind)
+    }
+
+    fn expect(&mut self, kind: TokenKind) -> Result<(), ParseError> {
+        match self.lexer.peek() {
+            None => {
+                self.errors
+                    .log_msg(format!("Unexpected EOF, expected '{}'", kind));
+                Err(ParseError)
+            }
+            Some(tok) => {
+                self.errors.log(
+                    tok.span,
+                    format!("Unexpected '{}', expected '{}'", tok.kind, kind),
+                );
+                Err(ParseError)
+            }
+        }
     }
 
     fn expect_and_consume(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
@@ -220,29 +316,25 @@ impl<'a> Parser<'a> {
                     tok.span,
                     format!("Unexpected '{}', expected '{}'", tok.kind, kind),
                 );
-                Err(Unexpected(Some(tok)))
+                Err(ParseError)
             }
             None => {
                 self.errors
                     .log_msg(format!("Unexpected EOF, expected '{}'", kind));
-                Err(Unexpected(None))
+                Err(ParseError)
             }
         }
     }
 
-    fn expect_consume_or_recover(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
-        self.expect_and_consume(kind.clone()).or_else(|err| {
-            while let Some(tok) = self.lexer.next() {
-                if tok.kind == kind {
-                    return Ok(tok.span);
-                }
+    fn skip_until_recovery(&mut self) {
+        while let Some(tok) = self.lexer.peek() {
+            if self.recovery_tokens.contains(&tok.kind) {
+                return;
             }
-            Err(err)
-        })
+            self.lexer.next();
+        }
     }
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum ParseError {
-    Unexpected(Option<Token>),
-}
+pub struct ParseError;
