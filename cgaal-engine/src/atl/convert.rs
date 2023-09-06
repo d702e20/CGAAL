@@ -20,7 +20,7 @@ pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &mut Er
                     errors.log(span.clone(), format!("Expected proposition label, '{}' is not a label", ident));
                     None
                 }
-                None => {4
+                None => {
                     errors.log(span.clone(), format!("Expected proposition label, '{}' is not defined", ident));
                     None
                 }
