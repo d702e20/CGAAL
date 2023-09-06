@@ -53,15 +53,15 @@ macro_rules! recover {
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
-    pub errors: ErrorLog,
+    errors: &'a mut ErrorLog,
     recovery_tokens: Vec<TokenKind>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lexer: Lexer<'a>) -> Parser {
+    pub fn new(lexer: Lexer<'a>, errors: &'a mut ErrorLog) -> Parser<'a> {
         Parser {
             lexer: lexer.peekable(),
-            errors: ErrorLog::new(),
+            errors,
             recovery_tokens: vec![],
         }
     }

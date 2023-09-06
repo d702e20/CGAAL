@@ -8,7 +8,7 @@ use crate::atl::game_formula::GamePhi;
 use crate::game_structure::{GameStructure, Player, Proposition};
 
 pub mod game_formula;
-mod convert;
+pub mod convert;
 
 /// Alternating-time Temporal Logic formula
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]

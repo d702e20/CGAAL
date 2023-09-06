@@ -18,6 +18,7 @@ use tracing::trace;
 use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use cgaal_engine::analyse::analyse;
+use cgaal_engine::atl::convert::convert_expr_to_phi;
 use cgaal_engine::atl::Phi;
 use cgaal_engine::edg::atledg::vertex::AtlVertex;
 use cgaal_engine::edg::atledg::AtlDependencyGraph;
@@ -27,6 +28,7 @@ use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use cgaal_engine::game_structure::lcgs::ir::symbol_table::Owner;
 use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::game_structure::{EagerGameStructure, GameStructure};
+use cgaal_engine::parsing::errors::ErrorLog;
 use cgaal_engine::parsing::parse_atl;
 #[cfg(feature = "graph-printer")]
 use cgaal_engine::printer::print_graph;
@@ -336,7 +338,7 @@ fn main_inner() -> Result<(), String> {
 /// Reads a formula in JSON format from a file and returns the formula as a string
 /// and as a parsed Phi struct.
 /// This function will exit the program if it encounters an error.
-fn load_formula(path: &str, formula_type: FormulaType) -> Phi {
+fn load_formula(path: &str, formula_type: FormulaType, game: Option<&IntermediateLcgs>) -> Phi {
     let mut file = File::open(path).unwrap_or_else(|err| {
         eprintln!("Failed to open formula file\n\nError:\n{}", err);
         exit(1);
@@ -354,11 +356,18 @@ fn load_formula(path: &str, formula_type: FormulaType) -> Phi {
             exit(1);
         }),
         FormulaType::Atl => {
-            let result = cgaal_engine::atl::parse_phi(&raw_phi);
-            result.unwrap_or_else(|err| {
-                eprintln!("Invalid ATL formula provided:\n\n{}", err);
+            let game = game.unwrap_or_else(|| {
+                eprintln!("Cannot parse ATL formula for non-LCGS models");
                 exit(1)
-            })
+            });
+            let mut errors = ErrorLog::new();
+            parse_atl(&raw_phi, &mut errors)
+                .ok()
+                .and_then(|expr| convert_expr_to_phi(&expr, game, &mut errors))
+                .unwrap_or_else(|| {
+                    eprint!("Invalid ATL formula provided:\n{}", errors.to_string(&raw_phi));
+                    exit(1)
+                })
         }
     }
 }
@@ -454,7 +463,7 @@ fn load(
             let game_structure = serde_json::from_str(content.as_str())
                 .map_err(|err| format!("Failed to deserialize input model.\n{}", err))?;
 
-            let phi = load_formula(formula_path, formula_format);
+            let phi = load_formula(formula_path, formula_format, None);
 
             Ok(ModelAndFormula::Json {
                 model: game_structure,
@@ -468,7 +477,7 @@ fn load(
             let game_structure = IntermediateLcgs::create(lcgs)
                 .map_err(|err| format!("Invalid LCGS program.\n{}", err))?;
 
-            let phi = load_formula(formula_path, formula_format);
+            let phi = load_formula(formula_path, formula_format, Some(&game_structure));
 
             Ok(ModelAndFormula::Lcgs {
                 model: game_structure,
