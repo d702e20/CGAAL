@@ -93,7 +93,7 @@ pub enum TokenKind {
     Word(String),
 
     // Utility
-    Err,
+    Err(String),
 }
 
 impl Display for TokenKind {
@@ -144,7 +144,7 @@ impl Display for TokenKind {
             TokenKind::False => write!(f, "false"),
             TokenKind::Num(n) => write!(f, "{n}"),
             TokenKind::Word(w) => write!(f, "{w}"),
-            TokenKind::Err => write!(f, "@err"),
+            TokenKind::Err(e) => write!(f, "{e}"),
         }
     }
 }

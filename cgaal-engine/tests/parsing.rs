@@ -218,7 +218,7 @@ fn erroneous_expr_001() {
     let out = errors.to_string(input);
     assert_eq!(
         out,
-        "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected expression term\n"
+        "\x1b[31m@ Error:\x1b[0m Unexpected EOF, expected expression term\n"
     );
 }
 
@@ -234,7 +234,7 @@ fn erroneous_expr_002() {
     let out = errors.to_string(input);
     assert_eq!(
         out,
-        "\x1b[93m1:5 Error:\x1b[0m Unexpected 'bar', expected EOF\n\
+        "\x1b[31m1:5 Error:\x1b[0m Unexpected 'bar', expected EOF\n\
         | foo bar\n\
         |     ^^^\n"
     );
@@ -256,7 +256,7 @@ fn erroneous_expr_003() {
     let out = errors.to_string(input);
     assert_eq!(
         out,
-        "\x1b[93m1:6 Error:\x1b[0m Unexpected 'false', expected ')'\n\
+        "\x1b[31m1:6 Error:\x1b[0m Unexpected 'false', expected ')'\n\
         | (foo false) && true\n\
         |      ^^^^^\n"
     );
@@ -284,7 +284,7 @@ fn erroneous_expr_004() {
     let out = errors.to_string(input);
     assert_eq!(
         out,
-        "\x1b[93m@ Error:\x1b[0m Unexpected EOF, expected ')'\n"
+        "\x1b[31m@ Error:\x1b[0m Unexpected EOF, expected ')'\n"
     );
 }
 
@@ -299,7 +299,7 @@ fn erroneous_expr_005() {
     let out = errors.to_string(input);
     assert_eq!(
         out,
-        "\x1b[93m1:6 Error:\x1b[0m Unexpected 'bar', expected ')'\n\
+        "\x1b[31m1:6 Error:\x1b[0m Unexpected 'bar', expected ')'\n\
         | (foo bar\n\
         |      ^^^\n"
     );
@@ -317,7 +317,7 @@ fn erroneous_expr_006() {
     let out = errors.to_string(input);
     assert_eq!(
         out,
-        "\x1b[93m1:10 Error:\x1b[0m Unexpected 'foo', expected ',' or '>>'\n\
+        "\x1b[31m1:10 Error:\x1b[0m Unexpected 'foo', expected ',' or '>>'\n\
         |  ( << p1 foo goal)\n\
         |          ^^^\n"
     );

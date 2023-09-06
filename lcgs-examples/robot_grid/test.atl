@@ -1,1 +1,1 @@
-<<r1>> F true
+(<<r1>> F foo bar) && (🤣 || false)

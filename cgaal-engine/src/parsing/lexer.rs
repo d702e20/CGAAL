@@ -70,6 +70,15 @@ impl<'a> Lexer<'a> {
             .unwrap();
         self.token(len, TokenKind::Num(val))
     }
+
+    fn lex_error(&mut self) -> Token {
+        let mut len = 1;
+        while !std::str::from_utf8(&self.input[self.pos..self.pos + len]).is_ok() {
+            len += 1;
+        }
+        let e = std::str::from_utf8(&self.input[self.pos..self.pos + len]).unwrap();
+        self.token(len, TokenKind::Err(e.to_string()))
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -109,11 +118,11 @@ impl<'a> Iterator for Lexer<'a> {
             b'/' => self.token(1, TokenKind::Slash),
             b'&' => match self.peek(1) {
                 Some(b'&') => self.token(2, TokenKind::AmpAmp),
-                _ => self.token(1, TokenKind::Err),
+                _ => self.lex_error(),
             },
             b'|' => match self.peek(1) {
                 Some(b'|') => self.token(2, TokenKind::PipePipe),
-                _ => self.token(1, TokenKind::Err),
+                _ => self.lex_error(),
             },
             b'^' => self.token(1, TokenKind::Hat),
             b'?' => self.token(1, TokenKind::Question),
@@ -135,7 +144,7 @@ impl<'a> Iterator for Lexer<'a> {
             b'\'' => self.token(1, TokenKind::Prime),
             b'a'..=b'z' | b'A'..=b'Z' => self.lex_alpha(),
             b'0'..=b'9' => self.lex_num(),
-            _ => self.token(1, TokenKind::Err),
+            _ => self.lex_error(),
         };
         Some(tk)
     }

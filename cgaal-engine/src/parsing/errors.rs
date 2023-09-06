@@ -64,7 +64,7 @@ impl ErrorLog {
                         }
                         i += 1;
                     }
-                    writeln!(out, "\x1b[93m{}:{} Error:\x1b[0m {}", line, col, entry.msg).unwrap();
+                    writeln!(out, "\x1b[31m{}:{} Error:\x1b[0m {}", line, col, entry.msg).unwrap();
 
                     // Print the lines with the error, and underline the error span
                     while line_start < span.end && i <= chars.len() {
@@ -83,7 +83,7 @@ impl ErrorLog {
                     }
                 }
                 None => {
-                    writeln!(out, "\x1b[93m@ Error:\x1b[0m {}", entry.msg).unwrap();
+                    writeln!(out, "\x1b[31m@ Error:\x1b[0m {}", entry.msg).unwrap();
                 }
             }
         }
@@ -129,11 +129,10 @@ mod tests {
             Span::new(i, i + 5),
             "Unknown identifier 'robot'".to_string(),
         );
-        let mut out = String::new();
-        log.write_detailed(input, &mut out).unwrap();
+        let out = log.to_string(input);
         assert_eq!(
             out,
-            "\x1b[93m3:13 Error:\x1b[0m Unknown identifier 'robot'\n\
+            "\x1b[31m3:13 Error:\x1b[0m Unknown identifier 'robot'\n\
             | player p1 = robot[x=0, y=1];\n\
             |             ^^^^^\n"
         );
@@ -149,11 +148,10 @@ mod tests {
         let mut log = ErrorLog::new();
         let span = Span::new(input.find("123").unwrap(), input.find(";").unwrap());
         log.log(span, "RHS of '+' must be integer, found bool".to_string());
-        let mut out = String::new();
-        log.write_detailed(input, &mut out).unwrap();
+        let out = log.to_string(input);
         assert_eq!(
             out,
-            "\x1b[93m2:11 Error:\x1b[0m RHS of '+' must be integer, found bool\n\
+            "\x1b[31m2:11 Error:\x1b[0m RHS of '+' must be integer, found bool\n\
             | label x = 123 +\n\
             |           ^^^^^\n\
             |           true;\n\
