@@ -12,7 +12,20 @@ pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &mut Er
         ExprKind::True => Some(Phi::True),
         ExprKind::False => Some(Phi::False),
         ExprKind::Paren(e) => convert_expr_to_phi(e, game, errors),
-        ExprKind::Ident(_) => todo!(),
+        ExprKind::Ident(ident) => {
+            let decl = game.get_decl(&Owner::Global.symbol_id(ident));
+            match &decl.map(|d| &d.kind) {
+                Some(DeclKind::Label(l)) => Some(Phi::Proposition(l.index)),
+                Some(_) => {
+                    errors.log(span.clone(), format!("Expected proposition label, '{}' is not a label", ident));
+                    None
+                }
+                None => {4
+                    errors.log(span.clone(), format!("Expected proposition label, '{}' is not defined", ident));
+                    None
+                }
+            }
+        }
         ExprKind::Unary(op, e) => match op {
             UnaryOpKind::Not => Some(Phi::Not(convert_expr_to_phi(e, game, errors)?.into())),
             UnaryOpKind::Next | UnaryOpKind::Eventually | UnaryOpKind::Invariantly => {
