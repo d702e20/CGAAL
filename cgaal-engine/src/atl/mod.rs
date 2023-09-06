@@ -5,11 +5,10 @@ use std::sync::Arc;
 use joinery::prelude::*;
 
 use crate::atl::game_formula::GamePhi;
-pub use crate::atl::parser::*;
 use crate::game_structure::{GameStructure, Player, Proposition};
 
 pub mod game_formula;
-pub mod parser;
+mod convert;
 
 /// Alternating-time Temporal Logic formula
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]

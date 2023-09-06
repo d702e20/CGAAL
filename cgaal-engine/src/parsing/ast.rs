@@ -1,4 +1,3 @@
-use crate::game_structure::Proposition;
 use crate::parsing::span::Span;
 use crate::parsing::token::TokenKind;
 use std::sync::Arc;
@@ -25,7 +24,6 @@ pub enum ExprKind {
     False,
     Paren(Arc<Expr>),
     Ident(String),
-    Prop(Proposition),
     Unary(UnaryOpKind, Arc<Expr>),
     Binary(BinaryOpKind, Arc<Expr>, Arc<Expr>),
     Coalition(Coalition),

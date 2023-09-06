@@ -27,6 +27,7 @@ use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use cgaal_engine::game_structure::lcgs::ir::symbol_table::Owner;
 use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::game_structure::{EagerGameStructure, GameStructure};
+use cgaal_engine::parsing::parse_atl;
 #[cfg(feature = "graph-printer")]
 use cgaal_engine::printer::print_graph;
 

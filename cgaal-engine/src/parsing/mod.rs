@@ -4,7 +4,7 @@ use crate::parsing::lexer::Lexer;
 use crate::parsing::parser::Parser;
 
 pub mod ast;
-mod errors;
+pub mod errors;
 pub mod lexer;
 pub mod parser;
 pub mod span;
