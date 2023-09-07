@@ -16,8 +16,13 @@ pub struct ParseErrorSeeLog;
 pub fn parse_atl(input: &str, errors: &mut ErrorLog) -> Result<Expr, ParseErrorSeeLog> {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer, errors);
-    let expr = parser.expr(0).unwrap_or(Expr::new_error());
-    parser.expect_end();
+    let expr = parser
+        .expr(0)
+        .and_then(|expr| {
+            parser.expect_end();
+            Ok(expr)
+        })
+        .unwrap_or(Expr::new_error());
     if errors.has_errors() {
         Err(ParseErrorSeeLog)
     } else {
