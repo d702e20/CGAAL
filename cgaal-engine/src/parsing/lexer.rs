@@ -73,7 +73,7 @@ impl<'a> Lexer<'a> {
 
     fn lex_error(&mut self) -> Token {
         let mut len = 1;
-        while !std::str::from_utf8(&self.input[self.pos..self.pos + len]).is_ok() {
+        while std::str::from_utf8(&self.input[self.pos..self.pos + len]).is_err() {
             len += 1;
         }
         let e = std::str::from_utf8(&self.input[self.pos..self.pos + len]).unwrap();

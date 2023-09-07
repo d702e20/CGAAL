@@ -10,13 +10,16 @@ pub mod parser;
 pub mod span;
 mod token;
 
-pub fn parse_atl(input: &str, errors: &mut ErrorLog) -> Result<Expr, ()> {
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct ParseErrorSeeLog;
+
+pub fn parse_atl(input: &str, errors: &mut ErrorLog) -> Result<Expr, ParseErrorSeeLog> {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer, errors);
     let expr = parser.expr(0).unwrap_or(Expr::new_error());
     parser.expect_end();
     if errors.has_errors() {
-        Err(())
+        Err(ParseErrorSeeLog)
     } else {
         Ok(expr)
     }

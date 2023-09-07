@@ -365,7 +365,10 @@ fn load_formula(path: &str, formula_type: FormulaType, game: Option<&Intermediat
                 .ok()
                 .and_then(|expr| convert_expr_to_phi(&expr, game, &mut errors))
                 .unwrap_or_else(|| {
-                    eprint!("Invalid ATL formula provided:\n{}", errors.to_string(&raw_phi));
+                    eprint!(
+                        "Invalid ATL formula provided:\n{}",
+                        errors.to_string(&raw_phi)
+                    );
                     exit(1)
                 })
         }

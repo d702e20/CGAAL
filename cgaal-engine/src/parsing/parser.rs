@@ -23,17 +23,17 @@ macro_rules! recover {
                             *span,
                             format!("Unexpected '{}', expected '{}'", kind, $recover_token),
                         );
-                        Err(ParseError)
+                        Err(RecoverMode)
                     }
                     _ => {
                         $self
                             .errors
                             .log_msg(format!("Unexpected EOF, expected '{}'", $recover_token));
-                        Err(ParseError)
+                        Err(RecoverMode)
                     }
                 }
             }
-            Err(_) => Err(ParseError),
+            Err(_) => Err(RecoverMode),
         };
         res.or_else(|_| {
             // Unhappy path
@@ -45,7 +45,7 @@ macro_rules! recover {
                     let tok = $self.lexer.next().unwrap();
                     Ok((tok.span, $err_val))
                 }
-                _ => Err(ParseError),
+                _ => Err(RecoverMode),
             }
         })
     }};
@@ -74,10 +74,10 @@ impl<'a> Parser<'a> {
                     .log(tok.span, format!("Unexpected '{}', expected EOF", tok.kind));
             }
         }
-        for _ in self.lexer.by_ref() {};
+        for _ in self.lexer.by_ref() {}
     }
 
-    pub fn expr(&mut self, min_prec: u8) -> Result<Expr, ParseError> {
+    pub fn expr(&mut self, min_prec: u8) -> Result<Expr, RecoverMode> {
         // Pratt parsing/precedence climbing: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#climbing
         let mut lhs = self.term()?;
         let span_start = lhs.span;
@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn path_expr(&mut self) -> Result<Expr, ParseError> {
+    pub fn path_expr(&mut self) -> Result<Expr, RecoverMode> {
         match self.lexer.peek().map(|t| t.kind()) {
             Some(TokenKind::Lparen) => {
                 let begin = self.lexer.next().unwrap().span;
@@ -143,17 +143,17 @@ impl<'a> Parser<'a> {
                     tok.span,
                     format!("Unexpected '{}', expected path expression", tok.kind),
                 );
-                Err(ParseError)
+                Err(RecoverMode)
             }
             None => {
                 self.errors
                     .log_msg("Unexpected EOF, expected path expression".to_string());
-                Err(ParseError)
+                Err(RecoverMode)
             }
         }
     }
 
-    pub fn term(&mut self) -> Result<Expr, ParseError> {
+    pub fn term(&mut self) -> Result<Expr, RecoverMode> {
         match self.lexer.peek().map(|t| t.kind()) {
             Some(TokenKind::Lparen) => self.paren(),
             Some(TokenKind::Bang) => {
@@ -182,25 +182,31 @@ impl<'a> Parser<'a> {
                     tok.span,
                     format!("Unexpected '{}', expected expression term", tok.kind),
                 );
-                Err(ParseError)
+                Err(RecoverMode)
             }
             None => {
                 self.errors
                     .log_msg("Unexpected EOF, expected expression term".to_string());
-                Err(ParseError)
+                Err(RecoverMode)
             }
         }
     }
 
-    pub fn paren(&mut self) -> Result<Expr, ParseError> {
+    pub fn paren(&mut self) -> Result<Expr, RecoverMode> {
         let begin = self.token(TokenKind::Lparen)?;
         recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())
             .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
     }
 
-    pub fn owned_ident(&mut self) -> Result<Expr, ParseError> {
+    pub fn owned_ident(&mut self) -> Result<Expr, RecoverMode> {
         let lhs = self.ident()?;
-        if !matches!(self.lexer.peek(), Some(Token { kind: TokenKind::Dot, .. })) {
+        if !matches!(
+            self.lexer.peek(),
+            Some(Token {
+                kind: TokenKind::Dot,
+                ..
+            })
+        ) {
             return Ok(lhs);
         }
         let _ = self.token(TokenKind::Dot)?;
@@ -211,7 +217,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    pub fn ident(&mut self) -> Result<Expr, ParseError> {
+    pub fn ident(&mut self) -> Result<Expr, RecoverMode> {
         match self.lexer.peek() {
             Some(Token {
                 kind: TokenKind::Word(_),
@@ -225,17 +231,17 @@ impl<'a> Parser<'a> {
                     tok.span,
                     format!("Unexpected '{}', expected identifier", tok.kind),
                 );
-                Err(ParseError)
+                Err(RecoverMode)
             }
             None => {
                 self.errors
                     .log_msg("Unexpected EOF, expected identifier".to_string());
-                Err(ParseError)
+                Err(RecoverMode)
             }
         }
     }
 
-    pub fn enforce_coalition(&mut self) -> Result<Expr, ParseError> {
+    pub fn enforce_coalition(&mut self) -> Result<Expr, RecoverMode> {
         let begin = self.token(TokenKind::Llangle)?;
         let (end, players) = recover!(self, self.coalition_players(), TokenKind::Rrangle, vec![])?;
         let expr = self.path_expr()?;
@@ -250,7 +256,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    pub fn despite_coalition(&mut self) -> Result<Expr, ParseError> {
+    pub fn despite_coalition(&mut self) -> Result<Expr, RecoverMode> {
         let begin = self.token(TokenKind::Llbracket)?;
         let (end, players) =
             recover!(self, self.coalition_players(), TokenKind::Rrbracket, vec![])?;
@@ -266,7 +272,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    pub fn coalition_players(&mut self) -> Result<Vec<Expr>, ParseError> {
+    pub fn coalition_players(&mut self) -> Result<Vec<Expr>, RecoverMode> {
         let mut players = vec![];
         #[allow(clippy::while_let_loop)]
         loop {
@@ -302,7 +308,7 @@ impl<'a> Parser<'a> {
                             self.recovery_tokens.last().unwrap()
                         ),
                     );
-                    return Err(ParseError);
+                    return Err(RecoverMode);
                 }
                 _ => {
                     self.errors.log_msg(format!(
@@ -310,14 +316,14 @@ impl<'a> Parser<'a> {
                         TokenKind::Comma,
                         self.recovery_tokens.last().unwrap()
                     ));
-                    return Err(ParseError);
+                    return Err(RecoverMode);
                 }
             }
         }
         Ok(players)
     }
 
-    fn token(&mut self, kind: TokenKind) -> Result<Span, ParseError> {
+    fn token(&mut self, kind: TokenKind) -> Result<Span, RecoverMode> {
         match self.lexer.next() {
             Some(tok) if tok.kind == kind => Ok(tok.span),
             Some(tok) => {
@@ -325,12 +331,12 @@ impl<'a> Parser<'a> {
                     tok.span,
                     format!("Unexpected '{}', expected '{}'", tok.kind, kind),
                 );
-                Err(ParseError)
+                Err(RecoverMode)
             }
             None => {
                 self.errors
                     .log_msg(format!("Unexpected EOF, expected '{}'", kind));
-                Err(ParseError)
+                Err(RecoverMode)
             }
         }
     }
@@ -346,4 +352,4 @@ impl<'a> Parser<'a> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct ParseError;
+pub struct RecoverMode;
