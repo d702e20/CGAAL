@@ -357,7 +357,7 @@ fn load_formula(path: &str, formula_type: FormulaType, game: Option<&Intermediat
         }),
         FormulaType::Atl => {
             let game = game.unwrap_or_else(|| {
-                eprintln!("Cannot parse ATL formula for non-LCGS models");
+                eprintln!("Cannot use ATL formula for non-LCGS models");
                 exit(1)
             });
             let mut errors = ErrorLog::new();
