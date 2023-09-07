@@ -44,6 +44,7 @@ pub enum UnaryOpKind {
 pub enum BinaryOpKind {
     And,
     Or,
+    Dot,
 
     // Temporal operators
     Until,
@@ -61,6 +62,7 @@ impl BinaryOpKind {
 
     pub fn precedence(&self) -> u8 {
         match self {
+            BinaryOpKind::Dot => 3,
             BinaryOpKind::And => 2,
             BinaryOpKind::Or => 1,
             BinaryOpKind::Until => 0,

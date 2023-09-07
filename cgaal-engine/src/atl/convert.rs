@@ -45,6 +45,53 @@ pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &mut Er
                 convert_expr_to_phi(lhs, game, errors)?.into(),
                 convert_expr_to_phi(rhs, game, errors)?.into(),
             )),
+            BinaryOpKind::Dot => {
+                let ExprKind::Ident(owner) = &lhs.kind else {
+                    errors.log(lhs.span.clone(), "Expected player name".to_string());
+                    return None;
+                };
+                let ExprKind::Ident(prop) = &rhs.kind else {
+                    errors.log(rhs.span.clone(), "Expected proposition label".to_string());
+                    return None;
+                };
+                match game.get_decl(&Owner::Global.symbol_id(owner)).map(|d| &d.kind) {
+                    Some(DeclKind::Player(_)) => {
+                        let symb = Owner::Player(owner.clone()).symbol_id(prop);
+                        let decl = game.get_decl(&symb);
+                        match decl.map(|d| &d.kind) {
+                            Some(DeclKind::Label(l)) => Some(Phi::Proposition(l.index)),
+                            Some(_) => {
+                                errors.log(
+                                    rhs.span.clone(),
+                                    format!("Expected proposition label, '{}' is not a label", prop),
+                                );
+                                None
+                            }
+                            None => {
+                                errors.log(
+                                    rhs.span.clone(),
+                                    format!("Expected proposition label, '{}' is not defined", prop),
+                                );
+                                None
+                            }
+                        }
+                    }
+                    Some(_) => {
+                        errors.log(
+                            lhs.span.clone(),
+                            format!("Expected player, '{}' is not a player", owner),
+                        );
+                        None
+                    }
+                    None => {
+                        errors.log(
+                            lhs.span.clone(),
+                            format!("Expected player, '{}' is not defined", owner),
+                        );
+                        None
+                    }
+                }
+            }
             BinaryOpKind::Until => {
                 errors.log(
                     span.clone(),

@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::False))
             }
-            Some(TokenKind::Word(_)) => self.ident(),
+            Some(TokenKind::Word(_)) => self.owned_ident(),
             Some(TokenKind::Llangle) => self.enforce_coalition(),
             Some(TokenKind::Llbracket) => self.despite_coalition(),
             // Unexpected
@@ -180,6 +180,19 @@ impl<'a> Parser<'a> {
         let begin = self.token(TokenKind::Lparen)?;
         recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())
             .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
+    }
+
+    pub fn owned_ident(&mut self) -> Result<Expr, ParseError> {
+        let lhs = self.ident()?;
+        if !matches!(self.lexer.peek(), Some(Token { kind: TokenKind::Dot, .. })) {
+            return Ok(lhs);
+        }
+        let _ = self.token(TokenKind::Dot)?;
+        let rhs = self.ident()?;
+        Ok(Expr::new(
+            lhs.span + rhs.span,
+            ExprKind::Binary(BinaryOpKind::Dot, lhs.into(), rhs.into()),
+        ))
     }
 
     pub fn ident(&mut self) -> Result<Expr, ParseError> {
