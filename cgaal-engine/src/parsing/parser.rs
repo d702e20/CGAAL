@@ -128,6 +128,14 @@ impl<'a> Parser<'a> {
                     ExprKind::Unary(UnaryOpKind::Invariantly, expr.into()),
                 ))
             }
+            Some(TokenKind::Word(w)) if w == "X" => {
+                let begin = self.lexer.next().unwrap().span;
+                let expr = self.expr(0)?;
+                Ok(Expr::new(
+                    begin + expr.span,
+                    ExprKind::Unary(UnaryOpKind::Next, expr.into()),
+                ))
+            }
             // Unexpected
             Some(_) => {
                 let tok = self.lexer.next().unwrap();
