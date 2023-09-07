@@ -148,6 +148,14 @@ impl<'a> Parser<'a> {
     pub fn term(&mut self) -> Result<Expr, ParseError> {
         match self.lexer.peek().map(|t| t.kind()) {
             Some(TokenKind::Lparen) => self.paren(),
+            Some(TokenKind::Bang) => {
+                let begin = self.lexer.next().unwrap().span;
+                let expr = self.term()?;
+                Ok(Expr::new(
+                    begin + expr.span,
+                    ExprKind::Unary(UnaryOpKind::Not, expr.into()),
+                ))
+            }
             Some(TokenKind::True) => {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::True))
