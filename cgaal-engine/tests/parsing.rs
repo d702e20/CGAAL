@@ -10,6 +10,7 @@ use cgaal_engine::parsing::span::*;
 
 #[test]
 fn basic_expr_001() {
+    // Check true and false
     let input = "true && false";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -32,6 +33,7 @@ fn basic_expr_001() {
 
 #[test]
 fn basic_expr_002() {
+    // Check precedence of && over ||
     let input = "true && false || true";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -62,6 +64,7 @@ fn basic_expr_002() {
 
 #[test]
 fn basic_expr_003() {
+    // Check precedence of && over || and parenthesis
     let input = "foo || true && bar || (true || false)";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -116,6 +119,7 @@ fn basic_expr_003() {
 
 #[test]
 fn atl_expr_001() {
+    // Check single player in coalition and eventually operator
     let input = "<<p1>> F goal";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -149,6 +153,7 @@ fn atl_expr_001() {
 
 #[test]
 fn atl_expr_002() {
+    // Check multiple players in coalition and invariant operator
     let input = "[[p1, p2]] G safe";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -182,6 +187,7 @@ fn atl_expr_002() {
 
 #[test]
 fn atl_expr_003() {
+    // Check empty coalition and until operator
     let input = "<<>> (safe U goal)";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -213,6 +219,7 @@ fn atl_expr_003() {
 
 #[test]
 fn erroneous_expr_001() {
+    // Check if unexpected EOF is reported correctly
     let input = "true && ";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -228,6 +235,7 @@ fn erroneous_expr_001() {
 
 #[test]
 fn erroneous_expr_002() {
+    // Check if error report when EOF is expected
     let input = "foo bar";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -250,6 +258,7 @@ fn erroneous_expr_002() {
 
 #[test]
 fn erroneous_expr_003() {
+    // Check if error recovery works on parenthesis
     let input = "(foo false) && true";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -279,6 +288,7 @@ fn erroneous_expr_003() {
 
 #[test]
 fn erroneous_expr_004() {
+    // Check if unrecoverable error is detected
     let input = "(true";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -294,6 +304,7 @@ fn erroneous_expr_004() {
 
 #[test]
 fn erroneous_expr_005() {
+    // Check error inside unclosed parenthesis is reported correctly
     let input = "(foo bar";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -311,6 +322,7 @@ fn erroneous_expr_005() {
 
 #[test]
 fn erroneous_expr_006() {
+    // Check error missing >> inside parenthesis is reported correctly
     let input = " ( << p1 foo goal)";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
@@ -333,6 +345,7 @@ fn erroneous_expr_006() {
 
 #[test]
 fn atl_expr_batch() {
+    // Check that no errors are found for valid ATL expressions
     let lcgs_raw = "\n\
     player p1 = thing;\n\
     player p2 = thing;\n\
@@ -372,12 +385,16 @@ fn atl_expr_batch() {
         let mut errors = ErrorLog::new();
         parse_atl(atl_raw, &mut errors)
             .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
-            .expect(&format!("For '{}', ErrorLog is not empty: {:?}", atl_raw, errors));
+            .expect(&format!(
+                "For '{}', ErrorLog is not empty: {:?}",
+                atl_raw, errors
+            ));
     }
 }
 
 #[test]
 fn atl_expr_error_batch() {
+    // Check that errors are found for erroneous ATL expressions
     let lcgs_raw = "\n\
     player p1 = thing;\n\
     player p2 = thing;\n\
@@ -402,6 +419,10 @@ fn atl_expr_error_batch() {
         "[[>>",
         "()",
         "prop || p2",
+        "p2.wait",
+        "p1.attr && p2.attr && p3.attr",
+        "p1.x > 0",
+        "p1.x",
     ];
 
     let root = parse_lcgs(lcgs_raw).unwrap();
@@ -412,6 +433,10 @@ fn atl_expr_error_batch() {
         let is_none = parse_atl(atl_raw, &mut errors)
             .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
             .is_none();
-        assert!(is_none && errors.has_errors(), "For '{}', ErrorLog is empty", atl_raw);
+        assert!(
+            is_none && errors.has_errors(),
+            "For '{}', ErrorLog is empty",
+            atl_raw
+        );
     }
 }

@@ -1,9 +1,12 @@
 use crate::parsing::span::Span;
 use std::fmt::{Debug, Display, Formatter};
 
+/// A single token in the input.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Token {
+    /// The span of the token in the original input code.
     pub span: Span,
+    /// The kind of the token.
     pub kind: TokenKind,
 }
 
@@ -11,20 +14,11 @@ impl Token {
     pub fn new(kind: TokenKind, span: Span) -> Self {
         Token { kind, span }
     }
-
-    #[allow(unused)]
-    pub fn span(&self) -> &Span {
-        &self.span
-    }
-
-    #[allow(unused)]
-    pub fn kind(&self) -> &TokenKind {
-        &self.kind
-    }
 }
 
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // Tokens are used print as their kind
         write!(f, "{}", self.kind)
     }
 }
@@ -35,6 +29,7 @@ impl Debug for Token {
     }
 }
 
+/// The kind of a token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenKind {
     // Delimiters
@@ -92,7 +87,7 @@ pub enum TokenKind {
     Num(i32),
     Word(String),
 
-    // Utility
+    // Error
     Err(String),
 }
 

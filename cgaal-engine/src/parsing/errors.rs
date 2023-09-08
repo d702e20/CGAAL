@@ -2,6 +2,9 @@ use crate::parsing::span::Span;
 use std::cmp::{max, min};
 use std::fmt::Write;
 
+/// A log of errors that occurred during parsing or semantic analysis.
+/// Each error entry has a span that indicates its origin in the original input code.
+/// Given the original input code, the error log can be converted to nicely presented error messages.
 #[derive(Debug, Default)]
 pub struct ErrorLog {
     errors: Vec<ErrorEntry>,
@@ -36,18 +39,19 @@ impl ErrorLog {
         self.errors.is_empty()
     }
 
+    /// Converts the error log to a nicely formatted string using the original input code.
+    /// Example:
+    /// ```md
+    /// 3:13 Error: Unknown identifier 'robot'
+    /// | player p1 = robot[x=0, y=1];
+    /// |             ^^^^^
+    /// ```
+    /// where 3:13 indicates line 3, column 13 in the original input code.
     pub fn to_string(&self, orig_input: &str) -> String {
         let mut out = String::new();
         for entry in &self.errors {
             match &entry.span {
                 Some(span) => {
-                    // Example:
-                    // """
-                    // 1:13 Error: Unknown identifier 'robot'
-                    // | player p1 = robot[x=0, y=1];
-                    // |             ^^^^^
-                    // """
-
                     // Find the line and column of the error
                     let mut i = 0;
                     let mut col = 1;
@@ -91,9 +95,12 @@ impl ErrorLog {
     }
 }
 
+/// A single error entry in the [ErrorLog].
 #[derive(Debug)]
 pub struct ErrorEntry {
+    /// The span of the error in the original input code.
     span: Option<Span>,
+    /// The error message.
     msg: String,
 }
 

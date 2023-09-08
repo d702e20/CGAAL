@@ -1,9 +1,13 @@
 use crate::parsing::span::Span;
 use crate::parsing::token::{Token, TokenKind};
 
+/// A Lexer that converts a byte slice into a stream of tokens.
+/// The Lexer is an iterator over tokens.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Lexer<'a> {
+    /// The original input byte slice.
     input: &'a [u8],
+    /// The current position in the input, i.e. the number of consumed bytes.
     pos: usize,
 }
 
@@ -34,6 +38,8 @@ impl<'a> Lexer<'a> {
         Token::new(token, span)
     }
 
+    /// Lexes a word, i.e. a sequence of alphanumeric characters and underscores.
+    /// Typically identifiers and keywords.
     fn lex_alpha(&mut self) -> Token {
         let mut len = 1;
         while self
@@ -59,6 +65,7 @@ impl<'a> Lexer<'a> {
         self.token(len, kind)
     }
 
+    /// Lexes an integer number, i.e. a sequence of digits.
     fn lex_num(&mut self) -> Token {
         let mut len = 1;
         while self.peek(len).map_or(false, |c| c.is_ascii_digit()) {
@@ -71,6 +78,8 @@ impl<'a> Lexer<'a> {
         self.token(len, TokenKind::Num(val))
     }
 
+    /// Consume bytes until we find a valid utf8 character.
+    /// This allows us to handle emojis and other non-ascii characters as well.
     fn lex_error(&mut self) -> Token {
         let mut len = 1;
         while std::str::from_utf8(&self.input[self.pos..self.pos + len]).is_err() {
@@ -157,6 +166,7 @@ mod tests {
 
     #[test]
     fn lexing_001() {
+        // Check that the lexer produces the correct tokens with correct spans
         let input = "==4 /* - x (var01 > 0)";
         let lexer = Lexer::new(input.as_bytes());
         let mut res = String::new();
@@ -166,6 +176,7 @@ mod tests {
 
     #[test]
     fn lexing_002() {
+        // Check that the lexer produces the correct tokens with correct spans
         let input = "  !player ->i [..]<< init>>";
         let lexer = Lexer::new(input.as_bytes());
         let mut res = String::new();

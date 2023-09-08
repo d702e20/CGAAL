@@ -6,6 +6,9 @@ use crate::game_structure::Player;
 use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, UnaryOpKind};
 use crate::parsing::errors::ErrorLog;
 
+/// Convert an ATL expression to a Phi formula.
+/// Players and labels must be defined in the game and are compiled to their respective indexes.
+/// Returns None if there were errors. See the error log for details.
 pub fn convert_expr_to_phi(
     expr: &Expr,
     game: &IntermediateLcgs,
@@ -197,6 +200,8 @@ pub fn convert_expr_to_phi(
     }
 }
 
+/// Helper function for converting a list of player names to a list of player indexes.
+/// Returns None if there were errors. See the error log for details.
 fn convert_players(
     players: &[Expr],
     game: &IntermediateLcgs,
