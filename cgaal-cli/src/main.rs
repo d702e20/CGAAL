@@ -362,7 +362,6 @@ fn load_formula(path: &str, formula_type: FormulaType, game: Option<&Intermediat
             });
             let mut errors = ErrorLog::new();
             parse_atl(&raw_phi, &mut errors)
-                .ok()
                 .and_then(|expr| convert_expr_to_phi(&expr, game, &mut errors))
                 .unwrap_or_else(|| {
                     eprint!(

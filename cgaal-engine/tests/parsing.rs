@@ -1,6 +1,10 @@
+use cgaal_engine::atl::convert::convert_expr_to_phi;
+use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
+use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::parsing::ast::*;
 use cgaal_engine::parsing::errors::ErrorLog;
 use cgaal_engine::parsing::lexer::*;
+use cgaal_engine::parsing::parse_atl;
 use cgaal_engine::parsing::parser::*;
 use cgaal_engine::parsing::span::*;
 
@@ -325,4 +329,89 @@ fn erroneous_expr_006() {
         expr,
         Expr::new(Span::new(1, 18), ExprKind::Paren(Expr::new_error().into()))
     );
+}
+
+#[test]
+fn atl_expr_batch() {
+    let lcgs_raw = "\n\
+    player p1 = thing;\n\
+    player p2 = thing;\n\
+    \n\
+    label prop = 1;\n\
+    \n\
+    template thing\n\
+        x : [0..10] init 0;\n\
+        x' = x;\n\
+        \n\
+        label attr = 1;\n\
+        \n\
+        [wait] 1;\n\
+    endtemplate\n";
+
+    let atls = [
+        "true",
+        "false",
+        "prop",
+        "(prop && prop || !prop) && !prop || prop || prop && !!prop",
+        "p1.attr && p2.attr",
+        "(prop && (prop && (prop) || !!!((prop))))",
+        "<<>> F p1.attr",
+        "<<p1>> G p1.attr",
+        "<<p1, p2>> X p2.attr",
+        "[[]] (prop U p1.attr)",
+        "[[p1, p2]] (prop U p2.attr)",
+        "prop && <<p1>> F p1.attr && !prop",
+        "[[p1]] F false || [[p2]] G true",
+        "[[p2]] (<<p1>> X p1.attr && !prop U true || false)",
+    ];
+
+    let root = parse_lcgs(lcgs_raw).unwrap();
+    let game = IntermediateLcgs::create(root).unwrap();
+
+    for atl_raw in atls {
+        let mut errors = ErrorLog::new();
+        parse_atl(atl_raw, &mut errors)
+            .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
+            .expect(&format!("For '{}', ErrorLog is not empty: {:?}", atl_raw, errors));
+    }
+}
+
+#[test]
+fn atl_expr_error_batch() {
+    let lcgs_raw = "\n\
+    player p1 = thing;\n\
+    player p2 = thing;\n\
+    \n\
+    label prop = 1;\n\
+    \n\
+    template thing\n\
+        x : [0..10] init 0;\n\
+        x' = x;\n\
+        \n\
+        label attr = 1;\n\
+        \n\
+        [wait] 1;\n\
+    endtemplate\n";
+
+    let atls = [
+        "!",
+        "prop &&",
+        "foo",
+        "<<p1 p2>> F (prop)",
+        "<<p1, p2>> F (global.prop)",
+        "[[>>",
+        "()",
+        "prop || p2",
+    ];
+
+    let root = parse_lcgs(lcgs_raw).unwrap();
+    let game = IntermediateLcgs::create(root).unwrap();
+
+    for atl_raw in atls {
+        let mut errors = ErrorLog::new();
+        let is_none = parse_atl(atl_raw, &mut errors)
+            .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
+            .is_none();
+        assert!(is_none && errors.has_errors(), "For '{}', ErrorLog is empty", atl_raw);
+    }
 }

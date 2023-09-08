@@ -150,7 +150,6 @@ macro_rules! strat_synthesis_test {
         let ast = parse_lcgs($game).unwrap();
         let game = IntermediateLcgs::create(ast).unwrap();
         let phi = parse_atl($phi, &mut errors)
-            .ok()
             .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
             .ok_or_else(|| format!("{}", errors.to_string($phi)))
             .unwrap();
