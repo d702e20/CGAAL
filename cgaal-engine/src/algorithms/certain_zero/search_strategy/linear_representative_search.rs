@@ -38,7 +38,9 @@ impl LinearRepresentativeSearchBuilder {
             let mut vars = HashMap::new();
             for state_var in self.game.get_vars() {
                 let decl = self.game.get_decl(&state_var).unwrap();
-                let DeclKind::StateVar(var_decl) = &decl.kind else { unreachable!() };
+                let DeclKind::StateVar(var_decl) = &decl.kind else {
+                    unreachable!()
+                };
                 let range = (
                     *var_decl.ir_range.start() as f64,
                     *var_decl.ir_range.end() as f64,
