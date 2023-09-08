@@ -1,1 +1,1 @@
-<<p1>> G (!p1-requested-access-to-CS | <<>> F p1_in_cs)
+<<p1>> G (!p1-requested-access-to-CS || <<>> F p1_in_cs)
