@@ -11,7 +11,7 @@ use std::sync::Arc;
 /// If it fails to parse expression, it tries to recover by skipping tokens until it finds any recovery token.
 /// If the found recovery token is the expected one, it recovers and returns the error value.
 /// If the found recovery token is not the expected one, it returns [RecoverMode] as an error such that the caller can try to recover.
-/// This macro cannot be a function due to the borrow checker.
+/// This macro cannot be a function due to the borrow checker and the first argument self be a [Parser].
 macro_rules! recover {
     ($self:expr, $val:expr, $recover_token:expr, $err_val:expr) => {{
         $self.recovery_tokens.push($recover_token);

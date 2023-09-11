@@ -3,11 +3,11 @@ use std::cmp::{max, min};
 use std::fmt::Write;
 
 /// A log of errors that occurred during parsing or semantic analysis.
-/// Each error entry has a span that indicates its origin in the original input code.
+/// Each [ErrorLogEntry] has a span that indicates its origin in the original input code.
 /// Given the original input code, the error log can be converted to nicely presented error messages.
 #[derive(Debug, Default)]
 pub struct ErrorLog {
-    errors: Vec<ErrorEntry>,
+    errors: Vec<ErrorLogEntry>,
 }
 
 impl ErrorLog {
@@ -16,15 +16,15 @@ impl ErrorLog {
     }
 
     pub fn log(&mut self, span: Span, msg: String) {
-        self.errors.push(ErrorEntry::new(span, msg));
+        self.errors.push(ErrorLogEntry::new(span, msg));
     }
 
-    pub fn log_entry(&mut self, entry: ErrorEntry) {
+    pub fn log_entry(&mut self, entry: ErrorLogEntry) {
         self.errors.push(entry);
     }
 
     pub fn log_msg(&mut self, msg: String) {
-        self.errors.push(ErrorEntry::msg_only(msg));
+        self.errors.push(ErrorLogEntry::msg_only(msg));
     }
 
     pub fn len(&self) -> usize {
@@ -97,23 +97,23 @@ impl ErrorLog {
 
 /// A single error entry in the [ErrorLog].
 #[derive(Debug)]
-pub struct ErrorEntry {
+pub struct ErrorLogEntry {
     /// The span of the error in the original input code.
     span: Option<Span>,
     /// The error message.
     msg: String,
 }
 
-impl ErrorEntry {
+impl ErrorLogEntry {
     pub fn new(span: Span, msg: String) -> Self {
-        ErrorEntry {
+        ErrorLogEntry {
             span: Some(span),
             msg,
         }
     }
 
     pub fn msg_only(msg: String) -> Self {
-        ErrorEntry { span: None, msg }
+        ErrorLogEntry { span: None, msg }
     }
 }
 

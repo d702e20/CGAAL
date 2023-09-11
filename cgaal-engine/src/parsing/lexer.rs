@@ -162,16 +162,30 @@ impl<'a> Iterator for Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use crate::parsing::lexer::Lexer;
-    use std::fmt::Write;
+    use crate::parsing::token::{Token, TokenKind};
 
     #[test]
     fn lexing_001() {
         // Check that the lexer produces the correct tokens with correct spans
         let input = "==4 /* - x (var01 > 0)";
         let lexer = Lexer::new(input.as_bytes());
-        let mut res = String::new();
-        lexer.for_each(|tk| write!(res, "{tk:?}").unwrap());
-        assert_eq!(&res, "'=='(0,2)'4'(2,3)'/'(4,5)'*'(5,6)'-'(7,8)'x'(9,10)'('(11,12)'var01'(12,17)'>'(18,19)'0'(20,21)')'(21,22)")
+        let tokens = lexer.collect::<Vec<Token>>();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenKind::Eq, (0..2).into()),
+                Token::new(TokenKind::Num(4), (2..3).into()),
+                Token::new(TokenKind::Slash, (4..5).into()),
+                Token::new(TokenKind::Star, (5..6).into()),
+                Token::new(TokenKind::Minus, (7..8).into()),
+                Token::new(TokenKind::Word("x".to_string()), (9..10).into()),
+                Token::new(TokenKind::Lparen, (11..12).into()),
+                Token::new(TokenKind::Word("var01".to_string()), (12..17).into()),
+                Token::new(TokenKind::Rangle, (18..19).into()),
+                Token::new(TokenKind::Num(0), (20..21).into()),
+                Token::new(TokenKind::Rparen, (21..22).into()),
+            ]
+        );
     }
 
     #[test]
@@ -179,8 +193,21 @@ mod tests {
         // Check that the lexer produces the correct tokens with correct spans
         let input = "  !player ->i [..]<< init>>";
         let lexer = Lexer::new(input.as_bytes());
-        let mut res = String::new();
-        lexer.for_each(|tk| write!(res, "{tk:?}").unwrap());
-        assert_eq!(&res, "'!'(2,3)'player'(3,9)'->'(10,12)'i'(12,13)'['(14,15)'..'(15,17)']'(17,18)'<<'(18,20)'init'(21,25)'>>'(25,27)")
+        let tokens = lexer.collect::<Vec<Token>>();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenKind::Bang, (2..3).into()),
+                Token::new(TokenKind::KwPlayer, (3..9).into()),
+                Token::new(TokenKind::Arrow, (10..12).into()),
+                Token::new(TokenKind::Word("i".to_string()), (12..13).into()),
+                Token::new(TokenKind::Lbracket, (14..15).into()),
+                Token::new(TokenKind::DotDot, (15..17).into()),
+                Token::new(TokenKind::Rbracket, (17..18).into()),
+                Token::new(TokenKind::Llangle, (18..20).into()),
+                Token::new(TokenKind::KwInit, (21..25).into()),
+                Token::new(TokenKind::Rrangle, (25..27).into()),
+            ]
+        );
     }
 }

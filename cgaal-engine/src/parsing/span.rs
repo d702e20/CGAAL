@@ -48,6 +48,12 @@ impl From<Range<usize>> for Span {
     }
 }
 
+impl From<(usize, usize)> for Span {
+    fn from((begin, end): (usize, usize)) -> Self {
+        Span::new(begin, end)
+    }
+}
+
 impl Add for Span {
     type Output = Span;
 

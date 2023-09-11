@@ -105,6 +105,14 @@ impl TryFrom<TokenKind> for BinaryOpKind {
     }
 }
 
+/// The associativity of an operator.
+/// E.g. `-` is left-associative so `a - b - c` is parsed as `(a - b) - c`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Associativity {
+    LeftToRight,
+    RightToLeft,
+}
+
 /// A coalition expression. E.g. `<< p1 >> path_expr`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Coalition {
@@ -135,12 +143,4 @@ pub enum CoalitionKind {
     Despite,
     /// The `[[ ]]` coalition
     Enforce,
-}
-
-/// The associativity of an operator.
-/// E.g. `-` is left-associative so `a - b - c` is parsed as `(a - b) - c`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Associativity {
-    LeftToRight,
-    RightToLeft,
 }
