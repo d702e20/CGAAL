@@ -218,6 +218,50 @@ fn atl_expr_003() {
 }
 
 #[test]
+fn atl_expr_004() {
+    // Check attribute access
+    let input = "<<p1>> F p1.attr";
+    let mut errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer, &mut errors);
+    let expr = parser.expr(0).expect("Failed to valid parse expression");
+    parser.expect_end();
+    assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
+    assert_eq!(
+        expr,
+        Expr::new(
+            Span::new(0, 16),
+            ExprKind::Coalition(Coalition::new(
+                Span::new(0, 6),
+                vec![Expr::new(
+                    Span::new(2, 4),
+                    ExprKind::Ident("p1".to_string()),
+                )],
+                CoalitionKind::Enforce,
+                Expr::new(
+                    Span::new(7, 16),
+                    ExprKind::Unary(
+                        UnaryOpKind::Eventually,
+                        Expr::new(
+                            Span::new(9, 16),
+                            ExprKind::Binary(
+                                BinaryOpKind::Dot,
+                                Expr::new(Span::new(9, 11), ExprKind::Ident("p1".to_string()))
+                                    .into(),
+                                Expr::new(Span::new(12, 16), ExprKind::Ident("attr".to_string()))
+                                    .into(),
+                            ),
+                        )
+                        .into(),
+                    ),
+                )
+                .into(),
+            )),
+        )
+    );
+}
+
+#[test]
 fn erroneous_expr_001() {
     // Check if unexpected EOF is reported correctly
     let input = "true && ";
@@ -340,6 +384,25 @@ fn erroneous_expr_006() {
     assert_eq!(
         expr,
         Expr::new(Span::new(1, 18), ExprKind::Paren(Expr::new_error().into()))
+    );
+}
+
+#[test]
+fn erroneous_expr_007() {
+    // Check error on subsequent attribute access
+    let input = "<<p1>> G p1.attr1.attr2";
+    let mut errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer, &mut errors);
+    let _expr = parser.expr(0).expect("Error should be recoverable");
+    parser.expect_end();
+    assert!(errors.has_errors());
+    let out = errors.to_string(input);
+    assert_eq!(
+        out,
+        "\u{1b}[31m1:18 Error:\u{1b}[0m Unexpected '.', expected EOF\n\
+        | <<p1>> G p1.attr1.attr2\n\
+        |                  ^\n"
     );
 }
 
