@@ -93,7 +93,13 @@ impl<'a> Parser<'a> {
         let mut lhs = self.term()?;
         let span_start = lhs.span;
         loop {
-            let Some(op): Option<BinaryOpKind> = self.lexer.peek().and_then(|t| t.kind.clone().try_into().ok()) else { return Ok(lhs) };
+            let Some(op): Option<BinaryOpKind> = self
+                .lexer
+                .peek()
+                .and_then(|t| t.kind.clone().try_into().ok())
+            else {
+                return Ok(lhs);
+            };
             if op.precedence() < min_prec {
                 return Ok(lhs);
             }
