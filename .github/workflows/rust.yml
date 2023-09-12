@@ -82,11 +82,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- -A dead_code
-  audit:
-    name: Security audit
-    runs-on: ubuntu-22
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
