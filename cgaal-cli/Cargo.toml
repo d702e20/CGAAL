@@ -26,4 +26,4 @@ tracing-subscriber = "0.2.17"
 serde_json = "1.0.83"
 regex = { version = "1", features = ["unicode-case"] }
 humantime = "2.1.0"
-cgaal-engine = { path = "../cgaal-engine", version = "1.0.0" }
+cgaal-engine = { path = "../cgaal-engine", version = "1.0.1" }
