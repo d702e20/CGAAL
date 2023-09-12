@@ -1,9 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 
-use crate::atl::{number, AtlExpressionParser};
 use crate::game_structure::{transition_lookup, DynVec, GameStructure, Player, Proposition, State};
-use pom::parser::Parser;
 use std::str::{self};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -85,24 +83,5 @@ impl GameStructure for EagerGameStructure {
 
     fn action_name(&self, _state: usize, _player: usize, action: usize) -> String {
         action.to_string()
-    }
-}
-
-impl AtlExpressionParser for EagerGameStructure {
-    fn player_parser(&self) -> Parser<u8, Player> {
-        // In ATL, players are just their index
-        number().convert(move |i| {
-            if i <= self.max_player() {
-                Ok(i)
-            } else {
-                Err(format!("Player index '{}' out of bounds.", i))
-            }
-        })
-    }
-
-    fn proposition_parser(&self) -> Parser<u8, Proposition> {
-        // In ATL, proposition are just their index. All numbers are valid propositions,
-        // but they might not be true anywhere.
-        number()
     }
 }

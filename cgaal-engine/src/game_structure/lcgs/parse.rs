@@ -30,27 +30,6 @@ const RESERVED_KEYWORDS: [&str; 10] = [
     "max",
 ];
 
-/// A `Span` describes the position of a slice of text in the original program.
-/// Usually used to describe what text an AST node was created from.
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
-struct Span {
-    begin: usize,
-    end: usize,
-}
-
-trait WithSpan<'a, I, O: 'a> {
-    fn with_span(self) -> Parser<'a, I, (Span, O)>;
-}
-
-impl<'a, I, O: 'a> WithSpan<'a, I, O> for Parser<'a, I, O> {
-    /// Make the parser note the beginning and end position and
-    /// include it in the result as a `Span`
-    fn with_span(self) -> Parser<'a, I, (Span, O)> {
-        (empty().pos() + self + empty().pos())
-            .map(|((begin, item), end)| (Span { begin, end }, item))
-    }
-}
-
 trait SemiTerminated<'a, I, O: 'a> {
     fn with_semi(self) -> Parser<'a, I, O>;
 }
@@ -99,10 +78,7 @@ fn number<'a>() -> Parser<'a, u8, Expr> {
         .collect()
         .convert(str::from_utf8)
         .convert(i32::from_str);
-    parsed
-        .with_span()
-        .map(|(_span, v)| Expr { kind: Number(v) })
-        .name("number")
+    parsed.map(|v| Expr { kind: Number(v) }).name("number")
 }
 
 /// Parser that parses a symbol name. It must start with an alpha character, but subsequent
@@ -136,8 +112,7 @@ fn identifier<'a>() -> Parser<'a, u8, Identifier> {
 fn owned_identifier<'a>() -> Parser<'a, u8, Identifier> {
     let identifier = (name() - sym(b'.')).opt() + name();
     identifier
-        .with_span()
-        .map(|(_span, (owner, name))| Identifier::OptionalOwner { owner, name })
+        .map(|(owner, name)| Identifier::OptionalOwner { owner, name })
         .name("owned identifier")
 }
 

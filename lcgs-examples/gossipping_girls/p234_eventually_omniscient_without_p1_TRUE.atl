@@ -1,1 +1,1 @@
-<<p2,p3,p4>> F (!p1.omniscient & p2.omniscient & p3.omniscient & p4.omniscient)
+<<p2,p3,p4>> F (!p1.omniscient && p2.omniscient && p3.omniscient && p4.omniscient)

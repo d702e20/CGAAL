@@ -11,11 +11,11 @@ use crate::game_structure::GameStructure;
 /// Given a Phi `formula` (`<<p1>> G p1.alive`) and a IntermediateLCGS `game_Structure`, you can
 /// create a GamePhi with `formula.in_context_of(&game_structure)`. Using this in a print statement
 /// like
-/// ```ignore
+/// ```md
 /// println!("{}", formula.in_context_of(&game_structure))
 /// ```
 /// will print "`<<p1>> G p1.alive`" as opposed to "`<<0>> G 1`", which happens when you just write
-/// ```ignore
+/// ```md
 /// println!("{}", formula)
 /// ```
 pub struct GamePhi<'a, G: GameStructure> {

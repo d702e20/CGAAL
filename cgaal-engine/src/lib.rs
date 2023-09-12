@@ -12,5 +12,6 @@ pub mod analyse;
 pub mod atl;
 pub mod edg;
 pub mod game_structure;
+pub mod parsing;
 #[cfg(feature = "graph-printer")]
 pub mod printer;
