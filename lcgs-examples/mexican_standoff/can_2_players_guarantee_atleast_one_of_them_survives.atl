@@ -1,1 +1,1 @@
-<<p0,p1>> G (p0.alive | p1.alive)
+<<p0,p1>> G (p0.alive || p1.alive)

@@ -43,6 +43,18 @@ impl DeclKind {
             DeclKind::Transition(decl) => &decl.name,
         }
     }
+
+    /// Returns the kind of declaration as a string, e.g. "constant", "label", etc.
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            DeclKind::Const(_) => "constant",
+            DeclKind::Label(_) => "label",
+            DeclKind::StateVar(_) => "state variable",
+            DeclKind::Player(_) => "player",
+            DeclKind::Template(_) => "template",
+            DeclKind::Transition(_) => "move",
+        }
+    }
 }
 
 /// An identifier.

@@ -1,7 +1,6 @@
 use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 
-use crate::atl::{identifier, AtlExpressionParser};
 use crate::game_structure;
 use crate::game_structure::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
 use crate::game_structure::lcgs::ir::error::Error;
@@ -10,7 +9,6 @@ use crate::game_structure::lcgs::ir::relabeling::Relabeler;
 use crate::game_structure::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
 use crate::game_structure::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
 use crate::game_structure::{Action, GameStructure, Proposition};
-use pom::parser::{sym, Parser};
 use std::fmt::{Display, Formatter};
 
 /// A struct that holds information about players for the intermediate representation
@@ -536,64 +534,6 @@ impl GameStructure for IntermediateLcgs {
         let state = self.state_from_index(state);
         let actions = self.available_actions(&state, player);
         actions.get(action).unwrap().to_string()
-    }
-}
-
-impl AtlExpressionParser for IntermediateLcgs {
-    fn player_parser(&self) -> Parser<u8, game_structure::Player> {
-        // In ATL, players are referred to using their name, i.e. an identifier
-        identifier().convert(move |name| {
-            // We check if a declaration with the given name exists,
-            // and that it is a player declaration
-            let symbol = Owner::Global.symbol_id(&name);
-            if let Some(decl) = self.symbols.get(&symbol) {
-                if let DeclKind::Player(player) = &decl.kind {
-                    Ok(player.index)
-                } else {
-                    Err(format!("The declaration '{}' is not a player.", name))
-                }
-            } else {
-                Err(format!(
-                    "The LCGS program does not contain any player named '{}'.",
-                    name
-                ))
-            }
-        })
-    }
-
-    fn proposition_parser(&self) -> Parser<u8, Proposition> {
-        // In ATL, propositions are either "something" where "something" must be a label declared
-        // in the global scope, or "someone.something" where "something" is a label owned by
-        // a player of name "someone".
-        let parser = identifier() + (sym(b'.') * identifier()).opt();
-        parser.convert(move |(name_or_owner, name)| {
-            // We infer whether the label should be found in local (player) or global scope.
-            // full_name is used for error descriptions.
-            let (symbol, full_name) = if let Some(name) = name {
-                let owner = name_or_owner;
-                (
-                    Owner::Player(owner.clone()).symbol_id(&name),
-                    format!("{}.{}", owner, name),
-                )
-            } else {
-                let name = name_or_owner;
-                (Owner::Global.symbol_id(&name), name)
-            };
-
-            // We check if such a symbol exists, and is it a player declaration
-            if let Some(decl) = self.symbols.get(&symbol) {
-                if let DeclKind::Label(label) = &decl.kind {
-                    Ok(label.index)
-                } else {
-                    Err(format!("The declaration '{}' is not a label.", full_name))
-                }
-            } else {
-                Err(format!(
-                    "The LCGS program does not contain any label with the name '{}'",
-                    full_name
-                ))
-            }
-        })
     }
 }
 

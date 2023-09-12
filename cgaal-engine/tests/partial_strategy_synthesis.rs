@@ -8,12 +8,13 @@ use cgaal_engine::{
             compute_game_strategy, error::Error, partial::PartialStrategy, WitnessStrategy,
         },
     },
-    atl::parse_phi,
+    atl::convert::convert_expr_to_phi,
     edg::atledg::{vertex::AtlVertex, AtlDependencyGraph},
     game_structure::{
         lcgs::{ir::intermediate::IntermediateLcgs, parse::parse_lcgs},
         GameStructure,
     },
+    parsing::{errors::ErrorLog, parse_atl},
 };
 
 const GAME: &str = "
@@ -145,9 +146,13 @@ macro_rules! assert_partial_strat_moves {
 /// ```
 macro_rules! strat_synthesis_test {
     ($game:expr, $phi:expr, $($rest:tt)*) => {
+        let mut errors = ErrorLog::new();
         let ast = parse_lcgs($game).unwrap();
         let game = IntermediateLcgs::create(ast).unwrap();
-        let phi = parse_phi(&game, $phi).unwrap();
+        let phi = parse_atl($phi, &mut errors)
+            .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
+            .ok_or_else(|| format!("{}", errors.to_string($phi)))
+            .unwrap();
         let v0 = AtlVertex::Full {
             state: game.initial_state_index(),
             formula: phi.into(),

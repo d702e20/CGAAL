@@ -1,1 +1,1 @@
-<<p1,p2,p3,p4,p5>> (less_than_10_steps U p1.omniscient & !p2.omniscient & !p3.omniscient & !p4.omniscient & !p5.omniscient)
+<<p1,p2,p3,p4,p5>> (less_than_10_steps U p1.omniscient && !p2.omniscient && !p3.omniscient && !p4.omniscient && !p5.omniscient)
