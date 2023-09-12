@@ -160,13 +160,17 @@ impl<'a> Parser<'a> {
                 let tok = self.lexer.next().unwrap();
                 self.errors.log(
                     tok.span,
-                    format!("Unexpected '{}', expected path expression", tok.kind),
+                    format!(
+                        "Unexpected '{}', expected 'X', 'F', 'G', or '(... U ...)'",
+                        tok.kind
+                    ),
                 );
                 Err(RecoverMode)
             }
             None => {
-                self.errors
-                    .log_msg("Unexpected EOF, expected path expression".to_string());
+                self.errors.log_msg(
+                    "Unexpected EOF, expected 'X', 'F', 'G', or '(... U ...)'".to_string(),
+                );
                 Err(RecoverMode)
             }
         }

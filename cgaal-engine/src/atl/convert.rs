@@ -23,10 +23,14 @@ pub fn convert_expr_to_phi(
             let decl = game.get_decl(&Owner::Global.symbol_id(ident));
             match &decl.map(|d| &d.kind) {
                 Some(DeclKind::Label(l)) => Some(Phi::Proposition(l.index)),
-                Some(_) => {
+                Some(d) => {
                     errors.log(
                         *span,
-                        format!("Expected proposition label, '{}' is not a label", ident),
+                        format!(
+                            "Expected proposition label, '{}' is a {}",
+                            ident,
+                            d.kind_name()
+                        ),
                     );
                     None
                 }
@@ -76,12 +80,13 @@ pub fn convert_expr_to_phi(
                         let decl = game.get_decl(&symb);
                         match decl.map(|d| &d.kind) {
                             Some(DeclKind::Label(l)) => Some(Phi::Proposition(l.index)),
-                            Some(_) => {
+                            Some(d) => {
                                 errors.log(
                                     rhs.span,
                                     format!(
-                                        "Expected proposition label, '{}' is not a label",
-                                        prop
+                                        "Expected proposition label, '{}' is a {}",
+                                        prop,
+                                        d.kind_name(),
                                     ),
                                 );
                                 None
@@ -91,17 +96,17 @@ pub fn convert_expr_to_phi(
                                     rhs.span,
                                     format!(
                                         "Expected proposition label, '{}' is not defined",
-                                        prop
+                                        symb,
                                     ),
                                 );
                                 None
                             }
                         }
                     }
-                    Some(_) => {
+                    Some(d) => {
                         errors.log(
                             lhs.span,
-                            format!("Expected player, '{}' is not a player", owner),
+                            format!("Expected player, '{}' is a {}", owner, d.kind_name()),
                         );
                         None
                     }
@@ -215,10 +220,10 @@ fn convert_players(
                 .map(|d| &d.kind)
             {
                 Some(DeclKind::Player(p)) => Some(p.index),
-                Some(_) => {
+                Some(d) => {
                     errors.log(
                         expr.span,
-                        format!("Expected player, '{}' is not a player", name),
+                        format!("Expected player, '{}' is a {}", name, d.kind_name()),
                     );
                     None
                 }
