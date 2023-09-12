@@ -1,6 +1,6 @@
 [package]
 name = "cgaal-engine"
-version = "1.0.0"
+version = "1.0.69"
 authors = [
     "Asger Weirsøe <aweirs15@student.aau.dk>",
     "Falke Carlsen <falkeboc@cs.aau.dk>",
