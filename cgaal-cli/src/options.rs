@@ -1,4 +1,3 @@
-
 /// The subcommands available
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 pub enum SubcommandOption {
@@ -7,7 +6,7 @@ pub enum SubcommandOption {
     Index,
     Analyse,
     #[cfg(feature = "graph-printer")]
-    Graph
+    Graph,
 }
 
 /// The formula types that the system supports

@@ -1,3 +1,5 @@
+use crate::load::Model;
+use crate::options::{CliOptions, SearchStrategyOption};
 use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
@@ -9,6 +11,7 @@ use cgaal_engine::algorithms::certain_zero::search_strategy::{
     SearchStrategy, SearchStrategyBuilder,
 };
 use cgaal_engine::algorithms::game_strategy::{model_check, WitnessStrategy};
+use cgaal_engine::atl::Phi;
 use cgaal_engine::edg::atledg::vertex::AtlVertex;
 use cgaal_engine::edg::atledg::AtlDependencyGraph;
 use cgaal_engine::game_structure::GameStructure;
@@ -18,17 +21,10 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Instant;
-use cgaal_engine::atl::Phi;
-use crate::load::Model;
-use crate::options::{CliOptions, SearchStrategyOption};
 
 /// Solver subcommand
 /// Will exit on success
-pub fn solver(
-    model: Model,
-    formula: Phi,
-    options: CliOptions,
-) -> Result<(), String> {
+pub fn solver(model: Model, formula: Phi, options: CliOptions) -> Result<(), String> {
     match (model, options.search_strategy) {
         (Model::Json(_), SearchStrategyOption::Los) => {
             Err("Linear optimize search is not supported for JSON models".to_string())

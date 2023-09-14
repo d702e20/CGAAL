@@ -1,11 +1,11 @@
-use std::fs::File;
-use std::io::Read;
 use cgaal_engine::atl::convert::convert_expr_to_phi;
 use cgaal_engine::atl::Phi;
+use std::fs::File;
+use std::io::Read;
 
-use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::parsing::errors::ErrorLog;
 use cgaal_engine::parsing::parse_atl;
 

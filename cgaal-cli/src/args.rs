@@ -71,8 +71,6 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
 
     setup_tracing(&arg_matches)?;
 
-    // FIXME: Merge solver and global to "check"
-
     let mut options = CliOptions::default();
     match arg_matches.subcommand() {
         ("check", Some(args)) => {

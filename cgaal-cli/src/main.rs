@@ -16,11 +16,11 @@ use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use cgaal_engine::analyse::analyse;
 use cgaal_engine::atl::Phi;
-use cgaal_engine::edg::atledg::AtlDependencyGraph;
 use cgaal_engine::edg::atledg::vertex::AtlVertex;
-use cgaal_engine::game_structure::GameStructure;
+use cgaal_engine::edg::atledg::AtlDependencyGraph;
 use cgaal_engine::game_structure::lcgs::ast::DeclKind;
 use cgaal_engine::game_structure::lcgs::ir::symbol_table::Owner;
+use cgaal_engine::game_structure::GameStructure;
 #[cfg(feature = "graph-printer")]
 use cgaal_engine::printer::print_graph;
 
@@ -160,8 +160,12 @@ fn main_inner() -> Result<(), String> {
             )?;
 
             match model {
-                Model::Lcgs(model) => analyse_and_save(model, formula, options.output_path.as_deref().unwrap())?,
-                Model::Json(model) => analyse_and_save(model, formula, options.output_path.as_deref().unwrap())?,
+                Model::Lcgs(model) => {
+                    analyse_and_save(model, formula, options.output_path.as_deref().unwrap())?
+                }
+                Model::Json(model) => {
+                    analyse_and_save(model, formula, options.output_path.as_deref().unwrap())?
+                }
             }
         }
         #[cfg(feature = "graph-printer")]
