@@ -1,6 +1,8 @@
+use crate::options::{
+    CliOptions, FormulaFormat, ModelFormat, SearchStrategyOption, SubcommandOption,
+};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
-use crate::options::{CliOptions, FormulaFormat, ModelFormat, SearchStrategyOption, SubcommandOption};
 
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
@@ -20,6 +22,7 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
                 .long("log-filter")
                 .env("RUST_LOG")
                 .default_value("warn")
+                .global(true)
                 .help("Comma separated list of filter directives"),
         )
         .subcommand(
@@ -30,7 +33,7 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
                 .add_positional_formula_arg()
                 .add_formula_format_arg()
                 .add_search_strategy_arg()
-                .add_game_strategy_arg()
+                .add_witness_strategy_arg()
                 .add_quiet_arg()
                 .add_threads_arg(),
         )
@@ -91,10 +94,11 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
             options.model_explicit_format = parse_model_format_arg(args)?;
             options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
-            options.witness_strategy_path = args.value_of("witness_path").map(|s| s.to_string());
+            options.witness_strategy_path = args.value_of("witness_out_path").map(|s| s.to_string());
             options.threads = parse_threads_arg(args)?;
             options.search_strategy = parse_search_strategy_arg(args)?;
-            options.prioritise_back_propagation = !args.is_present("no_prioritised_back_propagation");
+            options.prioritise_back_propagation =
+                !args.is_present("no_prioritised_back_propagation");
         }
         ("index", Some(args)) => {
             options.subcommand = SubcommandOption::Index;
@@ -197,7 +201,7 @@ pub(crate) trait CommonArgs {
     fn add_formula_format_arg(self) -> Self;
     fn add_positional_output_arg(self, required: bool) -> Self;
     fn add_search_strategy_arg(self) -> Self;
-    fn add_game_strategy_arg(self) -> Self;
+    fn add_witness_strategy_arg(self) -> Self;
     fn add_quiet_arg(self) -> Self;
     fn add_threads_arg(self) -> Self;
 }
@@ -266,11 +270,12 @@ impl CommonArgs for App<'_, '_> {
     }
 
     /// Adds "--find-strategy" as an argument
-    fn add_game_strategy_arg(self) -> Self {
+    fn add_witness_strategy_arg(self) -> Self {
         self.arg(
-            Arg::with_name("witness_path")
+            Arg::with_name("witness_out_path")
                 .short("g")
                 .long("find-strategy")
+                .takes_value(true)
                 .help("Compute witness strategy along with result and save at given path"),
         )
     }
