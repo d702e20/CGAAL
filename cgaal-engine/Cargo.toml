@@ -2,11 +2,11 @@
 name = "cgaal-engine"
 version = "1.1.0"
 authors = [
-    "Asger Weirsøe <aweirs15@student.aau.dk>",
+    "Asger Weirsøe <asger@weircon.dk>",
     "Falke Carlsen <falkeboc@cs.aau.dk>",
     "Jener Rasmussen <jener@jener.dk>",
-    "Lars Bo Frydenskov <lbpf@cs.aau.dk>",
-    "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
+    "Lars Bo Frydenskov <larsbopark@gmail.com>",
+    "Mathias Mehl Sørensen <mathiasmehlsoerensen@gmail.com>",
     "Nicolaj Østerby Jensen <noje@cs.aau.dk>",
 ]
 edition = "2021"
