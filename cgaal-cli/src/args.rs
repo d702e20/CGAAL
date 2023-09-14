@@ -1,4 +1,4 @@
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 use crate::options::{CliOptions, FormulaFormat, ModelFormat, SearchStrategyOption, SubcommandOption};
 
@@ -25,10 +25,10 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
         .subcommand(
             SubCommand::with_name("solver")
                 .about("Checks satisfiability of an ATL query on a CGS")
-                .add_input_model_arg()
-                .add_input_model_type_arg()
-                .add_formula_arg()
-                .add_formula_type_arg()
+                .add_positional_model_path_arg()
+                .add_model_format_arg()
+                .add_positional_formula_arg()
+                .add_formula_format_arg()
                 .add_search_strategy_arg()
                 .add_game_strategy_arg()
                 .add_quiet_arg()
@@ -37,27 +37,28 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
         .subcommand(
             SubCommand::with_name("index")
                 .about("Prints indexes of LCGS declarations")
-                .add_input_model_arg(),
+                .add_positional_model_path_arg(),
         )
         .subcommand(
             SubCommand::with_name("analyse")
                 .about("Analyses a EDG generated from an ATL query and a CGS")
-                .add_input_model_arg()
-                .add_input_model_type_arg()
-                .add_formula_arg()
-                .add_formula_type_arg()
-                .add_output_arg(true),
+                .add_positional_model_path_arg()
+                .add_model_format_arg()
+                .add_positional_formula_arg()
+                .add_formula_format_arg()
+                .add_positional_output_arg(true),
         )
         .subcommand(
             SubCommand::with_name("global")
                 .about("Checks satisfiability of an ATL query on a CGS, using the Global Algorithm")
-                .add_input_model_arg()
-                .add_input_model_type_arg()
-                .add_formula_arg()
-                .add_formula_type_arg()
+                .add_positional_model_path_arg()
+                .add_model_format_arg()
+                .add_positional_formula_arg()
+                .add_formula_format_arg()
                 .add_quiet_arg()
                 .add_threads_arg(),
-        );
+        )
+        .setting(AppSettings::SubcommandRequiredElseHelp);
 
     if cfg!(feature = "graph-printer") {
         app = app.subcommand(
@@ -65,11 +66,11 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
                 .about(
                     "Outputs a Graphviz DOT graph of the EDG generated from an ATL query and a CGS",
                 )
-                .add_input_model_arg()
-                .add_input_model_type_arg()
-                .add_formula_arg()
-                .add_formula_type_arg()
-                .add_output_arg(false),
+                .add_positional_model_path_arg()
+                .add_model_format_arg()
+                .add_positional_formula_arg()
+                .add_formula_format_arg()
+                .add_positional_output_arg(false),
         );
     }
 
@@ -86,24 +87,24 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
             options.subcommand = SubcommandOption::Check;
             options.use_global = false;
             options.quiet = args.is_present("quiet");
-            options.model_path = args.value_of("input_model").unwrap().to_string();
+            options.model_path = args.value_of("model_path").unwrap().to_string();
             options.model_explicit_format = parse_model_format_arg(args)?;
-            options.formula_path = args.value_of("formula").unwrap().to_string();
+            options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
-            options.witness_strategy_path = args.value_of("game_strategy").map(|s| s.to_string());
+            options.witness_strategy_path = args.value_of("witness_path").map(|s| s.to_string());
             options.threads = parse_threads_arg(args)?;
             options.search_strategy = parse_search_strategy_arg(args)?;
             options.prioritise_back_propagation = !args.is_present("no_prioritised_back_propagation");
         }
         ("index", Some(args)) => {
             options.subcommand = SubcommandOption::Index;
-            options.model_path = args.value_of("input_model").unwrap().to_string();
+            options.model_path = args.value_of("model_path").unwrap().to_string();
         }
         ("analyse", Some(args)) => {
             options.subcommand = SubcommandOption::Analyse;
-            options.model_path = args.value_of("input_model").unwrap().to_string();
+            options.model_path = args.value_of("model_path").unwrap().to_string();
             options.model_explicit_format = parse_model_format_arg(args)?;
-            options.formula_path = args.value_of("formula").unwrap().to_string();
+            options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
             options.output_path = Some(args.value_of("output").unwrap().to_string());
         }
@@ -111,18 +112,18 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
             options.subcommand = SubcommandOption::Check;
             options.use_global = true;
             options.quiet = args.is_present("quiet");
-            options.model_path = args.value_of("input_model").unwrap().to_string();
+            options.model_path = args.value_of("model_path").unwrap().to_string();
             options.model_explicit_format = parse_model_format_arg(args)?;
-            options.formula_path = args.value_of("formula").unwrap().to_string();
+            options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
             options.threads = parse_threads_arg(args)?;
         }
         #[cfg(feature = "graph-printer")]
         ("graph", Some(args)) => {
             options.subcommand = SubcommandOption::Graph;
-            options.model_path = args.value_of("input_model").unwrap().to_string();
+            options.model_path = args.value_of("model_path").unwrap().to_string();
             options.model_explicit_format = parse_model_format_arg(args)?;
-            options.formula_path = args.value_of("formula").unwrap().to_string();
+            options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
             options.output_path = Some(args.value_of("output").unwrap().to_string());
         }
@@ -134,7 +135,7 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
 
 /// Parse the model format argument if given (either "json" or "lcgs")
 fn parse_model_format_arg(args: &ArgMatches) -> Result<Option<ModelFormat>, String> {
-    match args.value_of("model_type") {
+    match args.value_of("model_format") {
         Some("lcgs") => Ok(Some(ModelFormat::Lcgs)),
         Some("json") => Ok(Some(ModelFormat::Json)),
         None => Ok(None),
@@ -190,11 +191,11 @@ fn setup_tracing(args: &ArgMatches) -> Result<(), String> {
 /// Trait that allows us to easily add common arguments to the CLI, avoiding duplicate code while
 /// remaining flexible in terms of which subcommands have which arguments
 pub(crate) trait CommonArgs {
-    fn add_input_model_arg(self) -> Self;
-    fn add_input_model_type_arg(self) -> Self;
-    fn add_formula_arg(self) -> Self;
-    fn add_formula_type_arg(self) -> Self;
-    fn add_output_arg(self, required: bool) -> Self;
+    fn add_positional_model_path_arg(self) -> Self;
+    fn add_model_format_arg(self) -> Self;
+    fn add_positional_formula_arg(self) -> Self;
+    fn add_formula_format_arg(self) -> Self;
+    fn add_positional_output_arg(self, required: bool) -> Self;
     fn add_search_strategy_arg(self) -> Self;
     fn add_game_strategy_arg(self) -> Self;
     fn add_quiet_arg(self) -> Self;
@@ -203,71 +204,57 @@ pub(crate) trait CommonArgs {
 
 /// Add the common arguments to clap::App
 impl CommonArgs for App<'_, '_> {
-    /// Adds "--input-model" as a required argument
-    fn add_input_model_arg(self) -> Self {
+    /// Adds model path as required positional argument
+    fn add_positional_model_path_arg(self) -> Self {
         self.arg(
-            Arg::with_name("input_model")
-                .short("m")
-                .long("model")
-                .env("INPUT_MODEL")
-                .required(true)
-                .help("The input file to generate model from"),
+            Arg::with_name("model_path")
+                .help("Path to input model")
+                .required(true),
         )
     }
 
-    /// Adds "--model-type" as an optional argument
-    fn add_input_model_type_arg(self) -> Self {
+    /// Adds "--model-format" as an optional argument
+    fn add_model_format_arg(self) -> Self {
         self.arg(
-            Arg::with_name("model_type")
-                .short("t")
-                .long("model-type")
-                .env("MODEL_TYPE")
-                .help("The type of input file given {{lcgs, json}}"),
+            Arg::with_name("model_format")
+                .long("model-format")
+                .help("The format of the input model {{lcgs, json}}"),
         )
     }
 
-    /// Adds "--formula" as a required argument
-    fn add_formula_arg(self) -> Self {
+    /// Adds formula path as a required positional argument
+    fn add_positional_formula_arg(self) -> Self {
         self.arg(
-            Arg::with_name("formula")
-                .short("f")
-                .long("formula")
-                .env("FORMULA")
-                .required(true)
-                .help("The formula to check for"),
+            Arg::with_name("formula_path")
+                .help("Path to input formula")
+                .required(true),
         )
     }
 
     /// Adds "--formula-format" as an optional argument
-    fn add_formula_type_arg(self) -> Self {
+    fn add_formula_format_arg(self) -> Self {
         self.arg(
-            Arg::with_name("formula_type")
-                .short("y")
-                .long("formula-type")
-                .env("FORMULA_TYPE")
-                .help("The type of ATL formula file given {{json, atl}}"),
+            Arg::with_name("formula_format")
+                .long("formula-format")
+                .help("The format of the input formula {{json, atl}}"),
         )
     }
 
-    /// Adds "--output" as an argument
-    fn add_output_arg(self, required: bool) -> Self {
+    /// Adds output as a positional argument, optionally required
+    fn add_positional_output_arg(self, required: bool) -> Self {
         self.arg(
             Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .env("OUTPUT")
-                .required(required)
-                .help("The path to write output to"),
+                .help("The path to write output to")
+                .required(required),
         )
     }
 
-    /// Adds "--search-strategy" as an argument
+    /// Adds "--search-strategy" and "--no-prioritised-back-propagation" as an argument
     fn add_search_strategy_arg(self) -> Self {
         self.arg(
             Arg::with_name("search_strategy")
                 .short("s")
                 .long("search-strategy")
-                .env("SEARCH_STRATEGY")
                 .help("The search strategy used {{bfs, dfs, los, lps, dhs, ihs, lrs}}"),
         )
         .arg(
@@ -281,11 +268,10 @@ impl CommonArgs for App<'_, '_> {
     /// Adds "--find-strategy" as an argument
     fn add_game_strategy_arg(self) -> Self {
         self.arg(
-            Arg::with_name("game_strategy")
+            Arg::with_name("witness_path")
                 .short("g")
                 .long("find-strategy")
-                .env("FIND_STRATEGY")
-                .help("Compute game strategy along with result and save at given path"),
+                .help("Compute witness strategy along with result and save at given path"),
         )
     }
 
@@ -300,13 +286,12 @@ impl CommonArgs for App<'_, '_> {
         )
     }
 
-    /// Adds "-r"/"--threads" as an argument
+    /// Adds "-n"/"--threads" as an argument
     fn add_threads_arg(self) -> Self {
         self.arg(
             Arg::with_name("threads")
-                .short("r")
+                .short("n")
                 .long("threads")
-                .env("THREADS")
                 .help("Number of threads to use"),
         )
     }
