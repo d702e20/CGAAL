@@ -26,8 +26,8 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
                 .help("Comma separated list of filter directives"),
         )
         .subcommand(
-            SubCommand::with_name("solver")
-                .about("Checks satisfiability of an ATL query on a CGS")
+            SubCommand::with_name("check")
+                .about("Checks satisfiability of an ATL property on a CGS")
                 .add_positional_model_path_arg()
                 .add_model_format_arg()
                 .add_positional_formula_arg()
@@ -51,16 +51,6 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
                 .add_formula_format_arg()
                 .add_positional_output_arg(true),
         )
-        .subcommand(
-            SubCommand::with_name("global")
-                .about("Checks satisfiability of an ATL query on a CGS, using the Global Algorithm")
-                .add_positional_model_path_arg()
-                .add_model_format_arg()
-                .add_positional_formula_arg()
-                .add_formula_format_arg()
-                .add_quiet_arg()
-                .add_threads_arg(),
-        )
         .setting(AppSettings::SubcommandRequiredElseHelp);
 
     if cfg!(feature = "graph-printer") {
@@ -82,11 +72,10 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
     setup_tracing(&arg_matches)?;
 
     // FIXME: Merge solver and global to "check"
-    // FIXME: Make quiet a global option
 
     let mut options = CliOptions::default();
     match arg_matches.subcommand() {
-        ("solver", Some(args)) => {
+        ("check", Some(args)) => {
             options.subcommand = SubcommandOption::Check;
             options.use_global = false;
             options.quiet = args.is_present("quiet");
@@ -94,11 +83,13 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
             options.model_explicit_format = parse_model_format_arg(args)?;
             options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
-            options.witness_strategy_path = args.value_of("witness_out_path").map(|s| s.to_string());
+            options.witness_strategy_path =
+                args.value_of("witness_out_path").map(|s| s.to_string());
             options.threads = parse_threads_arg(args)?;
             options.search_strategy = parse_search_strategy_arg(args)?;
             options.prioritise_back_propagation =
                 !args.is_present("no_prioritised_back_propagation");
+            options.use_global = args.is_present("global");
         }
         ("index", Some(args)) => {
             options.subcommand = SubcommandOption::Index;
@@ -111,16 +102,6 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
             options.formula_path = args.value_of("formula_path").unwrap().to_string();
             options.formula_explicit_format = parse_formula_format_arg(args)?;
             options.output_path = Some(args.value_of("output").unwrap().to_string());
-        }
-        ("global", Some(args)) => {
-            options.subcommand = SubcommandOption::Check;
-            options.use_global = true;
-            options.quiet = args.is_present("quiet");
-            options.model_path = args.value_of("model_path").unwrap().to_string();
-            options.model_explicit_format = parse_model_format_arg(args)?;
-            options.formula_path = args.value_of("formula_path").unwrap().to_string();
-            options.formula_explicit_format = parse_formula_format_arg(args)?;
-            options.threads = parse_threads_arg(args)?;
         }
         #[cfg(feature = "graph-printer")]
         ("graph", Some(args)) => {
@@ -253,7 +234,7 @@ impl CommonArgs for App<'_, '_> {
         )
     }
 
-    /// Adds "--search-strategy" and "--no-prioritised-back-propagation" as an argument
+    /// Adds "--search-strategy", "--no-prioritised-back-propagation" and "--global" as arguments
     fn add_search_strategy_arg(self) -> Self {
         self.arg(
             Arg::with_name("search_strategy")
@@ -266,6 +247,13 @@ impl CommonArgs for App<'_, '_> {
                 .long("no-prioritised-back-propagation")
                 .takes_value(false)
                 .help("Turn off prioritised back-propagation"),
+        )
+        .arg(
+            Arg::with_name("global")
+                .long("global")
+                .help("Use the global algorithm")
+                .conflicts_with("search_strategy")
+                .conflicts_with("no_prioritised_back_propagation"),
         )
     }
 
