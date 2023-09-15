@@ -65,7 +65,7 @@ fn basic_expr_002() {
 #[test]
 fn basic_expr_003() {
     // Check precedence of && over || and parenthesis
-    let input = "foo || true && bar || (true || false)";
+    let input = "foo || true && bar.baz || (true || false)";
     let mut errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer, &mut errors);
@@ -75,20 +75,30 @@ fn basic_expr_003() {
     assert_eq!(
         expr,
         Expr::new(
-            Span::new(0, 37),
+            Span::new(0, 41),
             ExprKind::Binary(
                 BinaryOpKind::Or,
                 Expr::new(
-                    Span::new(0, 18),
+                    Span::new(0, 22),
                     ExprKind::Binary(
                         BinaryOpKind::Or,
-                        Expr::new(Span::new(0, 3), ExprKind::Ident("foo".to_string())).into(),
                         Expr::new(
-                            Span::new(7, 18),
+                            Span::new(0, 3),
+                            ExprKind::OwnedIdent(
+                                None,
+                                Ident::new(Span::new(0, 3), "foo".to_string())
+                            )
+                        )
+                        .into(),
+                        Expr::new(
+                            Span::new(7, 22),
                             ExprKind::Binary(
                                 BinaryOpKind::And,
                                 Expr::new(Span::new(7, 11), ExprKind::True).into(),
-                                Expr::new(Span::new(15, 18), ExprKind::Ident("bar".to_string()))
+                                Expr::new(Span::new(15, 22), ExprKind::OwnedIdent(
+                                    Some(Ident::new(Span::new(15, 18), "bar".to_string())),
+                                    Ident::new(Span::new(19, 22), "baz".to_string())
+                                ))
                                     .into()
                             )
                         )
@@ -97,14 +107,14 @@ fn basic_expr_003() {
                 )
                 .into(),
                 Expr::new(
-                    Span::new(22, 37),
+                    Span::new(26, 41),
                     ExprKind::Paren(
                         Expr::new(
-                            Span::new(23, 36),
+                            Span::new(27, 40),
                             ExprKind::Binary(
                                 BinaryOpKind::Or,
-                                Expr::new(Span::new(23, 27), ExprKind::True).into(),
-                                Expr::new(Span::new(31, 36), ExprKind::False).into()
+                                Expr::new(Span::new(27, 31), ExprKind::True).into(),
+                                Expr::new(Span::new(35, 40), ExprKind::False).into()
                             )
                         )
                         .into()
@@ -133,16 +143,16 @@ fn atl_expr_001() {
             Span::new(0, 13),
             ExprKind::Coalition(Coalition::new(
                 Span::new(0, 6),
-                vec![Expr::new(
-                    Span::new(2, 4),
-                    ExprKind::Ident("p1".to_string())
-                )],
+                vec![Ident::new(Span::new(2, 4), "p1".to_string()).into()],
                 CoalitionKind::Enforce,
                 Expr::new(
                     Span::new(7, 13),
                     ExprKind::Unary(
                         UnaryOpKind::Eventually,
-                        Expr::new(Span::new(9, 13), ExprKind::Ident("goal".to_string())).into()
+                        Expr::new(Span::new(9, 13), ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(9, 13), "goal".to_string())
+                        )).into()
                     )
                 )
                 .into()
@@ -168,15 +178,18 @@ fn atl_expr_002() {
             ExprKind::Coalition(Coalition::new(
                 Span::new(0, 10),
                 vec![
-                    Expr::new(Span::new(2, 4), ExprKind::Ident("p1".to_string())),
-                    Expr::new(Span::new(6, 8), ExprKind::Ident("p2".to_string())),
+                    Ident::new(Span::new(2, 4), "p1".to_string()),
+                    Ident::new(Span::new(6, 8), "p2".to_string()),
                 ],
                 CoalitionKind::Despite,
                 Expr::new(
                     Span::new(11, 17),
                     ExprKind::Unary(
                         UnaryOpKind::Invariantly,
-                        Expr::new(Span::new(13, 17), ExprKind::Ident("safe".to_string())).into()
+                        Expr::new(Span::new(13, 17), ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(13, 17), "safe".to_string())
+                        )).into()
                     )
                 )
                 .into()
@@ -207,8 +220,14 @@ fn atl_expr_003() {
                     Span::new(5, 18),
                     ExprKind::Binary(
                         BinaryOpKind::Until,
-                        Expr::new(Span::new(6, 10), ExprKind::Ident("safe".to_string())).into(),
-                        Expr::new(Span::new(13, 17), ExprKind::Ident("goal".to_string())).into()
+                        Expr::new(Span::new(6, 10), ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(6, 10), "safe".to_string())
+                        )).into(),
+                        Expr::new(Span::new(13, 17), ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(13, 17), "goal".to_string())
+                        )).into()
                     )
                 )
                 .into()
@@ -233,9 +252,9 @@ fn atl_expr_004() {
             Span::new(0, 16),
             ExprKind::Coalition(Coalition::new(
                 Span::new(0, 6),
-                vec![Expr::new(
+                vec![Ident::new(
                     Span::new(2, 4),
-                    ExprKind::Ident("p1".to_string()),
+                    "p1".to_string(),
                 )],
                 CoalitionKind::Enforce,
                 Expr::new(
@@ -244,12 +263,9 @@ fn atl_expr_004() {
                         UnaryOpKind::Eventually,
                         Expr::new(
                             Span::new(9, 16),
-                            ExprKind::Binary(
-                                BinaryOpKind::Dot,
-                                Expr::new(Span::new(9, 11), ExprKind::Ident("p1".to_string()))
-                                    .into(),
-                                Expr::new(Span::new(12, 16), ExprKind::Ident("attr".to_string()))
-                                    .into(),
+                            ExprKind::OwnedIdent(
+                                Some(Ident::new(Span::new(9, 11), "p1".to_string())),
+                                Ident::new(Span::new(12, 16), "attr".to_string()),
                             ),
                         )
                         .into(),
@@ -257,6 +273,40 @@ fn atl_expr_004() {
                 )
                 .into(),
             )),
+        )
+    );
+}
+
+#[test]
+fn atl_expr_005() {
+    // Is comma at the end of coalition list accepted?
+    let input = "<<p1,>> F safe";
+    let mut errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes());
+    let mut parser = Parser::new(lexer, &mut errors);
+    let expr = parser.expr(0).expect("Failed to parse valid expression");
+    parser.expect_end();
+    assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
+    assert_eq!(
+        expr,
+        Expr::new(
+            Span::new(0, 14),
+            ExprKind::Coalition(Coalition::new(
+                Span::new(0, 7),
+                vec![Ident::new(Span::new(2, 4), "p1".to_string())],
+                CoalitionKind::Enforce,
+                Expr::new(
+                    Span::new(8, 14),
+                    ExprKind::Unary(
+                        UnaryOpKind::Eventually,
+                        Expr::new(Span::new(10, 14), ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(10, 14), "safe".to_string())
+                        )).into()
+                    )
+                )
+                .into()
+            ))
         )
     );
 }
@@ -296,7 +346,10 @@ fn erroneous_expr_002() {
     );
     assert_eq!(
         expr,
-        Expr::new(Span::new(0, 3), ExprKind::Ident("foo".to_string()))
+        Expr::new(Span::new(0, 3), ExprKind::OwnedIdent(
+            None,
+            Ident::new(Span::new(0, 3), "foo".to_string())
+        ))
     );
 }
 
