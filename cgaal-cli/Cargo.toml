@@ -1,6 +1,6 @@
 [package]
 name = "cgaal"
-version = "1.1.0"
+version = "2.0.0"
 authors = [
     "Asger Weirsøe <asger@weircon.dk>",
     "Falke Carlsen <falkeboc@cs.aau.dk>",
