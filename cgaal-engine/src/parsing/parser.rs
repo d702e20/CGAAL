@@ -1,4 +1,4 @@
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, UnaryOpKind};
+use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;
@@ -233,25 +233,25 @@ impl<'a> Parser<'a> {
                 ..
             })
         ) {
-            return Ok(lhs);
+            return Ok(Expr::new(lhs.span, ExprKind::OwnedIdent(None, lhs)));
         }
         let _ = self.token(TokenKind::Dot)?;
         let rhs = self.ident()?;
         Ok(Expr::new(
             lhs.span + rhs.span,
-            ExprKind::Binary(BinaryOpKind::Dot, lhs.into(), rhs.into()),
+            ExprKind::OwnedIdent(Some(lhs), rhs),
         ))
     }
 
     /// Parse an identifier.
-    pub fn ident(&mut self) -> Result<Expr, RecoverMode> {
+    pub fn ident(&mut self) -> Result<Ident, RecoverMode> {
         match self.lexer.peek() {
             Some(Token {
                 kind: TokenKind::Word(_),
                 ..
             }) => {
                 let tok = self.lexer.next().unwrap();
-                Ok(Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string())))
+                Ok(Ident::new(tok.span, tok.kind.to_string()))
             }
             Some(tok) => {
                 self.errors.log(
@@ -302,7 +302,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a comma-separated list of players (with the assumption that we are inside a coalition.)
-    pub fn coalition_players(&mut self) -> Result<Vec<Expr>, RecoverMode> {
+    pub fn coalition_players(&mut self) -> Result<Vec<Ident>, RecoverMode> {
         let mut players = vec![];
         #[allow(clippy::while_let_loop)]
         loop {
@@ -311,9 +311,8 @@ impl<'a> Parser<'a> {
                     kind: TokenKind::Word(_),
                     ..
                 }) => {
-                    let tok = self.lexer.next().unwrap();
-                    let p = Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string()));
-                    players.push(p);
+                    let ident = self.ident()?;
+                    players.push(ident);
                 }
                 _ => break,
             }
