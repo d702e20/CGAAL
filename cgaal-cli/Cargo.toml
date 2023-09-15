@@ -1,15 +1,13 @@
 [package]
 name = "cgaal"
-version = "1.0.1"
+version = "2.0.0"
 authors = [
-    "d702e20 <d702e20@cs.aau.dk>",
-    "d802f21 <d802f21@cs.aau.dk>",
-    "Asger Weirsøe <aweirs15@student.aau.dk>",
-    "Falke Carlsen <falke.cs@gmail.com>",
+    "Asger Weirsøe <asger@weircon.dk>",
+    "Falke Carlsen <falkeboc@cs.aau.dk>",
     "Jener Rasmussen <jener@jener.dk>",
-    "Lars Bo Frydenskov <lfryde17@student.aau.dk>",
-    "Mathias Mehl Sørensen <mmsa17@student.aau.dk>",
-    "Nicolaj Østerby Jensen <naje17@student.aau.dk>",
+    "Lars Bo Frydenskov <larsbopark@gmail.com>",
+    "Mathias Mehl Sørensen <mathiasmehlsoerensen@gmail.com>",
+    "Nicolaj Østerby Jensen <noje@cs.aau.dk>",
 ]
 edition = "2021"
 
