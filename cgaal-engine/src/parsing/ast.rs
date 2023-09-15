@@ -2,75 +2,6 @@ use crate::parsing::span::Span;
 use crate::parsing::token::TokenKind;
 use std::sync::Arc;
 
-/// The root of an LCGS program.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct LcgsRoot {
-    pub span: Span,
-    pub items: Vec<Decl>,
-}
-
-/// A declaration.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Decl {
-    pub span: Span,
-    pub ident: Ident,
-    pub kind: DeclKind,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum DeclKind {
-    Const(Arc<Expr>),
-    StateLabel(Arc<Expr>),
-    StateVar(Arc<StateVarDecl>),
-    Player(Arc<PlayerDecl>),
-    Template(Vec<Decl>),
-    Action(Arc<Expr>),
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct StateVarDecl {
-    pub init: Arc<Expr>,
-    pub update: Arc<Expr>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RangeClause {
-    pub span: Span,
-    pub min: Arc<Expr>,
-    pub max: Arc<Expr>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct PlayerDecl {
-    pub template: Ident,
-    pub relabellings: Vec<RelabelCase>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RelabelCase {
-    pub span: Span,
-    pub from: Ident,
-    pub to: Arc<Expr>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Ident {
-    pub span: Span,
-    pub name: String,
-}
-
-impl Ident {
-    pub fn new(span: Span, name: String) -> Self {
-        Ident { span, name }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct OwnedIdent {
-    pub owner: Ident,
-    pub name: Ident,
-}
-
 /// An expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expr {
@@ -98,8 +29,8 @@ pub enum ExprKind {
     False,
     /// An expression in parentheses
     Paren(Arc<Expr>),
-    /// An owned identifier
-    OwnedIdent(Option<Ident>, Ident),
+    /// An identifier
+    Ident(String),
     /// A unary operation
     Unary(UnaryOpKind, Arc<Expr>),
     /// A binary operation
@@ -130,6 +61,8 @@ pub enum BinaryOpKind {
     And,
     /// The `||` operator for logical or (disjunction)
     Or,
+    /// The `.` operator for owned symbols
+    Dot,
 
     // Temporal operators
     /// The `U` temporal operator (Until)
@@ -152,6 +85,7 @@ impl BinaryOpKind {
     /// Higher precedence means the operator binds tighter.
     pub fn precedence(&self) -> u8 {
         match self {
+            BinaryOpKind::Dot => 3,
             BinaryOpKind::And => 2,
             BinaryOpKind::Or => 1,
             BinaryOpKind::Until => 0,
@@ -185,7 +119,7 @@ pub struct Coalition {
     /// The span of the coalition in the original input code.
     pub span: Span,
     /// The players in the coalition.
-    pub players: Vec<Ident>,
+    pub players: Vec<Expr>,
     /// The kind of the coalition.
     pub kind: CoalitionKind,
     /// The path expression following the coalition.
@@ -193,7 +127,7 @@ pub struct Coalition {
 }
 
 impl Coalition {
-    pub fn new(span: Span, players: Vec<Ident>, kind: CoalitionKind, expr: Arc<Expr>) -> Self {
+    pub fn new(span: Span, players: Vec<Expr>, kind: CoalitionKind, expr: Arc<Expr>) -> Self {
         Coalition {
             span,
             players,

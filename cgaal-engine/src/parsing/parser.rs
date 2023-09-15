@@ -1,6 +1,4 @@
-use crate::parsing::ast::{
-    BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind,
-};
+use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, UnaryOpKind};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;
@@ -235,25 +233,25 @@ impl<'a> Parser<'a> {
                 ..
             })
         ) {
-            return Ok(Expr::new(lhs.span, ExprKind::OwnedIdent(None, lhs)));
+            return Ok(lhs);
         }
         let _ = self.token(TokenKind::Dot)?;
         let rhs = self.ident()?;
         Ok(Expr::new(
             lhs.span + rhs.span,
-            ExprKind::OwnedIdent(Some(lhs), rhs),
+            ExprKind::Binary(BinaryOpKind::Dot, lhs.into(), rhs.into()),
         ))
     }
 
     /// Parse an identifier.
-    pub fn ident(&mut self) -> Result<Ident, RecoverMode> {
+    pub fn ident(&mut self) -> Result<Expr, RecoverMode> {
         match self.lexer.peek() {
             Some(Token {
                 kind: TokenKind::Word(_),
                 ..
             }) => {
                 let tok = self.lexer.next().unwrap();
-                Ok(Ident::new(tok.span, tok.kind.to_string()))
+                Ok(Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string())))
             }
             Some(tok) => {
                 self.errors.log(
@@ -304,7 +302,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a comma-separated list of players (with the assumption that we are inside a coalition.)
-    pub fn coalition_players(&mut self) -> Result<Vec<Ident>, RecoverMode> {
+    pub fn coalition_players(&mut self) -> Result<Vec<Expr>, RecoverMode> {
         let mut players = vec![];
         #[allow(clippy::while_let_loop)]
         loop {
@@ -313,8 +311,9 @@ impl<'a> Parser<'a> {
                     kind: TokenKind::Word(_),
                     ..
                 }) => {
-                    let ident = self.ident()?;
-                    players.push(ident);
+                    let tok = self.lexer.next().unwrap();
+                    let p = Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string()));
+                    players.push(p);
                 }
                 _ => break,
             }
