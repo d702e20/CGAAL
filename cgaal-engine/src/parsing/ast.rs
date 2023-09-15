@@ -19,16 +19,23 @@ pub struct Decl {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclKind {
+    /// A constant declaration
     Const(Arc<Expr>),
+    /// A state label declaration. Used by ATL formulas
     StateLabel(Arc<Expr>),
+    /// A state variable declaration. These compose the state of a game.
     StateVar(Arc<StateVarDecl>),
+    /// A player declaration. Can only appear in the global scope.
     Player(Arc<PlayerDecl>),
+    /// A template declaration. Can only appear in the global scope.
     Template(Vec<Decl>),
+    /// An action declaration. Can only appear in templates.
     Action(Arc<Expr>),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
+    pub range: RangeClause,
     pub init: Arc<Expr>,
     pub update: Arc<Expr>,
 }
@@ -46,6 +53,10 @@ pub struct PlayerDecl {
     pub relabellings: Vec<RelabelCase>,
 }
 
+/// A relabelling case, as found in player declarations.
+/// Every occurrence of the `from` identifier in the template will be replaced by the `to` expression.
+/// If the ident is the name of a declaration or a name with an owner (e.g. `foo` in `p1.foo`),
+/// then the expression must be an identifier too.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RelabelCase {
     pub span: Span,
@@ -53,6 +64,7 @@ pub struct RelabelCase {
     pub to: Arc<Expr>,
 }
 
+/// An identifier.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Ident {
     pub span: Span,
@@ -65,6 +77,7 @@ impl Ident {
     }
 }
 
+/// An owned identifier. E.g. `p1.foo`
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct OwnedIdent {
     pub owner: Ident,
