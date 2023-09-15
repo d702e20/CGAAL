@@ -1,4 +1,6 @@
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind};
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind,
+};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;

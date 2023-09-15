@@ -95,11 +95,14 @@ fn basic_expr_003() {
                             ExprKind::Binary(
                                 BinaryOpKind::And,
                                 Expr::new(Span::new(7, 11), ExprKind::True).into(),
-                                Expr::new(Span::new(15, 22), ExprKind::OwnedIdent(
-                                    Some(Ident::new(Span::new(15, 18), "bar".to_string())),
-                                    Ident::new(Span::new(19, 22), "baz".to_string())
-                                ))
-                                    .into()
+                                Expr::new(
+                                    Span::new(15, 22),
+                                    ExprKind::OwnedIdent(
+                                        Some(Ident::new(Span::new(15, 18), "bar".to_string())),
+                                        Ident::new(Span::new(19, 22), "baz".to_string())
+                                    )
+                                )
+                                .into()
                             )
                         )
                         .into()
@@ -149,10 +152,14 @@ fn atl_expr_001() {
                     Span::new(7, 13),
                     ExprKind::Unary(
                         UnaryOpKind::Eventually,
-                        Expr::new(Span::new(9, 13), ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(9, 13), "goal".to_string())
-                        )).into()
+                        Expr::new(
+                            Span::new(9, 13),
+                            ExprKind::OwnedIdent(
+                                None,
+                                Ident::new(Span::new(9, 13), "goal".to_string())
+                            )
+                        )
+                        .into()
                     )
                 )
                 .into()
@@ -186,10 +193,14 @@ fn atl_expr_002() {
                     Span::new(11, 17),
                     ExprKind::Unary(
                         UnaryOpKind::Invariantly,
-                        Expr::new(Span::new(13, 17), ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(13, 17), "safe".to_string())
-                        )).into()
+                        Expr::new(
+                            Span::new(13, 17),
+                            ExprKind::OwnedIdent(
+                                None,
+                                Ident::new(Span::new(13, 17), "safe".to_string())
+                            )
+                        )
+                        .into()
                     )
                 )
                 .into()
@@ -220,14 +231,22 @@ fn atl_expr_003() {
                     Span::new(5, 18),
                     ExprKind::Binary(
                         BinaryOpKind::Until,
-                        Expr::new(Span::new(6, 10), ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(6, 10), "safe".to_string())
-                        )).into(),
-                        Expr::new(Span::new(13, 17), ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(13, 17), "goal".to_string())
-                        )).into()
+                        Expr::new(
+                            Span::new(6, 10),
+                            ExprKind::OwnedIdent(
+                                None,
+                                Ident::new(Span::new(6, 10), "safe".to_string())
+                            )
+                        )
+                        .into(),
+                        Expr::new(
+                            Span::new(13, 17),
+                            ExprKind::OwnedIdent(
+                                None,
+                                Ident::new(Span::new(13, 17), "goal".to_string())
+                            )
+                        )
+                        .into()
                     )
                 )
                 .into()
@@ -252,10 +271,7 @@ fn atl_expr_004() {
             Span::new(0, 16),
             ExprKind::Coalition(Coalition::new(
                 Span::new(0, 6),
-                vec![Ident::new(
-                    Span::new(2, 4),
-                    "p1".to_string(),
-                )],
+                vec![Ident::new(Span::new(2, 4), "p1".to_string(),)],
                 CoalitionKind::Enforce,
                 Expr::new(
                     Span::new(7, 16),
@@ -299,10 +315,14 @@ fn atl_expr_005() {
                     Span::new(8, 14),
                     ExprKind::Unary(
                         UnaryOpKind::Eventually,
-                        Expr::new(Span::new(10, 14), ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(10, 14), "safe".to_string())
-                        )).into()
+                        Expr::new(
+                            Span::new(10, 14),
+                            ExprKind::OwnedIdent(
+                                None,
+                                Ident::new(Span::new(10, 14), "safe".to_string())
+                            )
+                        )
+                        .into()
                     )
                 )
                 .into()
@@ -346,10 +366,10 @@ fn erroneous_expr_002() {
     );
     assert_eq!(
         expr,
-        Expr::new(Span::new(0, 3), ExprKind::OwnedIdent(
-            None,
-            Ident::new(Span::new(0, 3), "foo".to_string())
-        ))
+        Expr::new(
+            Span::new(0, 3),
+            ExprKind::OwnedIdent(None, Ident::new(Span::new(0, 3), "foo".to_string()))
+        )
     );
 }
 

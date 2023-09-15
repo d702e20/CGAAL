@@ -3,7 +3,9 @@ use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use crate::game_structure::lcgs::ir::symbol_table::Owner;
 use crate::game_structure::Player;
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind};
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind,
+};
 use crate::parsing::errors::ErrorLog;
 
 /// Convert an ATL expression to a Phi formula.
@@ -64,7 +66,10 @@ pub fn convert_expr_to_phi(
                 None => {
                     errors.log(
                         ident.span,
-                        format!("Expected proposition label, '{}' is not defined", ident.name),
+                        format!(
+                            "Expected proposition label, '{}' is not defined",
+                            ident.name
+                        ),
                     );
                     None
                 }
@@ -186,10 +191,7 @@ fn convert_players(
         .iter()
         .map(|ident| {
             let symbol = Owner::Global.symbol_id(&ident.name);
-            match game
-                .get_decl(&symbol)
-                .map(|d| &d.kind)
-            {
+            match game.get_decl(&symbol).map(|d| &d.kind) {
                 Some(DeclKind::Player(p)) => Some(p.index),
                 Some(d) => {
                     errors.log(
