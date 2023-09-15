@@ -75,7 +75,6 @@ pub fn parse_arguments() -> Result<CliOptions, String> {
     match arg_matches.subcommand() {
         ("check", Some(args)) => {
             options.subcommand = SubcommandOption::Check;
-            options.use_global = false;
             options.quiet = args.is_present("quiet");
             options.model_path = args.value_of("model_path").unwrap().to_string();
             options.model_explicit_format = parse_model_format_arg(args)?;
