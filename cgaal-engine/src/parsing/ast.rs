@@ -9,6 +9,12 @@ pub struct LcgsRoot {
     pub items: Vec<Decl>,
 }
 
+impl LcgsRoot {
+    pub fn new(span: Span, items: Vec<Decl>) -> Self {
+        LcgsRoot { span, items }
+    }
+}
+
 /// A declaration.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Decl {
@@ -31,13 +37,42 @@ pub enum DeclKind {
     Template(Vec<Decl>),
     /// An action declaration. Can only appear in templates.
     Action(Arc<Expr>),
+    /// An error
+    Error,
+}
+
+impl Decl {
+    pub fn new(span: Span, ident: Ident, kind: DeclKind) -> Self {
+        Decl { span, ident, kind }
+    }
+
+    pub fn new_error() -> Self {
+        Decl::new(Span::new(0, 0), Ident::new_error(), DeclKind::Error)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
     pub range: RangeClause,
     pub init: Arc<Expr>,
+    pub update_ident: Ident,
     pub update: Arc<Expr>,
+}
+
+impl StateVarDecl {
+    pub fn new(
+        range: RangeClause,
+        init: Arc<Expr>,
+        update_ident: Ident,
+        update: Arc<Expr>,
+    ) -> Self {
+        StateVarDecl {
+            range,
+            init,
+            update_ident,
+            update,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -47,10 +82,25 @@ pub struct RangeClause {
     pub max: Arc<Expr>,
 }
 
+impl RangeClause {
+    pub fn new(span: Span, min: Arc<Expr>, max: Arc<Expr>) -> Self {
+        RangeClause { span, min, max }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PlayerDecl {
     pub template: Ident,
     pub relabellings: Vec<RelabelCase>,
+}
+
+impl PlayerDecl {
+    pub fn new(template: Ident, relabellings: Vec<RelabelCase>) -> Self {
+        PlayerDecl {
+            template,
+            relabellings,
+        }
+    }
 }
 
 /// A relabelling case, as found in player declarations.
@@ -64,6 +114,12 @@ pub struct RelabelCase {
     pub to: Arc<Expr>,
 }
 
+impl RelabelCase {
+    pub fn new(span: Span, from: Ident, to: Arc<Expr>) -> Self {
+        RelabelCase { span, from, to }
+    }
+}
+
 /// An identifier.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Ident {
@@ -74,6 +130,10 @@ pub struct Ident {
 impl Ident {
     pub fn new(span: Span, name: String) -> Self {
         Ident { span, name }
+    }
+
+    pub fn new_error() -> Self {
+        Ident::new(Span::new(0, 0), String::new())
     }
 }
 
