@@ -169,6 +169,7 @@ pub enum ExprKind {
     True,
     /// The false constant
     False,
+    Num(i32),
     /// An expression in parentheses
     Paren(Arc<Expr>),
     /// An owned identifier

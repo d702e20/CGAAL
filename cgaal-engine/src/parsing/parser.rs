@@ -1,4 +1,7 @@
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot, PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind};
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot,
+    PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
+};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;
@@ -104,23 +107,25 @@ impl<'a> Parser<'a> {
         loop {
             match (self.lexer.peek(), in_template) {
                 // Const declaration
-                (Some(Token {
-                    kind: TokenKind::KwConst,
-                    ..
-                }), _) => {
-                    let (_, decl) = recover!(
-                        self,
-                        self.const_decl(),
-                        TokenKind::Semi,
-                        Decl::new_error()
-                    )?;
+                (
+                    Some(Token {
+                        kind: TokenKind::KwConst,
+                        ..
+                    }),
+                    _,
+                ) => {
+                    let (_, decl) =
+                        recover!(self, self.const_decl(), TokenKind::Semi, Decl::new_error())?;
                     decls.push(decl);
                 }
                 // State label declaration
-                (Some(Token {
-                    kind: TokenKind::KwLabel,
-                    ..
-                }), _) => {
+                (
+                    Some(Token {
+                        kind: TokenKind::KwLabel,
+                        ..
+                    }),
+                    _,
+                ) => {
                     let (_, decl) = recover!(
                         self,
                         self.state_label_decl(),
@@ -130,10 +135,13 @@ impl<'a> Parser<'a> {
                     decls.push(decl);
                 }
                 // State variable declaration
-                (Some(Token {
-                    kind: TokenKind::Word(_),
-                    ..
-                }), _) => {
+                (
+                    Some(Token {
+                        kind: TokenKind::Word(_),
+                        ..
+                    }),
+                    _,
+                ) => {
                     let (_, decl) = recover!(
                         self,
                         self.state_var_decl(),
@@ -143,31 +151,52 @@ impl<'a> Parser<'a> {
                     decls.push(decl);
                 }
                 // Player declaration. Not allowed in templates
-                (Some(Token {
-                    kind: TokenKind::KwPlayer,
-                    ..
-                }), false) => {
-                    let (_, decl) = recover!(
-                        self,
-                        self.player_decl(),
-                        TokenKind::Semi,
-                        Decl::new_error()
-                    )?;
+                (
+                    Some(Token {
+                        kind: TokenKind::KwPlayer,
+                        ..
+                    }),
+                    false,
+                ) => {
+                    let (_, decl) =
+                        recover!(self, self.player_decl(), TokenKind::Semi, Decl::new_error())?;
                     decls.push(decl);
                 }
                 // Template declaration. Not allowed in templates
-                (Some(Token {
-                    kind: TokenKind::KwTemplate,
-                    ..
-                }), false) => {
+                (
+                    Some(Token {
+                        kind: TokenKind::KwTemplate,
+                        ..
+                    }),
+                    false,
+                ) => {
                     decls.push(self.template_decl()?);
                 }
                 // Action declaration. Only allowed in templates
-                (Some(Token {
-                    kind: TokenKind::Llbracket,
-                    ..
-                }), true) => {
-                    decls.push(self.action_decl()?);
+                (
+                    Some(Token {
+                        kind: TokenKind::Lbracket,
+                        ..
+                    }),
+                    true,
+                ) => {
+                    let (_, decl) =
+                        recover!(self, self.action_decl(), TokenKind::Semi, Decl::new_error())?;
+                    decls.push(decl);
+                }
+                // Done
+                (
+                    Some(Token {
+                        kind: TokenKind::KwEndTemplate,
+                        ..
+                    }),
+                    _,
+                ) if in_template => {
+                    return Ok(decls);
+                }
+                // Done
+                (None, _) => {
+                    return Ok(decls);
                 }
                 // Unexpected
                 (Some(_), _) => {
@@ -179,10 +208,6 @@ impl<'a> Parser<'a> {
                         ),
                     );
                     return Err(RecoverMode);
-                }
-                // Done
-                (None, _) => {
-                    return Ok(decls);
                 }
             }
         }
@@ -211,11 +236,11 @@ impl<'a> Parser<'a> {
     }
 
     fn range_clause(&mut self) -> Result<RangeClause, RecoverMode> {
-        let start = self.token(TokenKind::Llbracket)?;
+        let start = self.token(TokenKind::Lbracket)?;
         let (end, (min, max)) = recover!(
             self,
             self.range_clause_inner(),
-            TokenKind::Rrbracket,
+            TokenKind::Rbracket,
             (Expr::new_error(), Expr::new_error())
         )?;
         Ok(RangeClause::new(start + end, min.into(), max.into()))
@@ -258,7 +283,7 @@ impl<'a> Parser<'a> {
         let template = self.ident()?;
         let cases = match self.lexer.peek() {
             Some(Token {
-                kind: TokenKind::Llbracket,
+                kind: TokenKind::Lbracket,
                 ..
             }) => {
                 let (relabel_span, cases) = self.relabelling()?;
@@ -276,11 +301,11 @@ impl<'a> Parser<'a> {
 
     /// Parse a relabelling.
     pub fn relabelling(&mut self) -> Result<(Span, Vec<RelabelCase>), RecoverMode> {
-        let start = self.token(TokenKind::Llbracket)?;
+        let start = self.token(TokenKind::Lbracket)?;
         let (end, cases) = recover!(
             self,
             self.relabelling_inner(),
-            TokenKind::Rrbracket,
+            TokenKind::Rbracket,
             Vec::new()
         )?;
         Ok((start + end, cases))
@@ -311,7 +336,7 @@ impl<'a> Parser<'a> {
                     self.lexer.next().unwrap();
                 }
                 Some(Token {
-                    kind: TokenKind::Rrbracket,
+                    kind: TokenKind::Rbracket,
                     ..
                 }) => break,
                 Some(tok) => {
@@ -360,8 +385,8 @@ impl<'a> Parser<'a> {
 
     /// Parse an action declaration.
     pub fn action_decl(&mut self) -> Result<Decl, RecoverMode> {
-        let start = self.token(TokenKind::Llbracket)?;
-        let (_, ident) = recover!(self, self.ident(), TokenKind::Rrbracket, Ident::new_error())?;
+        let start = self.token(TokenKind::Lbracket)?;
+        let (_, ident) = recover!(self, self.ident(), TokenKind::Rbracket, Ident::new_error())?;
         let cond = self.expr(0)?;
         let span = start + cond.span;
         let action = DeclKind::Action(Arc::new(cond));
@@ -476,6 +501,10 @@ impl<'a> Parser<'a> {
             Some(TokenKind::False) => {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::False))
+            }
+            Some(TokenKind::Num(_)) => {
+                let tok = self.lexer.next().unwrap();
+                Ok(Expr::new(tok.span, ExprKind::Num(tok.num().unwrap())))
             }
             Some(TokenKind::Word(_)) => self.owned_ident(),
             Some(TokenKind::Llangle) => self.enforce_coalition(),

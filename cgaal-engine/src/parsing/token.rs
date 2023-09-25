@@ -14,6 +14,14 @@ impl Token {
     pub fn new(kind: TokenKind, span: Span) -> Self {
         Token { kind, span }
     }
+
+    /// Returns the value of the Num variant or None if the token is not a Num.
+    pub fn num(&self) -> Option<i32> {
+        match self.kind {
+            TokenKind::Num(n) => Some(n),
+            _ => None,
+        }
+    }
 }
 
 impl Display for Token {
