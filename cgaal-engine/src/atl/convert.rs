@@ -100,7 +100,35 @@ pub fn convert_expr_to_phi(
                     "Temporal operators are only allowed after a coalition".to_string(),
                 );
                 None
-            }
+            },
+            BinaryOpKind::Xor => {
+                errors.log(
+                    *span,
+                    "Exclusive OR is currently not supported in ATL".to_string(),
+                );
+                None
+            },
+            BinaryOpKind::Implies => {
+                errors.log(
+                    *span,
+                    "Implication is currently not supported in ATL".to_string(),
+                );
+                None
+            },
+            BinaryOpKind::Eq | BinaryOpKind::Neq | BinaryOpKind::Gt | BinaryOpKind::Geq | BinaryOpKind::Lt | BinaryOpKind::Leq => {
+                errors.log(
+                    *span,
+                    "Relational operators are currently not supported in ATL".to_string(),
+                );
+                None
+            },
+            BinaryOpKind::Add | BinaryOpKind::Sub | BinaryOpKind::Mul | BinaryOpKind::Div => {
+                errors.log(
+                    *span,
+                    "Arithmetic operators are currently not supported in ATL".to_string(),
+                );
+                None
+            },
         },
         ExprKind::Coalition(Coalition {
             players,

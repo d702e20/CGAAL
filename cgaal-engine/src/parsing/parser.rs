@@ -395,6 +395,8 @@ impl<'a> Parser<'a> {
 
     /// Parse an expression.
     pub fn expr(&mut self, min_prec: u8) -> Result<Expr, RecoverMode> {
+        // TODO: Ternary if-expression
+        // TODO: min/max functions
         // Pratt parsing/precedence climbing: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#climbing
         let mut lhs = self.term()?;
         let span_start = lhs.span;

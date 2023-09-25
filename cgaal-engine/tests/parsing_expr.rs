@@ -480,6 +480,51 @@ fn erroneous_expr_007() {
 }
 
 #[test]
+fn expr_batch() {
+    let exprs = vec![
+        "123 + abc / (2 * 5) - 1",
+        "999 - 123 - foo.bar",
+        "foo > 4 && bar < 120 || baz == 0",
+        "foo23 - (bar || baz) && !!34",
+        "foo -> bar ^ baz",
+        "5 > 4 > 3 >= 2 == 2 < 20",
+        "(((4 + 2) / foo * (baz)) && 4 -> 2)"
+    ];
+
+    for (i, expr) in exprs.iter().enumerate() {
+        let mut errors = ErrorLog::new();
+        let lexer = Lexer::new(expr.as_bytes());
+        let mut parser = Parser::new(lexer, &mut errors);
+        let is_ok = parser.expr(0).is_ok();
+        parser.expect_end();
+        assert!(is_ok && errors.is_empty(), "ErrorLog is not empty (expr index {}): {:?}", i, errors);
+    }
+}
+
+#[test]
+fn expr_erroneous_batch() {
+    let exprs = vec![
+        "123 * 456 *",
+        "+ 23 - 45",
+        "123 foo",
+        "((()(()",
+        "<html>",
+        "foo || bar = 0 * 2",
+        "10!",
+        "func()",
+    ];
+
+    for (i, expr) in exprs.iter().enumerate() {
+        let mut errors = ErrorLog::new();
+        let lexer = Lexer::new(expr.as_bytes());
+        let mut parser = Parser::new(lexer, &mut errors);
+        let _ = parser.expr(0);
+        parser.expect_end();
+        assert!(!errors.is_empty(), "ErrorLog is empty. Expected error (expr index {})", i);
+    }
+}
+
+#[test]
 fn atl_expr_batch() {
     // Check that no errors are found for valid ATL expressions
     let lcgs_raw = "\n\
@@ -529,7 +574,7 @@ fn atl_expr_batch() {
 }
 
 #[test]
-fn atl_expr_error_batch() {
+fn atl_expr_erroneous_batch() {
     // Check that errors are found for erroneous ATL expressions
     let lcgs_raw = "\n\
     player p1 = thing;\n\

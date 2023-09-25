@@ -249,6 +249,7 @@ fn lcgs_batch() {
         let _ = parser
             .lcgs_root()
             .expect(&format!("Failed to parse valid LCGS model (index {})", i));
+        parser.expect_end();
         assert!(
             errors.is_empty(),
             "ErrorLog is not empty (model index {}): {:?}",
@@ -294,6 +295,7 @@ fn lcgs_erroneous_batch() {
         let lexer = Lexer::new(model.as_bytes());
         let mut parser = Parser::new(lexer, &mut errors);
         let _ = parser.lcgs_root();
+        parser.expect_end();
         assert!(
             !errors.is_empty(),
             "ErrorLog is empty. Expected error (model index {})",

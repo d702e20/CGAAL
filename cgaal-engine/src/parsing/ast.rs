@@ -200,10 +200,39 @@ pub enum UnaryOpKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BinaryOpKind {
+    // Logical operators
     /// The `&&` operator for logical and (conjunction)
     And,
     /// The `||` operator for logical or (disjunction)
     Or,
+    /// The `^` operator for exclusive or (xor)
+    Xor,
+    /// The `->` operator for implication
+    Implies,
+
+    // Relational operators
+    /// The `==` operator for equality
+    Eq,
+    /// The `!=` operator for inequality
+    Neq,
+    /// The `>` operator for greater than
+    Gt,
+    /// The `>=` operator for greater than or equal
+    Geq,
+    /// The `<` operator for less than
+    Lt,
+    /// The `<=` operator for less than or equal
+    Leq,
+
+    // Arithmetic operators
+    /// The `+` operator for addition
+    Add,
+    /// The `-` operator for subtraction
+    Sub,
+    /// The `*` operator for multiplication
+    Mul,
+    /// The `/` operator for division
+    Div,
 
     // Temporal operators
     /// The `U` temporal operator (Until)
@@ -226,8 +255,14 @@ impl BinaryOpKind {
     /// Higher precedence means the operator binds tighter.
     pub fn precedence(&self) -> u8 {
         match self {
-            BinaryOpKind::And => 2,
-            BinaryOpKind::Or => 1,
+            BinaryOpKind::Mul | BinaryOpKind::Div => 8,
+            BinaryOpKind::Add | BinaryOpKind::Sub => 7,
+            BinaryOpKind::Gt | BinaryOpKind::Geq | BinaryOpKind::Lt | BinaryOpKind::Leq => 6,
+            BinaryOpKind::Eq | BinaryOpKind::Neq => 5,
+            BinaryOpKind::And => 4,
+            BinaryOpKind::Or => 3,
+            BinaryOpKind::Xor => 2,
+            BinaryOpKind::Implies => 1,
             BinaryOpKind::Until => 0,
         }
     }
@@ -240,6 +275,18 @@ impl TryFrom<TokenKind> for BinaryOpKind {
         match value {
             TokenKind::AmpAmp => Ok(BinaryOpKind::And),
             TokenKind::PipePipe => Ok(BinaryOpKind::Or),
+            TokenKind::Hat => Ok(BinaryOpKind::Xor),
+            TokenKind::Arrow => Ok(BinaryOpKind::Implies),
+            TokenKind::Eq => Ok(BinaryOpKind::Eq),
+            TokenKind::Neq => Ok(BinaryOpKind::Neq),
+            TokenKind::Rangle => Ok(BinaryOpKind::Gt),
+            TokenKind::Geq => Ok(BinaryOpKind::Geq),
+            TokenKind::Langle => Ok(BinaryOpKind::Lt),
+            TokenKind::Leq => Ok(BinaryOpKind::Leq),
+            TokenKind::Plus => Ok(BinaryOpKind::Add),
+            TokenKind::Minus => Ok(BinaryOpKind::Sub),
+            TokenKind::Star => Ok(BinaryOpKind::Mul),
+            TokenKind::Slash => Ok(BinaryOpKind::Div),
             _ => Err(()),
         }
     }
