@@ -16,6 +16,7 @@ use cgaal_engine::{
     },
     parsing::{errors::ErrorLog, parse_atl},
 };
+use std::rc::Rc;
 
 const GAME: &str = "
 player p1 = thing;
@@ -146,11 +147,11 @@ macro_rules! assert_partial_strat_moves {
 /// ```
 macro_rules! strat_synthesis_test {
     ($game:expr, $phi:expr, $($rest:tt)*) => {
-        let mut errors = ErrorLog::new();
+        let errors = ErrorLog::new();
         let ast = parse_lcgs($game).unwrap();
         let game = IntermediateLcgs::create(ast).unwrap();
-        let phi = parse_atl($phi, &mut errors)
-            .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
+        let phi = parse_atl($phi, &errors)
+            .and_then(|expr| convert_expr_to_phi(&expr, &game, &errors))
             .ok_or_else(|| format!("{}", errors.to_string($phi)))
             .unwrap();
         let v0 = AtlVertex::Full {

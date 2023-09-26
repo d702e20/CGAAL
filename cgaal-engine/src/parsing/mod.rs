@@ -12,8 +12,8 @@ mod token;
 
 /// Parse an ATL expression.
 /// Returns None if there were errors. See the error log for details.
-pub fn parse_atl(input: &str, errors: &mut ErrorLog) -> Option<Expr> {
-    let lexer = Lexer::new(input.as_bytes());
+pub fn parse_atl(input: &str, errors: &ErrorLog) -> Option<Expr> {
+    let lexer = Lexer::new(input.as_bytes(), errors);
     let mut parser = Parser::new(lexer, errors);
     let expr = parser
         .expr()

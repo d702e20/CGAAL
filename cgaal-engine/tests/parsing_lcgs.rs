@@ -7,9 +7,9 @@ use cgaal_engine::parsing::span::*;
 #[test]
 fn const_decl_001() {
     let input = "const foo = 1";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .const_decl()
         .expect("Failed to parse valid const decl");
@@ -27,9 +27,9 @@ fn const_decl_001() {
 #[test]
 fn state_label_decl_001() {
     let input = "label foo = 1";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .state_label_decl()
         .expect("Failed to parse valid state label decl");
@@ -47,9 +47,9 @@ fn state_label_decl_001() {
 #[test]
 fn state_var_decl_001() {
     let input = "foo : [0..3] init 1; foo' = 2";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .state_var_decl()
         .expect("Failed to parse valid state var decl");
@@ -79,9 +79,9 @@ fn state_var_decl_001() {
 #[test]
 fn player_decl_001() {
     let input = "player foo = bar";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .player_decl()
         .expect("Failed to parse valid player decl");
@@ -101,9 +101,9 @@ fn player_decl_001() {
 #[test]
 fn player_decl_002() {
     let input = "player bar = baz [one=1, two=2 || 3]";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .player_decl()
         .expect("Failed to parse valid player decl");
@@ -146,9 +146,9 @@ fn player_decl_002() {
 #[test]
 fn template_decl_001() {
     let input = "template foo endtemplate";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .template_decl()
         .expect("Failed to parse valid template decl");
@@ -166,9 +166,9 @@ fn template_decl_001() {
 #[test]
 fn template_decl_002() {
     let input = "template foo label bar = 1; [act] 2; endtemplate";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .template_decl()
         .expect("Failed to parse valid template decl");
@@ -197,9 +197,9 @@ fn template_decl_002() {
 #[test]
 fn action_decl_001() {
     let input = "[act] 1";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let decl = parser
         .action_decl()
         .expect("Failed to parse valid action decl");
@@ -217,7 +217,8 @@ fn action_decl_001() {
 #[test]
 fn lcgs_batch() {
     let models = vec![
-        "player p1 = thing;
+        "// Comment
+        player p1 = thing;
         player p2 = thing;
         label prop = 1;
         template thing
@@ -234,6 +235,9 @@ fn lcgs_batch() {
         steps : [0..100] init 0;
         steps' = steps || steps;
         template robot
+            /* Multi-line
+            comment // test
+            /* nested btw */*/
             x : [0..N] init 0;
             x' = x;
             [wait] 1;
@@ -243,9 +247,9 @@ fn lcgs_batch() {
     ];
 
     for (i, model) in models.iter().enumerate() {
-        let mut errors = ErrorLog::new();
-        let lexer = Lexer::new(model.as_bytes());
-        let mut parser = Parser::new(lexer, &mut errors);
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(model.as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
         let _ = parser
             .lcgs_root()
             .expect(&format!("Failed to parse valid LCGS model (index {})", i));
@@ -288,12 +292,19 @@ fn lcgs_erroneous_batch() {
         template robot
             [left] 1;
         endtemplate",
+        // ----------------------------
+        "const N = 3;
+        /* unclosed comment",
+        // ----------------------------
+        "label prop = 1;\
+        /* /* nested must be closed */\
+        player p1 = robot;",
     ];
 
     for (i, model) in models.iter().enumerate() {
-        let mut errors = ErrorLog::new();
-        let lexer = Lexer::new(model.as_bytes());
-        let mut parser = Parser::new(lexer, &mut errors);
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(model.as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
         let _ = parser.lcgs_root();
         parser.expect_end();
         assert!(

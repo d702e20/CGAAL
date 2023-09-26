@@ -1,13 +1,14 @@
 use crate::parsing::span::Span;
+use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::fmt::Write;
 
 /// A log of errors that occurred during parsing or semantic analysis.
 /// Each [ErrorLogEntry] has a span that indicates its origin in the original input code.
 /// Given the original input code, the error log can be converted to nicely presented error messages.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ErrorLog {
-    errors: Vec<ErrorLogEntry>,
+    errors: RefCell<Vec<ErrorLogEntry>>,
 }
 
 impl ErrorLog {
@@ -15,28 +16,28 @@ impl ErrorLog {
         Default::default()
     }
 
-    pub fn log(&mut self, span: Span, msg: String) {
-        self.errors.push(ErrorLogEntry::new(span, msg));
+    pub fn log(&self, span: Span, msg: String) {
+        self.errors.borrow_mut().push(ErrorLogEntry::new(span, msg));
     }
 
-    pub fn log_entry(&mut self, entry: ErrorLogEntry) {
-        self.errors.push(entry);
+    pub fn log_entry(&self, entry: ErrorLogEntry) {
+        self.errors.borrow_mut().push(entry);
     }
 
-    pub fn log_msg(&mut self, msg: String) {
-        self.errors.push(ErrorLogEntry::msg_only(msg));
+    pub fn log_msg(&self, msg: String) {
+        self.errors.borrow_mut().push(ErrorLogEntry::msg_only(msg));
     }
 
     pub fn len(&self) -> usize {
-        self.errors.len()
+        self.errors.borrow().len()
     }
 
     pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
+        !self.errors.borrow().is_empty()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.errors.is_empty()
+        self.errors.borrow().is_empty()
     }
 
     /// Converts the error log to a nicely formatted string using the original input code.
@@ -49,7 +50,7 @@ impl ErrorLog {
     /// where 3:13 indicates line 3, column 13 in the original input code.
     pub fn to_string(&self, orig_input: &str) -> String {
         let mut out = String::new();
-        for entry in &self.errors {
+        for entry in self.errors.borrow().iter() {
             match &entry.span {
                 Some(span) => {
                     // Find the line and column of the error
@@ -96,7 +97,7 @@ impl ErrorLog {
 }
 
 /// A single error entry in the [ErrorLog].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ErrorLogEntry {
     /// The span of the error in the original input code.
     span: Option<Span>,
@@ -130,7 +131,7 @@ mod tests {
             \nplayer p1 = robot[x=0, y=1];\
             \n\
         ";
-        let mut log = ErrorLog::new();
+        let log = ErrorLog::new();
         let i = input.find("robot").unwrap();
         log.log(
             Span::new(i, i + 5),
@@ -152,7 +153,7 @@ mod tests {
           \nlabel x = 123 +\
           \n          true;\
         ";
-        let mut log = ErrorLog::new();
+        let log = ErrorLog::new();
         let span = Span::new(input.find("123").unwrap(), input.find(";").unwrap());
         log.log(span, "RHS of '+' must be integer, found bool".to_string());
         let out = log.to_string(input);

@@ -96,7 +96,7 @@ pub enum TokenKind {
     Word(String),
 
     // Error
-    Err(String),
+    Unsupported(String),
 }
 
 impl Display for TokenKind {
@@ -147,7 +147,7 @@ impl Display for TokenKind {
             TokenKind::False => write!(f, "false"),
             TokenKind::Num(n) => write!(f, "{n}"),
             TokenKind::Word(w) => write!(f, "{w}"),
-            TokenKind::Err(e) => write!(f, "{e}"),
+            TokenKind::Unsupported(e) => write!(f, "{e}"),
         }
     }
 }

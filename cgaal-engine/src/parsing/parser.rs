@@ -1,4 +1,3 @@
-use crate::game_structure::lcgs::parse::expr;
 use crate::parsing::ast::{
     BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot,
     PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
@@ -65,13 +64,13 @@ macro_rules! recover {
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
-    errors: &'a mut ErrorLog,
+    errors: &'a ErrorLog,
     /// A stack of tokens that can be used for error recovery.
     recovery_tokens: Vec<TokenKind>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lexer: Lexer<'a>, errors: &'a mut ErrorLog) -> Parser<'a> {
+    pub fn new(lexer: Lexer<'a>, errors: &'a ErrorLog) -> Parser<'a> {
         Parser {
             lexer: lexer.peekable(),
             errors,
@@ -415,7 +414,7 @@ impl<'a> Parser<'a> {
                 let span = cond.span + els.span;
                 let kind = ExprKind::TernaryIf(cond.into(), then.into(), els.into());
                 Ok(Expr::new(span, kind))
-            },
+            }
             _ => Ok(cond),
         }
     }
@@ -457,8 +456,7 @@ impl<'a> Parser<'a> {
                     TokenKind::Word("U".to_string()),
                     Expr::new_error()
                 )?;
-                let (end, rhs) =
-                    recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())?;
+                let (end, rhs) = recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())?;
                 Ok(Expr::new(
                     begin + end,
                     ExprKind::Binary(BinaryOpKind::Until, lhs.into(), rhs.into()),

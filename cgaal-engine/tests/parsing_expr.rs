@@ -7,14 +7,15 @@ use cgaal_engine::parsing::lexer::*;
 use cgaal_engine::parsing::parse_atl;
 use cgaal_engine::parsing::parser::*;
 use cgaal_engine::parsing::span::*;
+use std::rc::Rc;
 
 #[test]
 fn basic_expr_001() {
     // Check true and false
     let input = "true && false";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -35,9 +36,9 @@ fn basic_expr_001() {
 fn basic_expr_002() {
     // Check precedence of && over ||
     let input = "true && false || true";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -67,8 +68,8 @@ fn basic_expr_003() {
     // Check precedence of && over || and parenthesis
     let input = "foo || true && bar.baz || (true || false)";
     let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -135,8 +136,8 @@ fn atl_expr_001() {
     // Check single player in coalition and eventually operator
     let input = "<<p1>> F goal";
     let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -173,8 +174,8 @@ fn atl_expr_002() {
     // Check multiple players in coalition and invariant operator
     let input = "[[p1, p2]] G safe";
     let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -214,8 +215,8 @@ fn atl_expr_003() {
     // Check empty coalition and until operator
     let input = "<<>> (safe U goal)";
     let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Error should be recoverable");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -260,8 +261,8 @@ fn atl_expr_004() {
     // Check attribute access
     let input = "<<p1>> F p1.attr";
     let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to valid parse expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -297,9 +298,9 @@ fn atl_expr_004() {
 fn atl_expr_005() {
     // Is comma at the end of coalition list accepted?
     let input = "<<p1,>> F safe";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Failed to parse valid expression");
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
@@ -335,9 +336,9 @@ fn atl_expr_005() {
 fn erroneous_expr_001() {
     // Check if unexpected EOF is reported correctly
     let input = "true && ";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     assert!(parser.expr().is_err());
     assert!(errors.has_errors());
     let out = errors.to_string(input);
@@ -351,9 +352,9 @@ fn erroneous_expr_001() {
 fn erroneous_expr_002() {
     // Check if error report when EOF is expected
     let input = "foo bar";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Error should be recoverable");
     parser.expect_end();
     assert!(errors.has_errors());
@@ -377,9 +378,9 @@ fn erroneous_expr_002() {
 fn erroneous_expr_003() {
     // Check if error recovery works on parenthesis
     let input = "(foo false) && true";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Error should be recoverable");
     parser.expect_end();
     assert!(errors.has_errors());
@@ -407,9 +408,9 @@ fn erroneous_expr_003() {
 fn erroneous_expr_004() {
     // Check if unrecoverable error is detected
     let input = "(true";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     assert!(parser.expr().is_err());
     assert!(errors.has_errors());
     let out = errors.to_string(input);
@@ -423,9 +424,9 @@ fn erroneous_expr_004() {
 fn erroneous_expr_005() {
     // Check error inside unclosed parenthesis is reported correctly
     let input = "(foo bar";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     assert!(parser.expr().is_err());
     assert!(errors.has_errors());
     let out = errors.to_string(input);
@@ -441,9 +442,9 @@ fn erroneous_expr_005() {
 fn erroneous_expr_006() {
     // Check error missing >> inside parenthesis is reported correctly
     let input = " ( << p1 foo goal)";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let expr = parser.expr().expect("Error should be recoverable");
     parser.expect_end();
     assert!(errors.has_errors());
@@ -464,9 +465,9 @@ fn erroneous_expr_006() {
 fn erroneous_expr_007() {
     // Check error on subsequent attribute access
     let input = "<<p1>> G p1.attr1.attr2";
-    let mut errors = ErrorLog::new();
-    let lexer = Lexer::new(input.as_bytes());
-    let mut parser = Parser::new(lexer, &mut errors);
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
     let _expr = parser.expr().expect("Error should be recoverable");
     parser.expect_end();
     assert!(errors.has_errors());
@@ -495,11 +496,16 @@ fn expr_batch() {
 
     for (i, expr) in exprs.iter().enumerate() {
         let mut errors = ErrorLog::new();
-        let lexer = Lexer::new(expr.as_bytes());
-        let mut parser = Parser::new(lexer, &mut errors);
+        let lexer = Lexer::new(expr.as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
         let is_ok = parser.expr().is_ok();
         parser.expect_end();
-        assert!(is_ok && errors.is_empty(), "ErrorLog is not empty (expr index {}): {:?}", i, errors);
+        assert!(
+            is_ok && errors.is_empty(),
+            "ErrorLog is not empty (expr index {}): {:?}",
+            i,
+            errors
+        );
     }
 }
 
@@ -519,12 +525,16 @@ fn expr_erroneous_batch() {
     ];
 
     for (i, expr) in exprs.iter().enumerate() {
-        let mut errors = ErrorLog::new();
-        let lexer = Lexer::new(expr.as_bytes());
-        let mut parser = Parser::new(lexer, &mut errors);
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(expr.as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
         let _ = parser.expr();
         parser.expect_end();
-        assert!(!errors.is_empty(), "ErrorLog is empty. Expected error (expr index {})", i);
+        assert!(
+            !errors.is_empty(),
+            "ErrorLog is empty. Expected error (expr index {})",
+            i
+        );
     }
 }
 
@@ -568,8 +578,8 @@ fn atl_expr_batch() {
 
     for atl_raw in atls {
         let mut errors = ErrorLog::new();
-        parse_atl(atl_raw, &mut errors)
-            .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
+        parse_atl(atl_raw, &errors)
+            .and_then(|expr| convert_expr_to_phi(&expr, &game, &errors))
             .expect(&format!(
                 "For '{}', ErrorLog is not empty: {:?}",
                 atl_raw, errors
@@ -614,9 +624,9 @@ fn atl_expr_erroneous_batch() {
     let game = IntermediateLcgs::create(root).unwrap();
 
     for atl_raw in atls {
-        let mut errors = ErrorLog::new();
-        let is_none = parse_atl(atl_raw, &mut errors)
-            .and_then(|expr| convert_expr_to_phi(&expr, &game, &mut errors))
+        let errors = ErrorLog::new();
+        let is_none = parse_atl(atl_raw, &errors)
+            .and_then(|expr| convert_expr_to_phi(&expr, &game, &errors))
             .is_none();
         assert!(
             is_none && errors.has_errors(),

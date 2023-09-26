@@ -360,9 +360,9 @@ fn load_formula(path: &str, formula_type: FormulaType, game: Option<&Intermediat
                 eprintln!("Cannot use ATL formula for non-LCGS models");
                 exit(1)
             });
-            let mut errors = ErrorLog::new();
-            parse_atl(&raw_phi, &mut errors)
-                .and_then(|expr| convert_expr_to_phi(&expr, game, &mut errors))
+            let errors = ErrorLog::new();
+            parse_atl(&raw_phi, &errors)
+                .and_then(|expr| convert_expr_to_phi(&expr, game, &errors))
                 .unwrap_or_else(|| {
                     eprint!(
                         "Invalid ATL formula provided:\n{}",

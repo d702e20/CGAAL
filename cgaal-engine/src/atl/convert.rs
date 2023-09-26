@@ -11,11 +11,7 @@ use crate::parsing::errors::ErrorLog;
 /// Convert an ATL expression to a Phi formula.
 /// Players and labels must be defined in the game and are compiled to their respective indexes.
 /// Returns None if there were errors. See the error log for details.
-pub fn convert_expr_to_phi(
-    expr: &Expr,
-    game: &IntermediateLcgs,
-    errors: &mut ErrorLog,
-) -> Option<Phi> {
+pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &ErrorLog) -> Option<Phi> {
     let Expr { span, kind } = expr;
     match kind {
         ExprKind::True => Some(Phi::True),
@@ -100,35 +96,40 @@ pub fn convert_expr_to_phi(
                     "Temporal operators are only allowed after a coalition".to_string(),
                 );
                 None
-            },
+            }
             BinaryOpKind::Xor => {
                 errors.log(
                     *span,
                     "Exclusive OR is currently not supported in ATL".to_string(),
                 );
                 None
-            },
+            }
             BinaryOpKind::Implies => {
                 errors.log(
                     *span,
                     "Implication is currently not supported in ATL".to_string(),
                 );
                 None
-            },
-            BinaryOpKind::Eq | BinaryOpKind::Neq | BinaryOpKind::Gt | BinaryOpKind::Geq | BinaryOpKind::Lt | BinaryOpKind::Leq => {
+            }
+            BinaryOpKind::Eq
+            | BinaryOpKind::Neq
+            | BinaryOpKind::Gt
+            | BinaryOpKind::Geq
+            | BinaryOpKind::Lt
+            | BinaryOpKind::Leq => {
                 errors.log(
                     *span,
                     "Relational operators are currently not supported in ATL".to_string(),
                 );
                 None
-            },
+            }
             BinaryOpKind::Add | BinaryOpKind::Sub | BinaryOpKind::Mul | BinaryOpKind::Div => {
                 errors.log(
                     *span,
                     "Arithmetic operators are currently not supported in ATL".to_string(),
                 );
                 None
-            },
+            }
         },
         ExprKind::TernaryIf(_, _, _) => {
             errors.log(
@@ -228,7 +229,7 @@ pub fn convert_expr_to_phi(
 fn convert_players(
     players: &[Ident],
     game: &IntermediateLcgs,
-    errors: &mut ErrorLog,
+    errors: &ErrorLog,
 ) -> Option<Vec<Player>> {
     players
         .iter()
