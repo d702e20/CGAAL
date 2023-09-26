@@ -136,6 +136,7 @@ impl LinearOptimizeSearch {
 
     /// Goes through the LinearConstrainedPhi and finds how close we are to acceptance border in this state.
     /// A return value of `None` represents an undefined distance.
+    #[allow(clippy::only_used_in_recursion)]
     fn visit_constrained_phi(
         &self,
         ranged_phi: &LinearConstrainedPhi,
