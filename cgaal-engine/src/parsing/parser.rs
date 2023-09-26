@@ -520,6 +520,14 @@ impl<'a> Parser<'a> {
                     ExprKind::Unary(UnaryOpKind::Not, expr.into()),
                 ))
             }
+            Some(TokenKind::Minus) => {
+                let begin = self.lexer.next().unwrap().span;
+                let expr = self.term()?;
+                Ok(Expr::new(
+                    begin + expr.span,
+                    ExprKind::Unary(UnaryOpKind::Neg, expr.into()),
+                ))
+            }
             Some(TokenKind::True) => {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::True))

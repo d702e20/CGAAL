@@ -80,6 +80,13 @@ pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &ErrorL
                 );
                 None
             }
+            UnaryOpKind::Neg => {
+                errors.log(
+                    *span,
+                    "Arithmetic operators is currently not supported in ATL".to_string(),
+                );
+                None
+            }
         },
         ExprKind::Binary(op, lhs, rhs) => match op {
             BinaryOpKind::And => Some(Phi::And(

@@ -484,6 +484,7 @@ fn expr_batch() {
     let exprs = vec![
         "123 + abc / (2 * 5) - 1",
         "999 - 123 - foo.bar",
+        "-2- ---3--(-!4)",
         "foo > 4 && bar < 120 || baz == 0",
         "foo23 - (bar || baz) && !!34",
         "foo -> bar ^ baz",

@@ -188,8 +188,10 @@ pub enum ExprKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnaryOpKind {
-    /// The `!` operator for negation
+    /// The `!` operator for logical negation
     Not,
+    /// The `-` operator for arithmetic negation
+    Neg,
 
     // Temporal operators
     /// The `X` temporal operator (neXt)
