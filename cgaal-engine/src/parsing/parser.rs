@@ -1,3 +1,4 @@
+use crate::game_structure::lcgs::parse::expr;
 use crate::parsing::ast::{
     BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot,
     PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
@@ -218,7 +219,7 @@ impl<'a> Parser<'a> {
         let start = self.token(TokenKind::KwConst)?;
         let ident = self.ident()?;
         let _ = self.token(TokenKind::Assign)?;
-        let expr = self.expr(0)?;
+        let expr = self.expr()?;
         let span = start + expr.span;
         let const_decl = DeclKind::Const(Arc::new(expr));
         Ok(Decl::new(span, ident, const_decl))
@@ -229,7 +230,7 @@ impl<'a> Parser<'a> {
         let start = self.token(TokenKind::KwLabel)?;
         let ident = self.ident()?;
         let _ = self.token(TokenKind::Assign)?;
-        let expr = self.expr(0)?;
+        let expr = self.expr()?;
         let span = start + expr.span;
         let state_label_decl = DeclKind::StateLabel(Arc::new(expr));
         Ok(Decl::new(span, ident, state_label_decl))
@@ -247,9 +248,9 @@ impl<'a> Parser<'a> {
     }
 
     fn range_clause_inner(&mut self) -> Result<(Expr, Expr), RecoverMode> {
-        let min = self.expr(0)?;
+        let min = self.expr()?;
         let _ = self.token(TokenKind::DotDot)?;
-        let max = self.expr(0)?;
+        let max = self.expr()?;
         Ok((min, max))
     }
 
@@ -259,12 +260,12 @@ impl<'a> Parser<'a> {
         self.token(TokenKind::Colon)?;
         let range = self.range_clause()?;
         let _ = self.token(TokenKind::KwInit)?;
-        let init = self.expr(0)?;
+        let init = self.expr()?;
         let _ = self.token(TokenKind::Semi)?;
         let update_ident = self.ident()?;
         let _ = self.token(TokenKind::Prime)?;
         let _ = self.token(TokenKind::Assign)?;
-        let update = self.expr(0)?;
+        let update = self.expr()?;
         let span = ident.span + update.span;
         let state_var = DeclKind::StateVar(Arc::new(StateVarDecl::new(
             range,
@@ -323,7 +324,7 @@ impl<'a> Parser<'a> {
                 }) => {
                     let ident = self.ident()?;
                     let _ = self.token(TokenKind::Assign)?;
-                    let expr = self.expr(0)?;
+                    let expr = self.expr()?;
                     cases.push(RelabelCase::new(ident.span + expr.span, ident, expr.into()));
                 }
                 _ => break,
@@ -387,16 +388,40 @@ impl<'a> Parser<'a> {
     pub fn action_decl(&mut self) -> Result<Decl, RecoverMode> {
         let start = self.token(TokenKind::Lbracket)?;
         let (_, ident) = recover!(self, self.ident(), TokenKind::Rbracket, Ident::new_error())?;
-        let cond = self.expr(0)?;
+        let cond = self.expr()?;
         let span = start + cond.span;
         let action = DeclKind::Action(Arc::new(cond));
         Ok(Decl::new(span, ident, action))
     }
 
     /// Parse an expression.
-    pub fn expr(&mut self, min_prec: u8) -> Result<Expr, RecoverMode> {
-        // TODO: Ternary if-expression
-        // TODO: min/max functions
+    pub fn expr(&mut self) -> Result<Expr, RecoverMode> {
+        // The sub-expressions of a ternary cannot be another ternary in order to avoid ambiguity.
+        // E.g. "a ? b : c ? d : f" is ambiguous and disallowed.
+        let cond = self.binary_expr(0)?;
+        match self.lexer.peek() {
+            Some(Token {
+                kind: TokenKind::Question,
+                ..
+            }) => {
+                self.lexer.next().unwrap();
+                let (_, then) = recover!(
+                    self,
+                    self.binary_expr(0),
+                    TokenKind::Colon,
+                    Expr::new_error()
+                )?;
+                let els = self.binary_expr(0)?;
+                let span = cond.span + els.span;
+                let kind = ExprKind::TernaryIf(cond.into(), then.into(), els.into());
+                Ok(Expr::new(span, kind))
+            },
+            _ => Ok(cond),
+        }
+    }
+
+    /// Parse an expression.
+    pub fn binary_expr(&mut self, min_prec: u8) -> Result<Expr, RecoverMode> {
         // Pratt parsing/precedence climbing: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#climbing
         let mut lhs = self.term()?;
         let span_start = lhs.span;
@@ -413,7 +438,7 @@ impl<'a> Parser<'a> {
             }
             self.lexer.next();
             let new_prec = op.precedence() + if op.is_right_associative() { 0 } else { 1 };
-            let rhs = self.expr(new_prec)?;
+            let rhs = self.binary_expr(new_prec)?;
             let span = span_start + rhs.span;
             let kind = ExprKind::Binary(op, lhs.into(), rhs.into());
             lhs = Expr::new(span, kind);
@@ -428,12 +453,12 @@ impl<'a> Parser<'a> {
                 let begin = self.lexer.next().unwrap().span;
                 let (_, lhs) = recover!(
                     self,
-                    self.expr(BinaryOpKind::Until.precedence()),
+                    self.expr(),
                     TokenKind::Word("U".to_string()),
                     Expr::new_error()
                 )?;
                 let (end, rhs) =
-                    recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())?;
+                    recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())?;
                 Ok(Expr::new(
                     begin + end,
                     ExprKind::Binary(BinaryOpKind::Until, lhs.into(), rhs.into()),
@@ -441,7 +466,7 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Word(w)) if w == "F" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0)?;
+                let expr = self.expr()?;
                 Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Eventually, expr.into()),
@@ -449,7 +474,7 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Word(w)) if w == "G" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0)?;
+                let expr = self.expr()?;
                 Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Invariantly, expr.into()),
@@ -457,7 +482,7 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Word(w)) if w == "X" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0)?;
+                let expr = self.expr()?;
                 Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Next, expr.into()),
@@ -486,6 +511,7 @@ impl<'a> Parser<'a> {
 
     /// Parse an expression term.
     pub fn term(&mut self) -> Result<Expr, RecoverMode> {
+        // TODO: min/max functions
         match self.lexer.peek().map(|t| &t.kind) {
             Some(TokenKind::Lparen) => self.paren(),
             Some(TokenKind::Bang) => {
@@ -531,7 +557,7 @@ impl<'a> Parser<'a> {
     /// Parse a parenthesized expression.
     pub fn paren(&mut self) -> Result<Expr, RecoverMode> {
         let begin = self.token(TokenKind::Lparen)?;
-        recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())
+        recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())
             .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
     }
 

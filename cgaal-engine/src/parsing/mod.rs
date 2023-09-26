@@ -16,7 +16,7 @@ pub fn parse_atl(input: &str, errors: &mut ErrorLog) -> Option<Expr> {
     let lexer = Lexer::new(input.as_bytes());
     let mut parser = Parser::new(lexer, errors);
     let expr = parser
-        .expr(0)
+        .expr()
         .map(|expr| {
             parser.expect_end();
             expr

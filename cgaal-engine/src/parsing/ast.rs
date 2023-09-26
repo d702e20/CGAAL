@@ -178,6 +178,8 @@ pub enum ExprKind {
     Unary(UnaryOpKind, Arc<Expr>),
     /// A binary operation
     Binary(BinaryOpKind, Arc<Expr>, Arc<Expr>),
+    /// A ternary if expression
+    TernaryIf(Arc<Expr>, Arc<Expr>, Arc<Expr>),
     /// An expression with a coalition
     Coalition(Coalition),
     /// An error

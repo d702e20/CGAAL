@@ -130,6 +130,13 @@ pub fn convert_expr_to_phi(
                 None
             },
         },
+        ExprKind::TernaryIf(_, _, _) => {
+            errors.log(
+                *span,
+                "Ternary if expressions are currently not supported in ATL".to_string(),
+            );
+            None
+        }
         ExprKind::Coalition(Coalition {
             players,
             kind,
