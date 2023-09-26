@@ -15,11 +15,11 @@ fn basic_expr_001() {
     let errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes(), &errors);
     let mut parser = Parser::new(lexer, &errors);
-    let expr = parser.expr().expect("Failed to valid parse expression");
+    let expr = parser.expr();
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
     assert_eq!(
-        expr,
+        expr.expect("Failed to parse valid expression"),
         Expr::new(
             Span::new(0, 13),
             ExprKind::Binary(
@@ -38,11 +38,11 @@ fn basic_expr_002() {
     let errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes(), &errors);
     let mut parser = Parser::new(lexer, &errors);
-    let expr = parser.expr().expect("Failed to valid parse expression");
+    let expr = parser.expr();
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
     assert_eq!(
-        expr,
+        expr.expect("Failed to parse valid expression"),
         Expr::new(
             Span::new(0, 21),
             ExprKind::Binary(
@@ -69,11 +69,11 @@ fn basic_expr_003() {
     let errors = ErrorLog::new();
     let lexer = Lexer::new(input.as_bytes(), &errors);
     let mut parser = Parser::new(lexer, &errors);
-    let expr = parser.expr().expect("Failed to valid parse expression");
+    let expr = parser.expr();
     parser.expect_end();
     assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
     assert_eq!(
-        expr,
+        expr.expect("Failed to parse valid expression"),
         Expr::new(
             Span::new(0, 41),
             ExprKind::Binary(
@@ -128,6 +128,44 @@ fn basic_expr_003() {
             .into()
         )
     );
+}
+
+#[test]
+fn basic_expr_004() {
+    // Check parsing of argument list
+    let input = "max(a, b, 5)";
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
+    let expr = parser.expr();
+    assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
+    assert_eq!(
+        expr.expect("Failed to parse valid expression"),
+        Expr::new(
+            Span::new(0, 12),
+            ExprKind::Max(
+                vec![
+                    Expr::new(
+                        Span::new(4, 5),
+                        ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(4, 5), "a".to_string())
+                        )
+                    )
+                    .into(),
+                    Expr::new(
+                        Span::new(7, 8),
+                        ExprKind::OwnedIdent(
+                            None,
+                            Ident::new(Span::new(7, 8), "b".to_string())
+                        )
+                    )
+                    .into(),
+                    Expr::new(Span::new(10, 11), ExprKind::Num(5)).into(),
+                ]
+            )
+        )
+    )
 }
 
 #[test]
@@ -480,6 +518,25 @@ fn erroneous_expr_007() {
 }
 
 #[test]
+fn erroneous_expr_008() {
+    // Check error recovery in function call arguments
+    let input = "min(2 - 1, 4 . a)";
+    let errors = ErrorLog::new();
+    let lexer = Lexer::new(input.as_bytes(), &errors);
+    let mut parser = Parser::new(lexer, &errors);
+    let _expr = parser.expr().expect("Error should be recoverable");
+    parser.expect_end();
+    assert!(errors.has_errors());
+    let out = errors.to_string(input);
+    assert_eq!(
+        out,
+        "\u{1b}[31m1:14 Error:\u{1b}[0m Unexpected '.', expected ',' or ')'\n\
+        | min(2 - 1, 4 . a)\n\
+        |              ^\n"
+    );
+}
+
+#[test]
 fn expr_batch() {
     let exprs = vec![
         "123 + abc / (2 * 5) - 1",
@@ -492,6 +549,7 @@ fn expr_batch() {
         "(((4 + 2) / foo * (baz)) && 4 -> 2)",
         "foo > 2 ? bar + 2 : (true - false)",
         "a ? (b ? c : d) : (f ? g : h)",
+        "max(1, 2, 3) + min(1, 2, 3)"
     ];
 
     for (i, expr) in exprs.iter().enumerate() {
@@ -522,6 +580,7 @@ fn expr_erroneous_batch() {
         "func()",
         "foo ? bar",
         "a ? b : c ? d ? f : g : h",
+        "max()",
     ];
 
     for (i, expr) in exprs.iter().enumerate() {

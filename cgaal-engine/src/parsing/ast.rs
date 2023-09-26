@@ -180,6 +180,10 @@ pub enum ExprKind {
     Binary(BinaryOpKind, Arc<Expr>, Arc<Expr>),
     /// A ternary if expression
     TernaryIf(Arc<Expr>, Arc<Expr>, Arc<Expr>),
+    /// A max expression
+    Max(Vec<Expr>),
+    /// A min expression
+    Min(Vec<Expr>),
     /// An expression with a coalition
     Coalition(Coalition),
     /// An error

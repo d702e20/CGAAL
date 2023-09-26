@@ -528,6 +528,7 @@ impl<'a> Parser<'a> {
                     ExprKind::Unary(UnaryOpKind::Neg, expr.into()),
                 ))
             }
+            Some(TokenKind::KwMax | TokenKind::KwMin) => self.func_call(),
             Some(TokenKind::True) => {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::True))
@@ -565,6 +566,44 @@ impl<'a> Parser<'a> {
         let begin = self.token(TokenKind::Lparen)?;
         recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())
             .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
+    }
+
+    /// Parse a function call
+    pub fn func_call(&mut self) -> Result<Expr, RecoverMode> {
+        match self.lexer.peek() {
+            Some(Token {
+                kind: TokenKind::KwMax,
+                ..
+            }) => {
+                let begin = self.lexer.next().unwrap().span;
+                let _ = self.token(TokenKind::Lparen)?;
+                let (end, exprs) =
+                    recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
+                Ok(Expr::new(begin + end, ExprKind::Max(exprs)))
+            }
+            Some(Token {
+                kind: TokenKind::KwMin,
+                ..
+            }) => {
+                let begin = self.lexer.next().unwrap().span;
+                let _ = self.token(TokenKind::Lparen)?;
+                let (end, exprs) =
+                    recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
+                Ok(Expr::new(begin + end, ExprKind::Min(exprs)))
+            }
+            None => {
+                self.errors
+                    .log_msg("Unexpected EOF, expected 'max' or 'min'".to_string());
+                Err(RecoverMode)
+            }
+            Some(Token { kind, span }) => {
+                self.errors.log(
+                    *span,
+                    format!("Unexpected '{}', expected 'max' or 'min'", kind),
+                );
+                Err(RecoverMode)
+            }
+        }
     }
 
     /// Parse an (owned) identifier, e.g. `p1` or `p1.attr`.
@@ -610,6 +649,75 @@ impl<'a> Parser<'a> {
                 Err(RecoverMode)
             }
         }
+    }
+
+    /// Parse a comma-separated list of expressions.
+    /// If `min_count` is given, it will try to parse at least that many expressions.
+    fn args(&mut self, min_count: usize) -> Result<Vec<Expr>, RecoverMode> {
+        let mut exprs = Vec::new();
+        loop {
+            match self.lexer.peek() {
+                Some(Token {
+                    // Expr first set
+                    kind:
+                        TokenKind::Lparen
+                        | TokenKind::Bang
+                        | TokenKind::Minus
+                        | TokenKind::True
+                        | TokenKind::False
+                        | TokenKind::Num(_)
+                        | TokenKind::Word(_)
+                        | TokenKind::Llangle
+                        | TokenKind::Llbracket,
+                    ..
+                }) => {
+                    let expr = self.expr()?;
+                    exprs.push(expr);
+                }
+                _ => break,
+            }
+            match self.lexer.peek() {
+                Some(Token {
+                    kind: TokenKind::Comma,
+                    ..
+                }) => {
+                    self.lexer.next().unwrap();
+                }
+                Some(Token {
+                    kind: TokenKind::Rparen,
+                    ..
+                }) => break,
+                Some(tok) => {
+                    self.errors.log(
+                        tok.span,
+                        format!(
+                            "Unexpected '{}', expected '{}' or '{}'",
+                            tok.kind,
+                            TokenKind::Comma,
+                            self.recovery_tokens.last().unwrap()
+                        ),
+                    );
+                    return Err(RecoverMode);
+                }
+                None => {
+                    self.errors.log_msg(format!(
+                        "Unexpected EOF, expected '{}' or '{}'",
+                        TokenKind::Comma,
+                        self.recovery_tokens.last().unwrap()
+                    ));
+                    return Err(RecoverMode);
+                }
+            }
+        }
+        if exprs.len() < min_count {
+            self.errors.log_msg(format!(
+                "Expected at least {} argument(s), got {}",
+                min_count,
+                exprs.len()
+            ));
+            return Err(RecoverMode);
+        }
+        Ok(exprs)
     }
 
     /// Parse an enforce-coalition expression.

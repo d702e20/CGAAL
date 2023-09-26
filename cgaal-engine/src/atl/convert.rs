@@ -227,6 +227,13 @@ pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &ErrorL
             );
             None
         }
+        ExprKind::Max(_) | ExprKind::Min(_) => {
+            errors.log(
+                *span,
+                "Max and min expressions are currently not supported in ATL".to_string(),
+            );
+            None
+        }
         ExprKind::Error => None,
     }
 }
