@@ -16,7 +16,6 @@ use cgaal_engine::{
     },
     parsing::{errors::ErrorLog, parse_atl},
 };
-use std::rc::Rc;
 
 const GAME: &str = "
 player p1 = thing;
