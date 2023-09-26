@@ -1,4 +1,4 @@
-use crate::parsing::ast::Expr;
+use crate::parsing::ast::{Expr, LcgsRoot};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::parser::Parser;
@@ -11,7 +11,7 @@ pub mod span;
 mod token;
 
 /// Parse an ATL expression.
-/// Returns None if there were errors. See the error log for details.
+/// Returns None if there were errors. See the [ErrorLog] for details.
 pub fn parse_atl(input: &str, errors: &ErrorLog) -> Option<Expr> {
     let lexer = Lexer::new(input.as_bytes(), errors);
     let mut parser = Parser::new(lexer, errors);
@@ -26,5 +26,21 @@ pub fn parse_atl(input: &str, errors: &ErrorLog) -> Option<Expr> {
         None
     } else {
         Some(expr)
+    }
+}
+
+/// Parse an LCGS program.
+/// Returns None if there were errors. See the [ErrorLog] for details.
+pub fn parse_lcgs(input: &str, errors: &ErrorLog) -> Option<LcgsRoot> {
+    let lexer = Lexer::new(input.as_bytes(), errors);
+    let mut parser = Parser::new(lexer, errors);
+    let lcgs = parser.lcgs_root().map(|lcgs| {
+        parser.expect_end();
+        lcgs
+    });
+    if errors.has_errors() {
+        None
+    } else {
+        lcgs.ok()
     }
 }

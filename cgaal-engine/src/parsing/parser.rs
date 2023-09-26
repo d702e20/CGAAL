@@ -577,8 +577,7 @@ impl<'a> Parser<'a> {
             }) => {
                 let begin = self.lexer.next().unwrap().span;
                 let _ = self.token(TokenKind::Lparen)?;
-                let (end, exprs) =
-                    recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
+                let (end, exprs) = recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
                 Ok(Expr::new(begin + end, ExprKind::Max(exprs)))
             }
             Some(Token {
@@ -587,8 +586,7 @@ impl<'a> Parser<'a> {
             }) => {
                 let begin = self.lexer.next().unwrap().span;
                 let _ = self.token(TokenKind::Lparen)?;
-                let (end, exprs) =
-                    recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
+                let (end, exprs) = recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
                 Ok(Expr::new(begin + end, ExprKind::Min(exprs)))
             }
             None => {
@@ -655,6 +653,7 @@ impl<'a> Parser<'a> {
     /// If `min_count` is given, it will try to parse at least that many expressions.
     fn args(&mut self, min_count: usize) -> Result<Vec<Expr>, RecoverMode> {
         let mut exprs = Vec::new();
+        #[allow(clippy::while_let_loop)]
         loop {
             match self.lexer.peek() {
                 Some(Token {

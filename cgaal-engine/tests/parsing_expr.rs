@@ -143,27 +143,19 @@ fn basic_expr_004() {
         expr.expect("Failed to parse valid expression"),
         Expr::new(
             Span::new(0, 12),
-            ExprKind::Max(
-                vec![
-                    Expr::new(
-                        Span::new(4, 5),
-                        ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(4, 5), "a".to_string())
-                        )
-                    )
-                    .into(),
-                    Expr::new(
-                        Span::new(7, 8),
-                        ExprKind::OwnedIdent(
-                            None,
-                            Ident::new(Span::new(7, 8), "b".to_string())
-                        )
-                    )
-                    .into(),
-                    Expr::new(Span::new(10, 11), ExprKind::Num(5)).into(),
-                ]
-            )
+            ExprKind::Max(vec![
+                Expr::new(
+                    Span::new(4, 5),
+                    ExprKind::OwnedIdent(None, Ident::new(Span::new(4, 5), "a".to_string()))
+                )
+                .into(),
+                Expr::new(
+                    Span::new(7, 8),
+                    ExprKind::OwnedIdent(None, Ident::new(Span::new(7, 8), "b".to_string()))
+                )
+                .into(),
+                Expr::new(Span::new(10, 11), ExprKind::Num(5)).into(),
+            ])
         )
     )
 }
@@ -549,7 +541,7 @@ fn expr_batch() {
         "(((4 + 2) / foo * (baz)) && 4 -> 2)",
         "foo > 2 ? bar + 2 : (true - false)",
         "a ? (b ? c : d) : (f ? g : h)",
-        "max(1, 2, 3) + min(1, 2, 3)"
+        "max(1, 2, 3) + min(1, 2, 3)",
     ];
 
     for (i, expr) in exprs.iter().enumerate() {
