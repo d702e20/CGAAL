@@ -1,10 +1,11 @@
-# CGAAL
+
+![CGAAL logo](images/logo%20text%20w%20bg.png)
 
 This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGSs).
 It uses an on-the-fly evaluation method as opposed to calculating the fixed point like PRISM does.
 With this lazy method we avoid generating the whole graph, and it is therefore an order of magnitude faster in most cases.
 
-CGAAL also uses a custom language to describe CGSs in a lazy manner. We call it LCGS and
+CGAAL also uses a custom language to describe CGSs. We call it LCGS and
 its syntax is inspired by PRISM-lang. However, the concepts of synchronization and modules are very different.  
 
 ## Requirements
