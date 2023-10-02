@@ -1,5 +1,5 @@
 
-![CGAAL logo](images/logo%20text%20w%20bg.png)
+![CGAAL logo](images/logo_text_white_bg.png)
 
 This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGSs).
 It uses an on-the-fly evaluation method as opposed to calculating the fixed point like PRISM does.
