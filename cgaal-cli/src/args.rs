@@ -140,12 +140,13 @@ fn parse_search_strategy_arg(args: &ArgMatches) -> Result<SearchStrategyOption, 
     match args.value_of("search_strategy") {
         Some("bfs") => Ok(SearchStrategyOption::Bfs),
         Some("dfs") => Ok(SearchStrategyOption::Dfs),
+        Some("rdfs") => Ok(SearchStrategyOption::Rdfs),
         Some("dhs") => Ok(SearchStrategyOption::Dhs),
         Some("los") => Ok(SearchStrategyOption::Los),
         Some("lps") => Ok(SearchStrategyOption::Lps),
         Some("ihs") => Ok(SearchStrategyOption::Ihs),
         Some("lrs") => Ok(SearchStrategyOption::Lrs),
-        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are bfs, dfs, lps, los, dhs, ihs, lrs  [default is bfs]", other)),
+        Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are bfs, dfs, rdfs, lps, los, dhs, ihs, lrs  [default is bfs]", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
     }
@@ -237,7 +238,7 @@ impl CommonArgs for App<'_, '_> {
             Arg::with_name("search_strategy")
                 .short("s")
                 .long("search-strategy")
-                .help("The search strategy used {{bfs, dfs, los, lps, dhs, ihs, lrs}}"),
+                .help("The search strategy used {{bfs, dfs, rdfs, los, lps, dhs, ihs, lrs}}"),
         )
         .arg(
             Arg::with_name("no_prioritised_back_propagation")

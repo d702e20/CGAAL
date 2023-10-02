@@ -4,6 +4,7 @@ use cgaal_engine::algorithms::certain_zero::distributed_certain_zero;
 use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
@@ -121,7 +122,7 @@ macro_rules! bench_lcgs_threads {
             group.sample_size(10);
 
             // read search strategy from env variable in order: compile, runtime, otherwise default
-            let mut search_strategy = String::from("bfs");
+            let mut search_strategy = String::from("rdfs");
             if let Ok(val) = env::var("CGAAL_SEARCH_STRATEGY") {
                 search_strategy = val;
                 eprintln!(
@@ -146,8 +147,8 @@ macro_rules! bench_lcgs_threads {
             // use machine cores as thread count, but max 32
             let max_core_count: u64 = min(num_cpus::get() as u64, 32);
 
-            for core_count in 1..max_core_count + 1 {
-                let core_count = core_count as u64;
+            for core_count in [1,2,4,8].iter() {
+                let core_count = *core_count as u64;
 
                 // Write header for stats if enabled
                 #[cfg(feature = "use-counts")]
@@ -202,6 +203,16 @@ macro_rules! bench_lcgs_threads {
                                         v0,
                                         core_count,
                                         DepthFirstSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "rdfs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        RandomDepthFirstSearchBuilder,
                                         PRIORITISE_BACK_PROPAGATION,
                                         false,
                                     );
@@ -2127,6 +2138,12 @@ bench_lcgs_threads!(
 );
 
 bench_lcgs_threads!(
+    mexican_standoff_3p_3hp_lcgs_teamwork_threads,
+    "mexican_standoff/mexican_standoff_3p_3hp.lcgs",
+    "mexican_standoff/can_2_players_guarantee_atleast_one_of_them_survives.json"
+);
+
+bench_lcgs_threads!(
     mexican_standoff_5p_1hp_lcgs_survive_threads,
     "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
     "mexican_standoff/can_p1_guarantee_to_survive_FALSE.json"
@@ -2136,6 +2153,12 @@ bench_lcgs_threads!(
     mexican_standoff_5p_1hp_lcgs_suicide_threads,
     "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
     "mexican_standoff/can_p1_suicide_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    mexican_standoff_5p_1hp_lcgs_teamwork_threads,
+    "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
+    "mexican_standoff/can_3_players_guarantee_atleast_one_of_them_survives.json"
 );
 
 // tic tac toe
@@ -2827,8 +2850,19 @@ criterion_group!(
     mexican_standoff_5p_1hp_lcgs_suicide_threads,
 );
 
+// suite for testing rdfs vs dfs
+criterion_group!(
+    rdfs_case_study,
+    /*prismlike_rc3_1_threads,
+    prismlike_rc3_3_threads,*/
+    mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
+    mexican_standoff_5p_1hp_lcgs_teamwork_threads,
+);
+
 criterion_main!(
-    github_action_suite, // remember to disable when benchmarking
+    //github_action_suite, // remember to disable when benchmarking
+    rdfs_case_study,
                          //static_thread_case_studies,
                          //mexi_thread_case_study,
                          //multi_thread_case_studies,

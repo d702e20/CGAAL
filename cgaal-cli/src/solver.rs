@@ -3,6 +3,7 @@ use crate::options::{CliOptions, SearchStrategyOption};
 use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
@@ -61,6 +62,15 @@ pub fn solver(model: Model, formula: Phi, options: CliOptions) -> Result<(), Str
                     v0,
                     options.threads,
                     DepthFirstSearchBuilder,
+                    options.prioritise_back_propagation,
+                    options.witness_strategy_path.as_deref(),
+                    options.quiet,
+                ),
+                SearchStrategyOption::Rdfs => solver_inner(
+                    graph,
+                    v0,
+                    options.threads,
+                    RandomDepthFirstSearchBuilder,
                     options.prioritise_back_propagation,
                     options.witness_strategy_path.as_deref(),
                     options.quiet,
@@ -124,6 +134,15 @@ pub fn solver(model: Model, formula: Phi, options: CliOptions) -> Result<(), Str
                     v0,
                     options.threads,
                     DepthFirstSearchBuilder,
+                    options.prioritise_back_propagation,
+                    options.witness_strategy_path.as_deref(),
+                    options.quiet,
+                ),
+                SearchStrategyOption::Rdfs => solver_inner(
+                    graph,
+                    v0,
+                    options.threads,
+                    RandomDepthFirstSearchBuilder,
                     options.prioritise_back_propagation,
                     options.witness_strategy_path.as_deref(),
                     options.quiet,
