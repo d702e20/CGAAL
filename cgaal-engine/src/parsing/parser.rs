@@ -509,7 +509,6 @@ impl<'a> Parser<'a> {
 
     /// Parse an expression term.
     pub fn term(&mut self) -> Result<Expr, RecoverMode> {
-        // TODO: min/max functions
         match self.lexer.peek().map(|t| &t.kind) {
             Some(TokenKind::Lparen) => self.paren(),
             Some(TokenKind::Bang) => {
