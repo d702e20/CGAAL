@@ -1,4 +1,7 @@
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, UnaryOpKind};
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot,
+    PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
+};
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;
@@ -61,13 +64,13 @@ macro_rules! recover {
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
-    errors: &'a mut ErrorLog,
+    errors: &'a ErrorLog,
     /// A stack of tokens that can be used for error recovery.
     recovery_tokens: Vec<TokenKind>,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lexer: Lexer<'a>, errors: &'a mut ErrorLog) -> Parser<'a> {
+    pub fn new(lexer: Lexer<'a>, errors: &'a ErrorLog) -> Parser<'a> {
         Parser {
             lexer: lexer.peekable(),
             errors,
@@ -87,8 +90,337 @@ impl<'a> Parser<'a> {
         for _ in self.lexer.by_ref() {}
     }
 
+    /// Parse an LCGS program.
+    pub fn lcgs_root(&mut self) -> Result<LcgsRoot, RecoverMode> {
+        let decls = self.decls(false)?;
+        let mut span = Span::new(0, 0);
+        if !decls.is_empty() {
+            span.begin = decls[0].span.begin;
+            span.end = decls[decls.len() - 1].span.end;
+        }
+        Ok(LcgsRoot::new(span, decls))
+    }
+
+    /// Parse a list of declarations, assuming either global or template scope.
+    pub fn decls(&mut self, in_template: bool) -> Result<Vec<Decl>, RecoverMode> {
+        let mut decls = vec![];
+        loop {
+            match (self.lexer.peek(), in_template) {
+                // Const declaration
+                (
+                    Some(Token {
+                        kind: TokenKind::KwConst,
+                        ..
+                    }),
+                    _,
+                ) => {
+                    let (_, decl) =
+                        recover!(self, self.const_decl(), TokenKind::Semi, Decl::new_error())?;
+                    decls.push(decl);
+                }
+                // State label declaration
+                (
+                    Some(Token {
+                        kind: TokenKind::KwLabel,
+                        ..
+                    }),
+                    _,
+                ) => {
+                    let (_, decl) = recover!(
+                        self,
+                        self.state_label_decl(),
+                        TokenKind::Semi,
+                        Decl::new_error()
+                    )?;
+                    decls.push(decl);
+                }
+                // State variable declaration
+                (
+                    Some(Token {
+                        kind: TokenKind::Word(_),
+                        ..
+                    }),
+                    _,
+                ) => {
+                    let (_, decl) = recover!(
+                        self,
+                        self.state_var_decl(),
+                        TokenKind::Semi,
+                        Decl::new_error()
+                    )?;
+                    decls.push(decl);
+                }
+                // Player declaration. Not allowed in templates
+                (
+                    Some(Token {
+                        kind: TokenKind::KwPlayer,
+                        ..
+                    }),
+                    false,
+                ) => {
+                    let (_, decl) =
+                        recover!(self, self.player_decl(), TokenKind::Semi, Decl::new_error())?;
+                    decls.push(decl);
+                }
+                // Template declaration. Not allowed in templates
+                (
+                    Some(Token {
+                        kind: TokenKind::KwTemplate,
+                        ..
+                    }),
+                    false,
+                ) => {
+                    decls.push(self.template_decl()?);
+                }
+                // Action declaration. Only allowed in templates
+                (
+                    Some(Token {
+                        kind: TokenKind::Lbracket,
+                        ..
+                    }),
+                    true,
+                ) => {
+                    let (_, decl) =
+                        recover!(self, self.action_decl(), TokenKind::Semi, Decl::new_error())?;
+                    decls.push(decl);
+                }
+                // Done
+                (
+                    Some(Token {
+                        kind: TokenKind::KwEndTemplate,
+                        ..
+                    }),
+                    _,
+                ) if in_template => {
+                    return Ok(decls);
+                }
+                // Done
+                (None, _) => {
+                    return Ok(decls);
+                }
+                // Unexpected
+                (Some(_), _) => {
+                    self.errors.log(
+                        self.lexer.peek().unwrap().span,
+                        format!(
+                            "Unexpected '{}', expected declaration",
+                            self.lexer.peek().unwrap().kind,
+                        ),
+                    );
+                    return Err(RecoverMode);
+                }
+            }
+        }
+    }
+
+    /// Parse a constant declaration.
+    pub fn const_decl(&mut self) -> Result<Decl, RecoverMode> {
+        let start = self.token(TokenKind::KwConst)?;
+        let ident = self.ident()?;
+        let _ = self.token(TokenKind::Assign)?;
+        let expr = self.expr()?;
+        let span = start + expr.span;
+        let const_decl = DeclKind::Const(Arc::new(expr));
+        Ok(Decl::new(span, ident, const_decl))
+    }
+
+    /// Parse a state label declaration.
+    pub fn state_label_decl(&mut self) -> Result<Decl, RecoverMode> {
+        let start = self.token(TokenKind::KwLabel)?;
+        let ident = self.ident()?;
+        let _ = self.token(TokenKind::Assign)?;
+        let expr = self.expr()?;
+        let span = start + expr.span;
+        let state_label_decl = DeclKind::StateLabel(Arc::new(expr));
+        Ok(Decl::new(span, ident, state_label_decl))
+    }
+
+    fn range_clause(&mut self) -> Result<RangeClause, RecoverMode> {
+        let start = self.token(TokenKind::Lbracket)?;
+        let (end, (min, max)) = recover!(
+            self,
+            self.range_clause_inner(),
+            TokenKind::Rbracket,
+            (Expr::new_error(), Expr::new_error())
+        )?;
+        Ok(RangeClause::new(start + end, min.into(), max.into()))
+    }
+
+    fn range_clause_inner(&mut self) -> Result<(Expr, Expr), RecoverMode> {
+        let min = self.expr()?;
+        let _ = self.token(TokenKind::DotDot)?;
+        let max = self.expr()?;
+        Ok((min, max))
+    }
+
+    /// Parse a state label declaration.
+    pub fn state_var_decl(&mut self) -> Result<Decl, RecoverMode> {
+        let ident = self.ident()?;
+        self.token(TokenKind::Colon)?;
+        let range = self.range_clause()?;
+        let _ = self.token(TokenKind::KwInit)?;
+        let init = self.expr()?;
+        let _ = self.token(TokenKind::Semi)?;
+        let update_ident = self.ident()?;
+        let _ = self.token(TokenKind::Prime)?;
+        let _ = self.token(TokenKind::Assign)?;
+        let update = self.expr()?;
+        let span = ident.span + update.span;
+        let state_var = DeclKind::StateVar(Arc::new(StateVarDecl::new(
+            range,
+            init.into(),
+            update_ident,
+            update.into(),
+        )));
+        Ok(Decl::new(span, ident, state_var))
+    }
+
+    /// Parse a player declaration.
+    pub fn player_decl(&mut self) -> Result<Decl, RecoverMode> {
+        let mut span = self.token(TokenKind::KwPlayer)?;
+        let ident = self.ident()?;
+        let _ = self.token(TokenKind::Assign)?;
+        let template = self.ident()?;
+        let cases = match self.lexer.peek() {
+            Some(Token {
+                kind: TokenKind::Lbracket,
+                ..
+            }) => {
+                let (relabel_span, cases) = self.relabelling()?;
+                span.end = relabel_span.end;
+                cases
+            }
+            _ => {
+                span.end = template.span.end;
+                Vec::new()
+            }
+        };
+        let player = DeclKind::Player(Arc::new(PlayerDecl::new(template, cases)));
+        Ok(Decl::new(span, ident, player))
+    }
+
+    /// Parse a relabelling.
+    pub fn relabelling(&mut self) -> Result<(Span, Vec<RelabelCase>), RecoverMode> {
+        let start = self.token(TokenKind::Lbracket)?;
+        let (end, cases) = recover!(
+            self,
+            self.relabelling_inner(),
+            TokenKind::Rbracket,
+            Vec::new()
+        )?;
+        Ok((start + end, cases))
+    }
+
+    /// Parse the inners of a relabelling.
+    fn relabelling_inner(&mut self) -> Result<Vec<RelabelCase>, RecoverMode> {
+        let mut cases = vec![];
+        #[allow(clippy::while_let_loop)]
+        loop {
+            match self.lexer.peek() {
+                Some(Token {
+                    kind: TokenKind::Word(_),
+                    ..
+                }) => {
+                    let ident = self.ident()?;
+                    let _ = self.token(TokenKind::Assign)?;
+                    let expr = self.expr()?;
+                    cases.push(RelabelCase::new(ident.span + expr.span, ident, expr.into()));
+                }
+                _ => break,
+            }
+            match self.lexer.peek() {
+                Some(Token {
+                    kind: TokenKind::Comma,
+                    ..
+                }) => {
+                    self.lexer.next().unwrap();
+                }
+                Some(Token {
+                    kind: TokenKind::Rbracket,
+                    ..
+                }) => break,
+                Some(tok) => {
+                    self.errors.log(
+                        tok.span,
+                        format!(
+                            "Unexpected '{}', expected '{}' or '{}'",
+                            tok.kind,
+                            TokenKind::Comma,
+                            self.recovery_tokens.last().unwrap()
+                        ),
+                    );
+                    return Err(RecoverMode);
+                }
+                None => {
+                    self.errors.log_msg(format!(
+                        "Unexpected EOF, expected '{}' or '{}'",
+                        TokenKind::Comma,
+                        self.recovery_tokens.last().unwrap()
+                    ));
+                    return Err(RecoverMode);
+                }
+            }
+        }
+        Ok(cases)
+    }
+
+    /// Parse a template declaration.
+    pub fn template_decl(&mut self) -> Result<Decl, RecoverMode> {
+        let start = self.token(TokenKind::KwTemplate)?;
+        let (end, (ident, decls)) = recover!(
+            self,
+            self.template_inner(),
+            TokenKind::KwEndTemplate,
+            (Ident::new_error(), Vec::new())
+        )?;
+        Ok(Decl::new(start + end, ident, DeclKind::Template(decls)))
+    }
+
+    /// Parse the inners a template declaration.
+    fn template_inner(&mut self) -> Result<(Ident, Vec<Decl>), RecoverMode> {
+        let ident = self.ident()?;
+        let decls = self.decls(true)?;
+        Ok((ident, decls))
+    }
+
+    /// Parse an action declaration.
+    pub fn action_decl(&mut self) -> Result<Decl, RecoverMode> {
+        let start = self.token(TokenKind::Lbracket)?;
+        let (_, ident) = recover!(self, self.ident(), TokenKind::Rbracket, Ident::new_error())?;
+        let cond = self.expr()?;
+        let span = start + cond.span;
+        let action = DeclKind::Action(Arc::new(cond));
+        Ok(Decl::new(span, ident, action))
+    }
+
     /// Parse an expression.
-    pub fn expr(&mut self, min_prec: u8) -> Result<Expr, RecoverMode> {
+    pub fn expr(&mut self) -> Result<Expr, RecoverMode> {
+        // The sub-expressions of a ternary cannot be another ternary in order to avoid ambiguity.
+        // E.g. "a ? b : c ? d : f" is ambiguous and disallowed.
+        let cond = self.binary_expr(0)?;
+        match self.lexer.peek() {
+            Some(Token {
+                kind: TokenKind::Question,
+                ..
+            }) => {
+                self.lexer.next().unwrap();
+                let (_, then) = recover!(
+                    self,
+                    self.binary_expr(0),
+                    TokenKind::Colon,
+                    Expr::new_error()
+                )?;
+                let els = self.binary_expr(0)?;
+                let span = cond.span + els.span;
+                let kind = ExprKind::TernaryIf(cond.into(), then.into(), els.into());
+                Ok(Expr::new(span, kind))
+            }
+            _ => Ok(cond),
+        }
+    }
+
+    /// Parse an expression.
+    pub fn binary_expr(&mut self, min_prec: u8) -> Result<Expr, RecoverMode> {
         // Pratt parsing/precedence climbing: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#climbing
         let mut lhs = self.term()?;
         let span_start = lhs.span;
@@ -105,7 +437,7 @@ impl<'a> Parser<'a> {
             }
             self.lexer.next();
             let new_prec = op.precedence() + if op.is_right_associative() { 0 } else { 1 };
-            let rhs = self.expr(new_prec)?;
+            let rhs = self.binary_expr(new_prec)?;
             let span = span_start + rhs.span;
             let kind = ExprKind::Binary(op, lhs.into(), rhs.into());
             lhs = Expr::new(span, kind);
@@ -120,12 +452,11 @@ impl<'a> Parser<'a> {
                 let begin = self.lexer.next().unwrap().span;
                 let (_, lhs) = recover!(
                     self,
-                    self.expr(BinaryOpKind::Until.precedence()),
+                    self.expr(),
                     TokenKind::Word("U".to_string()),
                     Expr::new_error()
                 )?;
-                let (end, rhs) =
-                    recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())?;
+                let (end, rhs) = recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())?;
                 Ok(Expr::new(
                     begin + end,
                     ExprKind::Binary(BinaryOpKind::Until, lhs.into(), rhs.into()),
@@ -133,7 +464,7 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Word(w)) if w == "F" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0)?;
+                let expr = self.expr()?;
                 Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Eventually, expr.into()),
@@ -141,7 +472,7 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Word(w)) if w == "G" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0)?;
+                let expr = self.expr()?;
                 Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Invariantly, expr.into()),
@@ -149,7 +480,7 @@ impl<'a> Parser<'a> {
             }
             Some(TokenKind::Word(w)) if w == "X" => {
                 let begin = self.lexer.next().unwrap().span;
-                let expr = self.expr(0)?;
+                let expr = self.expr()?;
                 Ok(Expr::new(
                     begin + expr.span,
                     ExprKind::Unary(UnaryOpKind::Next, expr.into()),
@@ -188,6 +519,15 @@ impl<'a> Parser<'a> {
                     ExprKind::Unary(UnaryOpKind::Not, expr.into()),
                 ))
             }
+            Some(TokenKind::Minus) => {
+                let begin = self.lexer.next().unwrap().span;
+                let expr = self.term()?;
+                Ok(Expr::new(
+                    begin + expr.span,
+                    ExprKind::Unary(UnaryOpKind::Neg, expr.into()),
+                ))
+            }
+            Some(TokenKind::KwMax | TokenKind::KwMin) => self.func_call(),
             Some(TokenKind::True) => {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::True))
@@ -195,6 +535,10 @@ impl<'a> Parser<'a> {
             Some(TokenKind::False) => {
                 let tok = self.lexer.next().unwrap();
                 Ok(Expr::new(tok.span, ExprKind::False))
+            }
+            Some(TokenKind::Num(_)) => {
+                let tok = self.lexer.next().unwrap();
+                Ok(Expr::new(tok.span, ExprKind::Num(tok.num().unwrap())))
             }
             Some(TokenKind::Word(_)) => self.owned_ident(),
             Some(TokenKind::Llangle) => self.enforce_coalition(),
@@ -219,8 +563,44 @@ impl<'a> Parser<'a> {
     /// Parse a parenthesized expression.
     pub fn paren(&mut self) -> Result<Expr, RecoverMode> {
         let begin = self.token(TokenKind::Lparen)?;
-        recover!(self, self.expr(0), TokenKind::Rparen, Expr::new_error())
+        recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())
             .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
+    }
+
+    /// Parse a function call
+    pub fn func_call(&mut self) -> Result<Expr, RecoverMode> {
+        match self.lexer.peek() {
+            Some(Token {
+                kind: TokenKind::KwMax,
+                ..
+            }) => {
+                let begin = self.lexer.next().unwrap().span;
+                let _ = self.token(TokenKind::Lparen)?;
+                let (end, exprs) = recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
+                Ok(Expr::new(begin + end, ExprKind::Max(exprs)))
+            }
+            Some(Token {
+                kind: TokenKind::KwMin,
+                ..
+            }) => {
+                let begin = self.lexer.next().unwrap().span;
+                let _ = self.token(TokenKind::Lparen)?;
+                let (end, exprs) = recover!(self, self.args(1), TokenKind::Rparen, Vec::new())?;
+                Ok(Expr::new(begin + end, ExprKind::Min(exprs)))
+            }
+            None => {
+                self.errors
+                    .log_msg("Unexpected EOF, expected 'max' or 'min'".to_string());
+                Err(RecoverMode)
+            }
+            Some(Token { kind, span }) => {
+                self.errors.log(
+                    *span,
+                    format!("Unexpected '{}', expected 'max' or 'min'", kind),
+                );
+                Err(RecoverMode)
+            }
+        }
     }
 
     /// Parse an (owned) identifier, e.g. `p1` or `p1.attr`.
@@ -233,25 +613,25 @@ impl<'a> Parser<'a> {
                 ..
             })
         ) {
-            return Ok(lhs);
+            return Ok(Expr::new(lhs.span, ExprKind::OwnedIdent(None, lhs)));
         }
         let _ = self.token(TokenKind::Dot)?;
         let rhs = self.ident()?;
         Ok(Expr::new(
             lhs.span + rhs.span,
-            ExprKind::Binary(BinaryOpKind::Dot, lhs.into(), rhs.into()),
+            ExprKind::OwnedIdent(Some(lhs), rhs),
         ))
     }
 
     /// Parse an identifier.
-    pub fn ident(&mut self) -> Result<Expr, RecoverMode> {
+    pub fn ident(&mut self) -> Result<Ident, RecoverMode> {
         match self.lexer.peek() {
             Some(Token {
                 kind: TokenKind::Word(_),
                 ..
             }) => {
                 let tok = self.lexer.next().unwrap();
-                Ok(Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string())))
+                Ok(Ident::new(tok.span, tok.kind.to_string()))
             }
             Some(tok) => {
                 self.errors.log(
@@ -266,6 +646,76 @@ impl<'a> Parser<'a> {
                 Err(RecoverMode)
             }
         }
+    }
+
+    /// Parse a comma-separated list of expressions.
+    /// If `min_count` is given, it will try to parse at least that many expressions.
+    fn args(&mut self, min_count: usize) -> Result<Vec<Expr>, RecoverMode> {
+        let mut exprs = Vec::new();
+        #[allow(clippy::while_let_loop)]
+        loop {
+            match self.lexer.peek() {
+                Some(Token {
+                    // Expr first set
+                    kind:
+                        TokenKind::Lparen
+                        | TokenKind::Bang
+                        | TokenKind::Minus
+                        | TokenKind::True
+                        | TokenKind::False
+                        | TokenKind::Num(_)
+                        | TokenKind::Word(_)
+                        | TokenKind::Llangle
+                        | TokenKind::Llbracket,
+                    ..
+                }) => {
+                    let expr = self.expr()?;
+                    exprs.push(expr);
+                }
+                _ => break,
+            }
+            match self.lexer.peek() {
+                Some(Token {
+                    kind: TokenKind::Comma,
+                    ..
+                }) => {
+                    self.lexer.next().unwrap();
+                }
+                Some(Token {
+                    kind: TokenKind::Rparen,
+                    ..
+                }) => break,
+                Some(tok) => {
+                    self.errors.log(
+                        tok.span,
+                        format!(
+                            "Unexpected '{}', expected '{}' or '{}'",
+                            tok.kind,
+                            TokenKind::Comma,
+                            self.recovery_tokens.last().unwrap()
+                        ),
+                    );
+                    return Err(RecoverMode);
+                }
+                None => {
+                    self.errors.log_msg(format!(
+                        "Unexpected EOF, expected '{}' or '{}'",
+                        TokenKind::Comma,
+                        self.recovery_tokens.last().unwrap()
+                    ));
+                    return Err(RecoverMode);
+                }
+            }
+        }
+        if exprs.len() < min_count {
+            self.errors.log_msg(format!(
+                "Expected at least {} argument(s), got {}",
+                min_count,
+                exprs.len()
+            ));
+            return Err(RecoverMode);
+        }
+        Ok(exprs)
     }
 
     /// Parse an enforce-coalition expression.
@@ -302,7 +752,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a comma-separated list of players (with the assumption that we are inside a coalition.)
-    pub fn coalition_players(&mut self) -> Result<Vec<Expr>, RecoverMode> {
+    pub fn coalition_players(&mut self) -> Result<Vec<Ident>, RecoverMode> {
         let mut players = vec![];
         #[allow(clippy::while_let_loop)]
         loop {
@@ -311,9 +761,8 @@ impl<'a> Parser<'a> {
                     kind: TokenKind::Word(_),
                     ..
                 }) => {
-                    let tok = self.lexer.next().unwrap();
-                    let p = Expr::new(tok.span, ExprKind::Ident(tok.kind.to_string()));
-                    players.push(p);
+                    let ident = self.ident()?;
+                    players.push(ident);
                 }
                 _ => break,
             }

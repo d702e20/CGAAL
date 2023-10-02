@@ -3,32 +3,57 @@ use crate::game_structure::lcgs::ast::DeclKind;
 use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
 use crate::game_structure::lcgs::ir::symbol_table::Owner;
 use crate::game_structure::Player;
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, UnaryOpKind};
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, CoalitionKind, Expr, ExprKind, Ident, UnaryOpKind,
+};
 use crate::parsing::errors::ErrorLog;
 
 /// Convert an ATL expression to a Phi formula.
 /// Players and labels must be defined in the game and are compiled to their respective indexes.
 /// Returns None if there were errors. See the error log for details.
-pub fn convert_expr_to_phi(
-    expr: &Expr,
-    game: &IntermediateLcgs,
-    errors: &mut ErrorLog,
-) -> Option<Phi> {
+pub fn convert_expr_to_phi(expr: &Expr, game: &IntermediateLcgs, errors: &ErrorLog) -> Option<Phi> {
     let Expr { span, kind } = expr;
     match kind {
         ExprKind::True => Some(Phi::True),
         ExprKind::False => Some(Phi::False),
         ExprKind::Paren(e) => convert_expr_to_phi(e, game, errors),
-        ExprKind::Ident(ident) => {
-            let decl = game.get_decl(&Owner::Global.symbol_id(ident));
+        ExprKind::OwnedIdent(owner, ident) => {
+            if let Some(player) = owner {
+                let symbol = Owner::Global.symbol_id(&player.name);
+                match game.get_decl(&symbol).map(|d| &d.kind) {
+                    Some(DeclKind::Player(_)) => {
+                        // ok
+                    }
+                    Some(d) => {
+                        errors.log(
+                            player.span,
+                            format!("Expected player, '{}' is a {}", player.name, d.kind_name()),
+                        );
+                        None?
+                    }
+                    None => {
+                        errors.log(
+                            player.span,
+                            format!("Expected player, '{}' is not defined", player.name),
+                        );
+                        None?
+                    }
+                }
+            }
+            let symbol = if let Some(owner) = owner {
+                Owner::Player(owner.name.clone()).symbol_id(&ident.name)
+            } else {
+                Owner::Global.symbol_id(&ident.name)
+            };
+            let decl = game.get_decl(&symbol);
             match &decl.map(|d| &d.kind) {
                 Some(DeclKind::Label(l)) => Some(Phi::Proposition(l.index)),
                 Some(d) => {
                     errors.log(
-                        *span,
+                        ident.span,
                         format!(
                             "Expected proposition label, '{}' is a {}",
-                            ident,
+                            ident.name,
                             d.kind_name()
                         ),
                     );
@@ -36,8 +61,11 @@ pub fn convert_expr_to_phi(
                 }
                 None => {
                     errors.log(
-                        *span,
-                        format!("Expected proposition label, '{}' is not defined", ident),
+                        ident.span,
+                        format!(
+                            "Expected proposition label, '{}' is not defined",
+                            ident.name
+                        ),
                     );
                     None
                 }
@@ -52,6 +80,13 @@ pub fn convert_expr_to_phi(
                 );
                 None
             }
+            UnaryOpKind::Neg => {
+                errors.log(
+                    *span,
+                    "Arithmetic operators is currently not supported in ATL".to_string(),
+                );
+                None
+            }
         },
         ExprKind::Binary(op, lhs, rhs) => match op {
             BinaryOpKind::And => Some(Phi::And(
@@ -62,63 +97,6 @@ pub fn convert_expr_to_phi(
                 convert_expr_to_phi(lhs, game, errors)?.into(),
                 convert_expr_to_phi(rhs, game, errors)?.into(),
             )),
-            BinaryOpKind::Dot => {
-                let ExprKind::Ident(owner) = &lhs.kind else {
-                    errors.log(lhs.span, "Expected player name".to_string());
-                    return None;
-                };
-                let ExprKind::Ident(prop) = &rhs.kind else {
-                    errors.log(rhs.span, "Expected proposition label".to_string());
-                    return None;
-                };
-                match game
-                    .get_decl(&Owner::Global.symbol_id(owner))
-                    .map(|d| &d.kind)
-                {
-                    Some(DeclKind::Player(_)) => {
-                        let symb = Owner::Player(owner.clone()).symbol_id(prop);
-                        let decl = game.get_decl(&symb);
-                        match decl.map(|d| &d.kind) {
-                            Some(DeclKind::Label(l)) => Some(Phi::Proposition(l.index)),
-                            Some(d) => {
-                                errors.log(
-                                    rhs.span,
-                                    format!(
-                                        "Expected proposition label, '{}' is a {}",
-                                        prop,
-                                        d.kind_name(),
-                                    ),
-                                );
-                                None
-                            }
-                            None => {
-                                errors.log(
-                                    rhs.span,
-                                    format!(
-                                        "Expected proposition label, '{}' is not defined",
-                                        symb,
-                                    ),
-                                );
-                                None
-                            }
-                        }
-                    }
-                    Some(d) => {
-                        errors.log(
-                            lhs.span,
-                            format!("Expected player, '{}' is a {}", owner, d.kind_name()),
-                        );
-                        None
-                    }
-                    None => {
-                        errors.log(
-                            lhs.span,
-                            format!("Expected player, '{}' is not defined", owner),
-                        );
-                        None
-                    }
-                }
-            }
             BinaryOpKind::Until => {
                 errors.log(
                     *span,
@@ -126,7 +104,47 @@ pub fn convert_expr_to_phi(
                 );
                 None
             }
+            BinaryOpKind::Xor => {
+                errors.log(
+                    *span,
+                    "Exclusive OR is currently not supported in ATL".to_string(),
+                );
+                None
+            }
+            BinaryOpKind::Implies => {
+                errors.log(
+                    *span,
+                    "Implication is currently not supported in ATL".to_string(),
+                );
+                None
+            }
+            BinaryOpKind::Eq
+            | BinaryOpKind::Neq
+            | BinaryOpKind::Gt
+            | BinaryOpKind::Geq
+            | BinaryOpKind::Lt
+            | BinaryOpKind::Leq => {
+                errors.log(
+                    *span,
+                    "Relational operators are currently not supported in ATL".to_string(),
+                );
+                None
+            }
+            BinaryOpKind::Add | BinaryOpKind::Sub | BinaryOpKind::Mul | BinaryOpKind::Div => {
+                errors.log(
+                    *span,
+                    "Arithmetic operators are currently not supported in ATL".to_string(),
+                );
+                None
+            }
         },
+        ExprKind::TernaryIf(_, _, _) => {
+            errors.log(
+                *span,
+                "Ternary if expressions are currently not supported in ATL".to_string(),
+            );
+            None
+        }
         ExprKind::Coalition(Coalition {
             players,
             kind,
@@ -201,6 +219,21 @@ pub fn convert_expr_to_phi(
                 None
             }
         },
+        ExprKind::Num(_) => {
+            errors.log(
+                *span,
+                "Unexpected number. Please use true, false, or label names as propositions."
+                    .to_string(),
+            );
+            None
+        }
+        ExprKind::Max(_) | ExprKind::Min(_) => {
+            errors.log(
+                *span,
+                "Max and min expressions are currently not supported in ATL".to_string(),
+            );
+            None
+        }
         ExprKind::Error => None,
     }
 }
@@ -208,36 +241,30 @@ pub fn convert_expr_to_phi(
 /// Helper function for converting a list of player names to a list of player indexes.
 /// Returns None if there were errors. See the error log for details.
 fn convert_players(
-    players: &[Expr],
+    players: &[Ident],
     game: &IntermediateLcgs,
-    errors: &mut ErrorLog,
+    errors: &ErrorLog,
 ) -> Option<Vec<Player>> {
     players
         .iter()
-        .map(|expr| match &expr.kind {
-            ExprKind::Ident(name) => match game
-                .get_decl(&Owner::Global.symbol_id(name))
-                .map(|d| &d.kind)
-            {
+        .map(|ident| {
+            let symbol = Owner::Global.symbol_id(&ident.name);
+            match game.get_decl(&symbol).map(|d| &d.kind) {
                 Some(DeclKind::Player(p)) => Some(p.index),
                 Some(d) => {
                     errors.log(
-                        expr.span,
-                        format!("Expected player, '{}' is a {}", name, d.kind_name()),
+                        ident.span,
+                        format!("Expected player, '{}' is a {}", ident.name, d.kind_name()),
                     );
                     None
                 }
                 None => {
                     errors.log(
-                        expr.span,
-                        format!("Expected player, '{}' is not defined", name),
+                        ident.span,
+                        format!("Expected player, '{}' is not defined", ident.name),
                     );
                     None
                 }
-            },
-            _ => {
-                errors.log(expr.span, "Expected player name".to_string());
-                None
             }
         })
         .collect()

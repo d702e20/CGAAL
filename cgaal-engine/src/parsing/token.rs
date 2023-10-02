@@ -14,6 +14,14 @@ impl Token {
     pub fn new(kind: TokenKind, span: Span) -> Self {
         Token { kind, span }
     }
+
+    /// Returns the value of the Num variant or None if the token is not a Num.
+    pub fn num(&self) -> Option<i32> {
+        match self.kind {
+            TokenKind::Num(n) => Some(n),
+            _ => None,
+        }
+    }
 }
 
 impl Display for Token {
@@ -88,7 +96,7 @@ pub enum TokenKind {
     Word(String),
 
     // Error
-    Err(String),
+    Unsupported(String),
 }
 
 impl Display for TokenKind {
@@ -139,7 +147,7 @@ impl Display for TokenKind {
             TokenKind::False => write!(f, "false"),
             TokenKind::Num(n) => write!(f, "{n}"),
             TokenKind::Word(w) => write!(f, "{w}"),
-            TokenKind::Err(e) => write!(f, "{e}"),
+            TokenKind::Unsupported(e) => write!(f, "{e}"),
         }
     }
 }

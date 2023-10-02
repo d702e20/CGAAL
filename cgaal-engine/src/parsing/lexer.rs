@@ -1,24 +1,63 @@
+use crate::parsing::errors::ErrorLog;
 use crate::parsing::span::Span;
 use crate::parsing::token::{Token, TokenKind};
 
 /// A Lexer that converts a byte slice into a stream of tokens.
 /// The Lexer is an iterator over tokens.
-#[derive(Clone, Eq, PartialEq)]
 pub struct Lexer<'a> {
     /// The original input byte slice.
     input: &'a [u8],
     /// The current position in the input, i.e. the number of consumed bytes.
     pos: usize,
+    /// Errors that occurred during lexing.
+    errors: &'a ErrorLog,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(input: &'a [u8]) -> Self {
-        Lexer { input, pos: 0 }
+    pub fn new(input: &'a [u8], errors: &'a ErrorLog) -> Self {
+        Lexer {
+            input,
+            pos: 0,
+            errors,
+        }
     }
 
     fn skip_ws(&mut self) {
+        // Whitespace
         while self.pos < self.input.len() && self.input[self.pos].is_ascii_whitespace() {
             self.pos += 1;
+        }
+        // Comments
+        if self.peek(0) == Some(b'/') {
+            let start = self.pos;
+            if self.peek(1) == Some(b'/') {
+                // Single line comment
+                while self.peek(0) != Some(b'\n') && self.pos < self.input.len() {
+                    self.pos += 1;
+                }
+                self.skip_ws();
+            } else if self.peek(1) == Some(b'*') {
+                // Multi line comment
+                let mut depth = 1;
+                self.pos += 2;
+                while depth > 0 && self.pos < self.input.len() {
+                    if self.peek(0) == Some(b'/') && self.peek(1) == Some(b'*') {
+                        depth += 1;
+                        self.pos += 2;
+                    } else if self.peek(0) == Some(b'*') && self.peek(1) == Some(b'/') {
+                        depth -= 1;
+                        self.pos += 2;
+                    } else {
+                        self.pos += 1;
+                    }
+                }
+                if depth > 0 {
+                    let span = Span::new(start, start + 2);
+                    self.errors
+                        .log(span, "Unclosed multi-line comment".to_string())
+                }
+                self.skip_ws();
+            }
         }
     }
 
@@ -80,13 +119,13 @@ impl<'a> Lexer<'a> {
 
     /// Consume bytes until we find a valid utf8 character.
     /// This allows us to handle emojis and other non-ascii characters as well.
-    fn lex_error(&mut self) -> Token {
+    fn lex_unsupported(&mut self) -> Token {
         let mut len = 1;
         while std::str::from_utf8(&self.input[self.pos..self.pos + len]).is_err() {
             len += 1;
         }
         let e = std::str::from_utf8(&self.input[self.pos..self.pos + len]).unwrap();
-        self.token(len, TokenKind::Err(e.to_string()))
+        self.token(len, TokenKind::Unsupported(e.to_string()))
     }
 }
 
@@ -127,11 +166,11 @@ impl<'a> Iterator for Lexer<'a> {
             b'/' => self.token(1, TokenKind::Slash),
             b'&' => match self.peek(1) {
                 Some(b'&') => self.token(2, TokenKind::AmpAmp),
-                _ => self.lex_error(),
+                _ => self.lex_unsupported(),
             },
             b'|' => match self.peek(1) {
                 Some(b'|') => self.token(2, TokenKind::PipePipe),
-                _ => self.lex_error(),
+                _ => self.lex_unsupported(),
             },
             b'^' => self.token(1, TokenKind::Hat),
             b'?' => self.token(1, TokenKind::Question),
@@ -153,7 +192,7 @@ impl<'a> Iterator for Lexer<'a> {
             b'\'' => self.token(1, TokenKind::Prime),
             b'a'..=b'z' | b'A'..=b'Z' => self.lex_alpha(),
             b'0'..=b'9' => self.lex_num(),
-            _ => self.lex_error(),
+            _ => self.lex_unsupported(),
         };
         Some(tk)
     }
@@ -161,22 +200,24 @@ impl<'a> Iterator for Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::parsing::errors::ErrorLog;
     use crate::parsing::lexer::Lexer;
     use crate::parsing::token::{Token, TokenKind};
 
     #[test]
     fn lexing_001() {
         // Check that the lexer produces the correct tokens with correct spans
-        let input = "==4 /* - x (var01 > 0)";
-        let lexer = Lexer::new(input.as_bytes());
+        let input = "==4 */ - x (var01 > 0)";
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(input.as_bytes(), &errors);
         let tokens = lexer.collect::<Vec<Token>>();
         assert_eq!(
             tokens,
             vec![
                 Token::new(TokenKind::Eq, (0..2).into()),
                 Token::new(TokenKind::Num(4), (2..3).into()),
-                Token::new(TokenKind::Slash, (4..5).into()),
-                Token::new(TokenKind::Star, (5..6).into()),
+                Token::new(TokenKind::Star, (4..5).into()),
+                Token::new(TokenKind::Slash, (5..6).into()),
                 Token::new(TokenKind::Minus, (7..8).into()),
                 Token::new(TokenKind::Word("x".to_string()), (9..10).into()),
                 Token::new(TokenKind::Lparen, (11..12).into()),
@@ -186,13 +227,15 @@ mod tests {
                 Token::new(TokenKind::Rparen, (21..22).into()),
             ]
         );
+        assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
     }
 
     #[test]
     fn lexing_002() {
         // Check that the lexer produces the correct tokens with correct spans
         let input = "  !player ->i [..]<< init>>";
-        let lexer = Lexer::new(input.as_bytes());
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(input.as_bytes(), &errors);
         let tokens = lexer.collect::<Vec<Token>>();
         assert_eq!(
             tokens,
@@ -209,5 +252,6 @@ mod tests {
                 Token::new(TokenKind::Rrangle, (25..27).into()),
             ]
         );
+        assert!(errors.is_empty(), "ErrorLog is not empty: {:?}", errors);
     }
 }
