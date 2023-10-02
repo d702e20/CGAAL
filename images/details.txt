@@ -1,0 +1,3 @@
+Font: Centure Gothic, bold
+Font color: #000000
+Logo color: #4ca2f9
