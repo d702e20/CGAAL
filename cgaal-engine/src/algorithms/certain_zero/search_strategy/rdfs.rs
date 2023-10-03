@@ -24,10 +24,9 @@ impl<V: Vertex> SearchStrategy<V> for RandomDepthFirstSearch<V> {
         self.stack.pop()
     }
 
-    /// A new batch of edges to be queued are first shuffled, then pushed to stack.
-    /// Efficient shuffling since Edge impls hash and by exploiting salted hashmap.
     fn queue_new_edges(&mut self, edges: Vec<Edge<V>>) {
-        // put edges into hashmap, which because salted, will be in random order
+        // A new batch of edges to be queued are first shuffled, then pushed to stack.
+        // Efficient shuffling since Edge impls hash and by exploiting salted hashmap.
         let unique_edges: std::collections::HashSet<_> = edges.into_iter().collect();
 
         for edge in unique_edges {
@@ -39,7 +38,9 @@ impl<V: Vertex> SearchStrategy<V> for RandomDepthFirstSearch<V> {
 /// A SearchStrategyBuilder for building the RandomDepthFirstSearch strategy.
 pub struct RandomDepthFirstSearchBuilder;
 
-impl<V: Vertex> SearchStrategyBuilder<V, RandomDepthFirstSearch<V>> for RandomDepthFirstSearchBuilder {
+impl<V: Vertex> SearchStrategyBuilder<V, RandomDepthFirstSearch<V>>
+    for RandomDepthFirstSearchBuilder
+{
     fn build(&self, _root: &V) -> RandomDepthFirstSearch<V> {
         RandomDepthFirstSearch::new()
     }

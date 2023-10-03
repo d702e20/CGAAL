@@ -4,11 +4,11 @@ use cgaal_engine::algorithms::certain_zero::distributed_certain_zero;
 use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use cgaal_engine::atl::Phi;
@@ -147,7 +147,8 @@ macro_rules! bench_lcgs_threads {
             // use machine cores as thread count, but max 32
             let max_core_count: u64 = min(num_cpus::get() as u64, 32);
 
-            for core_count in [1,2,4,8].iter() {
+            //for core_count in [1, 2, 4, 8].iter() { // for quick sampling
+            for core_count in 1..max_core_count + 1 {
                 let core_count = *core_count as u64;
 
                 // Write header for stats if enabled
@@ -2861,8 +2862,8 @@ criterion_group!(
 );
 
 criterion_main!(
-    //github_action_suite, // remember to disable when benchmarking
-    rdfs_case_study,
+    github_action_suite, // remember to disable when benchmarking
+                         //rdfs_case_study,
                          //static_thread_case_studies,
                          //mexi_thread_case_study,
                          //multi_thread_case_studies,

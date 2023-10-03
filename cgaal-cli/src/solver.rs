@@ -3,11 +3,11 @@ use crate::options::{CliOptions, SearchStrategyOption};
 use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
-use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::{
     SearchStrategy, SearchStrategyBuilder,
 };
