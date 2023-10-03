@@ -38,7 +38,7 @@ impl<V: Vertex> SearchStrategy<V> for RandomDepthFirstSearch<V> {
 pub struct RandomDepthFirstSearchBuilder;
 
 impl<V: Vertex> SearchStrategyBuilder<V, RandomDepthFirstSearch<V>>
-for RandomDepthFirstSearchBuilder
+    for RandomDepthFirstSearchBuilder
 {
     fn build(&self, _root: &V) -> RandomDepthFirstSearch<V> {
         RandomDepthFirstSearch::new()
