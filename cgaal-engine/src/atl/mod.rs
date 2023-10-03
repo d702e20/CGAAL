@@ -338,8 +338,8 @@ impl Display for Phi {
             Phi::False => write!(f, "false"),
             Phi::Proposition(id) => write!(f, "{}", id),
             Phi::Not(formula) => write!(f, "!({})", formula),
-            Phi::Or(left, right) => write!(f, "({} | {})", left, right),
-            Phi::And(left, right) => write!(f, "({} & {})", left, right),
+            Phi::Or(left, right) => write!(f, "({} || {})", left, right),
+            Phi::And(left, right) => write!(f, "({} && {})", left, right),
             Phi::DespiteNext { players, formula } => {
                 write!(f, "[[{}]] X {}", players.iter().join_with(","), formula)
             }
@@ -400,6 +400,6 @@ mod test {
             }),
             until: Arc::new(False),
         };
-        assert_eq!("<<0,1>> ((1 | !(2)) U false)", format!("{}", formula));
+        assert_eq!("<<0,1>> ((1 || !(2)) U false)", format!("{}", formula));
     }
 }
