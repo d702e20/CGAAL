@@ -149,7 +149,7 @@ macro_rules! bench_lcgs_threads {
 
             //for core_count in [1, 2, 4, 8].iter() { // for quick sampling
             for core_count in 1..max_core_count + 1 {
-                let core_count = *core_count as u64;
+                let core_count = core_count as u64;
 
                 // Write header for stats if enabled
                 #[cfg(feature = "use-counts")]
