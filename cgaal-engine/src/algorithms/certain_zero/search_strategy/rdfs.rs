@@ -1,5 +1,6 @@
 use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStrategyBuilder};
 use crate::edg::{Edge, Vertex};
+use rand::prelude::*;
 
 /// Random depth-first search (RDFS) strategy inspired by TAPAAL's search strategy of the same name.
 /// The strategy is depth-first search, but with a random ordering of the edges.
@@ -24,12 +25,10 @@ impl<V: Vertex> SearchStrategy<V> for RandomDepthFirstSearch<V> {
         self.stack.pop()
     }
 
-    fn queue_new_edges(&mut self, edges: Vec<Edge<V>>) {
+    fn queue_new_edges(&mut self, mut edges: Vec<Edge<V>>) {
         // A new batch of edges to be queued are first shuffled, then pushed to stack.
-        // Efficient shuffling since Edge impls hash and by exploiting salted hashmap.
-        let unique_edges: std::collections::HashSet<_> = edges.into_iter().collect();
-
-        for edge in unique_edges {
+        edges.shuffle(&mut thread_rng());
+        for edge in edges {
             self.stack.push(edge);
         }
     }
@@ -39,7 +38,7 @@ impl<V: Vertex> SearchStrategy<V> for RandomDepthFirstSearch<V> {
 pub struct RandomDepthFirstSearchBuilder;
 
 impl<V: Vertex> SearchStrategyBuilder<V, RandomDepthFirstSearch<V>>
-    for RandomDepthFirstSearchBuilder
+for RandomDepthFirstSearchBuilder
 {
     fn build(&self, _root: &V) -> RandomDepthFirstSearch<V> {
         RandomDepthFirstSearch::new()

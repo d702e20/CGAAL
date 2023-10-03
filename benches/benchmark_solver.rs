@@ -18,7 +18,6 @@ use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::game_structure::GameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::cmp::min;
 use std::cmp::Ordering;
 use std::env;
 use std::sync::Arc;
@@ -143,14 +142,13 @@ macro_rules! bench_lcgs_threads {
                     );
                 }
             }
+            // benchmark core counts from 1 to number of cores in machine
+            let core_count_list: Vec<u64> = (0..8)
+                .map(|x| 2u64.pow(x))
+                .take_while(|&x| x <= num_cpus::get() as u64)
+                .collect();
 
-            // use machine cores as thread count, but max 32
-            let max_core_count: u64 = min(num_cpus::get() as u64, 32);
-
-            //for core_count in [1, 2, 4, 8].iter() { // for quick sampling
-            for core_count in 1..max_core_count + 1 {
-                let core_count = core_count as u64;
-
+            for core_count in core_count_list {
                 // Write header for stats if enabled
                 #[cfg(feature = "use-counts")]
                 eprintln!(
@@ -2839,8 +2837,6 @@ criterion_group!(
     rand_5p_5m_3000d_state_enforce_until_1,
     rand_5p_5m_3000d_state_enforce_until_2,
 );
-// tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
-criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
 // tiny test suite for threading on MCC
 criterion_group!(
@@ -2854,12 +2850,16 @@ criterion_group!(
 // suite for testing rdfs vs dfs
 criterion_group!(
     rdfs_case_study,
-    /*prismlike_rc3_1_threads,
-    prismlike_rc3_3_threads,*/
+    //mexican_standoff_3p_3hp_lcgs_survive_threads,
+    prismlike_rc3_1_threads,
+    prismlike_rc3_3_threads,
     mexican_standoff_5p_1hp_lcgs_survive_threads,
     mexican_standoff_5p_1hp_lcgs_suicide_threads,
     mexican_standoff_5p_1hp_lcgs_teamwork_threads,
 );
+
+// tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
+criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
 criterion_main!(
     github_action_suite, // remember to disable when benchmarking

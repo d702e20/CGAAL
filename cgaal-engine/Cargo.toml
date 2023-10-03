@@ -37,3 +37,5 @@ joinery = "2.1.0"
 minilp = "0.2.2"
 priority-queue = "1.2.3"
 float-ord = "0.3.2"
+rand = "0.8.5"
+
