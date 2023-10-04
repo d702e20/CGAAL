@@ -8,6 +8,7 @@ use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heurist
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_optimize::LinearOptimizeSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_programming_search::LinearProgrammingSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::linear_representative_search::LinearRepresentativeSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::rdfs::RandomDepthFirstSearchBuilder;
 use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use cgaal_engine::atl::Phi;
@@ -17,7 +18,6 @@ use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
 use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::game_structure::GameStructure;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::cmp::min;
 use std::cmp::Ordering;
 use std::env;
 use std::sync::Arc;
@@ -121,7 +121,7 @@ macro_rules! bench_lcgs_threads {
             group.sample_size(10);
 
             // read search strategy from env variable in order: compile, runtime, otherwise default
-            let mut search_strategy = String::from("bfs");
+            let mut search_strategy = String::from("rdfs");
             if let Ok(val) = env::var("CGAAL_SEARCH_STRATEGY") {
                 search_strategy = val;
                 eprintln!(
@@ -142,13 +142,13 @@ macro_rules! bench_lcgs_threads {
                     );
                 }
             }
+            // benchmark core counts from 1 to number of cores in machine
+            let core_count_list: Vec<u64> = (0..8)
+                .map(|x| 2u64.pow(x))
+                .take_while(|&x| x <= num_cpus::get() as u64)
+                .collect();
 
-            // use machine cores as thread count, but max 32
-            let max_core_count: u64 = min(num_cpus::get() as u64, 32);
-
-            for core_count in 1..max_core_count + 1 {
-                let core_count = core_count as u64;
-
+            for core_count in core_count_list {
                 // Write header for stats if enabled
                 #[cfg(feature = "use-counts")]
                 eprintln!(
@@ -202,6 +202,16 @@ macro_rules! bench_lcgs_threads {
                                         v0,
                                         core_count,
                                         DepthFirstSearchBuilder,
+                                        PRIORITISE_BACK_PROPAGATION,
+                                        false,
+                                    );
+                                }
+                                "rdfs" => {
+                                    distributed_certain_zero(
+                                        graph,
+                                        v0,
+                                        core_count,
+                                        RandomDepthFirstSearchBuilder,
                                         PRIORITISE_BACK_PROPAGATION,
                                         false,
                                     );
@@ -2127,6 +2137,12 @@ bench_lcgs_threads!(
 );
 
 bench_lcgs_threads!(
+    mexican_standoff_3p_3hp_lcgs_teamwork_threads,
+    "mexican_standoff/mexican_standoff_3p_3hp.lcgs",
+    "mexican_standoff/can_2_players_guarantee_atleast_one_of_them_survives.json"
+);
+
+bench_lcgs_threads!(
     mexican_standoff_5p_1hp_lcgs_survive_threads,
     "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
     "mexican_standoff/can_p1_guarantee_to_survive_FALSE.json"
@@ -2136,6 +2152,12 @@ bench_lcgs_threads!(
     mexican_standoff_5p_1hp_lcgs_suicide_threads,
     "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
     "mexican_standoff/can_p1_suicide_FALSE.json"
+);
+
+bench_lcgs_threads!(
+    mexican_standoff_5p_1hp_lcgs_teamwork_threads,
+    "mexican_standoff/mexican_standoff_5p_1hp.lcgs",
+    "mexican_standoff/can_3_players_guarantee_atleast_one_of_them_survives.json"
 );
 
 // tic tac toe
@@ -2815,8 +2837,6 @@ criterion_group!(
     rand_5p_5m_3000d_state_enforce_until_1,
     rand_5p_5m_3000d_state_enforce_until_2,
 );
-// tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
-criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
 
 // tiny test suite for threading on MCC
 criterion_group!(
@@ -2827,8 +2847,23 @@ criterion_group!(
     mexican_standoff_5p_1hp_lcgs_suicide_threads,
 );
 
+// suite for testing rdfs vs dfs
+criterion_group!(
+    rdfs_case_study,
+    //mexican_standoff_3p_3hp_lcgs_survive_threads,
+    prismlike_rc3_1_threads,
+    prismlike_rc3_3_threads,
+    mexican_standoff_5p_1hp_lcgs_survive_threads,
+    mexican_standoff_5p_1hp_lcgs_suicide_threads,
+    mexican_standoff_5p_1hp_lcgs_teamwork_threads,
+);
+
+// tiny suite for shorter github CI turnaround, check still fails if any path in any declared bench is wrong
+criterion_group!(github_action_suite, mexican_standoff_3p_3hp_lcgs_survive);
+
 criterion_main!(
     github_action_suite, // remember to disable when benchmarking
+                         //rdfs_case_study,
                          //static_thread_case_studies,
                          //mexi_thread_case_study,
                          //multi_thread_case_studies,
