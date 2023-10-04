@@ -1,9 +1,9 @@
 
 ![CGAAL logo](images/logo_text_white_bg.png)
 
-This application can do model checking of alternating-time temporal logic (ATL) on concurrent game structures (CGSs).
-It uses an on-the-fly evaluation method as opposed to calculating the fixed point like PRISM does.
-With this lazy method we avoid generating the whole graph, and it is therefore an order of magnitude faster in most cases.
+CGAAL is a model checker of alternating-time temporal logic (ATL) properties on concurrent game structures (CGSs).
+It uses an on-the-fly algorithm to compute the satisfaction relation and synthesize strategies.
+This often leads to early termination, and CGAAL is therefore an order of magnitude faster than PRISM in most cases.
 
 CGAAL also uses a custom language to describe CGSs. We call it LCGS and
 its syntax is inspired by PRISM-lang. However, the concepts of synchronization and modules are very different.  
@@ -54,3 +54,7 @@ We now call CGAAL with the following arguments
 ```
 
 The result turns out to be false. Billy cannot guarantee to stay alive.
+
+## Papers
+
+- [CGAAL: Distributed On-The-Fly ATL Model Checker with Heuristics](https://arxiv.org/abs/2310.00999v1), Falke B. Ø. Carlsen, Lars Bo P. Frydenskov, Nicolaj Ø. Jensen, Jener Rasmussen, Mathias M. Sørensen, Asger G. Weirsøe, Mathias C. Jensen, Kim G. Larsen, In Proceedings GandALF 2023
