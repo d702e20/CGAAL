@@ -31,6 +31,8 @@ pub enum SearchStrategyOption {
     Bfs,
     /// Depth-first search
     Dfs,
+    /// Random Depth-first search
+    Rdfs,
     /// Linear optimization search
     Los,
     /// Linear programming search
