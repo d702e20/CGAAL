@@ -9,9 +9,8 @@ use crate::game_structure::lcgs::query::convert_expr_to_phi;
 use crate::game_structure::lcgs::relabeling::Relabeler;
 use crate::game_structure::lcgs::symbol_checker::{CheckMode, SymbolChecker};
 use crate::game_structure::lcgs::symbol_table::{SymbIdx, SymbolTable};
-use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot};
+use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, LcgsRoot};
 use crate::parsing::errors::{ErrorLog, SpannedError};
-use crate::parsing::span::NO_SPAN;
 
 /// A struct that holds information about players for the intermediate representation
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -245,15 +244,15 @@ fn register_decls(
     // players can use the same template
     let mut players_vec = vec![];
     for (index, symbol_index) in players.drain(..).enumerate() {
-        let pdecl_rc = symbols.get(symbol_index).borrow();
-        let DeclKind::Player(pdecl) = &pdecl_rc.kind else { unreachable!() };
+        let pdecl = symbols.get(symbol_index).borrow();
+        let DeclKind::Player(pkind) = &pdecl.kind else { unreachable!() };
         let mut player = Player::new(PlayerIdx(index), symbol_index);
 
-        let tdecl_opt = symbols.get_by_name(&pdecl.template_ident.to_string());
+        let tdecl_opt = symbols.get_by_name(&pkind.template_ident.to_string());
         let Some(tdecl_rc) = tdecl_opt else {
             return Err(SpannedError::new(
-                pdecl.template_ident.span,
-                format!("Undeclared template '{}'", pdecl.template_ident),
+                pkind.template_ident.span,
+                format!("Undeclared template '{}'", pkind.template_ident),
             ));
         };
         let tdecl = tdecl_rc.borrow();
@@ -264,31 +263,33 @@ fn register_decls(
             ));
         };
 
-        let relabeler = Relabeler::new(&pdecl.relabellings);
+        let relabeler = Relabeler::new(&pkind.relabellings);
 
         // Go through each declaration in the template and register a relabeled
         // clone of it that is owned by the given player // FIXME docs
         let new_decls = inner_decls.iter().map(|idecl| {
             let mut new_decl = relabeler.relabel_decl(idecl.clone())?;
-            new_decl.ident.owner = Some(Ident::new(NO_SPAN, pdecl_rc.ident.name.text.clone()));
-            // FIXME Updates indexes!
+            new_decl.ident.owner = Some(pdecl.ident.name.clone());
             Ok((new_decl, idecl.span))
         }).collect::<Result<Vec<_>, _>>()?;
 
-        drop(pdecl_rc);
+        drop(pdecl);
         drop(tdecl);
 
         for (new_decl, span) in new_decls {
-            let vec = match &new_decl.kind {
-                DeclKind::StateLabel(_, _) => &mut labels,
-                DeclKind::StateVar(_) => &mut vars,
-                DeclKind::Action(_) => &mut player.actions,
+            let index = symbols.insert(new_decl).map_err(|msg| SpannedError::new(span, msg))?;
+            let mut ndecl = symbols.get(index).borrow_mut();
+            match &mut ndecl.kind {
+                DeclKind::StateLabel(id, _) => {
+                    *id = PropIdx(labels.len());
+                    labels.push(index);
+                }
+                DeclKind::StateVar(_) => vars.push(index),
+                DeclKind::Action(_) => player.actions.push(index),
                 _ => panic!(
                     "Not a declaration allowed in templates. Parser must have failed."
                 ),
-            };
-            let index = symbols.insert(new_decl).map_err(|msg| SpannedError::new(span, msg))?;
-            vec.push(index);
+            }
         }
 
         // The player is done. We can now register the player declaration.
