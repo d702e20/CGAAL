@@ -91,7 +91,15 @@ impl SymbolTable {
         None
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=&RefCell<Decl>> {
+    /// Returns the [SymbIdx] of the declaration with the given name.
+    pub fn get_index_of_name(&self, name: &str) -> Option<SymbIdx> {
+        self.symbols
+            .iter()
+            .enumerate()
+            .find_map(|(i, s)| (&s.name == name).then_some(SymbIdx(i)))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &RefCell<Decl>> {
         self.symbols.iter().map(|s| &s.decl_rc)
     }
 

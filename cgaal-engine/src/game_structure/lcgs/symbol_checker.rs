@@ -142,8 +142,9 @@ impl<'a> SymbolChecker<'a> {
                 return self.check(&con);
             }
 
-            // Identifier is okay. Return a resolved identifier where owner is specified.
-            return Ok(Expr::new(*span, ExprKind::OwnedIdent(res_oi)));
+            // Identifier is okay. Return a resolved identifier
+            let index = self.symbols.get_index_of_name(&res_oi.to_string()).unwrap();
+            return Ok(Expr::new(*span, ExprKind::Symbol(index)));
         } else {
             // The try_borrow have failed, which means that the
             // RefCell is currently being mutated by someone. We are only reducing
@@ -151,7 +152,8 @@ impl<'a> SymbolChecker<'a> {
             // referring to the declaration itself. This is only okay, if we are
             // in CheckMode::UpdateExpr. In such case we can return immediately.
             if self.mode == CheckMode::UpdateExpr {
-                Ok(Expr::new(*span, ExprKind::OwnedIdent(res_oi)))
+                let index = self.symbols.get_index_of_name(&res_oi.to_string()).unwrap();
+                return Ok(Expr::new(*span, ExprKind::Symbol(index)));
             } else {
                 Err(SpannedError::new(*span, format!("The declaration '{}' refers to itself.", oi)))
             }
