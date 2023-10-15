@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt::Display;
 use std::ops::Deref;
 
-use crate::parsing::ast::{Decl, OwnedIdent};
+use crate::parsing::ast::Decl;
 
 /// An index of a [Symbol] in a [SymbolTable].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -22,11 +22,27 @@ impl Display for SymbIdx {
     }
 }
 
+/// TODO
+#[derive(Clone, Debug)]
+struct Symbol {
+    name: String,
+    decl_rc: RefCell<Decl>,
+}
+
 /// A [SymbolTable] keeps track of registered symbols and their declarations.
 /// Every declaration must have a unique name, aka a unique owned identifier.
 #[derive(Clone, Debug, Default)]
 pub struct SymbolTable {
-    symbols: Vec<RefCell<Decl>>,
+    symbols: Vec<Symbol>,
+}
+
+impl Symbol {
+    pub fn new(decl: Decl) -> Self {
+        Symbol {
+            name: decl.ident.to_string(),
+            decl_rc: decl.into(),
+        }
+    }
 }
 
 impl SymbolTable {
@@ -48,48 +64,42 @@ impl SymbolTable {
     /// Returns the index of the inserted symbol.
     /// If the name is already associated with a different symbol, an error is returned instead.
     pub fn insert(&mut self, decl: Decl) -> Result<SymbIdx, String> {
-        for symbol in &self.symbols {
-            if &symbol.borrow().ident == &decl.ident {
-                return Err(format!("The name '{}' is already declared", decl.ident));
-            }
+        if self.exists(&decl.ident.to_string()) {
+            return Err(format!("The name '{}' is already declared", decl.ident));
         }
-        self.symbols.push(decl.into());
+        self.symbols.push(Symbol::new(decl));
         Ok(SymbIdx(self.symbols.len() - 1))
     }
 
     /// Returns the declaration associated with the given index.
     pub fn get(&self, idx: SymbIdx) -> &RefCell<Decl> {
-        &self.symbols[idx.0]
+        &self.symbols[idx.0].decl_rc
+    }
+
+    /// Returns if any known declaration has the given name
+    pub fn exists(&self, name: &str) -> bool {
+        self.symbols.iter().any(|s| s.name == name)
     }
 
     /// Returns the declaration associated with the given identifier.
-    pub fn get_by_name(&self, oi: &OwnedIdent) -> Option<&RefCell<Decl>> {
-        for symb in self.symbols.iter() {
-            if &symb.borrow().ident == oi {
-                return Some(symb);
+    pub fn get_by_name(&self, name: &str) -> Option<&RefCell<Decl>> {
+        for symb in &self.symbols {
+            if &symb.name == name {
+                return Some(&symb.decl_rc);
             }
         }
         None
     }
 
-    pub fn iter(&self) -> std::slice::Iter<RefCell<Decl>> {
-        self.symbols.iter()
+    pub fn iter(&self) -> impl Iterator<Item=&RefCell<Decl>> {
+        self.symbols.iter().map(|s| &s.decl_rc)
     }
 
     /// Consume the symbol table to construct a simple declaration table.
     pub fn solidify(mut self) -> Vec<Decl> {
         self.symbols
             .drain(..)
-            .map(|symb| symb.into_inner())
+            .map(|symb| symb.decl_rc.into_inner())
             .collect()
-    }
-}
-
-impl<'a> IntoIterator for &'a SymbolTable {
-    type Item = &'a RefCell<Decl>;
-    type IntoIter = std::slice::Iter<'a, RefCell<Decl>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.symbols.iter()
     }
 }

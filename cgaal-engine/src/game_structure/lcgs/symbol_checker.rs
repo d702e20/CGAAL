@@ -102,7 +102,7 @@ impl<'a> SymbolChecker<'a> {
         // more accurate error message, if necessary
         if let Some(player_name) = &res_oi.owner {
             self.symbols
-                .get_by_name(&OwnedIdent::new(None, player_name.clone()))
+                .get_by_name(&player_name.to_string())
                 .ok_or(SpannedError::new(
                     player_name.span,
                     format!("Unknown player '{}'.", player_name.text),
@@ -112,10 +112,13 @@ impl<'a> SymbolChecker<'a> {
         // FIXME: In CheckMode::ConstExpr, only constants are declared and
         //        this will give confusing error messages if anything else if referenced.
         // Find declaration
-        let decl_rc = self.symbols.get_by_name(&res_oi).ok_or(SpannedError::new(
-            *span,
-            format!("Unknown declaration '{}'.", oi),
-        ))?;
+        let decl_rc = self.symbols.get_by_name(&res_oi.to_string())
+            .or_else(|| self.symbols.get_by_name(&oi.to_string()))
+            .ok_or(SpannedError::new(
+                *span,
+                format!("Unknown declaration '{}'.", oi),
+            )
+        )?;
 
         if let Ok(decl) = &decl_rc.try_borrow() {
             // Check if declaration is allowed to be referenced in this mode
@@ -254,10 +257,11 @@ impl<'a> SymbolChecker<'a> {
             Ok(Expr::new(*span, ExprKind::Max(checked_list)))
         }
     }
+
     fn check_coalition(&self, span: &Span, coal: &Coalition) -> Result<Expr, SpannedError> {
         for id in &coal.players {
             let decl = self.symbols
-                .get_by_name(&OwnedIdent::new(None, id.clone()))
+                .get_by_name(&id.to_string())
                 .ok_or(SpannedError::new(
                     id.span,
                     format!("Unknown player '{}'.", id.text),

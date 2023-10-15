@@ -34,7 +34,7 @@ impl<'a> QueryBuilder<'a> {
             ExprKind::OwnedIdent(oi) => {
                 // FIXME: Unnecessary case and checks if ATL expr were symbol checked
                 if let Some(player) = &oi.owner {
-                    let pdecl_opt = self.game.get_decl_by_name(&player.clone().with_no_owner());
+                    let pdecl_opt = self.game.get_decl_by_name(&player.to_string());
                     match pdecl_opt.map(|d| &d.kind) {
                         Some(DeclKind::Player(_)) => {
                             // ok
@@ -56,7 +56,7 @@ impl<'a> QueryBuilder<'a> {
                     }
                 }
 
-                let decl_opt = self.game.get_decl_by_name(&oi);
+                let decl_opt = self.game.get_decl_by_name(&oi.to_string());
                 match decl_opt.map(|d| &d.kind) {
                     Some(DeclKind::StateLabel(idx, _)) => Ok(Phi::Proposition(*idx)),
                     Some(d) => {
@@ -255,7 +255,7 @@ impl<'a> QueryBuilder<'a> {
         players
             .iter()
             .map(|ident| {
-                let decl_opt = self.game.get_decl_by_name(&ident.clone().with_no_owner());
+                let decl_opt = self.game.get_decl_by_name(&ident.to_string());
                 match decl_opt.map(|d| &d.kind) {
                     Some(DeclKind::Player(p)) => Ok(p.index),
                     Some(d) => {

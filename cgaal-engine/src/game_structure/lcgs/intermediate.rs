@@ -9,7 +9,7 @@ use crate::game_structure::lcgs::query::convert_expr_to_phi;
 use crate::game_structure::lcgs::relabeling::Relabeler;
 use crate::game_structure::lcgs::symbol_checker::{CheckMode, SymbolChecker};
 use crate::game_structure::lcgs::symbol_table::{SymbIdx, SymbolTable};
-use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot, OwnedIdent};
+use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot};
 use crate::parsing::errors::{ErrorLog, SpannedError};
 use crate::parsing::span::NO_SPAN;
 
@@ -70,8 +70,8 @@ impl IntermediateLcgs {
         self.decls.get(symbol.0)
     }
 
-    pub fn get_decl_by_name(&self, oi: &OwnedIdent) -> Option<&Decl> {
-        self.decls.iter().find(|decl| &decl.ident == oi)
+    pub fn get_decl_by_name(&self, name: &str) -> Option<&Decl> {
+        self.decls.iter().find(|decl| &decl.ident.to_string() == &name)
     }
 
     /// Transforms a state index to a [State].
@@ -245,22 +245,22 @@ fn register_decls(
     // players can use the same template
     let mut players_vec = vec![];
     for (index, symbol_index) in players.drain(..).enumerate() {
-        let pdecl_rc = symbols.get(symbol_index).borrow_mut();
+        let pdecl_rc = symbols.get(symbol_index).borrow();
         let DeclKind::Player(pdecl) = &pdecl_rc.kind else { unreachable!() };
         let mut player = Player::new(PlayerIdx(index), symbol_index);
 
-        let tdecl_opt = symbols.get_by_name(&pdecl.template_ident.clone().with_no_owner());
+        let tdecl_opt = symbols.get_by_name(&pdecl.template_ident.to_string());
         let Some(tdecl_rc) = tdecl_opt else {
             return Err(SpannedError::new(
                 pdecl.template_ident.span,
-                format!("Undeclared template '{}'", pdecl.template_ident.text),
+                format!("Undeclared template '{}'", pdecl.template_ident),
             ));
         };
         let tdecl = tdecl_rc.borrow();
         let DeclKind::Template(inner_decls) = &tdecl.kind else {
             return Err(SpannedError::new(
                 tdecl.span,
-                format!("'{}' is not a template.", tdecl.ident.name.text),
+                format!("'{}' is not a template.", tdecl.ident),
             ));
         };
 
@@ -300,7 +300,7 @@ fn register_decls(
 /// Reduces the declarations in a [SymbolTable] to a more compact version, if possible.
 /// Validity of identifiers are also checked and resolved.
 fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
-    for symbol in symbols {
+    for symbol in symbols.iter() {
         // Optimize the declaration's expression(s)
         let mut decl_ref = symbol.borrow_mut();
         let Decl {
