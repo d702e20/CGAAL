@@ -18,9 +18,8 @@ use cgaal_engine::analyse::analyse;
 use cgaal_engine::atl::Phi;
 use cgaal_engine::edg::atledg::vertex::AtlVertex;
 use cgaal_engine::edg::atledg::AtlDependencyGraph;
-use cgaal_engine::game_structure::lcgs::ast::DeclKind;
-use cgaal_engine::game_structure::lcgs::ir::symbol_table::Owner;
 use cgaal_engine::game_structure::GameStructure;
+use cgaal_engine::parsing::ast::DeclKind;
 #[cfg(feature = "graph-printer")]
 use cgaal_engine::printer::print_graph;
 
@@ -55,19 +54,16 @@ fn main_inner() -> Result<(), String> {
                 .ok_or("The 'index' command is only valid for LCGS models")?;
 
             println!("Players:");
-            for player in &ir.get_player() {
-                println!("{} : {}", player.get_name(), player.index())
+            for player in ir.get_players() {
+                let decl = ir.get_decl(&player.symbol_index).unwrap();
+                println!("{} : {}", decl.ident, player.index);
             }
 
             println!("\nLabels:");
-            for label_symbol in &ir.get_labels() {
+            for label_symbol in ir.get_labels() {
                 let label_decl = ir.get_decl(label_symbol).unwrap();
-                if let DeclKind::Label(label) = &label_decl.kind {
-                    if Owner::Global == label_symbol.owner {
-                        println!("{} : {}", &label_symbol.name, label.index)
-                    } else {
-                        println!("{} : {}", &label_symbol, label.index)
-                    }
+                if let DeclKind::StateLabel(idx, _) = &label_decl.kind {
+                    println!("{} : {}", &label_decl.ident, idx);
                 }
             }
         }

@@ -1,5 +1,5 @@
 use crate::edg::atledg::pmoves::{PartialMove, PartialMoveChoice};
-use crate::game_structure::{GameStructure, State};
+use crate::game_structure::{GameStructure, PlayerIdx, StateIdx};
 use joinery::prelude::*;
 use std::fmt::{Display, Formatter};
 
@@ -8,7 +8,7 @@ use std::fmt::{Display, Formatter};
 pub struct PartialMoveWithFormatting<'a, G: GameStructure> {
     pub pmove: &'a PartialMove,
     pub game: &'a G,
-    pub state: &'a State,
+    pub state: &'a StateIdx,
 }
 
 impl<'a, G: GameStructure> Display for PartialMoveWithFormatting<'a, G> {
@@ -20,11 +20,11 @@ impl<'a, G: GameStructure> Display for PartialMoveWithFormatting<'a, G> {
                 .0
                 .iter()
                 .enumerate()
-                .filter_map(|(player, mov)| {
+                .map(|(player, mov)| {
                     if let PartialMoveChoice::Specific(mov) = mov {
-                        Some(self.game.action_name(*self.state, player, *mov))
+                        self.game.action_name(*self.state, PlayerIdx(player), *mov)
                     } else {
-                        None
+                        "_".to_string()
                     }
                 })
                 .join_with(", ")

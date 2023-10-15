@@ -1,45 +1,33 @@
-use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
-
-use crate::game_structure;
-use crate::game_structure::lcgs::ast::{ConstDecl, Decl, DeclKind, ExprKind, Identifier, Root};
-use crate::game_structure::lcgs::ir::error::Error;
-use crate::game_structure::lcgs::ir::eval::Evaluator;
-use crate::game_structure::lcgs::ir::relabeling::Relabeler;
-use crate::game_structure::lcgs::ir::symbol_checker::{CheckMode, SymbolChecker, SymbolError};
-use crate::game_structure::lcgs::ir::symbol_table::{Owner, SymbolIdentifier, SymbolTable};
-use crate::game_structure::{Action, GameStructure, Proposition};
 use std::fmt::{Display, Formatter};
+use std::ops::DerefMut;
+use crate::atl::Phi;
+
+use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, PropIdx, StateIdx};
+use crate::game_structure::lcgs::eval::Evaluator;
+use crate::game_structure::lcgs::query::convert_expr_to_phi;
+use crate::game_structure::lcgs::relabeling::Relabeler;
+use crate::game_structure::lcgs::symbol_checker::{CheckMode, SymbolChecker};
+use crate::game_structure::lcgs::symbol_table::{SymbIdx, SymbolTable};
+use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot, OwnedIdent};
+use crate::parsing::errors::{ErrorLog, SpannedError};
+use crate::parsing::span::NO_SPAN;
 
 /// A struct that holds information about players for the intermediate representation
-/// of the lazy game structure
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Player {
-    index: usize,
-    name: String,
-    actions: Vec<SymbolIdentifier>,
+    pub index: PlayerIdx,
+    pub symbol_index: SymbIdx,
+    pub actions: Vec<SymbIdx>,
 }
 
 impl Player {
-    pub fn new(index: usize, name: &str) -> Player {
+    pub fn new(index: PlayerIdx, symbol_index: SymbIdx) -> Player {
         Player {
             index,
-            name: name.to_string(),
+            symbol_index,
             actions: vec![],
         }
-    }
-
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    /// Helper function to quickly turn a player into an [Owner]
-    pub fn to_owner(&self) -> Owner {
-        Owner::Player(self.name.clone())
-    }
-
-    pub fn get_name(&self) -> String {
-        self.name.clone()
     }
 }
 
@@ -47,24 +35,24 @@ impl Player {
 /// declarations.
 #[derive(Clone, Debug)]
 pub struct IntermediateLcgs {
-    symbols: HashMap<SymbolIdentifier, Decl>,
-    labels: Vec<SymbolIdentifier>,
-    vars: Vec<SymbolIdentifier>,
+    decls: Vec<Decl>,
+    labels: Vec<SymbIdx>,
+    vars: Vec<SymbIdx>,
     players: Vec<Player>,
 }
 
 impl IntermediateLcgs {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(root: Root) -> Result<IntermediateLcgs, Error> {
+    pub fn create(root: LcgsRoot, errors: &ErrorLog) -> Result<IntermediateLcgs, ()> {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
-        let (players, labels, vars) = register_decls(&mut symbols, root)?;
-        check_and_optimize_decls(&symbols)?;
+        let (players, labels, vars) = register_decls(&mut symbols, root).map_err(|se| errors.log_err(se))?;
+        check_and_optimize_decls(&symbols).map_err(|se| errors.log_err(se))?;
 
         let ilcgs = IntermediateLcgs {
-            symbols: symbols.solidify(),
+            decls: symbols.solidify(),
             labels,
             vars,
             players,
@@ -73,27 +61,36 @@ impl IntermediateLcgs {
         Ok(ilcgs)
     }
 
-    pub fn get_decl(&self, symbol: &SymbolIdentifier) -> Option<&Decl> {
-        self.symbols.get(symbol)
+    /// Convert an ATL expression to a [Phi] that can be used in a query.
+    pub fn create_phi(&self, expr: Expr, errors: &ErrorLog) -> Result<Phi, ()> {
+        convert_expr_to_phi(expr, &self, errors)
+    }
+
+    pub fn get_decl(&self, symbol: &SymbIdx) -> Option<&Decl> {
+        self.decls.get(symbol.0)
+    }
+
+    pub fn get_decl_by_name(&self, oi: &OwnedIdent) -> Option<&Decl> {
+        self.decls.iter().find(|decl| &decl.ident == oi)
     }
 
     /// Transforms a state index to a [State].
-    pub(crate) fn state_from_index(&self, state_index: usize) -> State {
+    pub(crate) fn state_from_index(&self, state_index: StateIdx) -> State {
         let mut state = State(HashMap::new());
-        let mut carry = state_index;
+        let mut carry = state_index.0;
 
         // The following method resembles the typical way of transforming a number of seconds
         // into seconds, minutes, hours, and days. In this case the time units are state variables
         // instead, and similarly to time units, each state variable has a different size.
         for symb_id in &self.vars {
-            let symb = self.symbols.get(symb_id).unwrap();
+            let symb = self.decls.get(symb_id.0).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
                 let value = {
-                    let size = (var.ir_range.end() - var.ir_range.start() + 1) as usize;
+                    let size = (var.range.val.end() - var.range.val.start() + 1) as usize;
                     let quotient = carry / size;
                     let remainder = carry.rem_euclid(size);
                     carry = quotient;
-                    var.ir_range.start() + remainder as i32
+                    var.range.val.start() + remainder as i32
                 };
                 state.0.insert(symb_id.clone(), value);
             }
@@ -106,15 +103,15 @@ impl IntermediateLcgs {
         state
     }
 
-    pub fn label_index_to_decl(&self, label_index: usize) -> &Decl {
-        let label_symbol = self.labels[label_index].clone();
+    pub fn label_index_to_decl(&self, label_index: PropIdx) -> &Decl {
+        let label_symbol = self.labels[label_index.0].clone();
 
-        let label_decl = self.symbols.get(&label_symbol).unwrap();
+        let label_decl = self.decls.get(label_symbol.0).unwrap();
         label_decl
     }
 
     /// Transforms a state into its index
-    pub(crate) fn index_of_state(&self, state: &State) -> usize {
+    pub(crate) fn index_of_state(&self, state: &State) -> StateIdx {
         let mut combined_size = 1;
         let mut res = 0usize;
 
@@ -123,33 +120,33 @@ impl IntermediateLcgs {
         // state variables instead, and similarly to time units, each state variable has a
         // different size.
         for symb_id in &self.vars {
-            let symb = self.symbols.get(symb_id).unwrap();
+            let symb = self.decls.get(symb_id.0).unwrap();
             if let DeclKind::StateVar(var) = &symb.kind {
-                let size = (var.ir_range.end() - var.ir_range.start() + 1) as usize;
+                let size = (var.range.val.end() - var.range.val.start() + 1) as usize;
                 let val = state.0.get(symb_id).unwrap();
-                res += (val - var.ir_range.start()) as usize * combined_size;
+                res += (val - var.range.val.start()) as usize * combined_size;
                 combined_size *= size;
             }
         }
-        res
+        StateIdx(res)
     }
 
     /// Returns a list of the moves available to the given player in the given state.
     pub(crate) fn available_actions(
         &self,
         state: &State,
-        player: game_structure::Player,
-    ) -> Vec<SymbolIdentifier> {
-        self.players[player]
+        player: PlayerIdx,
+    ) -> Vec<SymbIdx> {
+        self.players[player.0]
             .actions
             .iter()
             .filter(|symb_id| {
-                let symb = self.symbols.get(symb_id).unwrap();
-                if let DeclKind::Transition(trans) = &symb.kind {
+                let symb = &self.decls[symb_id.0];
+                if let DeclKind::Action(cond) = &symb.kind {
                     // The action is available if the condition is not evaluated to 0 in this state
-                    return 0 != Evaluator::new(state).eval(&trans.condition);
+                    return 0 != Evaluator::new(state).eval(&cond);
                 }
-                panic!("Transition was not a transition.")
+                panic!("Action was not a action.")
             })
             .cloned()
             .collect()
@@ -159,256 +156,196 @@ impl IntermediateLcgs {
     pub fn initial_state(&self) -> State {
         let mut res = State(HashMap::new());
         for symb_id in &self.vars {
-            let symb = self.symbols.get(symb_id).unwrap();
+            let symb = &self.decls[symb_id.0];
             if let DeclKind::StateVar(var) = &symb.kind {
-                res.0.insert(symb_id.clone(), var.ir_initial_value);
+                res.0.insert(symb_id.clone(), var.init_val);
             }
         }
         res
     }
 
     /// Returns the variables that make up a state
-    pub fn get_vars(&self) -> Vec<SymbolIdentifier> {
-        self.vars.clone()
+    pub fn get_vars(&self) -> &[SymbIdx] {
+        &self.vars
     }
 
     /// Returns a vector of players
-    pub fn get_player(&self) -> Vec<Player> {
-        self.players.clone()
+    pub fn get_players(&self) -> &[Player] {
+        &self.players
     }
 
     /// Returns vector of labels
-    pub fn get_labels(&self) -> Vec<SymbolIdentifier> {
-        self.labels.clone()
+    pub fn get_labels(&self) -> &[SymbIdx] {
+        &self.labels
     }
 }
 
 /// Names of declarations. First component is players and their fields. Second component
 /// is global labels. And third component is global variables.
-type DeclNames = (Vec<Player>, Vec<SymbolIdentifier>, Vec<SymbolIdentifier>);
+type DeclNames = (Vec<Player>, Vec<SymbIdx>, Vec<SymbIdx>);
 
 /// Registers all declarations from the root in the symbol table. Constants are optimized to
 /// numbers immediately. On success, a vector of [Player]s is returned with information
 /// about players and the names of their actions.
-fn register_decls(symbols: &mut SymbolTable, root: Root) -> Result<DeclNames, Error> {
-    let mut player_decls = vec![];
-    let mut player_names = HashSet::new();
+fn register_decls(
+    symbols: &mut SymbolTable,
+    root: LcgsRoot,
+) -> Result<DeclNames, SpannedError> {
+    let mut players = vec![];
     let mut labels = vec![];
     let mut vars = vec![];
 
+    let mut next_player_index = 0;
     let mut next_label_index = 0;
 
     // Register global declarations.
     // Constants are evaluated immediately.
     // Players are put in a separate vector and handled afterwards.
     // Symbol table is given ownership of the declarations.
-    for mut decl in root.decls {
-        match decl.kind.borrow_mut() {
-            DeclKind::Const(cons) => {
+    for Decl { span, ident, kind } in root.decls {
+        match kind {
+            DeclKind::Const(expr) => {
                 // We can evaluate constants immediately as constants can only
                 // refer to other constants that are above them in the program.
                 // If they don't reduce to a single number, then the SymbolChecker
                 // produces an error.
-                let result = SymbolChecker::new(symbols, Owner::Global, CheckMode::Const)
-                    .check(&cons.definition)?;
-                debug_assert!(matches!(result.kind, ExprKind::Number(_)));
-                let name = cons.name.name().to_string();
-                // Construct a resolved constant decl
-                let decl = Decl {
-                    kind: DeclKind::Const(Box::new(ConstDecl {
-                        name: Identifier::Resolved {
-                            owner: Owner::Global,
-                            name: name.clone(),
-                        },
-                        definition: result,
-                    })),
-                };
-                if symbols.insert(&Owner::Global, &name, decl).is_some() {
-                    panic!("Constant '{}' is already declared.", &name); // TODO Use custom error
-                }
+                let reduced = SymbolChecker::new(symbols, &None, CheckMode::ConstExpr).check_eval(&expr)?;
+                let decl = Decl::new(span, ident.name, DeclKind::Const(Expr::new(expr.span, ExprKind::Num(reduced))));
+                let _ = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
             }
-            DeclKind::Label(label) => {
-                label.index = next_label_index;
-                next_label_index += 1;
+            DeclKind::StateLabel(_, expr) => {
                 // Insert in symbol table and add to labels list
-                let name = decl.kind.ident().name().to_string();
-                if symbols.insert(&Owner::Global, &name, decl).is_some() {
-                    panic!("Symbol '{}' is already declared.", &name); // TODO Use custom error
-                }
-                labels.push(SymbolIdentifier {
-                    owner: Owner::Global,
-                    name,
-                });
+                let decl = Decl::new(span, ident.name, DeclKind::StateLabel(PropIdx(next_label_index), expr));
+                let index = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                labels.push(index);
+                next_label_index += 1;
             }
-            DeclKind::StateVar(_) => {
+            DeclKind::StateVar(state_var) => {
                 // Insert in symbol table and add to vars list
-                let name = decl.kind.ident().name().to_string();
-                if symbols.insert(&Owner::Global, &name, decl).is_some() {
-                    panic!("Symbol '{}' is already declared.", &name); // TODO Use custom error
-                }
-                vars.push(SymbolIdentifier {
-                    owner: Owner::Global,
-                    name,
-                });
+                let decl = Decl::new(span, ident.name, DeclKind::StateVar(state_var));
+                let index = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                vars.push(index);
             }
-            DeclKind::Template(_) => {
-                let name = decl.kind.ident().name().to_string();
-                if symbols.insert(&Owner::Global, &name, decl).is_some() {
-                    panic!("Symbol '{}' is already declared.", &name); // TODO Use custom error
-                }
+            DeclKind::Template(inner_decls) => {
+                let decl = Decl::new(span, ident.name, DeclKind::Template(inner_decls));
+                let _ = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
             }
-            DeclKind::Player(player) => {
-                // We handle player declarations later
-                if !player_names.insert(player.name.name().to_string()) {
-                    panic!("Player '{}' is already declared", &player.name.name());
-                    // TODO Use custom error
-                }
-                player_decls.push(decl);
+            DeclKind::Player(mut player) => {
+                player.index = PlayerIdx(next_player_index);
+                let decl = Decl::new(span, ident.name, DeclKind::Player(player));
+                let index = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                players.push(index);
+                next_player_index += 1;
             }
-            _ => panic!("Not a global declaration. Parser must have failed."), // Not a global decl
+            _ => panic!("Not a global declaration. Parser must have failed."),
         }
     }
 
     // Register player declarations. Here we clone the declarations since multiple
     // players can use the same template
-    let mut players = vec![];
-    for (index, mut decl) in player_decls.drain(..).enumerate() {
-        if let DeclKind::Player(player_decl) = decl.kind.borrow_mut() {
-            player_decl.index = index;
+    let mut players_vec = vec![];
+    for (index, symbol_index) in players.drain(..).enumerate() {
+        let pdecl_rc = symbols.get(symbol_index).borrow_mut();
+        let DeclKind::Player(pdecl) = &pdecl_rc.kind else { unreachable!() };
+        let mut player = Player::new(PlayerIdx(index), symbol_index);
 
-            let mut player = Player::new(index, player_decl.name.name());
-            let relabeler = Relabeler::new(&player_decl.relabeling);
+        let tdecl_opt = symbols.get_by_name(&pdecl.template_ident.clone().with_no_owner());
+        let Some(tdecl_rc) = tdecl_opt else {
+            return Err(SpannedError::new(
+                pdecl.template_ident.span,
+                format!("Undeclared template '{}'", pdecl.template_ident.text),
+            ));
+        };
+        let tdecl = tdecl_rc.borrow();
+        let DeclKind::Template(inner_decls) = &tdecl.kind else {
+            return Err(SpannedError::new(
+                tdecl.span,
+                format!("'{}' is not a template.", tdecl.ident.name.text),
+            ));
+        };
 
-            let template_decl = symbols
-                .get(&Owner::Global, player_decl.template.name())
-                .expect("Unknown template") // TODO Use custom error
-                .declaration
-                .borrow()
-                .clone();
+        let relabeler = Relabeler::new(&pdecl.relabellings);
 
-            if let DeclKind::Template(template) = template_decl.kind {
-                // Go through each declaration in the template and register a relabeled
-                // clone of it that is owned by the given player
-                let scope_owner = player.to_owner();
-                for mut decl in template.decls {
-                    match decl.kind.borrow_mut() {
-                        DeclKind::Label(label) => {
-                            label.index = next_label_index;
-                            next_label_index += 1;
-                            let relabeled_decl = relabeler.relabel_decl(&decl)?;
-                            // Insert into symbol table and add to labels list
-                            let name = relabeled_decl.kind.ident().name().to_string();
-                            if symbols
-                                .insert(&scope_owner, &name, relabeled_decl)
-                                .is_some()
-                            {
-                                panic!("Label '{}.{}' is already declared.", &scope_owner, &name);
-                            };
-                            labels.push(SymbolIdentifier {
-                                owner: scope_owner.clone(),
-                                name,
-                            });
-                        }
-                        DeclKind::StateVar(_) => {
-                            let relabeled_decl = relabeler.relabel_decl(&decl)?;
-                            // Insert into symbol table and add to vars list
-                            let name = relabeled_decl.kind.ident().name().to_string();
-                            if symbols
-                                .insert(&scope_owner, &name, relabeled_decl)
-                                .is_some()
-                            {
-                                panic!(
-                                    "Variable '{}.{}' is already declared.",
-                                    &scope_owner, &name
-                                );
-                            };
-                            vars.push(SymbolIdentifier {
-                                owner: scope_owner.clone(),
-                                name,
-                            });
-                        }
-                        DeclKind::Transition(_) => {
-                            // Transitions are inserted in the symbol table, but their name
-                            // is also stored in the player.actions so they can easily be found
-                            // later when run.
-                            let relabeled_decl = relabeler.relabel_decl(&decl)?;
-                            let name = relabeled_decl.kind.ident().name().to_string();
-                            if symbols
-                                .insert(&scope_owner, &name, relabeled_decl)
-                                .is_some()
-                            {
-                                panic!("Action '{}.{}' is already declared.", &scope_owner, &name);
-                            };
-                            player.actions.push(scope_owner.symbol_id(&name));
-                        }
-                        _ => panic!(
-                            "Not a declaration allowed in templates. Parser must have failed."
-                        ),
-                    }
-                }
-            } else {
-                panic!("'{}' is not a template.", template_decl.kind.ident().name());
-                // TODO Use custom error
-            }
+        // Go through each declaration in the template and register a relabeled
+        // clone of it that is owned by the given player // FIXME docs
+        let new_decls = inner_decls.iter().map(|idecl| {
+            let mut new_decl = relabeler.relabel_decl(idecl.clone())?;
+            new_decl.ident.owner = Some(Ident::new(NO_SPAN, pdecl_rc.ident.name.text.clone()));
+            // FIXME Updates indexes!
+            Ok((new_decl, idecl.span))
+        }).collect::<Result<Vec<_>, _>>()?;
 
-            // The player is done. We can now register the player declaration.
-            players.push(player);
-            let name = player_decl.name.name().to_string();
-            symbols.insert(&Owner::Global, &name, decl);
-        } else {
-            panic!("A non-PlayerDecl got into this vector");
+        drop(pdecl_rc);
+        drop(tdecl);
+
+        for (new_decl, span) in new_decls {
+            let vec = match &new_decl.kind {
+                DeclKind::StateLabel(_, _) => &mut labels,
+                DeclKind::StateVar(_) => &mut vars,
+                DeclKind::Action(_) => &mut player.actions,
+                _ => panic!(
+                    "Not a declaration allowed in templates. Parser must have failed."
+                ),
+            };
+            let index = symbols.insert(new_decl).map_err(|msg| SpannedError::new(span, msg))?;
+            vec.push(index);
         }
+
+        // The player is done. We can now register the player declaration.
+        players_vec.push(player);
     }
-    Ok((players, labels, vars))
+    Ok((players_vec, labels, vars))
 }
 
 /// Reduces the declarations in a [SymbolTable] to a more compact version, if possible.
 /// Validity of identifiers are also checked and resolved.
-fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SymbolError> {
-    for (symb_id, rc_symb) in symbols {
-        // Create resolved name
-        let SymbolIdentifier { owner, name } = symb_id;
-        let resolved_name = Identifier::Resolved {
-            owner: owner.clone(),
-            name: name.clone(),
-        };
-
+fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
+    for symbol in symbols {
         // Optimize the declaration's expression(s)
-        let mut declaration = rc_symb.declaration.borrow_mut();
-        match declaration.kind.borrow_mut() {
-            DeclKind::Label(label) => {
-                label.name = resolved_name;
-                label.condition =
-                    SymbolChecker::new(symbols, owner.clone(), CheckMode::LabelOrTransition)
-                        .check(&label.condition)?;
+        let mut decl_ref = symbol.borrow_mut();
+        let Decl {
+            span: _,
+            kind,
+            ident,
+        } = decl_ref.deref_mut();
+        match kind {
+            DeclKind::StateLabel(_, expr) => {
+                *expr =
+                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr)
+                        .check(&expr)?;
             }
             DeclKind::StateVar(var) => {
-                var.name = resolved_name;
                 // Both initial value, min, and max are expected to be constant.
                 // Hence, we also evaluate them now so we don't have to do that each time.
-                let checker = SymbolChecker::new(symbols, owner.clone(), CheckMode::Const);
-                var.ir_initial_value = checker.check_eval(&var.initial_value)?;
+                // FIXME: These constants are not restricted to use only constants declared above it
+                let checker = SymbolChecker::new(symbols, &ident.owner, CheckMode::ConstExpr);
+                var.init_val = checker.check_eval(&var.init)?;
                 let min = checker.check_eval(&var.range.min)?;
                 let max = checker.check_eval(&var.range.max)?;
-                var.ir_range = min..=max;
-                assert!(var.ir_range.contains(&var.ir_initial_value), "");
-                var.next_value =
-                    SymbolChecker::new(symbols, owner.clone(), CheckMode::StateVarUpdate)
-                        .check(&var.next_value)?;
+                var.range.val = min..=max;
+                if !var.range.val.contains(&var.init_val) {
+                    return Err(SpannedError::new(
+                        var.init.span,
+                        format!(
+                            "Initial value {} is not in range {}..{}",
+                            var.init_val, min, max
+                        ),
+                    ));
+                }
+                var.update =
+                    SymbolChecker::new(symbols, &ident.owner, CheckMode::UpdateExpr)
+                        .check(&var.update)?;
             }
-            DeclKind::Transition(tran) => {
-                tran.name = resolved_name;
-                tran.condition =
-                    SymbolChecker::new(symbols, owner.clone(), CheckMode::LabelOrTransition)
-                        .check(&tran.condition)?;
+            DeclKind::Action(cond) => {
+                *cond =
+                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr)
+                        .check(&cond)?;
             }
-            DeclKind::Player(player) => {
-                player.name = resolved_name;
-            }
-            DeclKind::Template(template) => {
-                template.name = resolved_name;
-            }
-            DeclKind::Const(_) => {} // Needs no further reduction
+            // Needs no symbol check or evaluate
+            DeclKind::Player(_) => {}
+            DeclKind::Template(_) => {}
+            DeclKind::Const(_) => {}
+            DeclKind::Error => {}
         }
     }
     Ok(())
@@ -416,7 +353,7 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SymbolError> {
 
 /// A game structure state of an LCGS. Holds a mapping of symbol names to their current value
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct State(pub HashMap<SymbolIdentifier, i32>);
+pub struct State(pub HashMap<SymbIdx, i32>);
 
 impl Display for State {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -433,28 +370,27 @@ impl Display for State {
 }
 
 impl GameStructure for IntermediateLcgs {
-    fn initial_state_index(&self) -> usize {
+    fn initial_state_index(&self) -> StateIdx {
         self.index_of_state(&self.initial_state())
     }
 
-    fn max_player(&self) -> usize {
+    fn player_count(&self) -> usize {
         self.players.len()
     }
 
     /// Returns the set of labels/propositions available in the given state.
-    fn labels(&self, state: game_structure::State) -> HashSet<Proposition> {
+    fn labels(&self, state: StateIdx) -> HashSet<PropIdx> {
         let state = self.state_from_index(state);
         let mut res = HashSet::new();
 
-        // The labels id is their index in the self.labels vector
-        for (i, symb_id) in self.labels.iter().enumerate() {
-            let symb = self.symbols.get(symb_id).unwrap();
-            if let DeclKind::Label(label) = &symb.kind {
+        for symb_id in &self.labels {
+            let symb = &self.decls[symb_id.0];
+            if let DeclKind::StateLabel(idx, cond) = &symb.kind {
                 // We evaluate the condition with the values of the current state to know
                 // whether the label is present or not
-                let value = Evaluator::new(&state).eval(&label.condition);
+                let value = Evaluator::new(&state).eval(&cond);
                 if value != 0 {
-                    res.insert(i);
+                    res.insert(*idx);
                 }
             }
         }
@@ -462,40 +398,38 @@ impl GameStructure for IntermediateLcgs {
     }
 
     /// Returns the next state given a current state and an action for each player.
-    fn transitions(&self, state: game_structure::State, choices: Vec<usize>) -> usize {
+    fn get_successor(&self, state: StateIdx, choices: &[ActionIdx]) -> StateIdx {
         let mut state = self.state_from_index(state);
         // To evaluate the next state we assign the actions to either 1 or 0 depending
         // on whether or not the action was taken
         for (p_index, player) in self.players.iter().enumerate() {
-            // The `choices` vector only considers available actions, so we do those first
-            let moves = self.available_actions(&state, p_index);
+            // ActionIdx is a index into the currently available actions
+            let moves = self.available_actions(&state, PlayerIdx(p_index));
             debug_assert!(
-                choices[p_index] < moves.len(),
-                "Unknown action {} chosen for player {} in state {:?}",
+                choices[p_index].0 < moves.len(),
+                "Unknown action {} chosen for player {}. They only have {} actions available in state {:?}",
                 choices[p_index],
                 p_index,
+                moves.len(),
                 state
             );
-            for (a_index, a_symb_id) in moves.iter().enumerate() {
-                let val = if choices[p_index] == a_index { 1 } else { 0 };
-                state.0.insert(a_symb_id.clone(), val);
-            }
 
-            // Some actions might not be available. These should also be set to 0.
+            // First set all actions (also the unavailable actions) to 0,
+            // then set the chosen action to 1
             for action in &player.actions {
-                if !state.0.contains_key(action) {
-                    state.0.insert(action.clone(), 0);
-                }
+                state.0.insert(action.clone(), 0);
             }
+            let act = moves[choices[p_index].0];
+            state.0.insert(act, 1);
         }
 
         // Now we can evaluate the next state based on previous state and the actions taken
         let evaluator = Evaluator::new(&state);
         let mut next_state = State(HashMap::new());
         for symb_id in &self.vars {
-            let symb = self.symbols.get(symb_id).unwrap();
+            let symb = &self.decls[symb_id.0];
             if let DeclKind::StateVar(var) = &symb.kind {
-                let val = evaluator.eval(&var.next_value);
+                let val = evaluator.eval(&var.update);
                 next_state.0.insert(symb_id.clone(), val);
             }
         }
@@ -504,48 +438,49 @@ impl GameStructure for IntermediateLcgs {
     }
 
     /// Returns the number of moves available to each player in the given state.
-    fn move_count(&self, state: game_structure::State) -> Vec<usize> {
+    fn move_count(&self, state: StateIdx) -> Vec<usize> {
         let state = self.state_from_index(state);
         self.players
             .iter()
             .enumerate()
-            .map(|(i, _player)| self.available_actions(&state, i).len())
+            .map(|(i, _player)| self.available_actions(&state, PlayerIdx(i)).len())
             .collect()
     }
 
-    fn state_name(&self, state: game_structure::State) -> String {
+    fn state_name(&self, state: StateIdx) -> String {
         self.state_from_index(state).to_string()
     }
 
-    fn label_name(&self, proposition: Proposition) -> String {
-        self.labels.get(proposition).unwrap().to_string()
+    fn label_name(&self, proposition: PropIdx) -> String {
+        self.decls[self.labels[proposition.0].0].ident.to_string()
     }
 
-    fn player_name(&self, player: game_structure::Player) -> String {
-        self.players.get(player).unwrap().name.to_string()
+    fn player_name(&self, player: PlayerIdx) -> String {
+        self.decls[self.players[player.0].index.0].ident.to_string()
     }
 
     fn action_name(
         &self,
-        state: game_structure::State,
-        player: game_structure::Player,
-        action: Action,
+        state: StateIdx,
+        player: PlayerIdx,
+        action: ActionIdx,
     ) -> String {
         let state = self.state_from_index(state);
         let actions = self.available_actions(&state, player);
-        actions.get(action).unwrap().to_string()
+        self.decls[actions[action.0].0].ident.to_string()
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
+    use crate::game_structure::GameStructure;
     use crate::game_structure::lcgs::ast::DeclKind;
     use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
     use crate::game_structure::lcgs::ir::symbol_table::Owner;
     use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
     use crate::game_structure::lcgs::parse::parse_lcgs;
-    use crate::game_structure::GameStructure;
-    use std::collections::HashMap;
 
     #[test]
     fn test_symbol_01() {

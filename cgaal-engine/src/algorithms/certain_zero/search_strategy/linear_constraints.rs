@@ -1,7 +1,7 @@
-use crate::game_structure::lcgs::ast::{BinaryOpKind, Expr, ExprKind, Identifier, UnaryOpKind};
-use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use crate::game_structure::lcgs::symbol_table::SymbIdx;
+use crate::parsing::ast::{BinaryOpKind, Expr, ExprKind, UnaryOpKind};
 
 /// All comparison operators
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
@@ -58,7 +58,7 @@ impl From<ComparisonOp> for minilp::ComparisonOp {
 #[derive(Clone)]
 pub struct LinearConstraint {
     /// A list of variables and their coefficients
-    pub terms: HashMap<SymbolIdentifier, f64>,
+    pub terms: HashMap<SymbIdx, f64>,
     pub constant: f64,
     pub comparison: ComparisonOp,
     /// The norm of the coefficients. That is, if the linear expression is `ax + by + cz + k`, then
@@ -85,9 +85,9 @@ impl Display for LinearConstraint {
 }
 
 /// A visitor that can extract linear constraints from an Expr.
-/// See LinearConstraintExtractor::extract.
+/// See [LinearConstraintExtractor::extract].
 pub struct LinearConstraintExtractor {
-    terms: HashMap<SymbolIdentifier, f64>,
+    terms: HashMap<SymbIdx, f64>,
     constant: f64,
     comparison: ComparisonOp,
 }
@@ -99,13 +99,13 @@ impl LinearConstraintExtractor {
     /// Terms will also be combined, e.g. `x + 2 * x = 0`, will result in x's coefficient being 3.
     pub fn extract(expr: &Expr) -> Option<LinearConstraint> {
         // Outermost node must be a comparison
-        if let ExprKind::BinaryOp(operator, lhs, rhs) = &expr.kind {
+        if let ExprKind::Binary(operator, lhs, rhs) = &expr.kind {
             let comparison = match operator {
-                BinaryOpKind::Equality => ComparisonOp::Equal,
-                BinaryOpKind::GreaterThan => ComparisonOp::Greater,
-                BinaryOpKind::GreaterOrEqual => ComparisonOp::GreaterOrEq,
-                BinaryOpKind::LessThan => ComparisonOp::Less,
-                BinaryOpKind::LessOrEqual => ComparisonOp::LessOrEq,
+                BinaryOpKind::Eq => ComparisonOp::Equal,
+                BinaryOpKind::Gt => ComparisonOp::Greater,
+                BinaryOpKind::Geq => ComparisonOp::GreaterOrEq,
+                BinaryOpKind::Lt => ComparisonOp::Less,
+                BinaryOpKind::Leq => ComparisonOp::LessOrEq,
                 _ => return None,
             };
 
@@ -117,7 +117,7 @@ impl LinearConstraintExtractor {
             };
 
             // Visit both sides of the comparison. We want to move the stuff on the rhs to the lhs
-            // so everyone found on the rhs is multiplied by -1
+            // so every variable found on the rhs is multiplied by -1
             extractor.collect_terms(lhs, 1.0)?;
             extractor.collect_terms(rhs, -1.0)?;
 
@@ -133,55 +133,44 @@ impl LinearConstraintExtractor {
     /// If this returns None, the expression is not linear.
     fn collect_terms(&mut self, expr: &Expr, sign: f64) -> Option<()> {
         match &expr.kind {
-            ExprKind::Number(n) => self.constant += sign * (*n as f64),
-            ExprKind::OwnedIdent(ident) => {
+            ExprKind::Num(n) => self.constant += sign * (*n as f64),
+            ExprKind::OwnedIdent(_) => panic!("Found an owned identifier during linear constraint extraction. All identifiers should have been replaced with symbols by now."),
+            ExprKind::Symbol(symb) => {
                 // A variable with no explicit coefficient (which means the coefficient is 1)
-                if let Identifier::Resolved { owner, name } = ident.as_ref() {
-                    let coefficient = self.terms.entry(owner.symbol_id(name)).or_default();
-                    *coefficient += sign;
-                } else {
-                    panic!("Unresolved identifier")
-                }
+                let coefficient = self.terms.entry(*symb).or_default();
+                *coefficient += sign;
             }
-            ExprKind::UnaryOp(UnaryOpKind::Negation, expr) => {
+            ExprKind::Unary(UnaryOpKind::Neg, expr) => {
                 // Unary negation simply flips the sign
                 self.collect_terms(expr, -sign)?;
             }
-            ExprKind::BinaryOp(operator, lhs, rhs) => match operator {
-                BinaryOpKind::Addition => {
+            ExprKind::Binary(operator, lhs, rhs) => match operator {
+                BinaryOpKind::Add => {
                     self.collect_terms(lhs, sign)?;
                     self.collect_terms(rhs, sign)?;
                 }
-                BinaryOpKind::Subtraction => {
+                BinaryOpKind::Sub => {
                     self.collect_terms(lhs, sign)?;
                     self.collect_terms(rhs, -sign)?; // Note: flipped sign
                 }
-                BinaryOpKind::Multiplication => {
+                BinaryOpKind::Mul => {
                     // We found a potential term
                     // One side must be a constant, the other must be a variable
-                    if let (ExprKind::Number(n), ExprKind::OwnedIdent(ident))
-                    | (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) = (&lhs.kind, &rhs.kind)
+                    if let (ExprKind::Num(n), ExprKind::Symbol(symb))
+                    | (ExprKind::Symbol(symb), ExprKind::Num(n)) = (&lhs.kind, &rhs.kind)
                     {
-                        if let Identifier::Resolved { owner, name } = ident.as_ref() {
-                            let coefficient = self.terms.entry(owner.symbol_id(name)).or_default();
-                            *coefficient += (*n as f64) * sign;
-                        } else {
-                            panic!("Unresolved identifier")
-                        }
+                        let coefficient = self.terms.entry(*symb).or_default();
+                        *coefficient += (*n as f64) * sign;
                     } else {
                         return None;
                     }
                 }
-                BinaryOpKind::Division => {
-                    if let (ExprKind::OwnedIdent(ident), ExprKind::Number(n)) =
+                BinaryOpKind::Div => {
+                    if let (ExprKind::Symbol(symb), ExprKind::Num(n)) =
                         (&lhs.kind, &rhs.kind)
                     {
-                        if let Identifier::Resolved { owner, name } = ident.as_ref() {
-                            let coefficient = self.terms.entry(owner.symbol_id(name)).or_default();
-                            *coefficient += sign / (*n as f64);
-                        } else {
-                            panic!("Unresolved identifier")
-                        }
+                        let coefficient = self.terms.entry(*symb).or_default();
+                        *coefficient += sign / (*n as f64);
                     } else {
                         return None;
                     }
@@ -193,7 +182,7 @@ impl LinearConstraintExtractor {
         Some(())
     }
 
-    /// Finish the extraction by turn the extractor into a linear constraint
+    /// Finish the extraction by turning the extractor into a linear constraint
     fn into_constraint(self) -> LinearConstraint {
         // This value is useful for calculating distance later
         // Since it involves sqrt we don't want to do it multiple times
@@ -218,10 +207,8 @@ mod test {
     use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
         ComparisonOp, LinearConstraintExtractor,
     };
-    use crate::game_structure::lcgs::ast::DeclKind;
-    use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-    use crate::game_structure::lcgs::ir::symbol_table::Owner;
-    use crate::game_structure::lcgs::parse::parse_lcgs;
+    use crate::game_structure::lcgs::intermediate::IntermediateLcgs;
+    use crate::parsing::ast::DeclKind;
 
     #[test]
     fn simple_comparison_01() {

@@ -1,7 +1,8 @@
 use crate::parsing::span::Span;
 use std::cell::RefCell;
 use std::cmp::{max, min};
-use std::fmt::Write;
+use std::error::Error;
+use std::fmt::{Display, Formatter, Write};
 
 /// A log of errors that occurred during parsing or semantic analysis.
 /// Each [ErrorLogEntry] has a span that indicates its origin in the original input code.
@@ -26,6 +27,10 @@ impl ErrorLog {
 
     pub fn log_msg(&self, msg: String) {
         self.errors.borrow_mut().push(ErrorLogEntry::msg_only(msg));
+    }
+
+    pub fn log_err(&self, err: SpannedError) {
+        self.errors.borrow_mut().push(ErrorLogEntry::new(err.span, err.msg));
     }
 
     pub fn len(&self) -> usize {
@@ -117,6 +122,28 @@ impl ErrorLogEntry {
         ErrorLogEntry { span: None, msg }
     }
 }
+
+/// An error with a span in the original input code.
+/// Must be logged in an [ErrorLog] for prettier display.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SpannedError {
+    pub span: Span,
+    pub msg: String,
+}
+
+impl SpannedError {
+    pub fn new(span: Span, msg: String) -> Self {
+        SpannedError { span, msg }
+    }
+}
+
+impl Display for SpannedError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+
+impl Error for SpannedError {}
 
 #[cfg(test)]
 mod tests {

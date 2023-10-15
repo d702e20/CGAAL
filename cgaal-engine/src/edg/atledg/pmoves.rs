@@ -1,5 +1,5 @@
 use crate::edg::atledg::format::PartialMoveWithFormatting;
-use crate::game_structure::{GameStructure, Player, State};
+use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, StateIdx};
 use std::collections::HashSet;
 use std::convert::From;
 use std::fmt::{Display, Formatter};
@@ -10,7 +10,7 @@ pub enum PartialMoveChoice {
     /// Range from 0 to given number
     Range(usize),
     /// Chosen move for player
-    Specific(usize),
+    Specific(ActionIdx),
 }
 
 impl PartialMoveChoice {
@@ -21,7 +21,7 @@ impl PartialMoveChoice {
         *r
     }
 
-    pub fn unwrap_specific(&self) -> usize {
+    pub fn unwrap_specific(&self) -> ActionIdx {
         let PartialMoveChoice::Specific(r) = self else {
             panic!("PartialMoveChoice was not a specific move")
         };
@@ -41,17 +41,17 @@ impl Display for PartialMoveChoice {
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct PartialMove(pub(crate) Vec<PartialMoveChoice>);
 
-impl From<Vec<usize>> for PartialMove {
-    fn from(v: Vec<usize>) -> Self {
+impl From<&[ActionIdx]> for PartialMove {
+    fn from(v: &[ActionIdx]) -> Self {
         PartialMove(v.iter().map(|m| PartialMoveChoice::Specific(*m)).collect())
     }
 }
 
-impl Index<Player> for PartialMove {
+impl Index<PlayerIdx> for PartialMove {
     type Output = PartialMoveChoice;
 
-    fn index(&self, index: Player) -> &Self::Output {
-        &self.0[index]
+    fn index(&self, index: PlayerIdx) -> &Self::Output {
+        &self.0[index.0]
     }
 }
 
@@ -62,7 +62,7 @@ impl PartialMove {
     pub fn in_context_of<'a, G: GameStructure>(
         &'a self,
         game: &'a G,
-        state: &'a State,
+        state: &'a StateIdx,
     ) -> PartialMoveWithFormatting<'a, G> {
         PartialMoveWithFormatting {
             pmove: self,
@@ -77,7 +77,7 @@ impl PartialMove {
 pub(crate) struct PartialMoveIterator<'a> {
     partial_move: &'a PartialMove,
     initialized: bool,
-    current: Vec<usize>,
+    current: Vec<ActionIdx>,
 }
 
 impl<'a> PartialMoveIterator<'a> {
@@ -101,7 +101,7 @@ impl<'a> PartialMoveIterator<'a> {
             .0
             .iter()
             .map(|case| match case {
-                PartialMoveChoice::Range(_) => 0,
+                PartialMoveChoice::Range(_) => ActionIdx(0),
                 PartialMoveChoice::Specific(n) => *n,
             })
             .collect();
@@ -109,7 +109,7 @@ impl<'a> PartialMoveIterator<'a> {
 
     /// Updates self.current to the next move vector. This function returns false if a new
     /// move vector could not be created (due to exceeding the ranges in the partial move).
-    fn make_next(&mut self, player: Player) -> bool {
+    fn make_next(&mut self, player: usize) -> bool {
         if player >= self.partial_move.0.len() {
             false
 
@@ -122,14 +122,14 @@ impl<'a> PartialMoveIterator<'a> {
                 PartialMoveChoice::Range(n) => {
                     let current = &mut self.current;
                     // Increase move index and return true if it's valid
-                    current[player] += 1;
-                    if current[player] < n {
+                    current[player].0 += 1;
+                    if current[player].0 < n {
                         true
                     } else {
                         // We have rolled over (self.next[player] >= n).
                         // Reset this player's move index and return false to indicate it
                         // was not possible to create a valid next move at this depth
-                        current[player] = 0;
+                        current[player].0 = 0;
                         false
                     }
                 }
@@ -142,7 +142,7 @@ impl<'a> PartialMoveIterator<'a> {
 
 /// Allows the PartialMoveIterator to be iterated over.
 impl<'a> Iterator for PartialMoveIterator<'a> {
-    type Item = Vec<usize>;
+    type Item = Vec<ActionIdx>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.initialized {
@@ -171,11 +171,11 @@ impl PmovesIterator {
     /// * `moves` number of moves for each player.
     /// * `players` set of players who has to make a specific move.
     ///
-    pub fn new(moves: Vec<usize>, players: HashSet<Player>) -> Self {
+    pub fn new(moves: Vec<usize>, players: HashSet<PlayerIdx>) -> Self {
         let mut position = Vec::with_capacity(moves.len());
         for (i, mov) in moves.iter().enumerate() {
-            position.push(if players.contains(&i) {
-                PartialMoveChoice::Specific(0)
+            position.push(if players.contains(&PlayerIdx(i)) {
+                PartialMoveChoice::Specific(ActionIdx(0))
             } else {
                 PartialMoveChoice::Range(*mov)
             })
@@ -213,14 +213,14 @@ impl Iterator for PmovesIterator {
                     continue;
                 }
                 PartialMoveChoice::Specific(value) => {
-                    let new_value = value + 1;
+                    let new_value = value.0 + 1;
 
                     if new_value >= self.moves[roll_over_pos] {
                         // Rolled over
-                        self.position.0[roll_over_pos] = PartialMoveChoice::Specific(0);
+                        self.position.0[roll_over_pos] = PartialMoveChoice::Specific(ActionIdx(0));
                         roll_over_pos += 1;
                     } else {
-                        self.position.0[roll_over_pos] = PartialMoveChoice::Specific(new_value);
+                        self.position.0[roll_over_pos] = PartialMoveChoice::Specific(ActionIdx(new_value));
                         break;
                     }
                 }
@@ -236,16 +236,16 @@ impl Iterator for PmovesIterator {
 /// it can be reached with different partial moves.
 pub(crate) struct DeltaIterator<'a, G: GameStructure> {
     game_structure: &'a G,
-    state: State,
+    state: StateIdx,
     moves: PartialMoveIterator<'a>,
     /// Contains the states, that have already been produced once, so we can avoid producing
     /// them again
-    known: HashSet<State>,
+    known: HashSet<StateIdx>,
 }
 
 impl<'a, G: GameStructure> DeltaIterator<'a, G> {
     /// Create a new DeltaIterator
-    pub(crate) fn new(game_structure: &'a G, state: State, moves: &'a PartialMove) -> Self {
+    pub(crate) fn new(game_structure: &'a G, state: StateIdx, moves: &'a PartialMove) -> Self {
         let known = HashSet::new();
         let moves = PartialMoveIterator::new(moves);
 
@@ -259,20 +259,20 @@ impl<'a, G: GameStructure> DeltaIterator<'a, G> {
 }
 
 impl<'a, G: GameStructure> Iterator for DeltaIterator<'a, G> {
-    type Item = (State, PartialMove);
+    type Item = (StateIdx, PartialMove);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // Get the next move vector from the partial move
             let mov = self.moves.next();
             if let Some(mov) = mov {
-                let res = self.game_structure.transitions(self.state, mov.clone());
+                let res = self.game_structure.get_successor(self.state, &mov);
                 // Have we already produced this resulting state before?
                 if self.known.contains(&res) {
                     continue;
                 } else {
                     self.known.insert(res);
-                    return Some((res, mov.into()));
+                    return Some((res, mov.as_slice().into()));
                 }
             } else {
                 return None;
@@ -289,13 +289,13 @@ mod test {
     use crate::edg::atledg::pmoves::{
         DeltaIterator, PartialMove, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
     };
-    use crate::game_structure::{DynVec, EagerGameStructure};
+    use crate::game_structure::{ActionIdx, DynVec, EagerGameStructure};
 
     #[test]
     fn partial_move_iterator_01() {
         let partial_move = PartialMove(vec![
             PartialMoveChoice::Range(2),
-            PartialMoveChoice::Specific(1),
+            PartialMoveChoice::Specific(ActionIdx(1)),
             PartialMoveChoice::Range(2),
         ]);
 

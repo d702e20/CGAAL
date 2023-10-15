@@ -11,8 +11,8 @@ pub mod span;
 mod token;
 
 /// Parse an ATL expression.
-/// Returns None if there were errors. See the [ErrorLog] for details.
-pub fn parse_atl(input: &str, errors: &ErrorLog) -> Option<Expr> {
+/// Returns Err if there were errors. See the [ErrorLog] for details.
+pub fn parse_atl(input: &str, errors: &ErrorLog) -> Result<Expr, ()> {
     let lexer = Lexer::new(input.as_bytes(), errors);
     let mut parser = Parser::new(lexer, errors);
     let expr = parser
@@ -23,9 +23,9 @@ pub fn parse_atl(input: &str, errors: &ErrorLog) -> Option<Expr> {
         })
         .unwrap_or(Expr::new_error());
     if errors.has_errors() {
-        None
+        Err(())
     } else {
-        Some(expr)
+        Ok(expr)
     }
 }
 

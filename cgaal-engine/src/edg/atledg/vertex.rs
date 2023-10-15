@@ -1,18 +1,18 @@
 use crate::atl::Phi;
 use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::Vertex;
-use crate::game_structure::State;
+use crate::game_structure::StateIdx;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub enum AtlVertex {
     Full {
-        state: State,
+        state: StateIdx,
         formula: Arc<Phi>,
     },
     Partial {
-        state: State,
+        state: StateIdx,
         partial_move: PartialMove,
         formula: Arc<Phi>,
     },
@@ -41,7 +41,7 @@ impl Display for AtlVertex {
 }
 
 impl AtlVertex {
-    pub fn state(&self) -> State {
+    pub fn state(&self) -> StateIdx {
         match self {
             AtlVertex::Full { state, .. } => *state,
             AtlVertex::Partial { state, .. } => *state,

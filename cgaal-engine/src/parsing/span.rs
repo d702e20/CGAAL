@@ -2,6 +2,9 @@ use std::cmp::{max, min};
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Range};
 
+/// An empty span indicating that the span does not originate from the original input.
+pub const NO_SPAN: Span = Span::empty();
+
 /// A [Span] describes the position of a slice of text in the original program.
 /// Usually used to describe what text a token or an AST node was created from.
 #[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
@@ -11,12 +14,16 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn new(begin: usize, end: usize) -> Self {
+    pub const fn new(begin: usize, end: usize) -> Self {
         Span { begin, end }
     }
 
+    pub const fn empty() -> Self {
+        Span::new(0, 0)
+    }
+
     /// Returns an equivalent range
-    pub fn to_range(&self) -> Range<usize> {
+    pub const fn to_range(&self) -> Range<usize> {
         self.begin..self.end
     }
 

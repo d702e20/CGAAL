@@ -6,12 +6,12 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::DeclKind;
-use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
 use minilp::{LinearExpr, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
+use crate::parsing::ast::DeclKind;
 
 /// A [SearchStrategyBuilder] for building the [LinearRepresentativeSearch] strategy.
 pub struct LinearRepresentativeSearchBuilder {
@@ -42,8 +42,8 @@ impl LinearRepresentativeSearchBuilder {
                     unreachable!()
                 };
                 let range = (
-                    *var_decl.ir_range.start() as f64,
-                    *var_decl.ir_range.end() as f64,
+                    *var_decl.range.val.start() as f64,
+                    *var_decl.range.val.end() as f64,
                 );
                 let var = problem.add_var(1.0, range);
                 vars.insert(state_var, var);
@@ -74,7 +74,7 @@ impl LinearRepresentativeSearchBuilder {
                 let mut state = State(HashMap::new());
                 for (state_var, goal_var) in vars {
                     let v = solution[goal_var] as i32;
-                    state.0.insert(state_var, v);
+                    state.0.insert(*state_var, v);
                 }
                 representatives.push(state);
             }

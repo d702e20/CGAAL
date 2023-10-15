@@ -2,13 +2,11 @@ use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
     ComparisonOp, LinearConstraint, LinearConstraintExtractor,
 };
 use crate::atl::Phi;
-use crate::game_structure::lcgs::ast::{
-    BinaryOpKind, DeclKind, Expr, ExprKind, Identifier, UnaryOpKind,
-};
-use crate::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use crate::game_structure::Proposition;
+use crate::game_structure::PropIdx;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use crate::game_structure::lcgs::intermediate::IntermediateLcgs;
+use crate::parsing::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, UnaryOpKind};
 
 /// A structure describing the relation between linear constraints in a ATL formula
 #[derive(Clone)]
@@ -48,7 +46,7 @@ impl LinearConstrainedPhi {
 
 pub struct ConstrainedPhiMaker {
     /// Cached LinearConstrainedPhi of propositions. The bool is true for negated propositions.
-    proposition_cache: RefCell<HashMap<(Proposition, bool), LinearConstrainedPhi>>,
+    proposition_cache: RefCell<HashMap<(PropIdx, bool), LinearConstrainedPhi>>,
 }
 
 impl ConstrainedPhiMaker {
@@ -94,8 +92,8 @@ impl ConstrainedPhiMaker {
                 maybe_constraint.unwrap_or_else(|| {
                     // We have not mapped this proposition yet
                     let decl = game.label_index_to_decl(*proposition);
-                    if let DeclKind::Label(label) = &decl.kind {
-                        let mapped_expr = Self::map_expr_to_constraints(&label.condition, negated);
+                    if let DeclKind::StateLabel(_, expr) = &decl.kind {
+                        let mapped_expr = Self::map_expr_to_constraints(&expr, negated);
                         // Save result in cache
                         self.proposition_cache
                             .borrow_mut()
@@ -163,16 +161,16 @@ impl ConstrainedPhiMaker {
     /// Takes an expression and maps it to a LinearConstrainedPhi
     fn map_expr_to_constraints(expr: &Expr, negated: bool) -> LinearConstrainedPhi {
         match &expr.kind {
-            ExprKind::UnaryOp(UnaryOpKind::Not, sub_expr) => {
+            ExprKind::Unary(UnaryOpKind::Not, sub_expr) => {
                 return Self::map_expr_to_constraints(sub_expr, !negated);
             }
-            ExprKind::BinaryOp(operator, lhs, rhs) => {
+            ExprKind::Binary(operator, lhs, rhs) => {
                 match operator {
-                    BinaryOpKind::Equality
-                    | BinaryOpKind::GreaterThan
-                    | BinaryOpKind::GreaterOrEqual
-                    | BinaryOpKind::LessThan
-                    | BinaryOpKind::LessOrEqual => {
+                    BinaryOpKind::Eq
+                    | BinaryOpKind::Gt
+                    | BinaryOpKind::Geq
+                    | BinaryOpKind::Lt
+                    | BinaryOpKind::Leq => {
                         let lin_expr = LinearConstraintExtractor::extract(expr);
                         return if let Some(lin_expr) = lin_expr {
                             if !negated {
@@ -203,7 +201,7 @@ impl ConstrainedPhiMaker {
                         };
                     }
                     // P -> Q == not P v Q
-                    BinaryOpKind::Implication => {
+                    BinaryOpKind::Implies => {
                         let lhs_con = Self::map_expr_to_constraints(lhs, !negated);
                         let rhs_con = Self::map_expr_to_constraints(rhs, negated);
                         return if !negated {
@@ -215,7 +213,7 @@ impl ConstrainedPhiMaker {
                     _ => {}
                 }
             }
-            ExprKind::Number(n) => {
+            ExprKind::Num(n) => {
                 // Think of != as XOR in this situation
                 return if (*n == 0) != negated {
                     LinearConstrainedPhi::False
@@ -248,11 +246,9 @@ impl ConstrainedPhiMaker {
                 };
             }
             // This is essentially x != 0, if x is the name of the symbol
-            ExprKind::OwnedIdent(ident) => {
+            ExprKind::Symbol(symb) => {
                 let mut terms_hashmap = HashMap::new();
-                if let Identifier::Resolved { owner, name } = ident.as_ref() {
-                    terms_hashmap.insert(owner.symbol_id(name), 1.0);
-                }
+                terms_hashmap.insert(*symb, 1.0);
 
                 let operator = if !negated {
                     ComparisonOp::NotEqual
@@ -269,7 +265,6 @@ impl ConstrainedPhiMaker {
 
                 return LinearConstrainedPhi::Constraint(constraint);
             }
-            // TODO Other expression can be converted to a comparisons since everything != 0 is true
             _ => {}
         }
 
