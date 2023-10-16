@@ -56,7 +56,7 @@ fn main_inner() -> Result<(), String> {
             println!("Players:");
             for player in ir.get_players() {
                 let decl = ir.get_decl(&player.symbol_index).unwrap();
-                println!("{} : {}", decl.ident, player.index);
+                println!("{} : {}", decl.ident, player.player_index);
             }
 
             println!("\nLabels:");

@@ -1,21 +1,21 @@
+use crate::atl::Phi;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::ops::DerefMut;
-use crate::atl::Phi;
 
-use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, PropIdx, StateIdx};
 use crate::game_structure::lcgs::eval::Evaluator;
 use crate::game_structure::lcgs::query::convert_expr_to_phi;
 use crate::game_structure::lcgs::relabeling::Relabeler;
 use crate::game_structure::lcgs::symbol_checker::{CheckMode, SymbolChecker};
 use crate::game_structure::lcgs::symbol_table::{SymbIdx, SymbolTable};
+use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, PropIdx, StateIdx};
 use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, LcgsRoot};
 use crate::parsing::errors::{ErrorLog, SpannedError};
 
 /// A struct that holds information about players for the intermediate representation
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Player {
-    pub index: PlayerIdx,
+    pub player_index: PlayerIdx,
     pub symbol_index: SymbIdx,
     pub actions: Vec<SymbIdx>,
 }
@@ -23,7 +23,7 @@ pub struct Player {
 impl Player {
     pub fn new(index: PlayerIdx, symbol_index: SymbIdx) -> Player {
         Player {
-            index,
+            player_index: index,
             symbol_index,
             actions: vec![],
         }
@@ -47,7 +47,8 @@ impl IntermediateLcgs {
         let mut symbols = SymbolTable::new();
 
         // Register global decls. Then check and optimize them
-        let (players, labels, vars) = register_decls(&mut symbols, root).map_err(|se| errors.log_err(se))?;
+        let (players, labels, vars) =
+            register_decls(&mut symbols, root).map_err(|se| errors.log_err(se))?;
         check_and_optimize_decls(&symbols).map_err(|se| errors.log_err(se))?;
 
         let ilcgs = IntermediateLcgs {
@@ -70,7 +71,9 @@ impl IntermediateLcgs {
     }
 
     pub fn get_decl_by_name(&self, name: &str) -> Option<&Decl> {
-        self.decls.iter().find(|decl| &decl.ident.to_string() == &name)
+        self.decls
+            .iter()
+            .find(|decl| &decl.ident.to_string() == &name)
     }
 
     /// Transforms a state index to a [State].
@@ -131,11 +134,7 @@ impl IntermediateLcgs {
     }
 
     /// Returns a list of the moves available to the given player in the given state.
-    pub(crate) fn available_actions(
-        &self,
-        state: &State,
-        player: PlayerIdx,
-    ) -> Vec<SymbIdx> {
+    pub(crate) fn available_actions(&self, state: &State, player: PlayerIdx) -> Vec<SymbIdx> {
         self.players[player.0]
             .actions
             .iter()
@@ -186,16 +185,10 @@ type DeclNames = (Vec<Player>, Vec<SymbIdx>, Vec<SymbIdx>);
 /// Registers all declarations from the root in the symbol table. Constants are optimized to
 /// numbers immediately. On success, a vector of [Player]s is returned with information
 /// about players and the names of their actions.
-fn register_decls(
-    symbols: &mut SymbolTable,
-    root: LcgsRoot,
-) -> Result<DeclNames, SpannedError> {
+fn register_decls(symbols: &mut SymbolTable, root: LcgsRoot) -> Result<DeclNames, SpannedError> {
     let mut players = vec![];
     let mut labels = vec![];
     let mut vars = vec![];
-
-    let mut next_player_index = 0;
-    let mut next_label_index = 0;
 
     // Register global declarations.
     // Constants are evaluated immediately.
@@ -208,35 +201,52 @@ fn register_decls(
                 // refer to other constants that are above them in the program.
                 // If they don't reduce to a single number, then the SymbolChecker
                 // produces an error.
-                let reduced = SymbolChecker::new(symbols, &None, CheckMode::ConstExpr).check_eval(&expr)?;
-                let decl = Decl::new(span, ident.name, DeclKind::Const(Expr::new(expr.span, ExprKind::Num(reduced))));
-                let _ = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                let reduced =
+                    SymbolChecker::new(symbols, &None, CheckMode::ConstExpr).check_eval(&expr)?;
+                let decl = Decl::new(
+                    span,
+                    ident.name,
+                    DeclKind::Const(Expr::new(expr.span, ExprKind::Num(reduced))),
+                );
+                let _ = symbols
+                    .insert(decl)
+                    .map_err(|msg| SpannedError::new(span, msg))?;
             }
             DeclKind::StateLabel(_, expr) => {
                 // Insert in symbol table and add to labels list
-                let decl = Decl::new(span, ident.name, DeclKind::StateLabel(PropIdx(next_label_index), expr));
-                let index = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                let decl = Decl::new(
+                    span,
+                    ident.name,
+                    DeclKind::StateLabel(PropIdx(labels.len()), expr),
+                );
+                let index = symbols
+                    .insert(decl)
+                    .map_err(|msg| SpannedError::new(span, msg))?;
                 labels.push(index);
-                next_label_index += 1;
             }
             DeclKind::StateVar(state_var) => {
                 // Insert in symbol table and add to vars list
                 let decl = Decl::new(span, ident.name, DeclKind::StateVar(state_var));
-                let index = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                let index = symbols
+                    .insert(decl)
+                    .map_err(|msg| SpannedError::new(span, msg))?;
                 vars.push(index);
             }
             DeclKind::Template(inner_decls) => {
                 let decl = Decl::new(span, ident.name, DeclKind::Template(inner_decls));
-                let _ = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                let _ = symbols
+                    .insert(decl)
+                    .map_err(|msg| SpannedError::new(span, msg))?;
             }
             DeclKind::Player(mut player) => {
-                player.index = PlayerIdx(next_player_index);
+                player.index = PlayerIdx(players.len());
                 let decl = Decl::new(span, ident.name, DeclKind::Player(player));
-                let index = symbols.insert(decl).map_err(|msg| SpannedError::new(span, msg))?;
+                let index = symbols
+                    .insert(decl)
+                    .map_err(|msg| SpannedError::new(span, msg))?;
                 players.push(index);
-                next_player_index += 1;
             }
-            _ => panic!("Not a global declaration. Parser must have failed."),
+            _ => unreachable!("Not a global declaration. Parser must have failed."),
         }
     }
 
@@ -245,7 +255,9 @@ fn register_decls(
     let mut players_vec = vec![];
     for (index, symbol_index) in players.drain(..).enumerate() {
         let pdecl = symbols.get(symbol_index).borrow();
-        let DeclKind::Player(pkind) = &pdecl.kind else { unreachable!() };
+        let DeclKind::Player(pkind) = &pdecl.kind else {
+            unreachable!()
+        };
         let mut player = Player::new(PlayerIdx(index), symbol_index);
 
         let tdecl_opt = symbols.get_by_name(&pkind.template_ident.to_string());
@@ -267,17 +279,22 @@ fn register_decls(
 
         // Go through each declaration in the template and register a relabeled
         // clone of it that is owned by the given player // FIXME docs
-        let new_decls = inner_decls.iter().map(|idecl| {
-            let mut new_decl = relabeler.relabel_decl(idecl.clone())?;
-            new_decl.ident.owner = Some(pdecl.ident.name.clone());
-            Ok((new_decl, idecl.span))
-        }).collect::<Result<Vec<_>, _>>()?;
+        let new_decls = inner_decls
+            .iter()
+            .map(|idecl| {
+                let mut new_decl = relabeler.relabel_decl(idecl.clone())?;
+                new_decl.ident.owner = Some(pdecl.ident.name.clone());
+                Ok((new_decl, idecl.span))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         drop(pdecl);
         drop(tdecl);
 
         for (new_decl, span) in new_decls {
-            let index = symbols.insert(new_decl).map_err(|msg| SpannedError::new(span, msg))?;
+            let index = symbols
+                .insert(new_decl)
+                .map_err(|msg| SpannedError::new(span, msg))?;
             let mut ndecl = symbols.get(index).borrow_mut();
             match &mut ndecl.kind {
                 DeclKind::StateLabel(id, _) => {
@@ -286,9 +303,7 @@ fn register_decls(
                 }
                 DeclKind::StateVar(_) => vars.push(index),
                 DeclKind::Action(_) => player.actions.push(index),
-                _ => panic!(
-                    "Not a declaration allowed in templates. Parser must have failed."
-                ),
+                _ => panic!("Not a declaration allowed in templates. Parser must have failed."),
             }
         }
 
@@ -312,8 +327,7 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
         match kind {
             DeclKind::StateLabel(_, expr) => {
                 *expr =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr)
-                        .check(&expr)?;
+                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr).check(&expr)?;
             }
             DeclKind::StateVar(var) => {
                 // Both initial value, min, and max are expected to be constant.
@@ -333,14 +347,12 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
                         ),
                     ));
                 }
-                var.update =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::UpdateExpr)
-                        .check(&var.update)?;
+                var.update = SymbolChecker::new(symbols, &ident.owner, CheckMode::UpdateExpr)
+                    .check(&var.update)?;
             }
             DeclKind::Action(cond) => {
                 *cond =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr)
-                        .check(&cond)?;
+                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr).check(&cond)?;
             }
             // Needs no symbol check or evaluate
             DeclKind::Player(_) => {}
@@ -457,15 +469,12 @@ impl GameStructure for IntermediateLcgs {
     }
 
     fn player_name(&self, player: PlayerIdx) -> String {
-        self.decls[self.players[player.0].index.0].ident.to_string()
+        self.decls[self.players[player.0].symbol_index.0]
+            .ident
+            .to_string()
     }
 
-    fn action_name(
-        &self,
-        state: StateIdx,
-        player: PlayerIdx,
-        action: ActionIdx,
-    ) -> String {
+    fn action_name(&self, state: StateIdx, player: PlayerIdx, action: ActionIdx) -> String {
         let state = self.state_from_index(state);
         let actions = self.available_actions(&state, player);
         self.decls[actions[action.0].0].ident.to_string()
@@ -476,12 +485,12 @@ impl GameStructure for IntermediateLcgs {
 mod test {
     use std::collections::HashMap;
 
-    use crate::game_structure::GameStructure;
     use crate::game_structure::lcgs::ast::DeclKind;
     use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
     use crate::game_structure::lcgs::ir::symbol_table::Owner;
     use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
     use crate::game_structure::lcgs::parse::parse_lcgs;
+    use crate::game_structure::GameStructure;
 
     #[test]
     fn test_symbol_01() {
