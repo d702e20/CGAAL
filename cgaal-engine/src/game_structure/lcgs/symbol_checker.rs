@@ -1,5 +1,7 @@
 use crate::game_structure::lcgs::symbol_table::SymbolTable;
-use crate::parsing::ast::{BinaryOpKind, Coalition, DeclKind, Expr, ExprKind, Ident, OwnedIdent, UnaryOpKind};
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, DeclKind, Expr, ExprKind, Ident, OwnedIdent, UnaryOpKind,
+};
 use crate::parsing::errors::SpannedError;
 use crate::parsing::span::Span;
 
@@ -61,14 +63,15 @@ impl<'a> SymbolChecker<'a> {
     /// where we assume the expression can be reduced to a value already during symbol checking.
     pub fn check_eval(&self, expr: &Expr) -> Result<i32, SpannedError> {
         let checked = self.check(expr)?;
-        // FIXME: Should also accept true and false, since those are equal to 0 and 1
-        if let ExprKind::Num(n) = checked.kind {
-            Ok(n)
-        } else {
-            Err(SpannedError {
+        // FIXME: Doesn't actually evaluate the expression
+        match checked.kind {
+            ExprKind::Num(n) => Ok(n),
+            ExprKind::True => Ok(1),
+            ExprKind::False => Ok(0),
+            _ => Err(SpannedError {
                 span: expr.span,
                 msg: format!("Expression could not be reduced to a constant"),
-            })
+            }),
         }
     }
 
@@ -96,11 +99,14 @@ impl<'a> SymbolChecker<'a> {
         // Owner may be omitted. If omitted, we assume owner is self.scope_owner.
         // If self.scope_owner is None too, then we assume it's a global declaration.
         // If we still can't find the declaration, we have an error.
-        let res_oi = OwnedIdent::new(oi.owner.clone().or(self.scope_owner.clone()), oi.name.clone());
+        let inferred_oi = OwnedIdent::new(
+            oi.owner.clone().or(self.scope_owner.clone()),
+            oi.name.clone(),
+        );
 
         // We first ensure that the player exists in order to give a
         // more accurate error message, if necessary
-        if let Some(player_name) = &res_oi.owner {
+        if let Some(player_name) = &inferred_oi.owner {
             self.symbols
                 .get_by_name(&player_name.to_string())
                 .ok_or(SpannedError::new(
@@ -112,13 +118,15 @@ impl<'a> SymbolChecker<'a> {
         // FIXME: In CheckMode::ConstExpr, only constants are declared and
         //        this will give confusing error messages if anything else if referenced.
         // Find declaration
-        let decl_rc = self.symbols.get_by_name(&res_oi.to_string())
-            .or_else(|| self.symbols.get_by_name(&oi.to_string()))
+        let (decl_rc, true_oi) = self
+            .symbols
+            .get_by_name(&inferred_oi.to_string())
+            .zip(Some(&inferred_oi))
+            .or_else(|| self.symbols.get_by_name(&oi.to_string()).zip(Some(oi)))
             .ok_or(SpannedError::new(
                 *span,
                 format!("Unknown declaration '{}'.", oi),
-            )
-        )?;
+            ))?;
 
         if let Ok(decl) = &decl_rc.try_borrow() {
             // Check if declaration is allowed to be referenced in this mode
@@ -132,7 +140,7 @@ impl<'a> SymbolChecker<'a> {
                     *span,
                     format!(
                         "The declaration '{}' cannot be referenced in {}.",
-                        res_oi, context
+                        true_oi, context
                     ),
                 ));
             }
@@ -143,7 +151,10 @@ impl<'a> SymbolChecker<'a> {
             }
 
             // Identifier is okay. Return a resolved identifier
-            let index = self.symbols.get_index_of_name(&res_oi.to_string()).unwrap();
+            let index = self
+                .symbols
+                .get_index_of_name(&true_oi.to_string())
+                .unwrap();
             return Ok(Expr::new(*span, ExprKind::Symbol(index)));
         } else {
             // The try_borrow have failed, which means that the
@@ -152,10 +163,16 @@ impl<'a> SymbolChecker<'a> {
             // referring to the declaration itself. This is only okay, if we are
             // in CheckMode::UpdateExpr. In such case we can return immediately.
             if self.mode == CheckMode::UpdateExpr {
-                let index = self.symbols.get_index_of_name(&res_oi.to_string()).unwrap();
+                let index = self
+                    .symbols
+                    .get_index_of_name(&true_oi.to_string())
+                    .unwrap();
                 return Ok(Expr::new(*span, ExprKind::Symbol(index)));
             } else {
-                Err(SpannedError::new(*span, format!("The declaration '{}' refers to itself.", oi)))
+                Err(SpannedError::new(
+                    *span,
+                    format!("The declaration '{}' refers to itself.", oi),
+                ))
             }
         }
     }
@@ -166,14 +183,17 @@ impl<'a> SymbolChecker<'a> {
         if let ExprKind::Num(n) = &res.kind {
             return Ok(Expr::new(*span, ExprKind::Num(op.as_fn()(*n))));
         }
-        Ok(Expr::new(
-            *span,
-            ExprKind::Unary(op.clone(), Box::new(res)),
-        ))
+        Ok(Expr::new(*span, ExprKind::Unary(op.clone(), Box::new(res))))
     }
 
     /// Optimizes the given binary operator and checks the operands
-    fn check_binop(&self, span: &Span, op: &BinaryOpKind, e1: &Expr, e2: &Expr) -> Result<Expr, SpannedError> {
+    fn check_binop(
+        &self,
+        span: &Span,
+        op: &BinaryOpKind,
+        e1: &Expr,
+        e2: &Expr,
+    ) -> Result<Expr, SpannedError> {
         // Optimize if both operands are numbers
         // TODO Some operators allow optimizations even when only one operand is a number
         let res1 = self.check(e1)?;
@@ -190,7 +210,13 @@ impl<'a> SymbolChecker<'a> {
     }
 
     /// Optimizes the given ternary if and checks the operands
-    fn check_if(&self, span: &Span, cond: &Expr, e1: &Expr, e2: &Expr) -> Result<Expr, SpannedError> {
+    fn check_if(
+        &self,
+        span: &Span,
+        cond: &Expr,
+        e1: &Expr,
+        e2: &Expr,
+    ) -> Result<Expr, SpannedError> {
         let cond_res = self.check(cond)?;
         if let ExprKind::Num(n) = &cond_res.kind {
             return if *n == 0 {
@@ -202,14 +228,21 @@ impl<'a> SymbolChecker<'a> {
         }
         Ok(Expr::new(
             *span,
-            ExprKind::TernaryIf(Box::new(cond_res), Box::new(self.check(e1)?), Box::new(self.check(e2)?)),
+            ExprKind::TernaryIf(
+                Box::new(cond_res),
+                Box::new(self.check(e1)?),
+                Box::new(self.check(e2)?),
+            ),
         ))
     }
 
     /// Checks the given minimum expression and computes minimum if possible
     fn check_min(&self, span: &Span, es: &[Expr]) -> Result<Expr, SpannedError> {
         // Combine all numbers, as we already know the minimum of those
-        let checked_list: Vec<Expr> = es.iter().map(|p| self.check(p).unwrap()).collect();
+        let checked_list = es
+            .iter()
+            .map(|p| self.check(p))
+            .collect::<Result<Vec<Expr>, SpannedError>>()?;
         let opt_smallest: Option<i32> = checked_list
             .iter()
             .filter_map(|p| match p.kind {
@@ -236,7 +269,10 @@ impl<'a> SymbolChecker<'a> {
     /// Checks the given maximum expression and computes maximum if possible
     fn check_max(&self, span: &Span, es: &[Expr]) -> Result<Expr, SpannedError> {
         // Combine all numbers, as we already know the maximum of those
-        let checked_list: Vec<Expr> = es.iter().map(|p| self.check(p).unwrap()).collect();
+        let checked_list = es
+            .iter()
+            .map(|p| self.check(p))
+            .collect::<Result<Vec<Expr>, SpannedError>>()?;
         let opt_biggest: Option<i32> = checked_list
             .iter()
             .filter_map(|p| match p.kind {
@@ -262,7 +298,8 @@ impl<'a> SymbolChecker<'a> {
 
     fn check_coalition(&self, span: &Span, coal: &Coalition) -> Result<Expr, SpannedError> {
         for id in &coal.players {
-            let decl = self.symbols
+            let decl = self
+                .symbols
                 .get_by_name(&id.to_string())
                 .ok_or(SpannedError::new(
                     id.span,
@@ -278,10 +315,21 @@ impl<'a> SymbolChecker<'a> {
             } else {
                 // This case is only possible if the coalition expression is used in
                 // an expression of an LCGS declaration
-                return Err(SpannedError::new(*span, format!("Coalitions can only be used in ATL queries.")));
+                return Err(SpannedError::new(
+                    *span,
+                    format!("Coalitions can only be used in ATL queries."),
+                ));
             }
         }
         let path_expr = self.check(&coal.expr)?;
-        Ok(Expr::new(*span, ExprKind::Coalition(Coalition::new(*span, coal.players.clone(), coal.kind, path_expr))))
+        Ok(Expr::new(
+            *span,
+            ExprKind::Coalition(Coalition::new(
+                *span,
+                coal.players.clone(),
+                coal.kind,
+                path_expr,
+            )),
+        ))
     }
 }

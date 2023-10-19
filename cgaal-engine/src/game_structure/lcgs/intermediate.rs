@@ -277,8 +277,7 @@ fn register_decls(symbols: &mut SymbolTable, root: LcgsRoot) -> Result<DeclNames
 
         let relabeler = Relabeler::new(&pkind.relabellings);
 
-        // Go through each declaration in the template and register a relabeled
-        // clone of it that is owned by the given player // FIXME docs
+        // Go through each declaration in the template and clone it, relabel it, and set its owner
         let new_decls = inner_decls
             .iter()
             .map(|idecl| {
@@ -291,6 +290,7 @@ fn register_decls(symbols: &mut SymbolTable, root: LcgsRoot) -> Result<DeclNames
         drop(pdecl);
         drop(tdecl);
 
+        // Register the new declarations
         for (new_decl, span) in new_decls {
             let index = symbols
                 .insert(new_decl)
@@ -307,7 +307,6 @@ fn register_decls(symbols: &mut SymbolTable, root: LcgsRoot) -> Result<DeclNames
             }
         }
 
-        // The player is done. We can now register the player declaration.
         players_vec.push(player);
     }
     Ok((players_vec, labels, vars))
@@ -332,7 +331,7 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
             DeclKind::StateVar(var) => {
                 // Both initial value, min, and max are expected to be constant.
                 // Hence, we also evaluate them now so we don't have to do that each time.
-                // FIXME: These constants are not restricted to use only constants declared above it
+                // Note: These expr can use any constant expr from the global scope, regardless of ordering
                 let checker = SymbolChecker::new(symbols, &ident.owner, CheckMode::ConstExpr);
                 var.init_val = checker.check_eval(&var.init)?;
                 let min = checker.check_eval(&var.range.min)?;
@@ -345,6 +344,12 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
                             "Initial value {} is not in range {}..{}",
                             var.init_val, min, max
                         ),
+                    ));
+                }
+                if &ident.name.text != &var.update_ident.text {
+                    return Err(SpannedError::new(
+                        var.update_ident.span,
+                        format!("The name in the update statement does not match the name of the variable above. Expected '{}'.", ident.name)
                     ));
                 }
                 var.update = SymbolChecker::new(symbols, &ident.owner, CheckMode::UpdateExpr)
