@@ -22,7 +22,7 @@ impl Display for SymbIdx {
     }
 }
 
-/// TODO
+/// An entry in a [SymbolTable].
 #[derive(Clone, Debug)]
 struct Symbol {
     name: String,
@@ -103,7 +103,7 @@ impl SymbolTable {
         self.symbols.iter().map(|s| &s.decl_rc)
     }
 
-    /// Consume the symbol table to construct a simple declaration table.
+    /// Consume the symbol table to construct a simple declaration list with the same ordering.
     pub fn solidify(mut self) -> Vec<Decl> {
         self.symbols
             .drain(..)

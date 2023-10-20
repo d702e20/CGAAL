@@ -437,7 +437,6 @@ impl<'a> SymbolChecker<'a> {
         let cond_res = self.check(cond)?;
         if let ExprKind::Num(n) = &cond_res.kind {
             return if *n == 0 {
-                // TODO: Promote span of e2 to span of if expression. This needs to be done for all expressions.
                 self.check(e2)
             } else {
                 self.check(e1)
