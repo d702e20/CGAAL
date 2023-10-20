@@ -6,7 +6,9 @@ use std::ops::DerefMut;
 use crate::game_structure::lcgs::eval::Evaluator;
 use crate::game_structure::lcgs::query::convert_expr_to_phi;
 use crate::game_structure::lcgs::relabeling::Relabeler;
-use crate::game_structure::lcgs::symbol_checker::{CheckMode, SymbolChecker};
+use crate::game_structure::lcgs::symbol_checker::{
+    symbol_check, CheckMode, SymbolChecker, SymbolRegistry,
+};
 use crate::game_structure::lcgs::symbol_table::{SymbIdx, SymbolTable};
 use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, PropIdx, StateIdx};
 use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, LcgsRoot};
@@ -44,12 +46,12 @@ impl IntermediateLcgs {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
     pub fn create(root: LcgsRoot, errors: &ErrorLog) -> Result<IntermediateLcgs, ()> {
-        let mut symbols = SymbolTable::new();
-
-        // Register global decls. Then check and optimize them
-        let (players, labels, vars) =
-            register_decls(&mut symbols, root).map_err(|se| errors.log_err(se))?;
-        check_and_optimize_decls(&symbols).map_err(|se| errors.log_err(se))?;
+        let SymbolRegistry {
+            symbols,
+            players,
+            labels,
+            vars,
+        } = symbol_check(root, &errors);
 
         let ilcgs = IntermediateLcgs {
             decls: symbols.solidify(),
@@ -176,197 +178,6 @@ impl IntermediateLcgs {
     pub fn get_labels(&self) -> &[SymbIdx] {
         &self.labels
     }
-}
-
-/// Names of declarations. First component is players and their fields. Second component
-/// is global labels. And third component is global variables.
-type DeclNames = (Vec<Player>, Vec<SymbIdx>, Vec<SymbIdx>);
-
-/// Registers all declarations from the root in the symbol table. Constants are optimized to
-/// numbers immediately. On success, a vector of [Player]s is returned with information
-/// about players and the names of their actions.
-fn register_decls(symbols: &mut SymbolTable, root: LcgsRoot) -> Result<DeclNames, SpannedError> {
-    let mut players = vec![];
-    let mut labels = vec![];
-    let mut vars = vec![];
-
-    // Register global declarations.
-    // Constants are evaluated immediately.
-    // Players are put in a separate vector and handled afterwards.
-    // Symbol table is given ownership of the declarations.
-    for Decl { span, ident, kind } in root.decls {
-        match kind {
-            DeclKind::Const(expr) => {
-                // We can evaluate constants immediately as constants can only
-                // refer to other constants that are above them in the program.
-                // If they don't reduce to a single number, then the SymbolChecker
-                // produces an error.
-                let reduced =
-                    SymbolChecker::new(symbols, &None, CheckMode::ConstExpr).check_eval(&expr)?;
-                let decl = Decl::new(
-                    span,
-                    ident.name,
-                    DeclKind::Const(Expr::new(expr.span, ExprKind::Num(reduced))),
-                );
-                let _ = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
-            }
-            DeclKind::StateLabel(_, expr) => {
-                // Insert in symbol table and add to labels list
-                let decl = Decl::new(
-                    span,
-                    ident.name,
-                    DeclKind::StateLabel(PropIdx(labels.len()), expr),
-                );
-                let index = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
-                labels.push(index);
-            }
-            DeclKind::StateVar(state_var) => {
-                // Insert in symbol table and add to vars list
-                let decl = Decl::new(span, ident.name, DeclKind::StateVar(state_var));
-                let index = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
-                vars.push(index);
-            }
-            DeclKind::Template(inner_decls) => {
-                let decl = Decl::new(span, ident.name, DeclKind::Template(inner_decls));
-                let _ = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
-            }
-            DeclKind::Player(mut player) => {
-                player.index = PlayerIdx(players.len());
-                let decl = Decl::new(span, ident.name, DeclKind::Player(player));
-                let index = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
-                players.push(index);
-            }
-            _ => unreachable!("Not a global declaration. Parser must have failed."),
-        }
-    }
-
-    // Register player declarations. Here we clone the declarations since multiple
-    // players can use the same template
-    let mut players_vec = vec![];
-    for (index, symbol_index) in players.drain(..).enumerate() {
-        let pdecl = symbols.get(symbol_index).borrow();
-        let DeclKind::Player(pkind) = &pdecl.kind else {
-            unreachable!()
-        };
-        let mut player = Player::new(PlayerIdx(index), symbol_index);
-
-        let tdecl_opt = symbols.get_by_name(&pkind.template_ident.to_string());
-        let Some(tdecl_rc) = tdecl_opt else {
-            return Err(SpannedError::new(
-                pkind.template_ident.span,
-                format!("Undeclared template '{}'", pkind.template_ident),
-            ));
-        };
-        let tdecl = tdecl_rc.borrow();
-        let DeclKind::Template(inner_decls) = &tdecl.kind else {
-            return Err(SpannedError::new(
-                tdecl.span,
-                format!("'{}' is not a template.", tdecl.ident),
-            ));
-        };
-
-        let relabeler = Relabeler::new(&pkind.relabellings);
-
-        // Go through each declaration in the template and clone it, relabel it, and set its owner
-        let new_decls = inner_decls
-            .iter()
-            .map(|idecl| {
-                let mut new_decl = relabeler.relabel_decl(idecl.clone())?;
-                new_decl.ident.owner = Some(pdecl.ident.name.clone());
-                Ok((new_decl, idecl.span))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        drop(pdecl);
-        drop(tdecl);
-
-        // Register the new declarations
-        for (new_decl, span) in new_decls {
-            let index = symbols
-                .insert(new_decl)
-                .map_err(|msg| SpannedError::new(span, msg))?;
-            let mut ndecl = symbols.get(index).borrow_mut();
-            match &mut ndecl.kind {
-                DeclKind::StateLabel(id, _) => {
-                    *id = PropIdx(labels.len());
-                    labels.push(index);
-                }
-                DeclKind::StateVar(_) => vars.push(index),
-                DeclKind::Action(_) => player.actions.push(index),
-                _ => panic!("Not a declaration allowed in templates. Parser must have failed."),
-            }
-        }
-
-        players_vec.push(player);
-    }
-    Ok((players_vec, labels, vars))
-}
-
-/// Reduces the declarations in a [SymbolTable] to a more compact version, if possible.
-/// Validity of identifiers are also checked and resolved.
-fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
-    for symbol in symbols.iter() {
-        // Optimize the declaration's expression(s)
-        let mut decl_ref = symbol.borrow_mut();
-        let Decl {
-            span: _,
-            kind,
-            ident,
-        } = decl_ref.deref_mut();
-        match kind {
-            DeclKind::StateLabel(_, expr) => {
-                *expr =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr).check(&expr)?;
-            }
-            DeclKind::StateVar(var) => {
-                // Both initial value, min, and max are expected to be constant.
-                // Hence, we also evaluate them now so we don't have to do that each time.
-                // Note: These expr can use any constant expr from the global scope, regardless of ordering
-                let checker = SymbolChecker::new(symbols, &ident.owner, CheckMode::ConstExpr);
-                var.init_val = checker.check_eval(&var.init)?;
-                let min = checker.check_eval(&var.range.min)?;
-                let max = checker.check_eval(&var.range.max)?;
-                var.range.val = min..=max;
-                if !var.range.val.contains(&var.init_val) {
-                    return Err(SpannedError::new(
-                        var.init.span,
-                        format!(
-                            "Initial value {} is not in range {}..{}",
-                            var.init_val, min, max
-                        ),
-                    ));
-                }
-                if &ident.name.text != &var.update_ident.text {
-                    return Err(SpannedError::new(
-                        var.update_ident.span,
-                        format!("The name in the update statement does not match the name of the variable above. Expected '{}'.", ident.name)
-                    ));
-                }
-                var.update = SymbolChecker::new(symbols, &ident.owner, CheckMode::UpdateExpr)
-                    .check(&var.update)?;
-            }
-            DeclKind::Action(cond) => {
-                *cond =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr).check(&cond)?;
-            }
-            // Needs no symbol check or evaluate
-            DeclKind::Player(_) => {}
-            DeclKind::Template(_) => {}
-            DeclKind::Const(_) => {}
-            DeclKind::Error => {}
-        }
-    }
-    Ok(())
 }
 
 /// A game structure state of an LCGS. Holds a mapping of symbol names to their current value
