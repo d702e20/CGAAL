@@ -40,6 +40,7 @@ index_type!(StateIdx, usize);
 index_type!(ActionIdx, usize);
 pub const INVALID_IDX: usize = usize::MAX;
 
+#[allow(clippy::derivable_impls)]
 impl Default for StateIdx {
     fn default() -> Self {
         StateIdx(0)

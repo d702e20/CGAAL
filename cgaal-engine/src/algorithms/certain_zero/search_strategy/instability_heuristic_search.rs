@@ -221,7 +221,7 @@ impl InstabilityHeuristicSearch {
     fn bidist_of_proposition(&self, state: &State, prop: &PropIdx) -> BiTruthDist {
         let decl = self.game.label_index_to_decl(*prop);
         if let DeclKind::StateLabel(_, expr) = &decl.kind {
-            InstabilityHeuristicSearch::bidist_of_expr(state, &expr)
+            InstabilityHeuristicSearch::bidist_of_expr(state, expr)
         } else {
             panic!("Non-propositions symbol in ATL formula")
         }
@@ -259,11 +259,7 @@ impl InstabilityHeuristicSearch {
                 let evaluator = Evaluator::new(state);
                 BiTruthDist::from(evaluator.eval(lhs) - evaluator.eval(rhs))
             }
-            ExprKind::Binary(
-                BinaryOpKind::Gt | BinaryOpKind::Geq,
-                lhs,
-                rhs,
-            ) => {
+            ExprKind::Binary(BinaryOpKind::Gt | BinaryOpKind::Geq, lhs, rhs) => {
                 let evaluator = Evaluator::new(state);
                 BiTruthDist::from(evaluator.eval(rhs) - evaluator.eval(lhs))
             }

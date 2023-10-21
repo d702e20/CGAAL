@@ -2,11 +2,11 @@ use crate::algorithms::certain_zero::search_strategy::linear_constraints::{
     ComparisonOp, LinearConstraint, LinearConstraintExtractor,
 };
 use crate::atl::Phi;
+use crate::game_structure::lcgs::intermediate::IntermediateLcgs;
 use crate::game_structure::PropIdx;
+use crate::parsing::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, UnaryOpKind};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use crate::game_structure::lcgs::intermediate::IntermediateLcgs;
-use crate::parsing::ast::{BinaryOpKind, DeclKind, Expr, ExprKind, UnaryOpKind};
 
 /// A structure describing the relation between linear constraints in a ATL formula
 #[derive(Clone)]
@@ -93,7 +93,7 @@ impl ConstrainedPhiMaker {
                     // We have not mapped this proposition yet
                     let decl = game.label_index_to_decl(*proposition);
                     if let DeclKind::StateLabel(_, expr) = &decl.kind {
-                        let mapped_expr = Self::map_expr_to_constraints(&expr, negated);
+                        let mapped_expr = Self::map_expr_to_constraints(expr, negated);
                         // Save result in cache
                         self.proposition_cache
                             .borrow_mut()

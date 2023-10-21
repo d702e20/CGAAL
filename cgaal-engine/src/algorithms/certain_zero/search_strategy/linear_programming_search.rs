@@ -6,15 +6,15 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
+use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
+use crate::game_structure::lcgs::symbol_table::SymbIdx;
+use crate::parsing::ast::DeclKind;
 use minilp::{LinearExpr, OptimizationDirection, Problem, Variable};
 use priority_queue::PriorityQueue;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
-use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::lcgs::symbol_table::SymbIdx;
-use crate::parsing::ast::DeclKind;
 
 /// A SearchStrategyBuilder for building the LinearProgrammingSearch strategy.
 pub struct LinearProgrammingSearchBuilder {

@@ -1,5 +1,5 @@
 use crate::parsing::ast::{Expr, LcgsRoot};
-use crate::parsing::errors::ErrorLog;
+use crate::parsing::errors::{ErrorLog, SeeErrorLog};
 use crate::parsing::lexer::Lexer;
 use crate::parsing::parser::Parser;
 
@@ -12,7 +12,7 @@ mod token;
 
 /// Parse an ATL expression.
 /// Returns Err if there were errors. See the [ErrorLog] for details.
-pub fn parse_atl(input: &str, errors: &ErrorLog) -> Result<Expr, ()> {
+pub fn parse_atl(input: &str, errors: &ErrorLog) -> Result<Expr, SeeErrorLog> {
     let lexer = Lexer::new(input.as_bytes(), errors);
     let mut parser = Parser::new(lexer, errors);
     let expr = parser
@@ -23,7 +23,7 @@ pub fn parse_atl(input: &str, errors: &ErrorLog) -> Result<Expr, ()> {
         })
         .unwrap_or(Expr::new_error());
     if errors.has_errors() {
-        Err(())
+        Err(SeeErrorLog)
     } else {
         Ok(expr)
     }

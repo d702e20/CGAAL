@@ -59,19 +59,22 @@ impl<'a> Evaluator<'a> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use crate::game_structure::lcgs::eval::Evaluator;
     use crate::game_structure::lcgs::intermediate::State;
     use crate::parsing::ast::{Expr, ExprKind};
     use crate::parsing::span::NO_SPAN;
+    use std::collections::HashMap;
 
     #[test]
     fn test_max() {
-        let expr = Expr::new(NO_SPAN, ExprKind::Max(vec![
-            Expr::new(NO_SPAN, ExprKind::Num(1)),
-            Expr::new(NO_SPAN, ExprKind::Num(3)),
-            Expr::new(NO_SPAN, ExprKind::Num(2)),
-        ]));
+        let expr = Expr::new(
+            NO_SPAN,
+            ExprKind::Max(vec![
+                Expr::new(NO_SPAN, ExprKind::Num(1)),
+                Expr::new(NO_SPAN, ExprKind::Num(3)),
+                Expr::new(NO_SPAN, ExprKind::Num(2)),
+            ]),
+        );
         let state = State(HashMap::new());
         let evaluator = Evaluator::new(&state);
         assert_eq!(evaluator.eval(&expr), 3);
@@ -79,11 +82,14 @@ mod test {
 
     #[test]
     fn test_min() {
-        let expr = Expr::new(NO_SPAN, ExprKind::Min(vec![
-            Expr::new(NO_SPAN, ExprKind::Num(1)),
-            Expr::new(NO_SPAN, ExprKind::Num(3)),
-            Expr::new(NO_SPAN, ExprKind::Num(2)),
-        ]));
+        let expr = Expr::new(
+            NO_SPAN,
+            ExprKind::Min(vec![
+                Expr::new(NO_SPAN, ExprKind::Num(1)),
+                Expr::new(NO_SPAN, ExprKind::Num(3)),
+                Expr::new(NO_SPAN, ExprKind::Num(2)),
+            ]),
+        );
         let state = State(HashMap::new());
         let evaluator = Evaluator::new(&state);
         assert_eq!(evaluator.eval(&expr), 1);

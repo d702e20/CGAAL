@@ -2,9 +2,9 @@ use cgaal_engine::atl::Phi;
 use std::fs::File;
 use std::io::Read;
 
-use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::game_structure::lcgs::convert_expr_to_phi;
 use cgaal_engine::game_structure::lcgs::intermediate::IntermediateLcgs;
+use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::parsing::errors::ErrorLog;
 use cgaal_engine::parsing::{parse_atl, parse_lcgs};
 
@@ -56,8 +56,12 @@ pub fn load_model(model_path: &str, model_format: Option<ModelFormat>) -> Result
         }
         ModelFormat::Lcgs => {
             let errors = ErrorLog::new();
-            let lcgs = parse_lcgs(&content, &errors)
-                .ok_or_else(|| format!("Failed to parse the LCGS program.\n{}", errors.to_string(&content)))?;
+            let lcgs = parse_lcgs(&content, &errors).ok_or_else(|| {
+                format!(
+                    "Failed to parse the LCGS program.\n{}",
+                    errors.to_string(&content)
+                )
+            })?;
 
             let game_structure = IntermediateLcgs::create(lcgs, &errors)
                 .map_err(|_| format!("Invalid LCGS program.\n{}", errors.to_string(&content)))?;
@@ -105,9 +109,9 @@ pub fn load_formula(
             let game =
                 game.ok_or_else(|| "Cannot load ATL formula without a game structure".to_string())?;
 
-            let mut errors = ErrorLog::new();
-            parse_atl(&content, &mut errors)
-                .and_then(|expr| convert_expr_to_phi(expr, game, &mut errors))
+            let errors = ErrorLog::new();
+            parse_atl(&content, &errors)
+                .and_then(|expr| convert_expr_to_phi(expr, game, &errors))
                 .map_err(|_| {
                     format!(
                         "Invalid ATL formula provided:\n{}",

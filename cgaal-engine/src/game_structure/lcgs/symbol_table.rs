@@ -89,7 +89,7 @@ impl SymbolTable {
     /// Returns the declaration associated with the given identifier.
     pub fn get_by_name(&self, name: &str) -> Option<&RefCell<Decl>> {
         for symb in &self.symbols {
-            if &symb.name == name {
+            if symb.name == name {
                 return Some(&symb.decl_rc);
             }
         }
@@ -101,7 +101,7 @@ impl SymbolTable {
         self.symbols
             .iter()
             .enumerate()
-            .find_map(|(i, s)| (&s.name == name).then_some(SymbIdx(i)))
+            .find_map(|(i, s)| (s.name == name).then_some(SymbIdx(i)))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &RefCell<Decl>> {

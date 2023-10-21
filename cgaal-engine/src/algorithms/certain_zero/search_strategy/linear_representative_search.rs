@@ -6,12 +6,12 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
+use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
+use crate::parsing::ast::DeclKind;
 use minilp::{LinearExpr, OptimizationDirection, Problem};
 use priority_queue::PriorityQueue;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
-use crate::parsing::ast::DeclKind;
 
 /// A [SearchStrategyBuilder] for building the [LinearRepresentativeSearch] strategy.
 pub struct LinearRepresentativeSearchBuilder {
@@ -37,7 +37,7 @@ impl LinearRepresentativeSearchBuilder {
             // Add variable for each state variable
             let mut vars = HashMap::new();
             for state_var in self.game.get_vars() {
-                let decl = self.game.get_decl(&state_var).unwrap();
+                let decl = self.game.get_decl(state_var).unwrap();
                 let DeclKind::StateVar(var_decl) = &decl.kind else {
                     unreachable!()
                 };

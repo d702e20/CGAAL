@@ -273,8 +273,8 @@ impl Phi {
     pub fn get_all_propositions(&self) -> Vec<PropIdx> {
         fn get_prop_rec(phi: &Phi, props: &mut Vec<PropIdx>) {
             match phi {
-                Phi::True => {},
-                Phi::False => {},
+                Phi::True => {}
+                Phi::False => {}
                 Phi::Proposition(id) => props.push(*id),
                 Phi::Not(formula) => get_prop_rec(formula, props),
                 Phi::Or(formula1, formula2) => {

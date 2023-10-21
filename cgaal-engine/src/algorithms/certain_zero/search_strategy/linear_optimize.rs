@@ -6,14 +6,14 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
+use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
+use crate::game_structure::StateIdx;
 use float_ord::FloatOrd;
 use priority_queue::PriorityQueue;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::option::Option::Some;
 use std::sync::Arc;
-use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::StateIdx;
 
 /// A SearchStrategyBuilder for building the LinearOptimizeSearch strategy.
 pub struct LinearOptimizeSearchBuilder {

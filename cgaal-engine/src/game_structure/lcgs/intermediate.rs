@@ -8,7 +8,7 @@ use crate::game_structure::lcgs::symbol_checker::{symbol_check, SymbolRegistry};
 use crate::game_structure::lcgs::symbol_table::SymbIdx;
 use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, PropIdx, StateIdx};
 use crate::parsing::ast::{Decl, DeclKind, Expr, LcgsRoot};
-use crate::parsing::errors::ErrorLog;
+use crate::parsing::errors::{ErrorLog, SeeErrorLog};
 
 /// A struct that holds information about players for the intermediate representation
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -41,13 +41,13 @@ pub struct IntermediateLcgs {
 impl IntermediateLcgs {
     /// Create an [IntermediateLCGS] from an AST root. All declarations in the resulting
     /// [IntermediateLCGS] are symbol checked and type checked.
-    pub fn create(root: LcgsRoot, errors: &ErrorLog) -> Result<IntermediateLcgs, ()> {
+    pub fn create(root: LcgsRoot, errors: &ErrorLog) -> Result<IntermediateLcgs, SeeErrorLog> {
         let SymbolRegistry {
             symbols,
             players,
             labels,
             vars,
-        } = symbol_check(root, &errors)?;
+        } = symbol_check(root, errors)?;
 
         let ilcgs = IntermediateLcgs {
             decls: symbols.solidify(),
@@ -60,8 +60,8 @@ impl IntermediateLcgs {
     }
 
     /// Convert an ATL expression to a [Phi] that can be used in a query.
-    pub fn create_phi(&self, expr: Expr, errors: &ErrorLog) -> Result<Phi, ()> {
-        convert_expr_to_phi(expr, &self, errors)
+    pub fn create_phi(&self, expr: Expr, errors: &ErrorLog) -> Result<Phi, SeeErrorLog> {
+        convert_expr_to_phi(expr, self, errors)
     }
 
     pub fn get_decl(&self, symbol: &SymbIdx) -> Option<&Decl> {
@@ -71,7 +71,7 @@ impl IntermediateLcgs {
     pub fn get_decl_by_name(&self, name: &str) -> Option<&Decl> {
         self.decls
             .iter()
-            .find(|decl| &decl.ident.to_string() == &name)
+            .find(|decl| decl.ident.to_string() == name)
     }
 
     /// Transforms a state index to a [State].
@@ -92,7 +92,7 @@ impl IntermediateLcgs {
                     carry = quotient;
                     var.range.val.start() + remainder as i32
                 };
-                state.0.insert(symb_id.clone(), value);
+                state.0.insert(*symb_id, value);
             }
         }
         debug_assert!(
@@ -104,7 +104,7 @@ impl IntermediateLcgs {
     }
 
     pub fn label_index_to_decl(&self, label_index: PropIdx) -> &Decl {
-        let label_symbol = self.labels[label_index.0].clone();
+        let label_symbol = self.labels[label_index.0];
 
         let label_decl = self.decls.get(label_symbol.0).unwrap();
         label_decl
@@ -140,7 +140,7 @@ impl IntermediateLcgs {
                 let symb = &self.decls[symb_id.0];
                 if let DeclKind::Action(cond) = &symb.kind {
                     // The action is available if the condition is not evaluated to 0 in this state
-                    return 0 != Evaluator::new(state).eval(&cond);
+                    return 0 != Evaluator::new(state).eval(cond);
                 }
                 panic!("Action was not a action.")
             })
@@ -154,7 +154,7 @@ impl IntermediateLcgs {
         for symb_id in &self.vars {
             let symb = &self.decls[symb_id.0];
             if let DeclKind::StateVar(var) = &symb.kind {
-                res.0.insert(symb_id.clone(), var.init_val);
+                res.0.insert(*symb_id, var.init_val);
             }
         }
         res
@@ -213,7 +213,7 @@ impl GameStructure for IntermediateLcgs {
             if let DeclKind::StateLabel(idx, cond) = &symb.kind {
                 // We evaluate the condition with the values of the current state to know
                 // whether the label is present or not
-                let value = Evaluator::new(&state).eval(&cond);
+                let value = Evaluator::new(&state).eval(cond);
                 if value != 0 {
                     res.insert(*idx);
                 }
@@ -242,7 +242,7 @@ impl GameStructure for IntermediateLcgs {
             // First set all actions (also the unavailable actions) to 0,
             // then set the chosen action to 1
             for action in &player.actions {
-                state.0.insert(action.clone(), 0);
+                state.0.insert(*action, 0);
             }
             let act = moves[choices[p_index].0];
             state.0.insert(act, 1);
@@ -255,7 +255,7 @@ impl GameStructure for IntermediateLcgs {
             let symb = &self.decls[symb_id.0];
             if let DeclKind::StateVar(var) = &symb.kind {
                 let val = evaluator.eval(&var.update);
-                next_state.0.insert(symb_id.clone(), val);
+                next_state.0.insert(*symb_id, val);
             }
         }
 

@@ -1,3 +1,4 @@
+use crate::game_structure::{PropIdx, INVALID_IDX};
 use crate::parsing::ast::{
     BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot,
     OwnedIdent, PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
@@ -7,7 +8,6 @@ use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;
 use crate::parsing::token::{Token, TokenKind};
 use std::iter::Peekable;
-use crate::game_structure::{INVALID_IDX, PropIdx};
 
 /// A helper macro for error recovery.
 /// It tries to parse the given expression and then the given recovery token.
@@ -243,7 +243,7 @@ impl<'a> Parser<'a> {
             TokenKind::Rbracket,
             (Expr::new_error(), Expr::new_error())
         )?;
-        Ok(RangeClause::new(start + end, min.into(), max.into()))
+        Ok(RangeClause::new(start + end, min, max))
     }
 
     fn range_clause_inner(&mut self) -> Result<(Expr, Expr), RecoverMode> {
@@ -266,12 +266,7 @@ impl<'a> Parser<'a> {
         let _ = self.token(TokenKind::Assign)?;
         let update = self.expr()?;
         let span = ident.span + update.span;
-        let state_var = DeclKind::StateVar(StateVarDecl::new(
-            range,
-            init.into(),
-            update_ident,
-            update.into(),
-        ));
+        let state_var = DeclKind::StateVar(StateVarDecl::new(range, init, update_ident, update));
         Ok(Decl::new(span, ident, state_var))
     }
 
@@ -324,7 +319,7 @@ impl<'a> Parser<'a> {
                     let ident = self.ident()?;
                     let _ = self.token(TokenKind::Assign)?;
                     let expr = self.expr()?;
-                    cases.push(RelabelCase::new(ident.span + expr.span, ident, expr.into()));
+                    cases.push(RelabelCase::new(ident.span + expr.span, ident, expr));
                 }
                 _ => break,
             }

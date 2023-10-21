@@ -181,7 +181,7 @@ impl<'a> Relabeler<'a> {
         coal.players = coal
             .players
             .drain(..)
-            .map(|e| relabel_player(&self, e))
+            .map(|e| relabel_player(self, e))
             .collect::<Result<Vec<Ident>, SpannedError>>()?;
         coal.expr = self.relabel_expr(*coal.expr)?.into();
         Ok(coal)

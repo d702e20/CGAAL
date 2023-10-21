@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use crate::game_structure::{transition_lookup, DynVec, GameStructure, PlayerIdx, PropIdx, StateIdx, ActionIdx};
+use crate::game_structure::{
+    transition_lookup, ActionIdx, DynVec, GameStructure, PlayerIdx, PropIdx, StateIdx,
+};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct EagerGameStructure {

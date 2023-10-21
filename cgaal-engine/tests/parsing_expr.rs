@@ -7,7 +7,6 @@ use cgaal_engine::parsing::parse_atl;
 use cgaal_engine::parsing::parse_lcgs;
 use cgaal_engine::parsing::parser::*;
 use cgaal_engine::parsing::span::*;
-use std::f32::consts::E;
 
 #[test]
 fn basic_expr_001() {

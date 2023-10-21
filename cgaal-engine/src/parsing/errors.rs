@@ -17,20 +17,26 @@ impl ErrorLog {
         Default::default()
     }
 
-    pub fn log(&self, span: Span, msg: String) {
+    pub fn log(&self, span: Span, msg: String) -> SeeErrorLog {
         self.errors.borrow_mut().push(ErrorLogEntry::new(span, msg));
+        SeeErrorLog
     }
 
-    pub fn log_entry(&self, entry: ErrorLogEntry) {
+    pub fn log_entry(&self, entry: ErrorLogEntry) -> SeeErrorLog {
         self.errors.borrow_mut().push(entry);
+        SeeErrorLog
     }
 
-    pub fn log_msg(&self, msg: String) {
+    pub fn log_msg(&self, msg: String) -> SeeErrorLog {
         self.errors.borrow_mut().push(ErrorLogEntry::msg_only(msg));
+        SeeErrorLog
     }
 
-    pub fn log_err(&self, err: SpannedError) {
-        self.errors.borrow_mut().push(ErrorLogEntry::new(err.span, err.msg));
+    pub fn log_err(&self, err: SpannedError) -> SeeErrorLog {
+        self.errors
+            .borrow_mut()
+            .push(ErrorLogEntry::new(err.span, err.msg));
+        SeeErrorLog
     }
 
     pub fn len(&self) -> usize {
@@ -144,6 +150,19 @@ impl Display for SpannedError {
 }
 
 impl Error for SpannedError {}
+
+/// A dummy error for when errors occur and they can be found in the passed ErrorLog.
+/// Also required to make clippy stop complaining about Result<_, ()>.
+#[derive(Copy, Clone, Eq, PartialEq, Default, Debug)]
+pub struct SeeErrorLog;
+
+impl Display for SeeErrorLog {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "See content of ErrorLog for errors")
+    }
+}
+
+impl Error for SeeErrorLog {}
 
 #[cfg(test)]
 mod tests {

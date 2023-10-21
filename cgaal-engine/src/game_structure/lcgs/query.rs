@@ -1,10 +1,16 @@
 use crate::atl::Phi;
 use crate::game_structure::lcgs::intermediate::IntermediateLcgs;
 use crate::game_structure::PlayerIdx;
-use crate::parsing::ast::{BinaryOpKind, Coalition, CoalitionKind, DeclKind, Expr, ExprKind, Ident, UnaryOpKind};
-use crate::parsing::errors::ErrorLog;
+use crate::parsing::ast::{
+    BinaryOpKind, Coalition, CoalitionKind, DeclKind, Expr, ExprKind, Ident, UnaryOpKind,
+};
+use crate::parsing::errors::{ErrorLog, SeeErrorLog};
 
-pub fn convert_expr_to_phi(expr: Expr, game: &IntermediateLcgs, errors: &ErrorLog) -> Result<Phi, ()> {
+pub fn convert_expr_to_phi(
+    expr: Expr,
+    game: &IntermediateLcgs,
+    errors: &ErrorLog,
+) -> Result<Phi, SeeErrorLog> {
     QueryBuilder::new(game, errors).build(expr)
 }
 
@@ -15,16 +21,13 @@ pub struct QueryBuilder<'a> {
 
 impl<'a> QueryBuilder<'a> {
     pub fn new(game: &'a IntermediateLcgs, errors: &'a ErrorLog) -> Self {
-        QueryBuilder {
-            game,
-            errors,
-        }
+        QueryBuilder { game, errors }
     }
 
     /// Convert an ATL expression to a Phi formula.
     /// Players and labels must be defined in the game and are compiled to their respective indexes.
     /// Returns Err if there were errors. See the error log for details.
-    pub fn build(&self, expr: Expr) -> Result<Phi, ()> {
+    pub fn build(&self, expr: Expr) -> Result<Phi, SeeErrorLog> {
         let Expr { span, kind } = expr;
         match kind {
             ExprKind::True => Ok(Phi::True),
@@ -44,14 +47,14 @@ impl<'a> QueryBuilder<'a> {
                                 player.span,
                                 format!("Expected player, '{}' is a {}", player, d.kind_name()),
                             );
-                            return Err(());
+                            return Err(SeeErrorLog);
                         }
                         None => {
                             self.errors.log(
                                 player.span,
                                 format!("Expected player, '{}' is not defined", player),
                             );
-                            return Err(());
+                            return Err(SeeErrorLog);
                         }
                     }
                 }
@@ -68,17 +71,14 @@ impl<'a> QueryBuilder<'a> {
                                 d.kind_name()
                             ),
                         );
-                        Err(())
+                        Err(SeeErrorLog)
                     }
                     None => {
                         self.errors.log(
                             span,
-                            format!(
-                                "Expected proposition label, '{}' is not defined",
-                                oi
-                            ),
+                            format!("Expected proposition label, '{}' is not defined", oi),
                         );
-                        Err(())
+                        Err(SeeErrorLog)
                     }
                 }
             }
@@ -89,45 +89,41 @@ impl<'a> QueryBuilder<'a> {
                         span,
                         "Temporal operators are only allowed after a coalition".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
                 UnaryOpKind::Neg => {
                     self.errors.log(
                         span,
                         "Arithmetic operators is currently not supported in ATL".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
             },
             ExprKind::Binary(op, lhs, rhs) => match op {
-                BinaryOpKind::And => Ok(Phi::And(
-                    self.build(*lhs)?.into(),
-                    self.build(*rhs)?.into(),
-                )),
-                BinaryOpKind::Or => Ok(Phi::Or(
-                    self.build(*lhs)?.into(),
-                    self.build(*rhs)?.into(),
-                )),
+                BinaryOpKind::And => {
+                    Ok(Phi::And(self.build(*lhs)?.into(), self.build(*rhs)?.into()))
+                }
+                BinaryOpKind::Or => Ok(Phi::Or(self.build(*lhs)?.into(), self.build(*rhs)?.into())),
                 BinaryOpKind::Until => {
                     self.errors.log(
                         span,
                         "Temporal operators are only allowed after a coalition".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
                 BinaryOpKind::Xor => {
                     self.errors.log(
                         span,
                         "Exclusive OR is currently not supported in ATL".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
                 BinaryOpKind::Implies => {
                     self.errors.log(
                         span,
                         "Implication is currently not supported in ATL".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
                 BinaryOpKind::Eq
                 | BinaryOpKind::Neq
@@ -139,14 +135,14 @@ impl<'a> QueryBuilder<'a> {
                         span,
                         "Relational operators are currently not supported in ATL".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
                 BinaryOpKind::Add | BinaryOpKind::Sub | BinaryOpKind::Mul | BinaryOpKind::Div => {
                     self.errors.log(
                         span,
                         "Arithmetic operators are currently not supported in ATL".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
             },
             ExprKind::TernaryIf(_, _, _) => {
@@ -154,14 +150,14 @@ impl<'a> QueryBuilder<'a> {
                     span,
                     "Ternary if expressions are currently not supported in ATL".to_string(),
                 );
-                Err(())
+                Err(SeeErrorLog)
             }
             ExprKind::Coalition(Coalition {
-                                    players,
-                                    kind,
-                                    expr: path_expr,
-                                    ..
-                                }) => match (kind, path_expr.kind) {
+                players,
+                kind,
+                expr: path_expr,
+                ..
+            }) => match (kind, path_expr.kind) {
                 (CoalitionKind::Enforce, ExprKind::Unary(UnaryOpKind::Next, sub_expr)) => {
                     let phi = self.build(*sub_expr)?;
                     Ok(Phi::EnforceNext {
@@ -227,7 +223,7 @@ impl<'a> QueryBuilder<'a> {
                         path_expr.span,
                         "Coalitions must be followed by a path formula".to_string(),
                     );
-                    Err(())
+                    Err(SeeErrorLog)
                 }
             },
             ExprKind::Num(_) => {
@@ -236,22 +232,22 @@ impl<'a> QueryBuilder<'a> {
                     "Unexpected number. Please use true, false, or label names as propositions."
                         .to_string(),
                 );
-                Err(())
+                Err(SeeErrorLog)
             }
             ExprKind::Max(_) | ExprKind::Min(_) => {
                 self.errors.log(
                     span,
                     "Max and min expressions are currently not supported in ATL".to_string(),
                 );
-                Err(())
+                Err(SeeErrorLog)
             }
-            ExprKind::Error => Err(()),
+            ExprKind::Error => Err(SeeErrorLog),
         }
     }
 
     /// Helper function for converting a list of player names to a list of player indexes.
     /// Returns None if there were errors. See the error log for details.
-    fn convert_players(&self, players: Vec<Ident>) -> Result<Vec<PlayerIdx>, ()> {
+    fn convert_players(&self, players: Vec<Ident>) -> Result<Vec<PlayerIdx>, SeeErrorLog> {
         players
             .iter()
             .map(|ident| {
@@ -263,14 +259,14 @@ impl<'a> QueryBuilder<'a> {
                             ident.span,
                             format!("Expected player, '{}' is a {}", ident.text, d.kind_name()),
                         );
-                        Err(())
+                        Err(SeeErrorLog)
                     }
                     None => {
                         self.errors.log(
                             ident.span,
                             format!("Expected player, '{}' is not defined", ident.text),
                         );
-                        Err(())
+                        Err(SeeErrorLog)
                     }
                 }
             })

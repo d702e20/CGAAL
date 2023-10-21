@@ -6,7 +6,7 @@ use crate::parsing::ast::{
     BinaryOpKind, Coalition, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot, OwnedIdent,
     UnaryOpKind,
 };
-use crate::parsing::errors::{ErrorLog, SpannedError};
+use crate::parsing::errors::{ErrorLog, SeeErrorLog, SpannedError};
 use crate::parsing::span::Span;
 use std::ops::DerefMut;
 
@@ -22,10 +22,10 @@ pub struct SymbolRegistry {
 /// Check every identifier in the program refers to an existing and appropriate declaration.
 /// Outputs a symbol table and lists of symbol indices by kind.
 /// Any errors are added to the [ErrorLog].
-pub fn symbol_check(root: LcgsRoot, errors: &ErrorLog) -> Result<SymbolRegistry, ()> {
+pub fn symbol_check(root: LcgsRoot, errors: &ErrorLog) -> Result<SymbolRegistry, SeeErrorLog> {
     let out = register_decls(root).map_err(|err| errors.log_err(err))?;
     check_and_optimize_decls(&out.symbols).map_err(|err| errors.log_err(err))?;
-    return Ok(out);
+    Ok(out)
 }
 
 /// Registers all declarations from the root in a symbol table and creates lists of
@@ -55,7 +55,7 @@ fn register_decls(root: LcgsRoot) -> Result<SymbolRegistry, SpannedError> {
                 // If they don't reduce to a single number, then the SymbolChecker
                 // produces an error.
                 let reduced =
-                    SymbolChecker::new(&symbols, &None, CheckMode::ConstExpr).check_eval(&expr)?;
+                    SymbolChecker::new(&symbols, &None, CheckMode::Const).check_eval(&expr)?;
                 let decl = Decl::new(
                     span,
                     ident.name,
@@ -173,14 +173,13 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
         } = decl_ref.deref_mut();
         match kind {
             DeclKind::StateLabel(_, expr) => {
-                *expr =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr).check(&expr)?;
+                *expr = SymbolChecker::new(symbols, &ident.owner, CheckMode::State).check(expr)?;
             }
             DeclKind::StateVar(var) => {
                 // Both initial value, min, and max are expected to be constant.
                 // Hence, we also evaluate them now so we don't have to do that each time.
                 // Note: These expr can use any constant expr from the global scope, regardless of ordering
-                let checker = SymbolChecker::new(symbols, &ident.owner, CheckMode::ConstExpr);
+                let checker = SymbolChecker::new(symbols, &ident.owner, CheckMode::Const);
                 var.init_val = checker.check_eval(&var.init)?;
                 let min = checker.check_eval(&var.range.min)?;
                 let max = checker.check_eval(&var.range.max)?;
@@ -194,18 +193,17 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
                         ),
                     ));
                 }
-                if &ident.name.text != &var.update_ident.text {
+                if ident.name.text != var.update_ident.text {
                     return Err(SpannedError::new(
                         var.update_ident.span,
                         format!("The name in the update statement does not match the name of the variable above. Expected '{}'.", ident.name)
                     ));
                 }
-                var.update = SymbolChecker::new(symbols, &ident.owner, CheckMode::UpdateExpr)
+                var.update = SymbolChecker::new(symbols, &ident.owner, CheckMode::Update)
                     .check(&var.update)?;
             }
             DeclKind::Action(cond) => {
-                *cond =
-                    SymbolChecker::new(symbols, &ident.owner, CheckMode::StateExpr).check(&cond)?;
+                *cond = SymbolChecker::new(symbols, &ident.owner, CheckMode::State).check(cond)?;
             }
             // Needs no symbol check or evaluate
             DeclKind::Player(_) => {}
@@ -220,14 +218,14 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
 /// [CheckMode]s control which declaration identifiers are allow to refer to in the [SymbolChecker].
 #[derive(Eq, PartialEq)]
 pub enum CheckMode {
-    /// In [ConstExpr] mode, identifiers in expressions can only refer to constants.
-    ConstExpr,
-    /// In [StateExpr] mode, identifiers in expressions can only refer to constants
+    /// In [Const] mode, identifiers in expressions can only refer to constants.
+    Const,
+    /// In [State] mode, identifiers in expressions can only refer to constants
     /// and state variables.
-    StateExpr,
-    /// In [UpdateExpr] mode, identifiers in expressions can only refer to constants,
+    State,
+    /// In [Update] mode, identifiers in expressions can only refer to constants,
     /// state variables, and actions
-    UpdateExpr,
+    Update,
 }
 
 impl CheckMode {
@@ -235,14 +233,14 @@ impl CheckMode {
     /// each mode for more details.
     pub fn allows(&self, decl_kind: &DeclKind) -> bool {
         match self {
-            CheckMode::ConstExpr => matches!(decl_kind, DeclKind::Const(_) | DeclKind::Error),
-            CheckMode::StateExpr => {
+            CheckMode::Const => matches!(decl_kind, DeclKind::Const(_) | DeclKind::Error),
+            CheckMode::State => {
                 matches!(
                     decl_kind,
                     DeclKind::Const(_) | DeclKind::StateVar(_) | DeclKind::Error
                 )
             }
-            CheckMode::UpdateExpr => matches!(
+            CheckMode::Update => matches!(
                 decl_kind,
                 DeclKind::Const(_) | DeclKind::StateVar(_) | DeclKind::Action(_) | DeclKind::Error
             ),
@@ -271,7 +269,7 @@ impl<'a> SymbolChecker<'a> {
         }
     }
 
-    /// Checks and evaluates an expressions. This is only used in [CheckMode::ConstExpr]
+    /// Checks and evaluates an expressions. This is only used in [CheckMode::Const]
     /// where we assume the expression can be reduced to a value already during symbol checking.
     pub fn check_eval(&self, expr: &Expr) -> Result<i32, SpannedError> {
         let checked = self.check(expr)?;
@@ -282,7 +280,7 @@ impl<'a> SymbolChecker<'a> {
             ExprKind::False => Ok(0),
             _ => Err(SpannedError {
                 span: expr.span,
-                msg: format!("Expression could not be reduced to a constant"),
+                msg: "Expression could not be reduced to a constant".into(),
             }),
         }
     }
@@ -327,7 +325,7 @@ impl<'a> SymbolChecker<'a> {
                 ))?;
         }
 
-        // FIXME: In CheckMode::ConstExpr, only constants are declared and
+        // FIXME: In CheckMode::Const, only constants are declared and
         //        this will give confusing error messages if anything else if referenced.
         // Find declaration
         let (decl_rc, true_oi) = self
@@ -344,9 +342,9 @@ impl<'a> SymbolChecker<'a> {
             // Check if declaration is allowed to be referenced in this mode
             if !self.mode.allows(&decl.kind) {
                 let context = match self.mode {
-                    CheckMode::ConstExpr => "a constant expression".to_string(),
-                    CheckMode::StateExpr => "a label or action condition".to_string(),
-                    CheckMode::UpdateExpr => "a state-variable update expression".to_string(),
+                    CheckMode::Const => "a constant expression".to_string(),
+                    CheckMode::State => "a label or action condition".to_string(),
+                    CheckMode::Update => "a state-variable update expression".to_string(),
                 };
                 return Err(SpannedError::new(
                     *span,
@@ -359,7 +357,7 @@ impl<'a> SymbolChecker<'a> {
 
             if let DeclKind::Const(con) = &decl.kind {
                 // If symbol points to a constant declaration we can inline the value
-                return self.check(&con);
+                return self.check(con);
             }
 
             // Identifier is okay. Return a resolved identifier
@@ -367,19 +365,19 @@ impl<'a> SymbolChecker<'a> {
                 .symbols
                 .get_index_of_name(&true_oi.to_string())
                 .unwrap();
-            return Ok(Expr::new(*span, ExprKind::Symbol(index)));
+            Ok(Expr::new(*span, ExprKind::Symbol(index)))
         } else {
             // The try_borrow have failed, which means that the
             // RefCell is currently being mutated by someone. We are only reducing
             // one declaration at a time, so the declaration must have an identifier
             // referring to the declaration itself. This is only okay, if we are
-            // in CheckMode::UpdateExpr. In such case we can return immediately.
-            if self.mode == CheckMode::UpdateExpr {
+            // in CheckMode::Update. In such case we can return immediately.
+            if self.mode == CheckMode::Update {
                 let index = self
                     .symbols
                     .get_index_of_name(&true_oi.to_string())
                     .unwrap();
-                return Ok(Expr::new(*span, ExprKind::Symbol(index)));
+                Ok(Expr::new(*span, ExprKind::Symbol(index)))
             } else {
                 Err(SpannedError::new(
                     *span,
@@ -528,7 +526,7 @@ impl<'a> SymbolChecker<'a> {
                 // an expression of an LCGS declaration
                 return Err(SpannedError::new(
                     *span,
-                    format!("Coalitions can only be used in ATL queries."),
+                    "Coalitions can only be used in ATL queries.".into(),
                 ));
             }
         }

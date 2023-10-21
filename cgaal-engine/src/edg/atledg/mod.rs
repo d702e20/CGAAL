@@ -20,8 +20,7 @@ impl<G: GameStructure> AtlDependencyGraph<G> {
     #[allow(dead_code)]
     fn invert_players(&self, players: &[PlayerIdx]) -> HashSet<PlayerIdx> {
         let player_count = self.game_structure.player_count();
-        let mut inv_players =
-            HashSet::with_capacity(player_count - players.len());
+        let mut inv_players = HashSet::with_capacity(player_count - players.len());
         // Iterate over all players and only add the ones not in players
         for player in 0usize..player_count {
             if players.contains(&PlayerIdx(player)) {

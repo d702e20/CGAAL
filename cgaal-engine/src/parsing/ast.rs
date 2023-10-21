@@ -216,7 +216,7 @@ pub struct OwnedIdent {
 
 impl OwnedIdent {
     pub fn new(owner: Option<Ident>, name: Ident) -> Self {
-        OwnedIdent { owner, name: name }
+        OwnedIdent { owner, name }
     }
 
     pub fn new_error() -> Self {
