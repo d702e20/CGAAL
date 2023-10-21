@@ -212,34 +212,56 @@ fn owned_ident_relabel_error(ident: Ident) -> SpannedError {
 
 #[cfg(test)]
 mod test {
-    use crate::game_structure::lcgs::ast::{
-        BinaryOpKind, Decl, DeclKind, Expr, ExprKind, Identifier, LabelDecl,
+    use crate::game_structure::lcgs::relabeling::Relabeler;
+    use crate::game_structure::lcgs::symbol_table::SymbIdx;
+    use crate::game_structure::{PropIdx, INVALID_IDX};
+    use crate::parsing::ast::{
+        BinaryOpKind, Decl, DeclKind, Expr, ExprKind, Ident, OwnedIdent, RelabelCase,
     };
-    use crate::game_structure::lcgs::ir::relabeling::Relabeler;
-    use crate::game_structure::lcgs::parse;
+    use crate::parsing::errors::ErrorLog;
+    use crate::parsing::lexer::Lexer;
+    use crate::parsing::parser::Parser;
+    use crate::parsing::span::Span;
+
+    /// Helper function to parse a relabelling clause
+    fn parse_relabelling(input: &str) -> Vec<RelabelCase> {
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(input.as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
+        parser.relabelling().expect("Invalid relabelling").1
+    }
+
+    /// Helper function to parse an expression
+    fn parse_expr(input: &str) -> Expr {
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new(input.as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
+        parser.expr().expect("Invalid expression")
+    }
 
     #[test]
     fn test_relabeling_expr_01() {
         // Check simple relabeling from one name to another
-        let relabeling = "[test=res]";
-        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
-        let expr = "5 + test";
-        let expr = parse::expr().parse(expr.as_bytes()).unwrap();
+        let expr = parse_expr("5 + test");
+        let relabeling = parse_relabelling("[test=res]");
         let relabeler = Relabeler::new(&relabeling);
-        let new_expr = relabeler.relabel_expr(&expr).unwrap();
+        let new_expr = relabeler.relabel_expr(expr).unwrap();
         assert_eq!(
             new_expr,
             Expr {
-                kind: ExprKind::BinaryOp(
-                    BinaryOpKind::Addition,
+                span: Span::new(0, 8),
+                kind: ExprKind::Binary(
+                    BinaryOpKind::Add,
                     Box::new(Expr {
-                        kind: ExprKind::Number(5),
+                        span: Span::new(0, 1),
+                        kind: ExprKind::Num(5),
                     }),
                     Box::new(Expr {
-                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
-                            owner: None,
-                            name: "res".to_string()
-                        }))
+                        span: Span::new(6, 9),
+                        kind: ExprKind::OwnedIdent(OwnedIdent::new(
+                            None,
+                            Ident::new(Span::new(6, 9), "res".to_string())
+                        ))
                     })
                 )
             }
@@ -249,22 +271,23 @@ mod test {
     #[test]
     fn test_relabeling_expr_02() {
         // Check simple relabeling to number
-        let relabeling = "[test=4]";
-        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
-        let expr = "5 + test";
-        let expr = parse::expr().parse(expr.as_bytes()).unwrap();
+        let expr = parse_expr("5 + test");
+        let relabeling = parse_relabelling("[test=4]");
         let relabeler = Relabeler::new(&relabeling);
-        let new_expr = relabeler.relabel_expr(&expr).unwrap();
+        let new_expr = relabeler.relabel_expr(expr).unwrap();
         assert_eq!(
             new_expr,
             Expr {
-                kind: ExprKind::BinaryOp(
-                    BinaryOpKind::Addition,
+                span: Span::new(0, 8),
+                kind: ExprKind::Binary(
+                    BinaryOpKind::Add,
                     Box::new(Expr {
-                        kind: ExprKind::Number(5),
+                        span: Span::new(0, 1),
+                        kind: ExprKind::Num(5),
                     }),
                     Box::new(Expr {
-                        kind: ExprKind::Number(4),
+                        span: Span::new(6, 7),
+                        kind: ExprKind::Num(4),
                     }),
                 )
             }
@@ -274,28 +297,29 @@ mod test {
     #[test]
     fn test_relabeling_expr_03() {
         // Check simple relabeling of identifier part
-        let relabeling = "[bar=yum]";
-        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
-        let expr = "foo.bar + bar.baz";
-        let expr = parse::expr().parse(expr.as_bytes()).unwrap();
+        let expr = parse_expr("foo.bar + bar.baz");
+        let relabeling = parse_relabelling("[bar=yum]");
         let relabeler = Relabeler::new(&relabeling);
-        let new_expr = relabeler.relabel_expr(&expr).unwrap();
+        let new_expr = relabeler.relabel_expr(expr).unwrap();
         assert_eq!(
             new_expr,
             Expr {
-                kind: ExprKind::BinaryOp(
-                    BinaryOpKind::Addition,
+                span: Span::new(0, 17),
+                kind: ExprKind::Binary(
+                    BinaryOpKind::Add,
                     Box::new(Expr {
-                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
-                            owner: Some("foo".to_string()),
-                            name: "yum".to_string()
-                        }))
+                        span: Span::new(0, 7),
+                        kind: ExprKind::OwnedIdent(OwnedIdent::new(
+                            Some(Ident::new(Span::new(0, 3), "foo".into())),
+                            Ident::new(Span::new(4, 7), "yum".into()),
+                        ))
                     }),
                     Box::new(Expr {
-                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
-                            owner: Some("yum".to_string()),
-                            name: "baz".to_string()
-                        }))
+                        span: Span::new(10, 17),
+                        kind: ExprKind::OwnedIdent(OwnedIdent::new(
+                            Some(Ident::new(Span::new(10, 13), "yum".into())),
+                            Ident::new(Span::new(14, 17), "baz".into()),
+                        ))
                     }),
                 )
             }
@@ -305,27 +329,30 @@ mod test {
     #[test]
     fn test_relabeling_label_01() {
         // Check simple relabeling of label declaration name
-        let relabeling = "[foo=yum]";
-        let relabeling = parse::relabeling().parse(relabeling.as_bytes()).unwrap();
-        let decl = "label foo = bar.baz";
-        let decl = parse::label_decl().parse(decl.as_bytes()).unwrap();
+        let errors = ErrorLog::new();
+        let lexer = Lexer::new("label foo = bar.baz".as_bytes(), &errors);
+        let mut parser = Parser::new(lexer, &errors);
+        let decl = parser.state_label_decl().expect("Invalid expression");
+
+        let relabeling = parse_relabelling("[foo=yum]");
         let relabeler = Relabeler::new(&relabeling);
-        let new_decl = relabeler.relabel_label(&decl).unwrap();
+        let new_decl = relabeler.relabel_decl(decl).unwrap();
         assert_eq!(
             new_decl,
             Decl {
-                kind: DeclKind::Label(Box::new(LabelDecl {
-                    index: 0usize,
-                    condition: Expr {
-                        kind: ExprKind::OwnedIdent(Box::new(Identifier::OptionalOwner {
-                            owner: Some("bar".to_string()),
-                            name: "baz".to_string()
-                        }))
-                    },
-                    name: Identifier::Simple {
-                        name: "yum".to_string()
-                    }
-                }))
+                span: Span::new(0, 19),
+                ident: OwnedIdent::new(None, Ident::new(Span::new(6, 9), "yum".into())),
+                index: SymbIdx(INVALID_IDX),
+                kind: DeclKind::StateLabel(
+                    PropIdx(INVALID_IDX),
+                    Expr::new(
+                        Span::new(12, 19),
+                        ExprKind::OwnedIdent(OwnedIdent::new(
+                            Some(Ident::new(Span::new(12, 15), "bar".into())),
+                            Ident::new(Span::new(16, 19), "baz".into()),
+                        ))
+                    )
+                ),
             }
         )
     }

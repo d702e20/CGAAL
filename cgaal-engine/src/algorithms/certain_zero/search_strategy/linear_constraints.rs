@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
 use crate::game_structure::lcgs::symbol_table::SymbIdx;
 use crate::parsing::ast::{BinaryOpKind, Expr, ExprKind, UnaryOpKind};
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 /// All comparison operators
 #[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
@@ -209,6 +209,8 @@ mod test {
     };
     use crate::game_structure::lcgs::intermediate::IntermediateLcgs;
     use crate::parsing::ast::DeclKind;
+    use crate::parsing::errors::ErrorLog;
+    use crate::parsing::parse_lcgs;
 
     #[test]
     fn simple_comparison_01() {
@@ -217,13 +219,16 @@ mod test {
         x' = 0;
         label prop = x < 4;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Less, lin_expr.comparison);
             assert_eq!(-4.0, lin_expr.constant);
-            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -234,13 +239,16 @@ mod test {
         x' = 0;
         label prop = 2 * x > 3;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Greater, lin_expr.comparison);
             assert_eq!(-3.0, lin_expr.constant);
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -251,13 +259,16 @@ mod test {
         x' = 0;
         label prop = 0 > x * 2;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Greater, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&-2.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&-2.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -268,13 +279,16 @@ mod test {
         x' = 0;
         label prop = 0 == 5 * x;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&-5.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&-5.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -289,14 +303,18 @@ mod test {
         z' = 0;
         label prop = 2 * x + 3 * y == -5;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(5.0, lin_expr.constant);
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.y".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&y_idx));
         }
     }
 
@@ -311,14 +329,18 @@ mod test {
         z' = 0;
         label prop = 2 * x - 3 * y == 0;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-3.0), lin_expr.terms.get(&":global.y".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&-3.0), lin_expr.terms.get(&y_idx));
         }
     }
 
@@ -333,15 +355,20 @@ mod test {
         z' = 0;
         label prop = 2 - x + y - z == 0;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(2.0, lin_expr.constant);
-            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.z".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            let z_idx = lcgs.get_decl_by_name("z").unwrap().index;
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&y_idx));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&z_idx));
         }
     }
 
@@ -356,15 +383,20 @@ mod test {
         z' = 0;
         label prop = 4 <= 1 * x + 2 * y - 3 * z;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::LessOrEq, lin_expr.comparison);
             assert_eq!(4.0, lin_expr.constant);
-            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-2.0), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.z".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            let z_idx = lcgs.get_decl_by_name("z").unwrap().index;
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&-2.0), lin_expr.terms.get(&y_idx));
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&z_idx));
         }
     }
 
@@ -375,13 +407,16 @@ mod test {
         x' = 0;
         label prop = 2 * x + x == 0;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -392,13 +427,16 @@ mod test {
         x' = 0;
         label prop = 1 + 2 * x - 3 == 5;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(-7.0, lin_expr.constant);
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -411,14 +449,18 @@ mod test {
         y' = 0;
         label prop = 2 * x == y;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.y".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&y_idx));
         }
     }
 
@@ -433,15 +475,20 @@ mod test {
         z' = 0;
         label prop = x == (y - z) + 5;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(-5.0, lin_expr.constant);
-            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.z".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            let z_idx = lcgs.get_decl_by_name("z").unwrap().index;
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&y_idx));
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&z_idx));
         }
     }
 
@@ -456,15 +503,20 @@ mod test {
         z' = 0;
         label prop = x + x - y - x == -3 * z;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&1.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&-1.0), lin_expr.terms.get(&":global.y".into()));
-            assert_eq!(Some(&3.0), lin_expr.terms.get(&":global.z".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            let z_idx = lcgs.get_decl_by_name("z").unwrap().index;
+            assert_eq!(Some(&1.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&-1.0), lin_expr.terms.get(&y_idx));
+            assert_eq!(Some(&3.0), lin_expr.terms.get(&z_idx));
         }
     }
 
@@ -477,14 +529,18 @@ mod test {
         y' = 0;
         label prop = 2 * x == (-2 * y);
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.x".into()));
-            assert_eq!(Some(&2.0), lin_expr.terms.get(&":global.y".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            let y_idx = lcgs.get_decl_by_name("y").unwrap().index;
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&x_idx));
+            assert_eq!(Some(&2.0), lin_expr.terms.get(&y_idx));
         }
     }
 
@@ -495,13 +551,16 @@ mod test {
         x' = 0;
         label prop = x + 2 * x + 3 * x + 4 * x == 0;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition).unwrap();
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond).unwrap();
             assert_eq!(ComparisonOp::Equal, lin_expr.comparison);
             assert_eq!(0.0, lin_expr.constant);
-            assert_eq!(Some(&10.0), lin_expr.terms.get(&":global.x".into()));
+            let x_idx = lcgs.get_decl_by_name("x").unwrap().index;
+            assert_eq!(Some(&10.0), lin_expr.terms.get(&x_idx));
         }
     }
 
@@ -512,10 +571,12 @@ mod test {
         x' = 0;
         label prop = x * x == 0;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond);
             assert!(lin_expr.is_none());
         }
     }
@@ -529,10 +590,12 @@ mod test {
         y' = 0;
         label prop = x * 2 * y == 0;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond);
             assert!(lin_expr.is_none());
         }
     }
@@ -544,10 +607,12 @@ mod test {
         x' = 0;
         label prop = 0 < x < 10; // not what you think anyway
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond);
             assert!(lin_expr.is_none());
         }
     }
@@ -559,10 +624,12 @@ mod test {
         x' = 0;
         label prop = 100 / x < 10;
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond);
             assert!(lin_expr.is_none());
         }
     }
@@ -576,10 +643,12 @@ mod test {
         y' = 0;
         label prop = 2 * x + 4 * y < x + min(x, y);
         ";
-        let lcgs = IntermediateLcgs::create(parse_lcgs(input).unwrap()).unwrap();
-        let decl = lcgs.get_decl(&Owner::Global.symbol_id("prop")).unwrap();
-        if let DeclKind::Label(label) = &decl.kind {
-            let lin_expr = LinearConstraintExtractor::extract(&label.condition);
+        let errors = ErrorLog::new();
+        let root = parse_lcgs(input, &errors).unwrap();
+        let lcgs = IntermediateLcgs::create(root, &errors).unwrap();
+        let decl = lcgs.get_decl_by_name("prop").unwrap();
+        if let DeclKind::StateLabel(_, cond) = &decl.kind {
+            let lin_expr = LinearConstraintExtractor::extract(&cond);
             assert!(lin_expr.is_none());
         }
     }

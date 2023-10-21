@@ -1,9 +1,9 @@
+use crate::game_structure::lcgs::symbol_table::SymbIdx;
+use crate::game_structure::{PlayerIdx, PropIdx, INVALID_IDX};
+use crate::parsing::span::{Span, NO_SPAN};
+use crate::parsing::token::TokenKind;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
-use crate::game_structure::lcgs::symbol_table::SymbIdx;
-use crate::game_structure::{INVALID_IDX, PlayerIdx, PropIdx};
-use crate::parsing::span::{NO_SPAN, Span};
-use crate::parsing::token::TokenKind;
 
 /// The root of an LCGS program.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -23,12 +23,18 @@ impl LcgsRoot {
 pub struct Decl {
     pub span: Span,
     pub ident: OwnedIdent,
+    pub index: SymbIdx,
     pub kind: DeclKind,
 }
 
 impl Decl {
     pub fn new(span: Span, ident: Ident, kind: DeclKind) -> Self {
-        Decl { span, ident: OwnedIdent::new(None, ident), kind }
+        Decl {
+            span,
+            ident: OwnedIdent::new(None, ident),
+            index: SymbIdx(INVALID_IDX),
+            kind,
+        }
     }
 
     pub fn new_error() -> Self {
@@ -106,12 +112,7 @@ pub struct StateVarDecl {
 }
 
 impl StateVarDecl {
-    pub fn new(
-        range: RangeClause,
-        init: Expr,
-        update_ident: Ident,
-        update: Expr,
-    ) -> Self {
+    pub fn new(range: RangeClause, init: Expr, update_ident: Ident, update: Expr) -> Self {
         StateVarDecl {
             range,
             init,
@@ -132,7 +133,12 @@ pub struct RangeClause {
 
 impl RangeClause {
     pub fn new(span: Span, min: Expr, max: Expr) -> Self {
-        RangeClause { span, min, max, val: 0..=0 }
+        RangeClause {
+            span,
+            min,
+            max,
+            val: 0..=0,
+        }
     }
 }
 
@@ -228,7 +234,7 @@ impl From<&str> for OwnedIdent {
             2 => OwnedIdent::new(
                 Some(Ident::new(NO_SPAN, split[0].to_string())),
                 Ident::new(NO_SPAN, split[1].to_string()),
-                ),
+            ),
             _ => panic!("Invalid owned identifier. Must consist of an owner and a name."),
         }
     }

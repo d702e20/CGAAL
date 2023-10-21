@@ -41,7 +41,13 @@ fn register_decls(root: LcgsRoot) -> Result<SymbolRegistry, SpannedError> {
     // Constants are evaluated immediately.
     // Players are put in a separate vector and handled afterwards.
     // Symbol table is given ownership of the declarations.
-    for Decl { span, ident, kind } in root.decls {
+    for Decl {
+        span,
+        ident,
+        index: _index,
+        kind,
+    } in root.decls
+    {
         match kind {
             DeclKind::Const(expr) => {
                 // We can evaluate constants immediately as constants can only
@@ -160,9 +166,10 @@ fn check_and_optimize_decls(symbols: &SymbolTable) -> Result<(), SpannedError> {
         // Optimize the declaration's expression(s)
         let mut decl_ref = symbol.borrow_mut();
         let Decl {
-            span: _,
-            kind,
+            span: _, // unchanged
             ident,
+            index: _, // unchanged
+            kind,
         } = decl_ref.deref_mut();
         match kind {
             DeclKind::StateLabel(_, expr) => {

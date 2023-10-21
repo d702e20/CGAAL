@@ -64,13 +64,14 @@ impl SymbolTable {
     /// Creates and inserts a symbol for the given declaration under the given owned name.
     /// Returns the index of the inserted symbol.
     /// If the name is already associated with a different symbol, an error is returned instead.
-    pub fn insert(&mut self, decl: Decl) -> Result<SymbIdx, SpannedError> {
+    pub fn insert(&mut self, mut decl: Decl) -> Result<SymbIdx, SpannedError> {
         if self.exists(&decl.ident.to_string()) {
             return Err(SpannedError::new(
                 decl.ident.name.span,
                 format!("The name '{}' is already declared", decl.ident),
             ));
         }
+        decl.index = SymbIdx(self.symbols.len());
         self.symbols.push(Symbol::new(decl));
         Ok(SymbIdx(self.symbols.len() - 1))
     }

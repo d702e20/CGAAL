@@ -220,7 +220,8 @@ impl Iterator for PmovesIterator {
                         self.position.0[roll_over_pos] = PartialMoveChoice::Specific(ActionIdx(0));
                         roll_over_pos += 1;
                     } else {
-                        self.position.0[roll_over_pos] = PartialMoveChoice::Specific(ActionIdx(new_value));
+                        self.position.0[roll_over_pos] =
+                            PartialMoveChoice::Specific(ActionIdx(new_value));
                         break;
                     }
                 }
@@ -289,7 +290,7 @@ mod test {
     use crate::edg::atledg::pmoves::{
         DeltaIterator, PartialMove, PartialMoveChoice, PartialMoveIterator, PmovesIterator,
     };
-    use crate::game_structure::{ActionIdx, DynVec, EagerGameStructure};
+    use crate::game_structure::{ActionIdx, DynVec, EagerGameStructure, PlayerIdx, StateIdx};
 
     #[test]
     fn partial_move_iterator_01() {
@@ -300,10 +301,22 @@ mod test {
         ]);
 
         let mut iter = PartialMoveIterator::new(&partial_move);
-        assert_eq!(iter.next(), Some(vec![0, 1, 0]));
-        assert_eq!(iter.next(), Some(vec![0, 1, 1]));
-        assert_eq!(iter.next(), Some(vec![1, 1, 0]));
-        assert_eq!(iter.next(), Some(vec![1, 1, 1]));
+        assert_eq!(
+            iter.next(),
+            Some(vec![ActionIdx(0), ActionIdx(1), ActionIdx(0)])
+        );
+        assert_eq!(
+            iter.next(),
+            Some(vec![ActionIdx(0), ActionIdx(1), ActionIdx(1)])
+        );
+        assert_eq!(
+            iter.next(),
+            Some(vec![ActionIdx(1), ActionIdx(1), ActionIdx(0)])
+        );
+        assert_eq!(
+            iter.next(),
+            Some(vec![ActionIdx(1), ActionIdx(1), ActionIdx(1)])
+        );
         assert_eq!(iter.next(), None);
     }
 
@@ -311,40 +324,40 @@ mod test {
     fn vars_iterator_01() {
         let moves = vec![2, 3, 2];
         let mut players = HashSet::new();
-        players.insert(0);
-        players.insert(2);
+        players.insert(PlayerIdx(0));
+        players.insert(PlayerIdx(2));
         let mut iter = PmovesIterator::new(moves, players);
 
         assert_eq!(
             &iter.next(),
             &Some(PartialMove(vec![
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
                 PartialMoveChoice::Range(3),
-                PartialMoveChoice::Specific(0)
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ]))
         );
         assert_eq!(
             &iter.next(),
             &Some(PartialMove(vec![
-                PartialMoveChoice::Specific(1),
+                PartialMoveChoice::Specific(ActionIdx(1)),
                 PartialMoveChoice::Range(3),
-                PartialMoveChoice::Specific(0)
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ]))
         );
         assert_eq!(
             &iter.next(),
             &Some(PartialMove(vec![
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
                 PartialMoveChoice::Range(3),
-                PartialMoveChoice::Specific(1)
+                PartialMoveChoice::Specific(ActionIdx(1)),
             ]))
         );
         assert_eq!(
             &iter.next(),
             &Some(PartialMove(vec![
-                PartialMoveChoice::Specific(1),
+                PartialMoveChoice::Specific(ActionIdx(1)),
                 PartialMoveChoice::Range(3),
-                PartialMoveChoice::Specific(1)
+                PartialMoveChoice::Specific(ActionIdx(1)),
             ]))
         );
     }
@@ -352,23 +365,32 @@ mod test {
     #[test]
     fn vars_iterator_02() {
         let mut players = HashSet::new();
-        players.insert(2);
+        players.insert(PlayerIdx(2));
         let mut iter = PmovesIterator::new(vec![2, 3, 3], players);
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Range(2));
-        assert_eq!(value[1], PartialMoveChoice::Range(3));
-        assert_eq!(value[2], PartialMoveChoice::Specific(0));
+        assert_eq!(value[PlayerIdx(0)], PartialMoveChoice::Range(2));
+        assert_eq!(value[PlayerIdx(1)], PartialMoveChoice::Range(3));
+        assert_eq!(
+            value[PlayerIdx(2)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Range(2));
-        assert_eq!(value[1], PartialMoveChoice::Range(3));
-        assert_eq!(value[2], PartialMoveChoice::Specific(1));
+        assert_eq!(value[PlayerIdx(0)], PartialMoveChoice::Range(2));
+        assert_eq!(value[PlayerIdx(1)], PartialMoveChoice::Range(3));
+        assert_eq!(
+            value[PlayerIdx(2)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Range(2));
-        assert_eq!(value[1], PartialMoveChoice::Range(3));
-        assert_eq!(value[2], PartialMoveChoice::Specific(2));
+        assert_eq!(value[PlayerIdx(0)], PartialMoveChoice::Range(2));
+        assert_eq!(value[PlayerIdx(1)], PartialMoveChoice::Range(3));
+        assert_eq!(
+            value[PlayerIdx(2)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
 
         let value = iter.next();
         assert_eq!(value, None);
@@ -378,45 +400,99 @@ mod test {
     fn vars_iterator_03() {
         // Both players choose. So we should end up with every move vector
         let mut players = HashSet::new();
-        players.insert(0);
-        players.insert(1);
+        players.insert(PlayerIdx(0));
+        players.insert(PlayerIdx(1));
         let mut iter = PmovesIterator::new(vec![3, 3], players);
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(0));
-        assert_eq!(value[1], PartialMoveChoice::Specific(0));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(1));
-        assert_eq!(value[1], PartialMoveChoice::Specific(0));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(2));
-        assert_eq!(value[1], PartialMoveChoice::Specific(0));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(0));
-        assert_eq!(value[1], PartialMoveChoice::Specific(1));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(1));
-        assert_eq!(value[1], PartialMoveChoice::Specific(1));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(2));
-        assert_eq!(value[1], PartialMoveChoice::Specific(1));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(0));
-        assert_eq!(value[1], PartialMoveChoice::Specific(2));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(0))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(1));
-        assert_eq!(value[1], PartialMoveChoice::Specific(2));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(1))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
 
         let value = iter.next().unwrap();
-        assert_eq!(value[0], PartialMoveChoice::Specific(2));
-        assert_eq!(value[1], PartialMoveChoice::Specific(2));
+        assert_eq!(
+            value[PlayerIdx(0)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
+        assert_eq!(
+            value[PlayerIdx(1)],
+            PartialMoveChoice::Specific(ActionIdx(2))
+        );
 
         assert_eq!(iter.next(), None);
     }
@@ -432,11 +508,11 @@ mod test {
                     // player 3
                     Arc::new(DynVec::Nest(vec![
                         // Player 4
-                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(1))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(StateIdx(1)))])),
                         // Player 4
-                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(2))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(StateIdx(2)))])),
                         // Player 4
-                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(3))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(StateIdx(3)))])),
                     ])),
                 ])),
                 // Player 2
@@ -444,94 +520,93 @@ mod test {
                     // player 3
                     Arc::new(DynVec::Nest(vec![
                         // Player 4
-                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(4))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(StateIdx(4)))])),
                         // Player 4
-                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(5))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(StateIdx(5)))])),
                         // Player 4
-                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(1))])),
+                        Arc::new(DynVec::Nest(vec![Arc::new(DynVec::Base(StateIdx(1)))])),
                     ])),
                 ])),
             ])),
         ]);
-        let game_structure = EagerGameStructure {
-            initial_state: 0,
+        let game = EagerGameStructure {
+            initial_state: StateIdx(0),
             player_count: 5,
             labeling: vec![],
             transitions: vec![transitions],
             moves: vec![],
         };
-        let init_state = 0;
         let partial_move = PartialMove(vec![
-            PartialMoveChoice::Specific(0), // player 0
-            PartialMoveChoice::Range(2),    // player 1
-            PartialMoveChoice::Specific(0), // player 2
-            PartialMoveChoice::Range(3),    // player 3
-            PartialMoveChoice::Specific(0), // player 4
+            PartialMoveChoice::Specific(ActionIdx(0)), // player 0
+            PartialMoveChoice::Range(2),               // player 1
+            PartialMoveChoice::Specific(ActionIdx(0)), // player 2
+            PartialMoveChoice::Range(3),               // player 3
+            PartialMoveChoice::Specific(ActionIdx(0)), // player 4
         ]);
-        let mut iter = DeltaIterator::new(&game_structure, init_state, &partial_move);
+        let mut iter = DeltaIterator::new(&game, game.initial_state, &partial_move);
 
         let (state, pmove) = iter.next().unwrap();
-        assert_eq!(state, 1);
+        assert_eq!(state, StateIdx(1));
         assert_eq!(
             pmove,
             PartialMove(vec![
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ])
         );
 
         let (state, pmove) = iter.next().unwrap();
-        assert_eq!(state, 2);
+        assert_eq!(state, StateIdx(2));
         assert_eq!(
             pmove,
             PartialMove(vec![
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(1),
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(1)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ])
         );
 
         let (state, pmove) = iter.next().unwrap();
-        assert_eq!(state, 3);
+        assert_eq!(state, StateIdx(3));
         assert_eq!(
             pmove,
             PartialMove(vec![
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(2),
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(2)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ])
         );
 
         let (state, pmove) = iter.next().unwrap();
-        assert_eq!(state, 4);
+        assert_eq!(state, StateIdx(4));
         assert_eq!(
             pmove,
             PartialMove(vec![
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(1),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(1)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ])
         );
 
         let (state, pmove) = iter.next().unwrap();
-        assert_eq!(state, 5);
+        assert_eq!(state, StateIdx(5));
         assert_eq!(
             pmove,
             PartialMove(vec![
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(1),
-                PartialMoveChoice::Specific(0),
-                PartialMoveChoice::Specific(1),
-                PartialMoveChoice::Specific(0),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(1)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
+                PartialMoveChoice::Specific(ActionIdx(1)),
+                PartialMoveChoice::Specific(ActionIdx(0)),
             ])
         );
 
