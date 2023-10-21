@@ -9,6 +9,7 @@ mod linear_constraints;
 pub mod linear_optimize;
 pub mod linear_programming_search;
 pub mod linear_representative_search;
+pub mod rdfs;
 
 /// A SearchStrategy defines in which order safe edges of an EDG is processed first in the
 /// certain zero algorithm.
