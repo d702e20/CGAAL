@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 
 use crate::parsing::ast::Decl;
+use crate::parsing::errors::SpannedError;
 
 /// An index of a [Symbol] in a [SymbolTable].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -63,9 +64,12 @@ impl SymbolTable {
     /// Creates and inserts a symbol for the given declaration under the given owned name.
     /// Returns the index of the inserted symbol.
     /// If the name is already associated with a different symbol, an error is returned instead.
-    pub fn insert(&mut self, decl: Decl) -> Result<SymbIdx, String> {
+    pub fn insert(&mut self, decl: Decl) -> Result<SymbIdx, SpannedError> {
         if self.exists(&decl.ident.to_string()) {
-            return Err(format!("The name '{}' is already declared", decl.ident));
+            return Err(SpannedError::new(
+                decl.ident.name.span,
+                format!("The name '{}' is already declared", decl.ident),
+            ));
         }
         self.symbols.push(Symbol::new(decl));
         Ok(SymbIdx(self.symbols.len() - 1))

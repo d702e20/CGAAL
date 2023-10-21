@@ -1,18 +1,14 @@
 use crate::atl::Phi;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
-use std::ops::DerefMut;
 
 use crate::game_structure::lcgs::eval::Evaluator;
 use crate::game_structure::lcgs::query::convert_expr_to_phi;
-use crate::game_structure::lcgs::relabeling::Relabeler;
-use crate::game_structure::lcgs::symbol_checker::{
-    symbol_check, CheckMode, SymbolChecker, SymbolRegistry,
-};
-use crate::game_structure::lcgs::symbol_table::{SymbIdx, SymbolTable};
+use crate::game_structure::lcgs::symbol_checker::{symbol_check, SymbolRegistry};
+use crate::game_structure::lcgs::symbol_table::SymbIdx;
 use crate::game_structure::{ActionIdx, GameStructure, PlayerIdx, PropIdx, StateIdx};
-use crate::parsing::ast::{Decl, DeclKind, Expr, ExprKind, LcgsRoot};
-use crate::parsing::errors::{ErrorLog, SpannedError};
+use crate::parsing::ast::{Decl, DeclKind, Expr, LcgsRoot};
+use crate::parsing::errors::ErrorLog;
 
 /// A struct that holds information about players for the intermediate representation
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -51,7 +47,7 @@ impl IntermediateLcgs {
             players,
             labels,
             vars,
-        } = symbol_check(root, &errors);
+        } = symbol_check(root, &errors)?;
 
         let ilcgs = IntermediateLcgs {
             decls: symbols.solidify(),

@@ -55,9 +55,7 @@ fn register_decls(root: LcgsRoot) -> Result<SymbolRegistry, SpannedError> {
                     ident.name,
                     DeclKind::Const(Expr::new(expr.span, ExprKind::Num(reduced))),
                 );
-                let _ = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
+                let _ = symbols.insert(decl)?;
             }
             DeclKind::StateLabel(_, expr) => {
                 // Insert in symbol table and add to labels list
@@ -66,31 +64,23 @@ fn register_decls(root: LcgsRoot) -> Result<SymbolRegistry, SpannedError> {
                     ident.name,
                     DeclKind::StateLabel(PropIdx(labels.len()), expr),
                 );
-                let index = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
+                let index = symbols.insert(decl)?;
                 labels.push(index);
             }
             DeclKind::StateVar(state_var) => {
                 // Insert in symbol table and add to vars list
                 let decl = Decl::new(span, ident.name, DeclKind::StateVar(state_var));
-                let index = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
+                let index = symbols.insert(decl)?;
                 vars.push(index);
             }
             DeclKind::Template(inner_decls) => {
                 let decl = Decl::new(span, ident.name, DeclKind::Template(inner_decls));
-                let _ = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
+                let _ = symbols.insert(decl)?;
             }
             DeclKind::Player(mut player) => {
                 player.index = PlayerIdx(players_indices.len());
                 let decl = Decl::new(span, ident.name, DeclKind::Player(player));
-                let index = symbols
-                    .insert(decl)
-                    .map_err(|msg| SpannedError::new(span, msg))?;
+                let index = symbols.insert(decl)?;
                 players_indices.push(index);
             }
             _ => unreachable!("Not a global declaration. Parser must have failed."),
@@ -130,7 +120,7 @@ fn register_decls(root: LcgsRoot) -> Result<SymbolRegistry, SpannedError> {
             .map(|idecl| {
                 let mut new_decl = relabeler.relabel_decl(idecl.clone())?;
                 new_decl.ident.owner = Some(pdecl.ident.name.clone());
-                Ok((new_decl, idecl.span))
+                Ok(new_decl)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -138,10 +128,8 @@ fn register_decls(root: LcgsRoot) -> Result<SymbolRegistry, SpannedError> {
         drop(tdecl);
 
         // Register the new declarations
-        for (new_decl, span) in new_decls {
-            let index = symbols
-                .insert(new_decl)
-                .map_err(|msg| SpannedError::new(span, msg))?;
+        for new_decl in new_decls {
+            let index = symbols.insert(new_decl)?;
             let mut ndecl = symbols.get(index).borrow_mut();
             match &mut ndecl.kind {
                 DeclKind::StateLabel(id, _) => {
