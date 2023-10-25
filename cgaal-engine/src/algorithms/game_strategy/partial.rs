@@ -7,15 +7,15 @@ use crate::edg::atledg::pmoves::PartialMove;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::atledg::AtlDependencyGraph;
 use crate::edg::ExtendedDependencyGraph;
-use crate::game_structure::{GameStructure, Player, State};
+use crate::game_structure::{GameStructure, PlayerIdx, StateIdx};
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PartialStrategy {
     /// The players for which this strategy applies
-    pub players: Vec<Player>,
+    pub players: Vec<PlayerIdx>,
     /// A partial mapping from States to a partial move, where the given players have made
     /// a specific choice.
-    pub move_to_pick: HashMap<State, PartialMove>,
+    pub move_to_pick: HashMap<StateIdx, PartialMove>,
 }
 
 impl PartialStrategy {
@@ -39,7 +39,7 @@ pub fn find_strategy_moves_true_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
-) -> HashMap<State, PartialMove> {
+) -> HashMap<StateIdx, PartialMove> {
     debug_assert!(v0.formula().is_enforce());
     debug_assert_eq!(assignments[v0], VertexAssignment::True);
 
@@ -58,7 +58,7 @@ pub fn find_strategy_moves_true_case<G: GameStructure>(
                 .iter()
                 .all(|(target, _)| assignments[target].is_true());
             if all_targets_true {
-                let mut move_to_pick = HashMap::<State, PartialMove>::new();
+                let mut move_to_pick = HashMap::<StateIdx, PartialMove>::new();
                 move_to_pick.insert(v0.state(), edge.annotation().unwrap().clone().unwrap());
                 return move_to_pick;
             }
@@ -71,7 +71,7 @@ pub fn find_strategy_moves_true_case<G: GameStructure>(
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();
     // Which move to pick for each state
-    let mut move_to_pick = HashMap::<State, PartialMove>::new();
+    let mut move_to_pick = HashMap::<StateIdx, PartialMove>::new();
     // Vertices that may be part of strategy
     let mut verts_with_coalitions = Vec::<AtlVertex>::with_capacity(32);
 
@@ -130,7 +130,7 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
-) -> HashMap<State, PartialMove> {
+) -> HashMap<StateIdx, PartialMove> {
     debug_assert!(v0.formula().is_despite());
     debug_assert_eq!(assignments[v0], VertexAssignment::False);
 
@@ -146,7 +146,7 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
         let edges = graph.succ(v0);
         for target in edges[0].targets() {
             if assignments[target].is_false() {
-                let mut move_to_pick = HashMap::<State, PartialMove>::new();
+                let mut move_to_pick = HashMap::<StateIdx, PartialMove>::new();
                 move_to_pick.insert(v0.state(), target.partial_move().unwrap().clone());
                 return move_to_pick;
             }
@@ -158,7 +158,7 @@ pub fn find_strategy_moves_false_case<G: GameStructure>(
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();
     // Which move to pick for each state
-    let mut move_to_pick = HashMap::<State, PartialMove>::new();
+    let mut move_to_pick = HashMap::<StateIdx, PartialMove>::new();
     // Vertices that may be part of strategy
     let mut verts_with_coalitions = Vec::<AtlVertex>::with_capacity(32);
 
@@ -217,14 +217,14 @@ pub fn find_strategy_moves_undecided_case<G: GameStructure>(
     graph: &AtlDependencyGraph<G>,
     v0: &AtlVertex,
     assignments: &HashMap<AtlVertex, VertexAssignment>,
-) -> HashMap<State, PartialMove> {
+) -> HashMap<StateIdx, PartialMove> {
     debug_assert!(v0.formula().is_despite());
     debug_assert_eq!(assignments[v0], VertexAssignment::Undecided);
 
     // Vertices that have been found to be part of the strategy
     let mut found = HashSet::<AtlVertex>::new();
     // Which move to pick for each state
-    let mut move_to_pick = HashMap::<State, PartialMove>::new();
+    let mut move_to_pick = HashMap::<StateIdx, PartialMove>::new();
     // Vertices that will be part of strategy
     let mut verts_with_coalitions = Vec::<AtlVertex>::with_capacity(32);
 

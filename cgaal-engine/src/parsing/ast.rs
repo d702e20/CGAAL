@@ -1,17 +1,20 @@
-use crate::parsing::span::Span;
+use crate::game_structure::lcgs::symbol_table::SymbIdx;
+use crate::game_structure::{PlayerIdx, PropIdx, INVALID_IDX};
+use crate::parsing::span::{Span, NO_SPAN};
 use crate::parsing::token::TokenKind;
-use std::sync::Arc;
+use std::fmt::{Display, Formatter};
+use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 /// The root of an LCGS program.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LcgsRoot {
     pub span: Span,
-    pub items: Vec<Decl>,
+    pub decls: Vec<Decl>,
 }
 
 impl LcgsRoot {
-    pub fn new(span: Span, items: Vec<Decl>) -> Self {
-        LcgsRoot { span, items }
+    pub fn new(span: Span, decls: Vec<Decl>) -> Self {
+        LcgsRoot { span, decls }
     }
 }
 
@@ -19,56 +22,101 @@ impl LcgsRoot {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Decl {
     pub span: Span,
-    pub ident: Ident,
+    pub ident: OwnedIdent,
+    pub index: SymbIdx,
     pub kind: DeclKind,
+}
+
+impl Decl {
+    pub fn new(span: Span, ident: Ident, kind: DeclKind) -> Self {
+        Decl {
+            span,
+            ident: OwnedIdent::new(None, ident),
+            index: SymbIdx(INVALID_IDX),
+            kind,
+        }
+    }
+
+    pub fn new_error() -> Self {
+        Decl::new(NO_SPAN, Ident::new_error(), DeclKind::Error)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclKind {
     /// A constant declaration
-    Const(Arc<Expr>),
+    Const(Expr),
     /// A state label declaration. Used by ATL formulas
-    StateLabel(Arc<Expr>),
+    StateLabel(PropIdx, Expr),
     /// A state variable declaration. These compose the state of a game.
-    StateVar(Arc<StateVarDecl>),
+    StateVar(StateVarDecl),
     /// A player declaration. Can only appear in the global scope.
-    Player(Arc<PlayerDecl>),
+    Player(PlayerDecl),
     /// A template declaration. Can only appear in the global scope.
     Template(Vec<Decl>),
     /// An action declaration. Can only appear in templates.
-    Action(Arc<Expr>),
+    Action(Expr),
     /// An error
     Error,
 }
 
-impl Decl {
-    pub fn new(span: Span, ident: Ident, kind: DeclKind) -> Self {
-        Decl { span, ident, kind }
+impl DeclKind {
+    pub fn is_const(&self) -> bool {
+        matches!(self, DeclKind::Const(_))
     }
 
-    pub fn new_error() -> Self {
-        Decl::new(Span::new(0, 0), Ident::new_error(), DeclKind::Error)
+    pub fn is_state_label(&self) -> bool {
+        matches!(self, DeclKind::StateLabel(_, _))
+    }
+
+    pub fn is_state_var(&self) -> bool {
+        matches!(self, DeclKind::StateVar(_))
+    }
+
+    pub fn is_player(&self) -> bool {
+        matches!(self, DeclKind::Player(_))
+    }
+
+    pub fn is_template(&self) -> bool {
+        matches!(self, DeclKind::Template(_))
+    }
+
+    pub fn is_action(&self) -> bool {
+        matches!(self, DeclKind::Action(_))
+    }
+
+    pub fn is_error(&self) -> bool {
+        matches!(self, DeclKind::Error)
+    }
+
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            DeclKind::Const(_) => "constant",
+            DeclKind::StateLabel(_, _) => "state label",
+            DeclKind::StateVar(_) => "state variable",
+            DeclKind::Player(_) => "player",
+            DeclKind::Template(_) => "template",
+            DeclKind::Action(_) => "action",
+            DeclKind::Error => "error",
+        }
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StateVarDecl {
     pub range: RangeClause,
-    pub init: Arc<Expr>,
+    pub init: Expr,
+    pub init_val: i32,
     pub update_ident: Ident,
-    pub update: Arc<Expr>,
+    pub update: Expr,
 }
 
 impl StateVarDecl {
-    pub fn new(
-        range: RangeClause,
-        init: Arc<Expr>,
-        update_ident: Ident,
-        update: Arc<Expr>,
-    ) -> Self {
+    pub fn new(range: RangeClause, init: Expr, update_ident: Ident, update: Expr) -> Self {
         StateVarDecl {
             range,
             init,
+            init_val: 0,
             update_ident,
             update,
         }
@@ -78,26 +126,34 @@ impl StateVarDecl {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RangeClause {
     pub span: Span,
-    pub min: Arc<Expr>,
-    pub max: Arc<Expr>,
+    pub min: Expr,
+    pub max: Expr,
+    pub val: RangeInclusive<i32>,
 }
 
 impl RangeClause {
-    pub fn new(span: Span, min: Arc<Expr>, max: Arc<Expr>) -> Self {
-        RangeClause { span, min, max }
+    pub fn new(span: Span, min: Expr, max: Expr) -> Self {
+        RangeClause {
+            span,
+            min,
+            max,
+            val: 0..=0,
+        }
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PlayerDecl {
-    pub template: Ident,
+    pub index: PlayerIdx,
+    pub template_ident: Ident,
     pub relabellings: Vec<RelabelCase>,
 }
 
 impl PlayerDecl {
     pub fn new(template: Ident, relabellings: Vec<RelabelCase>) -> Self {
         PlayerDecl {
-            template,
+            index: PlayerIdx(INVALID_IDX),
+            template_ident: template,
             relabellings,
         }
     }
@@ -111,11 +167,11 @@ impl PlayerDecl {
 pub struct RelabelCase {
     pub span: Span,
     pub from: Ident,
-    pub to: Arc<Expr>,
+    pub to: Expr,
 }
 
 impl RelabelCase {
-    pub fn new(span: Span, from: Ident, to: Arc<Expr>) -> Self {
+    pub fn new(span: Span, from: Ident, to: Expr) -> Self {
         RelabelCase { span, from, to }
     }
 }
@@ -124,24 +180,74 @@ impl RelabelCase {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Ident {
     pub span: Span,
-    pub name: String,
+    pub text: String,
 }
 
 impl Ident {
     pub fn new(span: Span, name: String) -> Self {
-        Ident { span, name }
+        Ident { span, text: name }
     }
 
     pub fn new_error() -> Self {
-        Ident::new(Span::new(0, 0), String::new())
+        Ident::new(NO_SPAN, String::new())
+    }
+
+    pub fn with_owner(self, owner: Ident) -> OwnedIdent {
+        OwnedIdent::new(Some(owner), self)
+    }
+
+    pub fn with_no_owner(self) -> OwnedIdent {
+        OwnedIdent::new(None, self)
+    }
+}
+
+impl Display for Ident {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
     }
 }
 
 /// An owned identifier. E.g. `p1.foo`
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct OwnedIdent {
-    pub owner: Ident,
+    pub owner: Option<Ident>,
     pub name: Ident,
+}
+
+impl OwnedIdent {
+    pub fn new(owner: Option<Ident>, name: Ident) -> Self {
+        OwnedIdent { owner, name }
+    }
+
+    pub fn new_error() -> Self {
+        OwnedIdent::new(None, Ident::new_error())
+    }
+}
+
+impl From<&str> for OwnedIdent {
+    /// Converts a string into an [OwnedIdent].
+    /// The string must be on the form "owner.name" or just "name".
+    fn from(string: &str) -> OwnedIdent {
+        let split: Vec<&str> = string.split('.').collect();
+        match split.len() {
+            1 => OwnedIdent::new(None, Ident::new(NO_SPAN, split[0].to_string())),
+            2 => OwnedIdent::new(
+                Some(Ident::new(NO_SPAN, split[0].to_string())),
+                Ident::new(NO_SPAN, split[1].to_string()),
+            ),
+            _ => panic!("Invalid owned identifier. Must consist of an owner and a name."),
+        }
+    }
+}
+
+impl Display for OwnedIdent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(owner) = &self.owner {
+            write!(f, "{}.{}", owner.text, self.name)
+        } else {
+            write!(f, "{}", self.name)
+        }
+    }
 }
 
 /// An expression.
@@ -159,7 +265,55 @@ impl Expr {
     }
 
     pub fn new_error() -> Self {
-        Expr::new(Span::new(0, 0), ExprKind::Error)
+        Expr::new(NO_SPAN, ExprKind::Error)
+    }
+
+    pub fn is_true(&self) -> bool {
+        self.kind == ExprKind::True
+    }
+
+    pub fn is_false(&self) -> bool {
+        self.kind == ExprKind::False
+    }
+
+    pub fn is_num(&self) -> bool {
+        matches!(self.kind, ExprKind::Num(_))
+    }
+
+    pub fn is_paren(&self) -> bool {
+        matches!(self.kind, ExprKind::Paren(_))
+    }
+
+    pub fn is_ident(&self) -> bool {
+        matches!(self.kind, ExprKind::OwnedIdent(_))
+    }
+
+    pub fn is_unary(&self) -> bool {
+        matches!(self.kind, ExprKind::Unary(_, _))
+    }
+
+    pub fn is_binary(&self) -> bool {
+        matches!(self.kind, ExprKind::Binary(_, _, _))
+    }
+
+    pub fn is_ternary_if(&self) -> bool {
+        matches!(self.kind, ExprKind::TernaryIf(_, _, _))
+    }
+
+    pub fn is_max(&self) -> bool {
+        matches!(self.kind, ExprKind::Max(_))
+    }
+
+    pub fn is_min(&self) -> bool {
+        matches!(self.kind, ExprKind::Min(_))
+    }
+
+    pub fn is_coalition(&self) -> bool {
+        matches!(self.kind, ExprKind::Coalition(_))
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.kind == ExprKind::Error
     }
 }
 
@@ -171,15 +325,17 @@ pub enum ExprKind {
     False,
     Num(i32),
     /// An expression in parentheses
-    Paren(Arc<Expr>),
+    Paren(Box<Expr>),
     /// An owned identifier
-    OwnedIdent(Option<Ident>, Ident),
+    OwnedIdent(OwnedIdent),
+    /// A value of a symbol
+    Symbol(SymbIdx),
     /// A unary operation
-    Unary(UnaryOpKind, Arc<Expr>),
+    Unary(UnaryOpKind, Box<Expr>),
     /// A binary operation
-    Binary(BinaryOpKind, Arc<Expr>, Arc<Expr>),
+    Binary(BinaryOpKind, Box<Expr>, Box<Expr>),
     /// A ternary if expression
-    TernaryIf(Arc<Expr>, Arc<Expr>, Arc<Expr>),
+    TernaryIf(Box<Expr>, Box<Expr>, Box<Expr>),
     /// A max expression
     Max(Vec<Expr>),
     /// A min expression
@@ -204,6 +360,18 @@ pub enum UnaryOpKind {
     Eventually,
     /// The `G` temporal operator (Globally/Invariant)
     Invariantly,
+}
+
+impl UnaryOpKind {
+    pub fn as_fn(&self) -> fn(i32) -> i32 {
+        match self {
+            UnaryOpKind::Not => |e| (e == 0) as i32,
+            UnaryOpKind::Neg => |e| -e,
+            UnaryOpKind::Next => panic!("Temporal operator (Next) is not a function"),
+            UnaryOpKind::Eventually => panic!("Temporal operator (Eventually) is not a function"),
+            UnaryOpKind::Invariantly => panic!("Temporal operator (Invariantly) is not a function"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,6 +442,26 @@ impl BinaryOpKind {
             BinaryOpKind::Until => 0,
         }
     }
+
+    pub fn as_fn(&self) -> fn(i32, i32) -> i32 {
+        match self {
+            BinaryOpKind::Add => i32::add,
+            BinaryOpKind::Mul => i32::mul,
+            BinaryOpKind::Sub => i32::sub,
+            BinaryOpKind::Div => i32::div,
+            BinaryOpKind::Eq => |e1, e2| (e1 == e2) as i32,
+            BinaryOpKind::Neq => |e1, e2| (e1 != e2) as i32,
+            BinaryOpKind::Gt => |e1, e2| (e1 > e2) as i32,
+            BinaryOpKind::Lt => |e1, e2| (e1 < e2) as i32,
+            BinaryOpKind::Geq => |e1, e2| (e1 >= e2) as i32,
+            BinaryOpKind::Leq => |e1, e2| (e1 <= e2) as i32,
+            BinaryOpKind::And => |e1, e2| (e1 != 0 && e2 != 0) as i32,
+            BinaryOpKind::Or => |e1, e2| (e1 != 0 || e2 != 0) as i32,
+            BinaryOpKind::Xor => |e1, e2| ((e1 == 0 && e2 != 0) || e1 != 0 && e2 == 0) as i32,
+            BinaryOpKind::Implies => |e1, e2| (e1 == 0 || e2 != 0) as i32,
+            BinaryOpKind::Until => panic!("Temporal operator (Until) is not a function"),
+        }
+    }
 }
 
 impl TryFrom<TokenKind> for BinaryOpKind {
@@ -318,21 +506,21 @@ pub struct Coalition {
     /// The kind of the coalition.
     pub kind: CoalitionKind,
     /// The path expression following the coalition.
-    pub expr: Arc<Expr>,
+    pub expr: Box<Expr>,
 }
 
 impl Coalition {
-    pub fn new(span: Span, players: Vec<Ident>, kind: CoalitionKind, expr: Arc<Expr>) -> Self {
+    pub fn new(span: Span, players: Vec<Ident>, kind: CoalitionKind, expr: Expr) -> Self {
         Coalition {
             span,
             players,
             kind,
-            expr,
+            expr: Box::new(expr),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoalitionKind {
     /// The `<< >>` coalition
     Despite,

@@ -5,9 +5,8 @@ use std::sync::Arc;
 use joinery::prelude::*;
 
 use crate::atl::game_formula::GamePhi;
-use crate::game_structure::{GameStructure, Player, Proposition};
+use crate::game_structure::{GameStructure, PlayerIdx, PropIdx};
 
-pub mod convert;
 pub mod game_formula;
 
 /// Alternating-time Temporal Logic formula
@@ -21,7 +20,7 @@ pub enum Phi {
     False,
     /// The current state must have the label/proposition
     #[serde(rename = "proposition")]
-    Proposition(Proposition),
+    Proposition(PropIdx),
     /// It must not be the case that subformula is satisfied
     #[serde(rename = "not")]
     Not(Arc<Phi>),
@@ -34,51 +33,51 @@ pub enum Phi {
     /// It must be the case that `formula` is satisfied in the next step despite what actions `players` choose.
     #[serde(rename = "despite next")]
     DespiteNext {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         formula: Arc<Phi>,
     },
     /// It must be the case that players can enforce that `formula` is satisfied in the next step
     #[serde(rename = "enforce next")]
     EnforceNext {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         formula: Arc<Phi>,
     },
     /// It must be the case that `pre` is satisfied until `until` is satisfied despite what actions `players` choose.
     #[serde(rename = "despite until")]
     DespiteUntil {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
     /// It must be the case that `players` can enforce that `pre` is satisfied until `until` is satisfied
     #[serde(rename = "enforce until")]
     EnforceUntil {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         pre: Arc<Phi>,
         until: Arc<Phi>,
     },
     /// It must be the case that `formula` is satisfied in some coming step despite what actions `players` choose.
     #[serde(rename = "despite eventually")]
     DespiteEventually {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         formula: Arc<Phi>,
     },
     /// It must be the case that `players` can enforce that `formula` is satisfied in some coming step.
     #[serde(rename = "enforce eventually")]
     EnforceEventually {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         formula: Arc<Phi>,
     },
     /// It must be the case that `formula` is continually satisfied despite what actions `players` choose.
     #[serde(rename = "despite invariant")]
     DespiteInvariant {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         formula: Arc<Phi>,
     },
     /// It must be the case that `players` can enforce that `formula` is continually satisfied.
     #[serde(rename = "enforce invariant")]
     EnforceInvariant {
-        players: Vec<Player>,
+        players: Vec<PlayerIdx>,
         formula: Arc<Phi>,
     },
 }
@@ -140,7 +139,7 @@ impl Phi {
     }
 
     /// Returns the players of this formula variant, if it contains a path-qualifier.
-    pub fn players(&self) -> Option<&[Player]> {
+    pub fn players(&self) -> Option<&[PlayerIdx]> {
         match self {
             Phi::DespiteNext { players, .. } => Some(players),
             Phi::EnforceNext { players, .. } => Some(players),
@@ -263,7 +262,7 @@ impl Phi {
     }
 
     /// Returns the proposition from a formula, if it is one
-    pub fn get_proposition(&self) -> Option<usize> {
+    pub fn get_proposition(&self) -> Option<PropIdx> {
         if let Phi::Proposition(id) = self {
             Some(*id)
         } else {
@@ -271,43 +270,41 @@ impl Phi {
         }
     }
 
-    pub fn get_propositions_recursively(&self) -> Vec<usize> {
-        match self {
-            Phi::True => Vec::new(),
-            Phi::False => Vec::new(),
-            Phi::Proposition(id) => vec![*id],
-            Phi::Not(formula) => formula.get_propositions_recursively(),
-            Phi::Or(formula1, formula2) => {
-                let mut prop1 = formula1.get_propositions_recursively();
-                let mut prop2 = formula2.get_propositions_recursively();
-                prop1.append(&mut prop2);
-                prop1
+    pub fn get_all_propositions(&self) -> Vec<PropIdx> {
+        fn get_prop_rec(phi: &Phi, props: &mut Vec<PropIdx>) {
+            match phi {
+                Phi::True => {}
+                Phi::False => {}
+                Phi::Proposition(id) => props.push(*id),
+                Phi::Not(formula) => get_prop_rec(formula, props),
+                Phi::Or(formula1, formula2) => {
+                    get_prop_rec(formula1, props);
+                    get_prop_rec(formula2, props);
+                }
+                Phi::And(formula1, formula2) => {
+                    get_prop_rec(formula1, props);
+                    get_prop_rec(formula2, props);
+                }
+                Phi::DespiteNext { formula, .. } => get_prop_rec(formula, props),
+                Phi::EnforceNext { formula, .. } => get_prop_rec(formula, props),
+                Phi::DespiteUntil { pre, until, .. } => {
+                    get_prop_rec(pre, props);
+                    get_prop_rec(until, props);
+                }
+                Phi::EnforceUntil { pre, until, .. } => {
+                    get_prop_rec(pre, props);
+                    get_prop_rec(until, props);
+                }
+                Phi::DespiteEventually { formula, .. } => get_prop_rec(formula, props),
+                Phi::EnforceEventually { formula, .. } => get_prop_rec(formula, props),
+                Phi::DespiteInvariant { formula, .. } => get_prop_rec(formula, props),
+                Phi::EnforceInvariant { formula, .. } => get_prop_rec(formula, props),
             }
-            Phi::And(formula1, formula2) => {
-                let mut prop1 = formula1.get_propositions_recursively();
-                let mut prop2 = formula2.get_propositions_recursively();
-                prop1.append(&mut prop2);
-                prop1
-            }
-            Phi::DespiteNext { formula, .. } => formula.get_propositions_recursively(),
-            Phi::EnforceNext { formula, .. } => formula.get_propositions_recursively(),
-            Phi::DespiteUntil { pre, until, .. } => {
-                let mut prop1 = pre.get_propositions_recursively();
-                let mut prop2 = until.get_propositions_recursively();
-                prop1.append(&mut prop2);
-                prop1
-            }
-            Phi::EnforceUntil { pre, until, .. } => {
-                let mut prop1 = pre.get_propositions_recursively();
-                let mut prop2 = until.get_propositions_recursively();
-                prop1.append(&mut prop2);
-                prop1
-            }
-            Phi::DespiteEventually { formula, .. } => formula.get_propositions_recursively(),
-            Phi::EnforceEventually { formula, .. } => formula.get_propositions_recursively(),
-            Phi::DespiteInvariant { formula, .. } => formula.get_propositions_recursively(),
-            Phi::EnforceInvariant { formula, .. } => formula.get_propositions_recursively(),
         }
+
+        let mut props = Vec::new();
+        get_prop_rec(self, &mut props);
+        props
     }
 
     /// Pairs an ATL formula with its game structure, allowing us to print
@@ -389,14 +386,15 @@ mod test {
     use std::sync::Arc;
 
     use crate::atl::Phi::*;
+    use crate::game_structure::{PlayerIdx, PropIdx};
 
     #[test]
     fn test_display_01() {
         let formula = EnforceUntil {
-            players: vec![0, 1],
+            players: vec![PlayerIdx(0), PlayerIdx(1)],
             pre: Arc::new(Or {
-                0: Arc::new(Proposition(1)),
-                1: Arc::new(Not(Arc::new(Proposition(2)))),
+                0: Arc::new(Proposition(PropIdx(1))),
+                1: Arc::new(Not(Arc::new(Proposition(PropIdx(2))))),
             }),
             until: Arc::new(False),
         };

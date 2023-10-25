@@ -1,7 +1,8 @@
 use crate::parsing::span::Span;
 use std::cell::RefCell;
 use std::cmp::{max, min};
-use std::fmt::Write;
+use std::error::Error;
+use std::fmt::{Display, Formatter, Write};
 
 /// A log of errors that occurred during parsing or semantic analysis.
 /// Each [ErrorLogEntry] has a span that indicates its origin in the original input code.
@@ -16,16 +17,26 @@ impl ErrorLog {
         Default::default()
     }
 
-    pub fn log(&self, span: Span, msg: String) {
+    pub fn log(&self, span: Span, msg: String) -> SeeErrorLog {
         self.errors.borrow_mut().push(ErrorLogEntry::new(span, msg));
+        SeeErrorLog
     }
 
-    pub fn log_entry(&self, entry: ErrorLogEntry) {
+    pub fn log_entry(&self, entry: ErrorLogEntry) -> SeeErrorLog {
         self.errors.borrow_mut().push(entry);
+        SeeErrorLog
     }
 
-    pub fn log_msg(&self, msg: String) {
+    pub fn log_msg(&self, msg: String) -> SeeErrorLog {
         self.errors.borrow_mut().push(ErrorLogEntry::msg_only(msg));
+        SeeErrorLog
+    }
+
+    pub fn log_err(&self, err: SpannedError) -> SeeErrorLog {
+        self.errors
+            .borrow_mut()
+            .push(ErrorLogEntry::new(err.span, err.msg));
+        SeeErrorLog
     }
 
     pub fn len(&self) -> usize {
@@ -117,6 +128,41 @@ impl ErrorLogEntry {
         ErrorLogEntry { span: None, msg }
     }
 }
+
+/// An error with a span in the original input code.
+/// Must be logged in an [ErrorLog] for prettier display.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SpannedError {
+    pub span: Span,
+    pub msg: String,
+}
+
+impl SpannedError {
+    pub fn new(span: Span, msg: String) -> Self {
+        SpannedError { span, msg }
+    }
+}
+
+impl Display for SpannedError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+
+impl Error for SpannedError {}
+
+/// A dummy error for when errors occur and they can be found in the passed ErrorLog.
+/// Also required to make clippy stop complaining about Result<_, ()>.
+#[derive(Copy, Clone, Eq, PartialEq, Default, Debug)]
+pub struct SeeErrorLog;
+
+impl Display for SeeErrorLog {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "See content of ErrorLog for errors")
+    }
+}
+
+impl Error for SeeErrorLog {}
 
 #[cfg(test)]
 mod tests {

@@ -1,10 +1,10 @@
-use cgaal_engine::atl::convert::convert_expr_to_phi;
-use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::lcgs::convert_expr_to_phi;
+use cgaal_engine::game_structure::lcgs::intermediate::IntermediateLcgs;
 use cgaal_engine::parsing::ast::*;
 use cgaal_engine::parsing::errors::ErrorLog;
 use cgaal_engine::parsing::lexer::*;
 use cgaal_engine::parsing::parse_atl;
+use cgaal_engine::parsing::parse_lcgs;
 use cgaal_engine::parsing::parser::*;
 use cgaal_engine::parsing::span::*;
 
@@ -84,10 +84,10 @@ fn basic_expr_003() {
                         BinaryOpKind::Or,
                         Expr::new(
                             Span::new(0, 3),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 None,
                                 Ident::new(Span::new(0, 3), "foo".to_string())
-                            )
+                            ))
                         )
                         .into(),
                         Expr::new(
@@ -97,10 +97,10 @@ fn basic_expr_003() {
                                 Expr::new(Span::new(7, 11), ExprKind::True).into(),
                                 Expr::new(
                                     Span::new(15, 22),
-                                    ExprKind::OwnedIdent(
+                                    ExprKind::OwnedIdent(OwnedIdent::new(
                                         Some(Ident::new(Span::new(15, 18), "bar".to_string())),
                                         Ident::new(Span::new(19, 22), "baz".to_string())
-                                    )
+                                    ))
                                 )
                                 .into()
                             )
@@ -146,12 +146,18 @@ fn basic_expr_004() {
             ExprKind::Max(vec![
                 Expr::new(
                     Span::new(4, 5),
-                    ExprKind::OwnedIdent(None, Ident::new(Span::new(4, 5), "a".to_string()))
+                    ExprKind::OwnedIdent(OwnedIdent::new(
+                        None,
+                        Ident::new(Span::new(4, 5), "a".to_string())
+                    ))
                 )
                 .into(),
                 Expr::new(
                     Span::new(7, 8),
-                    ExprKind::OwnedIdent(None, Ident::new(Span::new(7, 8), "b".to_string()))
+                    ExprKind::OwnedIdent(OwnedIdent::new(
+                        None,
+                        Ident::new(Span::new(7, 8), "b".to_string())
+                    ))
                 )
                 .into(),
                 Expr::new(Span::new(10, 11), ExprKind::Num(5)).into(),
@@ -184,10 +190,10 @@ fn atl_expr_001() {
                         UnaryOpKind::Eventually,
                         Expr::new(
                             Span::new(9, 13),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 None,
                                 Ident::new(Span::new(9, 13), "goal".to_string())
-                            )
+                            ))
                         )
                         .into()
                     )
@@ -225,10 +231,10 @@ fn atl_expr_002() {
                         UnaryOpKind::Invariantly,
                         Expr::new(
                             Span::new(13, 17),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 None,
                                 Ident::new(Span::new(13, 17), "safe".to_string())
-                            )
+                            ))
                         )
                         .into()
                     )
@@ -263,18 +269,18 @@ fn atl_expr_003() {
                         BinaryOpKind::Until,
                         Expr::new(
                             Span::new(6, 10),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 None,
                                 Ident::new(Span::new(6, 10), "safe".to_string())
-                            )
+                            ))
                         )
                         .into(),
                         Expr::new(
                             Span::new(13, 17),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 None,
                                 Ident::new(Span::new(13, 17), "goal".to_string())
-                            )
+                            ))
                         )
                         .into()
                     )
@@ -309,10 +315,10 @@ fn atl_expr_004() {
                         UnaryOpKind::Eventually,
                         Expr::new(
                             Span::new(9, 16),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 Some(Ident::new(Span::new(9, 11), "p1".to_string())),
                                 Ident::new(Span::new(12, 16), "attr".to_string()),
-                            ),
+                            )),
                         )
                         .into(),
                     ),
@@ -347,10 +353,10 @@ fn atl_expr_005() {
                         UnaryOpKind::Eventually,
                         Expr::new(
                             Span::new(10, 14),
-                            ExprKind::OwnedIdent(
+                            ExprKind::OwnedIdent(OwnedIdent::new(
                                 None,
                                 Ident::new(Span::new(10, 14), "safe".to_string())
-                            )
+                            ))
                         )
                         .into()
                     )
@@ -398,7 +404,10 @@ fn erroneous_expr_002() {
         expr,
         Expr::new(
             Span::new(0, 3),
-            ExprKind::OwnedIdent(None, Ident::new(Span::new(0, 3), "foo".to_string()))
+            ExprKind::OwnedIdent(OwnedIdent::new(
+                None,
+                Ident::new(Span::new(0, 3), "foo".to_string())
+            ))
         )
     );
 }
@@ -624,13 +633,13 @@ fn atl_expr_batch() {
         "[[p2]] (<<p1>> X p1.attr && !prop U true || false)",
     ];
 
-    let root = parse_lcgs(lcgs_raw).unwrap();
-    let game = IntermediateLcgs::create(root).unwrap();
+    let errors = ErrorLog::new();
+    let root = parse_lcgs(lcgs_raw, &errors).unwrap();
+    let game = IntermediateLcgs::create(root, &errors).unwrap();
 
     for atl_raw in atls {
-        let errors = ErrorLog::new();
         parse_atl(atl_raw, &errors)
-            .and_then(|expr| convert_expr_to_phi(&expr, &game, &errors))
+            .and_then(|expr| convert_expr_to_phi(expr, &game, &errors))
             .expect(&format!(
                 "For '{}', ErrorLog is not empty: {:?}",
                 atl_raw, errors
@@ -671,18 +680,15 @@ fn atl_expr_erroneous_batch() {
         "p1.x",
     ];
 
-    let root = parse_lcgs(lcgs_raw).unwrap();
-    let game = IntermediateLcgs::create(root).unwrap();
+    let errors = ErrorLog::new();
+    let root = parse_lcgs(lcgs_raw, &errors).unwrap();
+    let game = IntermediateLcgs::create(root, &errors).unwrap();
 
     for atl_raw in atls {
-        let errors = ErrorLog::new();
-        let is_none = parse_atl(atl_raw, &errors)
-            .and_then(|expr| convert_expr_to_phi(&expr, &game, &errors))
-            .is_none();
-        assert!(
-            is_none && errors.has_errors(),
-            "For '{}', ErrorLog is empty",
-            atl_raw
-        );
+        let is_err = parse_atl(atl_raw, &errors)
+            .and_then(|expr| convert_expr_to_phi(expr, &game, &errors))
+            .is_err();
+        assert!(is_err, "For '{}', result is not Err", atl_raw);
+        assert!(errors.has_errors(), "For '{}', ErrorLog is empty", atl_raw);
     }
 }

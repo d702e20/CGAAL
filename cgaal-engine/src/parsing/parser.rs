@@ -1,13 +1,13 @@
+use crate::game_structure::{PropIdx, INVALID_IDX};
 use crate::parsing::ast::{
     BinaryOpKind, Coalition, CoalitionKind, Decl, DeclKind, Expr, ExprKind, Ident, LcgsRoot,
-    PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
+    OwnedIdent, PlayerDecl, RangeClause, RelabelCase, StateVarDecl, UnaryOpKind,
 };
 use crate::parsing::errors::ErrorLog;
 use crate::parsing::lexer::Lexer;
 use crate::parsing::span::Span;
 use crate::parsing::token::{Token, TokenKind};
 use std::iter::Peekable;
-use std::sync::Arc;
 
 /// A helper macro for error recovery.
 /// It tries to parse the given expression and then the given recovery token.
@@ -93,7 +93,7 @@ impl<'a> Parser<'a> {
     /// Parse an LCGS program.
     pub fn lcgs_root(&mut self) -> Result<LcgsRoot, RecoverMode> {
         let decls = self.decls(false)?;
-        let mut span = Span::new(0, 0);
+        let mut span = Span::empty();
         if !decls.is_empty() {
             span.begin = decls[0].span.begin;
             span.end = decls[decls.len() - 1].span.end;
@@ -106,13 +106,13 @@ impl<'a> Parser<'a> {
         let mut decls = vec![];
         loop {
             match (self.lexer.peek(), in_template) {
-                // Const declaration
+                // Const declaration. Not allowed in templates
                 (
                     Some(Token {
                         kind: TokenKind::KwConst,
                         ..
                     }),
-                    _,
+                    false,
                 ) => {
                     let (_, decl) =
                         recover!(self, self.const_decl(), TokenKind::Semi, Decl::new_error())?;
@@ -220,7 +220,7 @@ impl<'a> Parser<'a> {
         let _ = self.token(TokenKind::Assign)?;
         let expr = self.expr()?;
         let span = start + expr.span;
-        let const_decl = DeclKind::Const(Arc::new(expr));
+        let const_decl = DeclKind::Const(expr);
         Ok(Decl::new(span, ident, const_decl))
     }
 
@@ -231,7 +231,7 @@ impl<'a> Parser<'a> {
         let _ = self.token(TokenKind::Assign)?;
         let expr = self.expr()?;
         let span = start + expr.span;
-        let state_label_decl = DeclKind::StateLabel(Arc::new(expr));
+        let state_label_decl = DeclKind::StateLabel(PropIdx(INVALID_IDX), expr);
         Ok(Decl::new(span, ident, state_label_decl))
     }
 
@@ -243,7 +243,7 @@ impl<'a> Parser<'a> {
             TokenKind::Rbracket,
             (Expr::new_error(), Expr::new_error())
         )?;
-        Ok(RangeClause::new(start + end, min.into(), max.into()))
+        Ok(RangeClause::new(start + end, min, max))
     }
 
     fn range_clause_inner(&mut self) -> Result<(Expr, Expr), RecoverMode> {
@@ -266,12 +266,7 @@ impl<'a> Parser<'a> {
         let _ = self.token(TokenKind::Assign)?;
         let update = self.expr()?;
         let span = ident.span + update.span;
-        let state_var = DeclKind::StateVar(Arc::new(StateVarDecl::new(
-            range,
-            init.into(),
-            update_ident,
-            update.into(),
-        )));
+        let state_var = DeclKind::StateVar(StateVarDecl::new(range, init, update_ident, update));
         Ok(Decl::new(span, ident, state_var))
     }
 
@@ -295,7 +290,7 @@ impl<'a> Parser<'a> {
                 Vec::new()
             }
         };
-        let player = DeclKind::Player(Arc::new(PlayerDecl::new(template, cases)));
+        let player = DeclKind::Player(PlayerDecl::new(template, cases));
         Ok(Decl::new(span, ident, player))
     }
 
@@ -324,7 +319,7 @@ impl<'a> Parser<'a> {
                     let ident = self.ident()?;
                     let _ = self.token(TokenKind::Assign)?;
                     let expr = self.expr()?;
-                    cases.push(RelabelCase::new(ident.span + expr.span, ident, expr.into()));
+                    cases.push(RelabelCase::new(ident.span + expr.span, ident, expr));
                 }
                 _ => break,
             }
@@ -389,7 +384,7 @@ impl<'a> Parser<'a> {
         let (_, ident) = recover!(self, self.ident(), TokenKind::Rbracket, Ident::new_error())?;
         let cond = self.expr()?;
         let span = start + cond.span;
-        let action = DeclKind::Action(Arc::new(cond));
+        let action = DeclKind::Action(cond);
         Ok(Decl::new(span, ident, action))
     }
 
@@ -564,7 +559,7 @@ impl<'a> Parser<'a> {
     pub fn paren(&mut self) -> Result<Expr, RecoverMode> {
         let begin = self.token(TokenKind::Lparen)?;
         recover!(self, self.expr(), TokenKind::Rparen, Expr::new_error())
-            .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(Arc::new(expr))))
+            .map(|(end, expr)| Expr::new(begin + end, ExprKind::Paren(expr.into())))
     }
 
     /// Parse a function call
@@ -613,14 +608,15 @@ impl<'a> Parser<'a> {
                 ..
             })
         ) {
-            return Ok(Expr::new(lhs.span, ExprKind::OwnedIdent(None, lhs)));
+            let span = lhs.span;
+            let oi = OwnedIdent::new(None, lhs);
+            return Ok(Expr::new(span, ExprKind::OwnedIdent(oi)));
         }
         let _ = self.token(TokenKind::Dot)?;
         let rhs = self.ident()?;
-        Ok(Expr::new(
-            lhs.span + rhs.span,
-            ExprKind::OwnedIdent(Some(lhs), rhs),
-        ))
+        let span = lhs.span + rhs.span;
+        let oi = OwnedIdent::new(Some(lhs), rhs);
+        Ok(Expr::new(span, ExprKind::OwnedIdent(oi)))
     }
 
     /// Parse an identifier.
@@ -729,7 +725,7 @@ impl<'a> Parser<'a> {
                 begin + end,
                 players,
                 CoalitionKind::Enforce,
-                Arc::new(expr),
+                expr,
             )),
         ))
     }
@@ -746,7 +742,7 @@ impl<'a> Parser<'a> {
                 begin + end,
                 players,
                 CoalitionKind::Despite,
-                Arc::new(expr),
+                expr,
             )),
         ))
     }

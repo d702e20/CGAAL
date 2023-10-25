@@ -6,8 +6,8 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::State as StateUsize;
+use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
+use crate::game_structure::StateIdx;
 use float_ord::FloatOrd;
 use priority_queue::PriorityQueue;
 use std::collections::hash_map::Entry;
@@ -34,7 +34,7 @@ pub struct LinearOptimizeSearch {
     game: IntermediateLcgs,
     phi_mapper: ConstrainedPhiMaker,
     /// Maps the hash of a Phi and usize of state, to a result distance
-    result_cache: HashMap<(Arc<Phi>, StateUsize), FloatOrd<f64>>,
+    result_cache: HashMap<(Arc<Phi>, StateIdx), FloatOrd<f64>>,
     /// Maps phi to a LinearConstrainedPhi
     phi_cache: HashMap<Arc<Phi>, LinearConstrainedPhi>,
     // TODO - could add a new cache, to compare distance between states and use this to guesstimate distance

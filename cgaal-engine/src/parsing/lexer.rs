@@ -54,7 +54,7 @@ impl<'a> Lexer<'a> {
                 if depth > 0 {
                     let span = Span::new(start, start + 2);
                     self.errors
-                        .log(span, "Unclosed multi-line comment".to_string())
+                        .log(span, "Unclosed multi-line comment".to_string());
                 }
                 self.skip_ws();
             }

@@ -13,10 +13,11 @@ use cgaal_engine::algorithms::global::multithread::MultithreadedGlobalAlgorithm;
 use cgaal_engine::algorithms::global::singlethread::SinglethreadedGlobalAlgorithm;
 use cgaal_engine::atl::Phi;
 use cgaal_engine::edg::atledg::{vertex::AtlVertex, AtlDependencyGraph};
-use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::lcgs::intermediate::IntermediateLcgs;
 use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::game_structure::GameStructure;
+use cgaal_engine::parsing::errors::ErrorLog;
+use cgaal_engine::parsing::parse_lcgs;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::cmp::Ordering;
 use std::env;
@@ -59,7 +60,10 @@ macro_rules! bench_json {
                     )))
                     .unwrap();
 
-                    let v0 = AtlVertex::Full { state: 0, formula };
+                    let v0 = AtlVertex::Full {
+                        state: cgaal_engine::game_structure::StateIdx(0),
+                        formula,
+                    };
 
                     distributed_certain_zero(
                         graph,
@@ -83,10 +87,14 @@ macro_rules! bench_lcgs {
             eprintln!(concat!("[stats] bench_run_start: ", stringify!($name)));
             c.bench_function(stringify!($name), |b| {
                 b.iter(|| {
-                    let lcgs = parse_lcgs(include_str!(concat!(lcgs_model_path_prefix!(), $model)))
-                        .expect(&format!("Could not read model {}", $model));
+                    let errors = ErrorLog::new();
+                    let lcgs = parse_lcgs(
+                        include_str!(concat!(lcgs_model_path_prefix!(), $model)),
+                        &errors,
+                    )
+                    .expect(&format!("Could not read model {}", $model));
                     let game_structure =
-                        IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
+                        IntermediateLcgs::create(lcgs, &errors).expect("Could not symbolcheck");
                     let graph = AtlDependencyGraph { game_structure };
 
                     let formula = serde_json::from_str(include_str!(concat!(
@@ -165,13 +173,14 @@ macro_rules! bench_lcgs_threads {
                     &core_count,
                     |b, &core_count| {
                         b.iter(|| {
-                            let lcgs = parse_lcgs(include_str!(concat!(
-                                lcgs_model_path_prefix!(),
-                                $model
-                            )))
+                            let errors = ErrorLog::new();
+                            let lcgs = parse_lcgs(
+                                include_str!(concat!(lcgs_model_path_prefix!(), $model)),
+                                &errors,
+                            )
                             .expect(&format!("Could not read model {}", $model));
-                            let game_structure =
-                                IntermediateLcgs::create(lcgs).expect("Could not symbolcheck");
+                            let game_structure = IntermediateLcgs::create(lcgs, &errors)
+                                .expect("Could not symbolcheck");
                             let graph = AtlDependencyGraph { game_structure };
 
                             let formula = serde_json::from_str(include_str!(concat!(

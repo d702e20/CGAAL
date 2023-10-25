@@ -6,9 +6,9 @@ use crate::algorithms::certain_zero::search_strategy::{SearchStrategy, SearchStr
 use crate::atl::Phi;
 use crate::edg::atledg::vertex::AtlVertex;
 use crate::edg::Edge;
-use crate::game_structure::lcgs::ast::DeclKind;
-use crate::game_structure::lcgs::ir::intermediate::{IntermediateLcgs, State};
-use crate::game_structure::lcgs::ir::symbol_table::SymbolIdentifier;
+use crate::game_structure::lcgs::intermediate::{IntermediateLcgs, State};
+use crate::game_structure::lcgs::symbol_table::SymbIdx;
+use crate::parsing::ast::DeclKind;
 use minilp::{LinearExpr, OptimizationDirection, Problem, Variable};
 use priority_queue::PriorityQueue;
 use std::collections::hash_map::Entry;
@@ -128,21 +128,21 @@ impl LinearProgrammingSearch {
             // Every state variable is associated with two linear programming variables:
             // - goal_var which represents the variable in the closest state satisfied the constraints, and
             // - clamp_var which forces the value of goal_var to be close to the value in the current state
-            let mut symbol_vars: HashMap<SymbolIdentifier, Variable> = HashMap::new();
+            let mut symbol_vars: HashMap<SymbIdx, Variable> = HashMap::new();
             for state_var in self.game.get_vars() {
-                let decl = self.game.get_decl(&state_var).unwrap();
+                let decl = self.game.get_decl(state_var).unwrap();
                 let DeclKind::StateVar(var_decl) = &decl.kind else {
                     unreachable!()
                 };
                 let range = (
-                    *var_decl.ir_range.start() as f64,
-                    *var_decl.ir_range.end() as f64,
+                    *var_decl.range.val.start() as f64,
+                    *var_decl.range.val.end() as f64,
                 );
                 let goal_var = problem.add_var(0.0, range);
                 let clamp_var = problem.add_var(1.0, (f64::NEG_INFINITY, f64::INFINITY));
-                symbol_vars.insert(state_var.clone(), goal_var);
+                symbol_vars.insert(*state_var, goal_var);
 
-                let cur_val = state.0[&state_var] as f64;
+                let cur_val = state.0[state_var] as f64;
 
                 // Add the constraints that forces the difference between goal_var and state_var to be small
                 // - x_i - s_i <= - q_i

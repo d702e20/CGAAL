@@ -1,3 +1,5 @@
+use cgaal_engine::game_structure::lcgs::convert_expr_to_phi;
+use cgaal_engine::game_structure::{ActionIdx, PlayerIdx, StateIdx};
 use cgaal_engine::{
     algorithms::{
         certain_zero::{
@@ -8,13 +10,9 @@ use cgaal_engine::{
             compute_game_strategy, error::Error, partial::PartialStrategy, WitnessStrategy,
         },
     },
-    atl::convert::convert_expr_to_phi,
     edg::atledg::{vertex::AtlVertex, AtlDependencyGraph},
-    game_structure::{
-        lcgs::{ir::intermediate::IntermediateLcgs, parse::parse_lcgs},
-        GameStructure,
-    },
-    parsing::{errors::ErrorLog, parse_atl},
+    game_structure::{lcgs::intermediate::IntermediateLcgs, GameStructure},
+    parsing::{errors::ErrorLog, parse_atl, parse_lcgs},
 };
 
 const GAME: &str = "
@@ -38,19 +36,19 @@ label p2_ahead = p1.a < p2.a;
 ";
 
 // States, format is STATE_<p2.a><p1.a>
-const STATE_00: usize = 0;
-const STATE_01: usize = 1;
-const STATE_02: usize = 2;
-const STATE_10: usize = 3;
-const STATE_11: usize = 4;
-const STATE_12: usize = 5;
-const STATE_20: usize = 6;
-const STATE_21: usize = 7;
-const STATE_22: usize = 8;
+const STATE_00: StateIdx = StateIdx(0);
+const STATE_01: StateIdx = StateIdx(1);
+const STATE_02: StateIdx = StateIdx(2);
+const STATE_10: StateIdx = StateIdx(3);
+const STATE_11: StateIdx = StateIdx(4);
+const STATE_12: StateIdx = StateIdx(5);
+const STATE_20: StateIdx = StateIdx(6);
+const STATE_21: StateIdx = StateIdx(7);
+const STATE_22: StateIdx = StateIdx(8);
 
-const ACT_P1_WAIT: usize = 0;
-const ACT_P1_GT1: usize = 1;
-const ACT_P1_INC: usize = 2;
+const ACT_P1_WAIT: ActionIdx = ActionIdx(0);
+const ACT_P1_GT1: ActionIdx = ActionIdx(1);
+const ACT_P1_INC: ActionIdx = ActionIdx(2);
 
 const WORKER_COUNT: u64 = 4;
 
@@ -91,9 +89,9 @@ macro_rules! assert_partial_strat_moves {
     ($move_map:ident; $state:ident => $($act:ident),+; $($rest:tt)*) => {
         {
             assert!(
-                $move_map.get(&$state).map(|pm| matches!(pm[0].unwrap_specific(), $($act)|+)).unwrap_or(false),
+                $move_map.get(&$state).map(|pm| matches!(pm[PlayerIdx(0)].unwrap_specific(), $($act)|+)).unwrap_or(false),
                 concat!("Expected move in ", stringify!($state), " ({}) to be one of [", $(stringify!($act ({}))), +,"], but move was {:?}"),
-                &$state, $($act), *, &$move_map.get(&$state).map(|pm| &pm[0])
+                &$state, $($act), *, &$move_map.get(&$state).map(|pm| &pm[PlayerIdx(0)])
             );
         }
         assert_partial_strat_moves!($move_map; $($rest)*);
@@ -101,9 +99,9 @@ macro_rules! assert_partial_strat_moves {
     // Is None or one of ..
     ($move_map:ident; $state:ident => @, $($act:ident),+; $($rest:tt)*) => {
         {
-            assert!($move_map.get(&$state).map(|pm| matches!(pm[0].unwrap_specific(), $($act)|+)).unwrap_or(true),
+            assert!($move_map.get(&$state).map(|pm| matches!(pm[PlayerIdx(0)].unwrap_specific(), $($act)|+)).unwrap_or(true),
                 concat!("Expected move in ", stringify!($state), " ({}) to be None or one of [", $(stringify!($act ({}))), +,"], but move was {:?}"),
-                &$state, $($act), *, &$move_map.get(&$state).map(|pm| &pm[0])
+                &$state, $($act), *, &$move_map.get(&$state).map(|pm| &pm[PlayerIdx(0)])
             );
         }
         assert_partial_strat_moves!($move_map; $($rest)*);
@@ -113,7 +111,7 @@ macro_rules! assert_partial_strat_moves {
         {
             assert!($move_map.get(&$state).is_none(),
                 concat!("Expected move in ", stringify!($state), " ({}) to be None, but move was {:?}"),
-                &$state, &$move_map.get(&$state).map(|pm| &pm[0])
+                &$state, &$move_map.get(&$state).map(|pm| &pm[PlayerIdx(0)])
             );
         }
         assert_partial_strat_moves!($move_map; $($rest)*);
@@ -147,11 +145,11 @@ macro_rules! assert_partial_strat_moves {
 macro_rules! strat_synthesis_test {
     ($game:expr, $phi:expr, $($rest:tt)*) => {
         let errors = ErrorLog::new();
-        let ast = parse_lcgs($game).unwrap();
-        let game = IntermediateLcgs::create(ast).unwrap();
+        let ast = parse_lcgs($game, &errors).unwrap();
+        let game = IntermediateLcgs::create(ast, &errors).unwrap();
         let phi = parse_atl($phi, &errors)
-            .and_then(|expr| convert_expr_to_phi(&expr, &game, &errors))
-            .ok_or_else(|| format!("{}", errors.to_string($phi)))
+            .and_then(|expr| convert_expr_to_phi(expr, &game, &errors))
+            .or_else(|_| Err(format!("{}", errors.to_string($phi))))
             .unwrap();
         let v0 = AtlVertex::Full {
             state: game.initial_state_index(),
@@ -193,7 +191,7 @@ macro_rules! strat_synthesis_test {
             move_to_pick,
         }) = strat else { unreachable!() };
 
-        assert_eq!(players.as_slice(), [0]);
+        assert_eq!(players.as_slice(), [PlayerIdx(0)]);
         assert_partial_strat_moves!(move_to_pick; $($moves)*);
     };
     (@@ $v0:expr, $edg:expr, $ass:expr, NoStrategyExist) => {

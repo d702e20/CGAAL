@@ -1,3 +1,4 @@
+use cgaal_engine::game_structure::{PropIdx, INVALID_IDX};
 use cgaal_engine::parsing::ast::*;
 use cgaal_engine::parsing::errors::ErrorLog;
 use cgaal_engine::parsing::lexer::*;
@@ -39,7 +40,10 @@ fn state_label_decl_001() {
         Decl::new(
             Span::new(0, 13),
             Ident::new(Span::new(6, 9), "foo".into()),
-            DeclKind::StateLabel(Expr::new(Span::new(12, 13), ExprKind::Num(1),).into())
+            DeclKind::StateLabel(
+                PropIdx(INVALID_IDX),
+                Expr::new(Span::new(12, 13), ExprKind::Num(1),)
+            )
         )
     );
 }
@@ -182,7 +186,10 @@ fn template_decl_002() {
                 Decl::new(
                     Span::new(13, 26),
                     Ident::new(Span::new(19, 22), "bar".into()),
-                    DeclKind::StateLabel(Expr::new(Span::new(25, 26), ExprKind::Num(1),).into())
+                    DeclKind::StateLabel(
+                        PropIdx(INVALID_IDX),
+                        Expr::new(Span::new(25, 26), ExprKind::Num(1),)
+                    )
                 ),
                 Decl::new(
                     Span::new(28, 35),

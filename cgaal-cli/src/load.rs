@@ -1,13 +1,12 @@
-use cgaal_engine::atl::convert::convert_expr_to_phi;
 use cgaal_engine::atl::Phi;
 use std::fs::File;
 use std::io::Read;
 
-use cgaal_engine::game_structure::lcgs::ir::intermediate::IntermediateLcgs;
-use cgaal_engine::game_structure::lcgs::parse::parse_lcgs;
+use cgaal_engine::game_structure::lcgs::convert_expr_to_phi;
+use cgaal_engine::game_structure::lcgs::intermediate::IntermediateLcgs;
 use cgaal_engine::game_structure::EagerGameStructure;
 use cgaal_engine::parsing::errors::ErrorLog;
-use cgaal_engine::parsing::parse_atl;
+use cgaal_engine::parsing::{parse_atl, parse_lcgs};
 
 use crate::options::{FormulaFormat, ModelFormat};
 
@@ -56,11 +55,16 @@ pub fn load_model(model_path: &str, model_format: Option<ModelFormat>) -> Result
             Ok(Model::Json(game_structure))
         }
         ModelFormat::Lcgs => {
-            let lcgs = parse_lcgs(&content)
-                .map_err(|err| format!("Failed to parse the LCGS program. {}", err))?;
+            let errors = ErrorLog::new();
+            let lcgs = parse_lcgs(&content, &errors).ok_or_else(|| {
+                format!(
+                    "Failed to parse the LCGS program.\n{}",
+                    errors.to_string(&content)
+                )
+            })?;
 
-            let game_structure = IntermediateLcgs::create(lcgs)
-                .map_err(|err| format!("Invalid LCGS program. {}", err))?;
+            let game_structure = IntermediateLcgs::create(lcgs, &errors)
+                .map_err(|_| format!("Invalid LCGS program.\n{}", errors.to_string(&content)))?;
 
             Ok(Model::Lcgs(game_structure))
         }
@@ -105,10 +109,10 @@ pub fn load_formula(
             let game =
                 game.ok_or_else(|| "Cannot load ATL formula without a game structure".to_string())?;
 
-            let mut errors = ErrorLog::new();
-            parse_atl(&content, &mut errors)
-                .and_then(|expr| convert_expr_to_phi(&expr, game, &mut errors))
-                .ok_or_else(|| {
+            let errors = ErrorLog::new();
+            parse_atl(&content, &errors)
+                .and_then(|expr| convert_expr_to_phi(expr, game, &errors))
+                .map_err(|_| {
                     format!(
                         "Invalid ATL formula provided:\n{}",
                         errors.to_string(&content)
