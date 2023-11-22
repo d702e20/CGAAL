@@ -1,0 +1,49 @@
+// Port of the Bouncing Ball example from UPPAAL
+// Premise is a ball which bounces vertically between a surface with random energy absorption,
+// and a piston which can hit the ball from above, while the height of the ball is of some height.
+// This example is interesting as the model exhibits both continuous and discrete changes which traditional controllers has problems with. 
+// 
+// P = piston, B = ball. 
+//
+// |P| 
+// | |
+// | |
+// |^|
+// |B|
+// ^^^
+
+const piston_minimum_h = 4;
+const time_limit = 10000;
+const G = 10;
+const piston_hit_v_delta = 4;
+
+player ball = t_ball[piston=piston];
+
+player piston = t_piston[ball=ball];
+
+// ball can no longer be hit and is thus dead
+label dead = ball.h < piston_minimum_h && ball.v <= 0; 
+
+label in_air = ball.h > 0;
+
+template t_ball
+  label hit = piston.hit;
+  // time in ticks
+  t : [1..time_limit] init 1;
+  t' = t + 1;
+
+  // velocity, might want to do random init [5..10], yet outdated UPPAAL model does not?
+  v : [-10..10] init 5;
+  v' = piston.hit ? -piston_hit_v_delta - v : v + G * t;
+
+  h : [0..10] init 0;
+  h' = h + v * t + G * t * t / 2;
+
+  [tick] 1;
+endtemplate
+
+
+template t_piston
+  [hit] ball.h >= 4;
+  [wait] 1;
+endtemplate
