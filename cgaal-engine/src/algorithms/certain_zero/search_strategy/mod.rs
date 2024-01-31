@@ -1,6 +1,7 @@
 use crate::edg::{Edge, NegationEdge, Vertex};
 
 pub mod bfs;
+pub mod composite;
 pub mod dependency_heuristic;
 pub mod dfs;
 pub mod instability_heuristic_search;

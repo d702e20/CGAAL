@@ -1,6 +1,7 @@
 use crate::options::{
     CliOptions, FormulaFormat, ModelFormat, SearchStrategyOption, SubcommandOption,
 };
+use cgaal_engine::algorithms::certain_zero::search_strategy::composite::CompositeSearchStrategyOption;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use git_version::git_version;
 
@@ -146,6 +147,18 @@ fn parse_search_strategy_arg(args: &ArgMatches) -> Result<SearchStrategyOption, 
         Some("lps") => Ok(SearchStrategyOption::Lps),
         Some("ihs") => Ok(SearchStrategyOption::Ihs),
         Some("lrs") => Ok(SearchStrategyOption::Lrs),
+        Some("mix") => Ok(SearchStrategyOption::Mix),
+        Some(multiple) if multiple.contains(",") => Ok(SearchStrategyOption::Compo(multiple.split(",").map(|ss| match ss {
+            "bfs" => Ok(CompositeSearchStrategyOption::Bfs),
+            "dfs" => Ok(CompositeSearchStrategyOption::Dfs),
+            "rdfs" => Ok(CompositeSearchStrategyOption::Rdfs),
+            "dhs" => Ok(CompositeSearchStrategyOption::Dhs),
+            "los" => Ok(CompositeSearchStrategyOption::Los),
+            "lps" => Ok(CompositeSearchStrategyOption::Lps),
+            "ihs" => Ok(CompositeSearchStrategyOption::Ihs),
+            "lrs" => Ok(CompositeSearchStrategyOption::Lrs),
+            other => Err(format!("Unknown search strategy '{other}' in composite strategy. Valid search strategies are bfs, dfs, rdfs, lps, los, dhs, ihs, lrs.")),
+        }).collect::<Result<_, _>>()?)),
         Some(other) => Err(format!("Unknown search strategy '{}'. Valid search strategies are bfs, dfs, rdfs, lps, los, dhs, ihs, lrs  [default is bfs]", other)),
         // Default value
         None => Ok(SearchStrategyOption::Bfs)
@@ -238,7 +251,8 @@ impl CommonArgs for App<'_, '_> {
             Arg::with_name("search_strategy")
                 .short("s")
                 .long("search-strategy")
-                .help("The search strategy used {{bfs, dfs, rdfs, los, lps, dhs, ihs, lrs}}"),
+                .takes_value(true)
+                .help("The search strategy used {{bfs, dfs, rdfs, los, lps, dhs, ihs, lrs, mix}}. Select multiple with comma separation."),
         )
         .arg(
             Arg::with_name("no_prioritised_back_propagation")

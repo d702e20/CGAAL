@@ -1,3 +1,5 @@
+use cgaal_engine::algorithms::certain_zero::search_strategy::composite::CompositeSearchStrategyOption;
+
 /// The subcommands available
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 pub enum SubcommandOption {
@@ -24,7 +26,7 @@ pub enum ModelFormat {
 }
 
 /// Valid search strategies options
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub enum SearchStrategyOption {
     /// Breadth-first search
     #[default]
@@ -43,6 +45,10 @@ pub enum SearchStrategyOption {
     Dhs,
     /// Instability heuristic search
     Ihs,
+    /// Different search strategy for each worker
+    Mix,
+    /// Composite search strategy
+    Compo(Vec<CompositeSearchStrategyOption>),
 }
 
 /// The options that can be passed to the CLI
