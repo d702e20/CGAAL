@@ -93,7 +93,7 @@ impl CompositeSearchStrategyBuilder {
         strategies: Vec<CompositeSearchStrategyOption>,
     ) -> CompositeSearchStrategyBuilder {
         assert!(
-            strategies.len() > 0,
+            !strategies.is_empty(),
             "Composite search strategy must have at least one component search strategy"
         );
         CompositeSearchStrategyBuilder {
@@ -131,13 +131,16 @@ impl SearchStrategyBuilder<AtlVertex, CompositeSearchStrategyInstance>
         };
         let mut i = self.index.borrow_mut();
         *i = (*i + 1) % self.strategies.len();
-        return ss;
+        ss
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::algorithms::certain_zero::search_strategy::composite::{CompositeSearchStrategyBuilder, CompositeSearchStrategyInstance, CompositeSearchStrategyOption};
+    use crate::algorithms::certain_zero::search_strategy::composite::{
+        CompositeSearchStrategyBuilder, CompositeSearchStrategyInstance,
+        CompositeSearchStrategyOption,
+    };
     use crate::algorithms::certain_zero::search_strategy::SearchStrategyBuilder;
     use crate::atl::Phi;
     use crate::edg::atledg::vertex::AtlVertex;
@@ -152,22 +155,55 @@ mod test {
         let errors = ErrorLog::new();
         let lcgs = IntermediateLcgs::create(LcgsRoot::new(Span::empty(), vec![]), &errors).unwrap();
 
-        let builder = CompositeSearchStrategyBuilder::new(lcgs, vec![
-            CompositeSearchStrategyOption::Bfs,
-            CompositeSearchStrategyOption::Dfs,
-            CompositeSearchStrategyOption::Dhs,
-        ]);
+        let builder = CompositeSearchStrategyBuilder::new(
+            lcgs,
+            vec![
+                CompositeSearchStrategyOption::Bfs,
+                CompositeSearchStrategyOption::Dfs,
+                CompositeSearchStrategyOption::Dhs,
+            ],
+        );
 
-        let root = AtlVertex::Full { state: StateIdx(0), formula: Phi::True.into() };
+        let root = AtlVertex::Full {
+            state: StateIdx(0),
+            formula: Phi::True.into(),
+        };
 
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Bfs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Dfs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Dhs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Bfs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Dfs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Dhs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Bfs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Dfs(_)));
-        assert!(matches!(builder.build(&root), CompositeSearchStrategyInstance::Dhs(_)));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Bfs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Dfs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Dhs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Bfs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Dfs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Dhs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Bfs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Dfs(_)
+        ));
+        assert!(matches!(
+            builder.build(&root),
+            CompositeSearchStrategyInstance::Dhs(_)
+        ));
     }
 }
