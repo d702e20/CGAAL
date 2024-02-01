@@ -1,6 +1,7 @@
 use crate::load::Model;
 use crate::options::{CliOptions, SearchStrategyOption};
 use cgaal_engine::algorithms::certain_zero::search_strategy::bfs::BreadthFirstSearchBuilder;
+use cgaal_engine::algorithms::certain_zero::search_strategy::composite::CompositeSearchStrategyBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dependency_heuristic::DependencyHeuristicSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::dfs::DepthFirstSearchBuilder;
 use cgaal_engine::algorithms::certain_zero::search_strategy::instability_heuristic_search::InstabilityHeuristicSearchBuilder;
@@ -175,6 +176,30 @@ pub fn solver(model: Model, formula: Phi, options: CliOptions) -> Result<(), Str
                         v0,
                         options.threads,
                         LinearRepresentativeSearchBuilder::new(copy),
+                        options.prioritise_back_propagation,
+                        options.witness_strategy_path.as_deref(),
+                        options.quiet,
+                    )
+                }
+                SearchStrategyOption::Mix => {
+                    let copy = graph.game_structure.clone();
+                    solver_inner(
+                        graph,
+                        v0,
+                        options.threads,
+                        CompositeSearchStrategyBuilder::one_of_each(copy),
+                        options.prioritise_back_propagation,
+                        options.witness_strategy_path.as_deref(),
+                        options.quiet,
+                    )
+                }
+                SearchStrategyOption::Compo(strategies) => {
+                    let copy = graph.game_structure.clone();
+                    solver_inner(
+                        graph,
+                        v0,
+                        options.threads,
+                        CompositeSearchStrategyBuilder::new(copy, strategies),
                         options.prioritise_back_propagation,
                         options.witness_strategy_path.as_deref(),
                         options.quiet,
