@@ -148,7 +148,7 @@ fn parse_search_strategy_arg(args: &ArgMatches) -> Result<SearchStrategyOption, 
         Some("ihs") => Ok(SearchStrategyOption::Ihs),
         Some("lrs") => Ok(SearchStrategyOption::Lrs),
         Some("mix") => Ok(SearchStrategyOption::Mix),
-        Some(multiple) if multiple.contains(",") => Ok(SearchStrategyOption::Compo(multiple.split(",").map(|ss| match ss {
+        Some(multiple) if multiple.contains(',') => Ok(SearchStrategyOption::Compo(multiple.split(',').map(|ss| match ss {
             "bfs" => Ok(CompositeSearchStrategyOption::Bfs),
             "dfs" => Ok(CompositeSearchStrategyOption::Dfs),
             "rdfs" => Ok(CompositeSearchStrategyOption::Rdfs),
